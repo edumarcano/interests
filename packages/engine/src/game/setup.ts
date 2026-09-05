@@ -8,7 +8,7 @@ import {
   type ProfileId,
 } from "@finance-game/rules";
 import type { PlayerId } from "@finance-game/shared";
-import { drawUint32, type RandomState } from "../random/prng";
+import { drawBoundedInt, type RandomState } from "../random/prng";
 
 export type ProfileCombination = readonly [
   ProfileId,
@@ -182,10 +182,10 @@ export const FEASIBLE_PROFILE_COMBINATIONS: readonly ProfileCombination[] =
 
 /**
  * Perform deterministic setup generation for 4 players:
- * 1. Randomly select 4 unique starting profiles from feasible combinations.
- * 2. Assign the 4 profiles to player seats using deterministic Fisher-Yates shuffle.
- * 3. Generate candidate objective allocations, score them, and filter to the high-quality subset (score === maxScore).
- * 4. Randomly choose 1 deal from the high-quality subset using engine PRNG.
+ * 1. Randomly select 4 unique starting profiles from feasible combinations using unbiased bounded draw.
+ * 2. Assign the 4 profiles to player seats using deterministic Fisher-Yates shuffle with unbiased bounded draw.
+ * 3. Generate candidate objective allocations, score them, and filter to the high-quality subset (score >= maxScore - 1).
+ * 4. Randomly choose 1 deal from the high-quality subset using unbiased bounded draw.
  */
 export function generateDeterministicSetup(
   playerOrder: readonly PlayerId[],
@@ -199,21 +199,23 @@ export function generateDeterministicSetup(
 
   let currentRandom = initialRandom;
 
-  // 1. Select 1 of the 69 feasible 4-profile combinations
-  const comboDraw = drawUint32(currentRandom);
+  // 1. Select 1 of the 69 feasible 4-profile combinations via unbiased rejection sampling
+  const comboDraw = drawBoundedInt(
+    currentRandom,
+    FEASIBLE_PROFILE_COMBINATIONS.length,
+  );
   currentRandom = comboDraw.nextState;
-  const comboIndex = comboDraw.value % FEASIBLE_PROFILE_COMBINATIONS.length;
-  const selectedCombo = FEASIBLE_PROFILE_COMBINATIONS[comboIndex];
+  const selectedCombo = FEASIBLE_PROFILE_COMBINATIONS[comboDraw.value];
   if (selectedCombo === undefined) {
     throw new Error("Setup failed: unable to select profile combination");
   }
 
-  // 2. Deterministically shuffle profile assignments across the 4 player seats
+  // 2. Deterministically shuffle profile assignments across the 4 player seats via Fisher-Yates
   const profilesToAssign: ProfileId[] = [...selectedCombo];
   for (let i = profilesToAssign.length - 1; i > 0; i -= 1) {
-    const shuffleDraw = drawUint32(currentRandom);
+    const shuffleDraw = drawBoundedInt(currentRandom, i + 1);
     currentRandom = shuffleDraw.nextState;
-    const j = shuffleDraw.value % (i + 1);
+    const j = shuffleDraw.value;
     const currentProfile = profilesToAssign[i];
     const targetProfile = profilesToAssign[j];
     if (currentProfile === undefined || targetProfile === undefined) {
@@ -242,7 +244,7 @@ export function generateDeterministicSetup(
     ProfileId,
   ] = [p0, p1, p2, p3];
 
-  // 3. Generate candidate deals and identify the high-quality subset
+  // 3. Generate candidate deals and identify the high-quality subset (deal.score >= maxScore - 1)
   const validDeals = generateValidDeals(assignedProfilesTuple);
   if (validDeals.length === 0) {
     throw new Error(
@@ -258,14 +260,13 @@ export function generateDeterministicSetup(
   }
 
   const highQualitySubset = validDeals.filter(
-    (deal) => deal.score === maxScore,
+    (deal) => deal.score >= maxScore - 1,
   );
 
-  // 4. Randomly choose one deal from the high-quality subset
-  const dealDraw = drawUint32(currentRandom);
+  // 4. Randomly choose one deal from the high-quality subset via unbiased rejection sampling
+  const dealDraw = drawBoundedInt(currentRandom, highQualitySubset.length);
   currentRandom = dealDraw.nextState;
-  const dealIndex = dealDraw.value % highQualitySubset.length;
-  const chosenDeal = highQualitySubset[dealIndex];
+  const chosenDeal = highQualitySubset[dealDraw.value];
   if (chosenDeal === undefined) {
     throw new Error(
       "Setup failed: unable to select deal from high-quality subset",

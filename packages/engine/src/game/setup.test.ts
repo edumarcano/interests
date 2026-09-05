@@ -19,6 +19,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { assertGameState } from "../invariants/assertGameState";
 import type { GameState } from "../model/gameState";
+import { createRandomState, drawBoundedInt } from "../random/prng";
 import { applyAction } from "./actions";
 import { createGame } from "./createGame";
 import {
@@ -236,8 +237,10 @@ describe("Deterministic Objective Deal", () => {
     }
   });
 
-  it("guarantees valid pairs and scoring preferences across generated games", () => {
-    for (let s = 1; s <= 20; s += 1) {
+  it("guarantees chosen deals are within the high-quality subset (score >= maxScore - 1)", () => {
+    const scoresSeen = new Set<number>();
+
+    for (let s = 1; s <= 50; s += 1) {
       const state = createGame({
         gameId: `test-deal-${s}`,
         seed: `deal-seed-${s}`,
@@ -252,8 +255,16 @@ describe("Deterministic Objective Deal", () => {
         const [o1, o2] = player.offeredObjectiveIds;
         totalScore += scoreObjectivePair(player.profileId, o1, o2);
       }
-      expect(totalScore).toBe(8);
+
+      // Max score for all feasible combinations is 8, so high-quality subset is score >= 7
+      expect(totalScore).toBeGreaterThanOrEqual(7);
+      expect(totalScore).toBeLessThanOrEqual(8);
+      scoresSeen.add(totalScore);
     }
+
+    // Both top score 8 and near-top score 7 should appear across a 50-game sample
+    expect(scoresSeen.has(7)).toBe(true);
+    expect(scoresSeen.has(8)).toBe(true);
   });
 });
 
@@ -615,5 +626,33 @@ describe("assertGameState Invariant Coverage", () => {
     expect(() => assertGameState(mutated as unknown as GameState)).toThrow(
       /ready-for-first-round requires all 4 players to have selected/,
     );
+  });
+});
+
+describe("Unbiased Bounded Integer PRNG Helper", () => {
+  it("draws values strictly within [0, bound - 1] without modulo bias", () => {
+    let random = createRandomState("rejection-sampling-seed");
+    for (let bound = 1; bound <= 10; bound += 1) {
+      const draw = drawBoundedInt(random, bound);
+      expect(draw.value).toBeGreaterThanOrEqual(0);
+      expect(draw.value).toBeLessThan(bound);
+      random = draw.nextState;
+    }
+  });
+
+  it("produces deterministic repeatable sequences for bounded draws", () => {
+    const r1 = createRandomState("repeatable-bound");
+    const r2 = createRandomState("repeatable-bound");
+
+    let cur1 = r1;
+    let cur2 = r2;
+    for (let i = 0; i < 20; i += 1) {
+      const d1 = drawBoundedInt(cur1, 7);
+      const d2 = drawBoundedInt(cur2, 7);
+      expect(d1.value).toBe(d2.value);
+      expect(d1.nextState).toEqual(d2.nextState);
+      cur1 = d1.nextState;
+      cur2 = d2.nextState;
+    }
   });
 });

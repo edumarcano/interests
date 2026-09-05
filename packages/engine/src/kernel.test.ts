@@ -5,7 +5,7 @@ import { basisPoints, cents } from "./finance/money";
 import { applyAction } from "./game/actions";
 import { createGame } from "./game/createGame";
 import { nextDeterministicId } from "./game/deterministicIds";
-import { createRandomState, drawUint32 } from "./random/prng";
+import { createRandomState, drawBoundedInt, drawUint32 } from "./random/prng";
 
 const players = [
   asPlayerId("p1"),
@@ -28,6 +28,43 @@ describe("deterministic kernel", () => {
     const first = drawUint32(createRandomState("same-seed"));
     const second = drawUint32(createRandomState("same-seed"));
     expect(first).toEqual(second);
+  });
+
+  it("draws unbiased bounded integers deterministically", () => {
+    const random = createRandomState("bounded-seed");
+    const draw1 = drawBoundedInt(random, 10);
+    const draw2 = drawBoundedInt(random, 10);
+    expect(draw1).toEqual(draw2);
+    expect(draw1.value).toBeGreaterThanOrEqual(0);
+    expect(draw1.value).toBeLessThan(10);
+
+    // Test rejection sampling bounds validation
+    expect(() => drawBoundedInt(random, 0)).toThrow(RangeError);
+    expect(() => drawBoundedInt(random, -5)).toThrow(RangeError);
+    expect(() => drawBoundedInt(random, 1.5)).toThrow(RangeError);
+    expect(() => drawBoundedInt(random, 0x1_0000_0001)).toThrow(RangeError);
+
+    // Test bound === 1
+    const unitDraw = drawBoundedInt(random, 1);
+    expect(unitDraw.value).toBe(0);
+
+    // Deterministic distribution across buckets
+    let current = createRandomState("distribution-seed");
+    const counts = [0, 0, 0, 0, 0];
+    for (let i = 0; i < 5000; i += 1) {
+      const d = drawBoundedInt(current, 5);
+      const bucket = d.value;
+      const prev = counts[bucket];
+      if (prev !== undefined) {
+        counts[bucket] = prev + 1;
+      }
+      current = d.nextState;
+    }
+    // Each bucket should get roughly 1000 draws (between 850 and 1150)
+    for (const count of counts) {
+      expect(count).toBeGreaterThan(850);
+      expect(count).toBeLessThan(1150);
+    }
   });
 
   it("does not mutate state or random state when an action is rejected", () => {
