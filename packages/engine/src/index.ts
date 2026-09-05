@@ -1,6 +1,14 @@
 import { RULES_SHARED_VERSION, RULES_VERSION } from "@finance-game/rules";
 import { SHARED_VERSION } from "@finance-game/shared";
 
+export * from "./finance/money";
+export * from "./game/actions";
+export * from "./game/createGame";
+export * from "./game/deterministicIds";
+export * from "./invariants/assertGameState";
+export * from "./model/gameState";
+export * from "./random/prng";
+
 export const ENGINE_VERSION = "0.0.1";
 
 export const WORKSPACE_COMPATIBILITY = {
