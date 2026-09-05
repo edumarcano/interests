@@ -1,8 +1,7 @@
 import { asGameId, type PlayerId } from "@finance-game/shared";
-
+import { assertGameState } from "../invariants/assertGameState";
 import type { GameState, PlayerState } from "../model/gameState";
 import { createRandomState } from "../random/prng";
-import { assertGameState } from "../invariants/assertGameState";
 
 export interface CreateGameInput {
   readonly gameId: string;
@@ -12,7 +11,10 @@ export interface CreateGameInput {
 
 export function createGame(input: CreateGameInput): GameState {
   const players = Object.fromEntries(
-    input.playerIds.map((id) => [id, { id, ready: false } satisfies PlayerState]),
+    input.playerIds.map((id) => [
+      id,
+      { id, ready: false } satisfies PlayerState,
+    ]),
   ) as Record<PlayerId, PlayerState>;
 
   const state: GameState = {
