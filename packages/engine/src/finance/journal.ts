@@ -1,3 +1,5 @@
+import type { LoanId } from "@finance-game/shared";
+
 import type { CashAccount } from "./account";
 import type { Cents } from "./money";
 
@@ -11,6 +13,11 @@ export function asJournalEntryId(value: string): JournalEntryId {
   return value as JournalEntryId;
 }
 
+export interface LoanPaymentBreakdown {
+  readonly principalCents: Cents;
+  readonly interestCents: Cents;
+}
+
 export interface JournalEntry {
   readonly id: JournalEntryId;
   readonly source: CashAccount;
@@ -18,5 +25,6 @@ export interface JournalEntry {
   readonly amountCents: Cents;
   readonly reason: string;
   readonly quarter: number;
-  readonly relatedEntityId?: string;
+  readonly relatedLoanId?: LoanId;
+  readonly loanPayment?: LoanPaymentBreakdown;
 }

@@ -964,6 +964,34 @@ V1 supports principal, fixed annual interest rate, a 2-8 quarter term, quarterly
 
 The loan system must separate principal from interest: repayment of principal is not financing profit. A loan creates cash and a matching liability for the borrower and a receivable for the lender; it does not create net wealth by itself. The game enforces the contract rules, but insufficient cash requires an explicit default/recovery rule, not invented funds. Collateral priority, forced recovery, and insolvency remain open implementation decisions.
 
+### 17.4.1 Approved Player-Loan Calculation Policy [PROTOTYPE]
+
+For V1 fixed-rate player-to-player loans:
+
+1. **Principal:** Positive safe integer number of cents.
+2. **Interest rate:** Fixed, non-negative nominal annual APR represented in integer basis points.
+3. **Term:** Integer from 2 through 8 quarters inclusive (`PLAYER_LOAN_MIN_TERM_QUARTERS = 2`, `PLAYER_LOAN_MAX_TERM_QUARTERS = 8`).
+4. **Periodic rate:** `quarterlyRate = annualRate / 4` (`annualRateBps / 40000`). There is no additional monthly or intra-quarter compounding.
+5. **Regular payment:** For positive-rate loans, calculated using the standard fully amortizing annuity formula:
+   $$\text{payment} = \frac{P \cdot r}{1 - (1 + r)^{-n}}$$
+   where $P$ is principal, $r$ is quarterly periodic rate, and $n$ is term in quarters.
+6. **Intermediate precision:** Financial calculations use an isolated `decimal.js` instance configured for 40 significant digits and `ROUND_HALF_UP`. No `Decimal` instance enters canonical `GameState` or persisted `JournalEntry` data.
+7. **Payment rounding:** Regular quarterly payment is rounded once to safe integer cents (`ROUND_HALF_UP`).
+8. **Installment breakdown:**
+   - Interest = $\text{opening principal} \times \text{quarterly rate}$, rounded `ROUND_HALF_UP` to cents.
+   - Principal component = $\text{payment} - \text{interest}$.
+   - Closing principal = $\text{opening principal} - \text{principal component}$.
+9. **Final installment adjustment:**
+   - Final principal component = all remaining opening principal.
+   - Final payment = $\text{remaining principal} + \text{final rounded interest}$.
+   - Final closing principal = 0 (leaving zero fractional-cent residue).
+10. **Zero-interest loans:** Total interest is exactly zero. Principal is divided as evenly as possible over the term, with remainder cents distributed to earliest installments in deterministic order. Zero-rate terms that would create a zero-value installment (such as $\text{principalCents} < \text{termQuarters}$) are unsupported and rejected. Final principal is exactly zero.
+11. **Non-reducing principal rejection:** If cent rounding would cause a non-final installment to fail to reduce principal (or if zero-interest terms would create a zero-value installment), the loan terms are rejected as unsupported rather than altering formulas or terms.
+12. **Prepayment:** No prepayment or early payoff mechanic is supported in this slice.
+13. **Insufficient cash:** Insufficient borrower cash does NOT create default, partial payment, emergency funding, or negative cash balance; the payment operation rejects unchanged.
+
+> **Decision Scope:** This policy resolves only the fixed player-loan calculation subset of A2. A2 remains **OPEN** for opening personal-debt schedules, the Property Starter mortgage, opening business debt, bank-loan period conventions, variable-rate resets, and refinancing rules. A5 remains **OPEN** for default, recovery, collateral, lien priority, and insolvency.
+
 ## 17.5 Calculation and ledger guardrails
 
 All cash, debt, and ownership changes must reconcile. An amortizing schedule must reduce principal consistently with its payment and interest calculation. APR convention, rounding, final-payment adjustment, zero-interest treatment, term handling, and fixed/variable resets must be explicit before the numerical engine is treated as complete. Refinancing must extinguish or modify the previous loan rather than duplicate its debt.
@@ -1023,7 +1051,7 @@ The core design is established, but the following rules must be resolved or veri
 | **ID** | **Decision to settle**                                                                                                                                                   | **Why it matters**                                                                                                |
 |--------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
 | A1     | Specify who receives this quarter's income and expenses when an asset, job, loan, or ownership share changes mid-round. Define market/dividend and cash-interest timing. | Prevents double payment, late-round capture of unearned income, and first/last-spotlight advantage.               |
-| A2     | Specify property amortization, personal-loan APRs/terms, opening business loans, rate resets, interest conventions, and rounding.                                        | Current income/surplus fixtures imply payments but do not define complete debt schedules.                         |
+| A2     | Specify property amortization, personal-loan APRs/terms, opening business loans, rate resets, interest conventions, and rounding.                                        | Current income/surplus fixtures imply payments but do not define complete debt schedules. The fixed player-loan calculation subset is resolved as prototype in Section 17.4.1; opening debts, mortgages, business debt, bank conventions, and variable resets remain OPEN. |
 | A3     | Resolve the Property Starter's existing 77.27% LTV and 5.5% mortgage versus 75% new-loan normal underwriting and higher opening quotes.                                  | Choose explicit legacy-loan treatment or adjust the fixture; do not silently bypass underwriting.                 |
 | A4     | Define retained earnings, owner distributions, business normalization, practice labor income, and whether entity cash is included in valuation.                          | Prevents double counting cash, income, and company equity; reproduces the \$68k/\$96k/\$45k owner-income targets. |
 | A5     | Specify equity issuance versus secondary sale, valuation/cost basis, fees, ownership consent, default, collateral recovery, and debt priority.                           | Contracts must have defined consequences when funds are insufficient; a promise is not funding.                   |
