@@ -16,7 +16,11 @@ const players = [
 
 describe("deterministic kernel", () => {
   it("creates identical initial state for identical inputs", () => {
-    const input = { gameId: "game-1", seed: "family-night", playerIds: players };
+    const input = {
+      gameId: "game-1",
+      seed: "family-night",
+      playerIds: players,
+    };
     expect(createGame(input)).toEqual(createGame(input));
   });
 
@@ -27,16 +31,28 @@ describe("deterministic kernel", () => {
   });
 
   it("does not mutate state or random state when an action is rejected", () => {
-    const state = createGame({ gameId: "game-1", seed: "seed", playerIds: players });
+    const state = createGame({
+      gameId: "game-1",
+      seed: "seed",
+      playerIds: players,
+    });
     const snapshot = structuredClone(state);
-    const result = applyAction(state, { type: "SET_PLAYER_READY", playerId: "missing", ready: true });
+    const result = applyAction(state, {
+      type: "SET_PLAYER_READY",
+      playerId: "missing",
+      ready: true,
+    });
     expect(result.ok).toBe(false);
     expect(result.state).toBe(state);
     expect(state).toEqual(snapshot);
   });
 
   it("returns a new state for an accepted action without consuming randomness", () => {
-    const state = createGame({ gameId: "game-1", seed: "seed", playerIds: players });
+    const state = createGame({
+      gameId: "game-1",
+      seed: "seed",
+      playerIds: players,
+    });
     const firstPlayer = players[0];
     const result = applyAction(state, {
       type: "SET_PLAYER_READY",
@@ -52,7 +68,11 @@ describe("deterministic kernel", () => {
   });
 
   it("generates deterministic IDs from explicit counters", () => {
-    const state = createGame({ gameId: "game-1", seed: "seed", playerIds: players });
+    const state = createGame({
+      gameId: "game-1",
+      seed: "seed",
+      playerIds: players,
+    });
     const first = nextDeterministicId("asset", state.counters);
     const second = nextDeterministicId("asset", state.counters);
     expect(first).toEqual(second);
