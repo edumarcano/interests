@@ -4,7 +4,6 @@ import { SHARED_VERSION } from "@finance-game/shared";
 export * from "./finance/account";
 export * from "./finance/journal";
 export * from "./finance/money";
-export * from "./finance/posting";
 export * from "./game/actions";
 export * from "./game/createGame";
 export * from "./game/deterministicIds";

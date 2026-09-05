@@ -33,8 +33,32 @@ export function nextDeterministicId(
 export function nextDeterministicId(
   kind: CounterKind,
   counters: DeterministicCounters,
+): {
+  id:
+    | ReturnType<typeof asAssetId>
+    | ReturnType<typeof asContractId>
+    | ReturnType<typeof asLoanId>
+    | ReturnType<typeof asOpportunityId>
+    | ReturnType<typeof asJournalEntryId>;
+  counters: DeterministicCounters;
+};
+export function nextDeterministicId(
+  kind: CounterKind,
+  counters: DeterministicCounters,
 ) {
-  const nextValue = counters[kind] + 1;
+  const currentValue = counters[kind];
+  if (!Number.isSafeInteger(currentValue) || currentValue < 0) {
+    throw new RangeError(
+      `Counter ${kind} must be a non-negative safe integer, got ${String(currentValue)}`,
+    );
+  }
+  if (currentValue >= Number.MAX_SAFE_INTEGER) {
+    throw new RangeError(
+      `Counter ${kind} has reached the maximum safe integer limit`,
+    );
+  }
+
+  const nextValue = currentValue + 1;
   const nextCounters = { ...counters, [kind]: nextValue };
   const rawId = `${kind}-${nextValue}`;
 

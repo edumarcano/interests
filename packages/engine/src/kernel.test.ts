@@ -132,6 +132,54 @@ describe("deterministic kernel", () => {
     expect(j1.counters.journal).toBe(1);
   });
 
+  it("rejects counter increment when counter is exhausted at MAX_SAFE_INTEGER", () => {
+    const kinds = [
+      "asset",
+      "contract",
+      "loan",
+      "opportunity",
+      "journal",
+    ] as const;
+    for (const kind of kinds) {
+      const exhaustedCounters = {
+        asset: 0,
+        contract: 0,
+        loan: 0,
+        opportunity: 0,
+        journal: 0,
+        [kind]: Number.MAX_SAFE_INTEGER,
+      };
+      expect(() => nextDeterministicId(kind, exhaustedCounters)).toThrow(
+        RangeError,
+      );
+      expect(() => nextDeterministicId(kind, exhaustedCounters)).toThrow(
+        /maximum safe integer limit/,
+      );
+    }
+  });
+
+  it("rejects counter increment for negative or non-integer counter values", () => {
+    const invalidCounters = {
+      asset: -1,
+      contract: 1.5,
+      loan: Number.NaN,
+      opportunity: 0,
+      journal: -5,
+    };
+    expect(() => nextDeterministicId("asset", invalidCounters)).toThrow(
+      RangeError,
+    );
+    expect(() => nextDeterministicId("contract", invalidCounters)).toThrow(
+      RangeError,
+    );
+    expect(() => nextDeterministicId("loan", invalidCounters)).toThrow(
+      RangeError,
+    );
+    expect(() => nextDeterministicId("journal", invalidCounters)).toThrow(
+      RangeError,
+    );
+  });
+
   it("rejects unsafe money and rate values", () => {
     expect(cents(12_345)).toBe(12_345);
     expect(basisPoints(625)).toBe(625);

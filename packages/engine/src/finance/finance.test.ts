@@ -454,4 +454,25 @@ describe("deterministic repeatability", () => {
     expect(res2.entry.id).toBe("journal-2");
     expect(res2.counters.journal).toBe(2);
   });
+
+  it("throws invariant RangeError when journal counter is exhausted at MAX_SAFE_INTEGER", () => {
+    const finance = createInitialFinance();
+    const exhaustedCounters: DeterministicCounters = {
+      asset: 0,
+      contract: 0,
+      loan: 0,
+      opportunity: 0,
+      journal: Number.MAX_SAFE_INTEGER,
+    };
+
+    expect(() =>
+      postCash(finance, exhaustedCounters, {
+        source: playerCashAccount(aliceId),
+        destination: playerCashAccount(bobId),
+        amountCents: 10_000,
+        reason: "transfer",
+        quarter: 1,
+      }),
+    ).toThrow(RangeError);
+  });
 });
