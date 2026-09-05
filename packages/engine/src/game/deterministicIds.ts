@@ -1,10 +1,18 @@
-import { asAssetId, asContractId, asLoanId, asOpportunityId } from "@finance-game/shared";
+import {
+  asAssetId,
+  asContractId,
+  asLoanId,
+  asOpportunityId,
+} from "@finance-game/shared";
 
 import type { DeterministicCounters } from "../model/gameState";
 
 export type CounterKind = keyof DeterministicCounters;
 
-export function nextDeterministicId(kind: CounterKind, counters: DeterministicCounters) {
+export function nextDeterministicId(
+  kind: CounterKind,
+  counters: DeterministicCounters,
+) {
   const nextValue = counters[kind] + 1;
   const nextCounters = { ...counters, [kind]: nextValue };
   const rawId = `${kind}-${nextValue}`;
