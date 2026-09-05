@@ -3,9 +3,14 @@ import { RNG_ALGORITHM } from "../random/prng";
 
 export function assertGameState(state: GameState): void {
   if (!Number.isSafeInteger(state.revision) || state.revision < 0) {
-    throw new Error("Game invariant failed: revision must be a non-negative safe integer");
+    throw new Error(
+      "Game invariant failed: revision must be a non-negative safe integer",
+    );
   }
-  if (state.random.algorithm !== RNG_ALGORITHM || !Number.isInteger(state.random.state)) {
+  if (
+    state.random.algorithm !== RNG_ALGORITHM ||
+    !Number.isInteger(state.random.state)
+  ) {
     throw new Error("Game invariant failed: random state is invalid");
   }
   if (new Set(state.playerOrder).size !== state.playerOrder.length) {
@@ -18,7 +23,9 @@ export function assertGameState(state: GameState): void {
   }
   for (const counter of Object.values(state.counters)) {
     if (!Number.isSafeInteger(counter) || counter < 0) {
-      throw new Error("Game invariant failed: deterministic counters must be non-negative safe integers");
+      throw new Error(
+        "Game invariant failed: deterministic counters must be non-negative safe integers",
+      );
     }
   }
 }
