@@ -1,7 +1,10 @@
 {
-    "name": "@finance-game/simulation",
-    "version": "0.0.1",
-    "private": true,
-    "type": "module",
-    "main": "./src/index.ts"
+  "name": "@finance-game/simulation",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@finance-game/engine": "workspace:*"
+  }
 }

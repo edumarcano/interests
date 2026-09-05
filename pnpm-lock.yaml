@@ -119,6 +119,29 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(vite@8.2.2)
 
+  packages/engine:
+    dependencies:
+      '@finance-game/rules':
+        specifier: workspace:*
+        version: link:../rules
+      '@finance-game/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/rules:
+    dependencies:
+      '@finance-game/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/shared: {}
+
+  packages/simulation:
+    dependencies:
+      '@finance-game/engine':
+        specifier: workspace:*
+        version: link:../engine
+
 packages:
 
   '@biomejs/biome@2.5.12':
