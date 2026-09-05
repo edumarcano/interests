@@ -1,5 +1,6 @@
 import type { ObjectiveId } from "@finance-game/rules";
 import type { PlayerId } from "@finance-game/shared";
+import type { JournalEntry } from "../finance/journal";
 import { assertGameState } from "../invariants/assertGameState";
 import type { GamePhase, GameState, PlayerState } from "../model/gameState";
 
@@ -19,32 +20,42 @@ export type ActionErrorCode =
   | "OBJECTIVE_NOT_OFFERED";
 
 export type ActionResult =
-  | { readonly ok: true; readonly state: GameState }
+  | {
+      readonly ok: true;
+      readonly state: GameState;
+      readonly journalEntries: readonly JournalEntry[];
+    }
   | {
       readonly ok: false;
       readonly state: GameState;
       readonly code: ActionErrorCode;
+      readonly journalEntries: readonly JournalEntry[];
     };
 
 export function applyAction(state: GameState, action: unknown): ActionResult {
   if (!isChooseObjectiveAction(action)) {
-    return { ok: false, state, code: "INVALID_ACTION" };
+    return { ok: false, state, code: "INVALID_ACTION", journalEntries: [] };
   }
   if (state.phase !== "objective-choosing") {
-    return { ok: false, state, code: "WRONG_PHASE" };
+    return { ok: false, state, code: "WRONG_PHASE", journalEntries: [] };
   }
   const player = state.players[action.playerId];
   if (player === undefined) {
-    return { ok: false, state, code: "UNKNOWN_PLAYER" };
+    return { ok: false, state, code: "UNKNOWN_PLAYER", journalEntries: [] };
   }
   if (player.selectedObjectiveId !== null) {
-    return { ok: false, state, code: "ALREADY_CHOSEN" };
+    return { ok: false, state, code: "ALREADY_CHOSEN", journalEntries: [] };
   }
   if (
     action.objectiveId !== player.offeredObjectiveIds[0] &&
     action.objectiveId !== player.offeredObjectiveIds[1]
   ) {
-    return { ok: false, state, code: "OBJECTIVE_NOT_OFFERED" };
+    return {
+      ok: false,
+      state,
+      code: "OBJECTIVE_NOT_OFFERED",
+      journalEntries: [],
+    };
   }
 
   const updatedPlayer: PlayerState = {
@@ -73,7 +84,7 @@ export function applyAction(state: GameState, action: unknown): ActionResult {
   };
 
   assertGameState(nextState);
-  return { ok: true, state: nextState };
+  return { ok: true, state: nextState, journalEntries: [] };
 }
 
 function isChooseObjectiveAction(

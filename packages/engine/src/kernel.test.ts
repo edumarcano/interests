@@ -81,10 +81,11 @@ describe("deterministic kernel", () => {
     });
     expect(result.ok).toBe(false);
     expect(result.state).toBe(state);
+    expect(result.journalEntries).toEqual([]);
     expect(state).toEqual(snapshot);
   });
 
-  it("returns a new state for an accepted action without consuming randomness", () => {
+  it("returns a new state for an accepted action without consuming randomness or mutating finance", () => {
     const state = createGame({
       gameId: "game-1",
       seed: "seed",
@@ -108,6 +109,9 @@ describe("deterministic kernel", () => {
     );
     expect(result.state.random).toEqual(state.random);
     expect(result.state.revision).toBe(1);
+    expect(result.journalEntries).toEqual([]);
+    expect(result.state.finance).toBe(state.finance);
+    expect(result.state.counters.journal).toBe(0);
   });
 
   it("generates deterministic IDs from explicit counters", () => {
@@ -120,6 +124,60 @@ describe("deterministic kernel", () => {
     const second = nextDeterministicId("asset", state.counters);
     expect(first).toEqual(second);
     expect(first.id).toBe("asset-1");
+
+    const j1 = nextDeterministicId("journal", state.counters);
+    const j2 = nextDeterministicId("journal", state.counters);
+    expect(j1).toEqual(j2);
+    expect(j1.id).toBe("journal-1");
+    expect(j1.counters.journal).toBe(1);
+  });
+
+  it("rejects counter increment when counter is exhausted at MAX_SAFE_INTEGER", () => {
+    const kinds = [
+      "asset",
+      "contract",
+      "loan",
+      "opportunity",
+      "journal",
+    ] as const;
+    for (const kind of kinds) {
+      const exhaustedCounters = {
+        asset: 0,
+        contract: 0,
+        loan: 0,
+        opportunity: 0,
+        journal: 0,
+        [kind]: Number.MAX_SAFE_INTEGER,
+      };
+      expect(() => nextDeterministicId(kind, exhaustedCounters)).toThrow(
+        RangeError,
+      );
+      expect(() => nextDeterministicId(kind, exhaustedCounters)).toThrow(
+        /maximum safe integer limit/,
+      );
+    }
+  });
+
+  it("rejects counter increment for negative or non-integer counter values", () => {
+    const invalidCounters = {
+      asset: -1,
+      contract: 1.5,
+      loan: Number.NaN,
+      opportunity: 0,
+      journal: -5,
+    };
+    expect(() => nextDeterministicId("asset", invalidCounters)).toThrow(
+      RangeError,
+    );
+    expect(() => nextDeterministicId("contract", invalidCounters)).toThrow(
+      RangeError,
+    );
+    expect(() => nextDeterministicId("loan", invalidCounters)).toThrow(
+      RangeError,
+    );
+    expect(() => nextDeterministicId("journal", invalidCounters)).toThrow(
+      RangeError,
+    );
   });
 
   it("rejects unsafe money and rate values", () => {

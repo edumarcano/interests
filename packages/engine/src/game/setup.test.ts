@@ -24,6 +24,7 @@ import { applyAction } from "./actions";
 import { createGame } from "./createGame";
 import {
   FEASIBLE_PROFILE_COMBINATIONS,
+  generateDeterministicSetup,
   generateValidDeals,
   isProfileCombinationFeasible,
   type ProfileCombination,
@@ -626,6 +627,172 @@ describe("assertGameState Invariant Coverage", () => {
     expect(() => assertGameState(mutated as unknown as GameState)).toThrow(
       /ready-for-first-round requires all 4 players to have selected/,
     );
+  });
+
+  it("rejects state with missing or invalid finance state", () => {
+    const valid = createGame({
+      gameId: "g",
+      seed: "s",
+      playerIds: players4,
+    });
+    const mutated = {
+      ...valid,
+      finance: undefined,
+    };
+    expect(() => assertGameState(mutated as unknown as GameState)).toThrow(
+      /finance state is missing or invalid/,
+    );
+  });
+
+  it("rejects state where a player is missing a cash balance", () => {
+    const valid = createGame({
+      gameId: "g",
+      seed: "s",
+      playerIds: players4,
+    });
+    const { [players4[0]]: _, ...rest } = valid.finance.cashByPlayer;
+    const mutated = {
+      ...valid,
+      finance: {
+        cashByPlayer: rest,
+      },
+    };
+    expect(() => assertGameState(mutated as unknown as GameState)).toThrow(
+      /cashByPlayer must have exactly 4 player balances/,
+    );
+  });
+
+  it("rejects state with extra unknown player cash balance", () => {
+    const valid = createGame({
+      gameId: "g",
+      seed: "s",
+      playerIds: players4,
+    });
+    const mutated = {
+      ...valid,
+      finance: {
+        cashByPlayer: {
+          ...valid.finance.cashByPlayer,
+          [asPlayerId("intruder")]: 1_000_000,
+        },
+      },
+    };
+    expect(() => assertGameState(mutated as unknown as GameState)).toThrow(
+      /cashByPlayer must have exactly 4 player balances/,
+    );
+  });
+
+  it("rejects state with negative player cash balance", () => {
+    const valid = createGame({
+      gameId: "g",
+      seed: "s",
+      playerIds: players4,
+    });
+    const mutated = {
+      ...valid,
+      finance: {
+        cashByPlayer: {
+          ...valid.finance.cashByPlayer,
+          [players4[0]]: -100,
+        },
+      },
+    };
+    expect(() => assertGameState(mutated as unknown as GameState)).toThrow(
+      /cash balance must be a non-negative safe integer of cents/,
+    );
+  });
+
+  it("rejects state with non-integer or unsafe cash balance", () => {
+    const valid = createGame({
+      gameId: "g",
+      seed: "s",
+      playerIds: players4,
+    });
+    const mutated = {
+      ...valid,
+      finance: {
+        cashByPlayer: {
+          ...valid.finance.cashByPlayer,
+          [players4[0]]: 100.5,
+        },
+      },
+    };
+    expect(() => assertGameState(mutated as unknown as GameState)).toThrow(
+      /cash balance must be a non-negative safe integer of cents/,
+    );
+  });
+
+  it("rejects state with invalid journal counter", () => {
+    const valid = createGame({
+      gameId: "g",
+      seed: "s",
+      playerIds: players4,
+    });
+    const mutated = {
+      ...valid,
+      counters: {
+        ...valid.counters,
+        journal: -1,
+      },
+    };
+    expect(() => assertGameState(mutated as unknown as GameState)).toThrow(
+      /deterministic counters must be non-negative safe integers|journal counter must be a non-negative safe integer/,
+    );
+  });
+});
+
+describe("Standard V1 Starting Cash Initialization", () => {
+  it("initializes every player with exactly one cash balance derived from assigned profile", () => {
+    const state = createGame({
+      gameId: "cash-init-game",
+      seed: "arbitrary-seed-1",
+      playerIds: players4,
+    });
+
+    expect(Object.keys(state.finance.cashByPlayer)).toHaveLength(4);
+
+    for (const playerId of players4) {
+      const player = state.players[playerId];
+      expect(player).toBeDefined();
+      if (!player) continue;
+
+      const profileDef = PROFILES[player.profileId];
+      expect(profileDef).toBeDefined();
+      const expectedCash = profileDef.startingCashCents;
+
+      const actualCash = state.finance.cashByPlayer[playerId];
+      expect(actualCash).toBe(expectedCash);
+      expect(Number.isSafeInteger(actualCash)).toBe(true);
+      expect(actualCash).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("produces identical financial state for identical inputs", () => {
+    const input = {
+      gameId: "cash-det-game",
+      seed: "cash-det-seed",
+      playerIds: players4,
+    };
+    const s1 = createGame(input);
+    const s2 = createGame(input);
+    expect(s1.finance).toEqual(s2.finance);
+    expect(s1.counters.journal).toBe(0);
+    expect(s2.counters.journal).toBe(0);
+  });
+
+  it("does not advance journal counters or consume extra RNG during cash initialization", () => {
+    const state = createGame({
+      gameId: "g-rng-check",
+      seed: "rng-seed-check",
+      playerIds: players4,
+    });
+
+    expect(state.counters.journal).toBe(0);
+
+    // Verify RNG state matches running setup without cash
+    const initialRandom = createRandomState("rng-seed-check");
+    const setupOnly = generateDeterministicSetup(players4, initialRandom);
+    expect(state.random).toEqual(setupOnly.random);
   });
 });
 

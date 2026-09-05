@@ -1,5 +1,6 @@
-import { STANDARD_V1_PLAYER_COUNT } from "@finance-game/rules";
+import { PROFILES, STANDARD_V1_PLAYER_COUNT } from "@finance-game/rules";
 import { asGameId, type PlayerId } from "@finance-game/shared";
+import { type Cents, cents } from "../finance/money";
 import { assertGameState } from "../invariants/assertGameState";
 import type { GameState, PlayerState } from "../model/gameState";
 import { createRandomState } from "../random/prng";
@@ -32,6 +33,7 @@ export function createGame(input: CreateGameInput): GameState {
     PlayerId,
     PlayerState
   >;
+  const cashByPlayer: Record<PlayerId, Cents> = {} as Record<PlayerId, Cents>;
 
   for (const playerId of input.playerIds) {
     const profileId = setup.profileAssignments[playerId];
@@ -41,12 +43,18 @@ export function createGame(input: CreateGameInput): GameState {
         `Setup failed: missing profile or objective offers for player ${playerId}`,
       );
     }
+    const profileDef = PROFILES[profileId];
+    if (profileDef === undefined) {
+      throw new Error(`Setup failed: unknown profile ${profileId}`);
+    }
+
     players[playerId] = {
       id: playerId,
       profileId,
       offeredObjectiveIds,
       selectedObjectiveId: null,
     };
+    cashByPlayer[playerId] = cents(profileDef.startingCashCents);
   }
 
   const state: GameState = {
@@ -56,12 +64,16 @@ export function createGame(input: CreateGameInput): GameState {
     phase: "objective-choosing",
     playerOrder: [...input.playerIds],
     players,
+    finance: {
+      cashByPlayer,
+    },
     random: setup.random,
     counters: {
       asset: 0,
       contract: 0,
       loan: 0,
       opportunity: 0,
+      journal: 0,
     },
   };
 
