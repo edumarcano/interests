@@ -1,56 +1,91 @@
+import type { ObjectiveId } from "@finance-game/rules";
 import type { PlayerId } from "@finance-game/shared";
 import { assertGameState } from "../invariants/assertGameState";
-import type { GameState } from "../model/gameState";
+import type { GamePhase, GameState, PlayerState } from "../model/gameState";
 
-export interface SetPlayerReadyAction {
-  readonly type: "SET_PLAYER_READY";
+export interface ChooseObjectiveAction {
+  readonly type: "CHOOSE_OBJECTIVE";
   readonly playerId: PlayerId;
-  readonly ready: boolean;
+  readonly objectiveId: ObjectiveId;
 }
 
-export type GameAction = SetPlayerReadyAction;
+export type GameAction = ChooseObjectiveAction;
+
+export type ActionErrorCode =
+  | "INVALID_ACTION"
+  | "UNKNOWN_PLAYER"
+  | "WRONG_PHASE"
+  | "ALREADY_CHOSEN"
+  | "OBJECTIVE_NOT_OFFERED";
 
 export type ActionResult =
   | { readonly ok: true; readonly state: GameState }
   | {
       readonly ok: false;
       readonly state: GameState;
-      readonly code: "INVALID_ACTION" | "UNKNOWN_PLAYER" | "WRONG_PHASE";
+      readonly code: ActionErrorCode;
     };
 
 export function applyAction(state: GameState, action: unknown): ActionResult {
-  if (!isSetPlayerReadyAction(action)) {
+  if (!isChooseObjectiveAction(action)) {
     return { ok: false, state, code: "INVALID_ACTION" };
   }
-  if (state.phase !== "setup") {
+  if (state.phase !== "objective-choosing") {
     return { ok: false, state, code: "WRONG_PHASE" };
   }
   const player = state.players[action.playerId];
   if (player === undefined) {
     return { ok: false, state, code: "UNKNOWN_PLAYER" };
   }
+  if (player.selectedObjectiveId !== null) {
+    return { ok: false, state, code: "ALREADY_CHOSEN" };
+  }
+  if (
+    action.objectiveId !== player.offeredObjectiveIds[0] &&
+    action.objectiveId !== player.offeredObjectiveIds[1]
+  ) {
+    return { ok: false, state, code: "OBJECTIVE_NOT_OFFERED" };
+  }
+
+  const updatedPlayer: PlayerState = {
+    ...player,
+    selectedObjectiveId: action.objectiveId,
+  };
+
+  const nextPlayers: Record<PlayerId, PlayerState> = {
+    ...state.players,
+    [action.playerId]: updatedPlayer,
+  };
+
+  const allSelected = state.playerOrder.every(
+    (id) => nextPlayers[id]?.selectedObjectiveId !== null,
+  );
+
+  const nextPhase: GamePhase = allSelected
+    ? "ready-for-first-round"
+    : "objective-choosing";
 
   const nextState: GameState = {
     ...state,
     revision: state.revision + 1,
-    players: {
-      ...state.players,
-      [action.playerId]: { ...player, ready: action.ready },
-    },
+    phase: nextPhase,
+    players: nextPlayers,
   };
 
   assertGameState(nextState);
   return { ok: true, state: nextState };
 }
 
-function isSetPlayerReadyAction(value: unknown): value is SetPlayerReadyAction {
+function isChooseObjectiveAction(
+  value: unknown,
+): value is ChooseObjectiveAction {
   if (typeof value !== "object" || value === null) {
     return false;
   }
-  const candidate = value as Partial<SetPlayerReadyAction>;
+  const candidate = value as Partial<ChooseObjectiveAction>;
   return (
-    candidate.type === "SET_PLAYER_READY" &&
+    candidate.type === "CHOOSE_OBJECTIVE" &&
     typeof candidate.playerId === "string" &&
-    typeof candidate.ready === "boolean"
+    typeof candidate.objectiveId === "string"
   );
 }

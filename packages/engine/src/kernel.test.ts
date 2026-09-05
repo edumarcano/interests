@@ -38,9 +38,9 @@ describe("deterministic kernel", () => {
     });
     const snapshot = structuredClone(state);
     const result = applyAction(state, {
-      type: "SET_PLAYER_READY",
+      type: "CHOOSE_OBJECTIVE",
       playerId: "missing",
-      ready: true,
+      objectiveId: "founder",
     });
     expect(result.ok).toBe(false);
     expect(result.state).toBe(state);
@@ -54,15 +54,21 @@ describe("deterministic kernel", () => {
       playerIds: players,
     });
     const firstPlayer = players[0];
+    const playerState = state.players[firstPlayer];
+    expect(playerState).toBeDefined();
+    if (playerState === undefined) return;
+    const offered = playerState.offeredObjectiveIds[0];
     const result = applyAction(state, {
-      type: "SET_PLAYER_READY",
+      type: "CHOOSE_OBJECTIVE",
       playerId: firstPlayer,
-      ready: true,
+      objectiveId: offered,
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state).not.toBe(state);
-    expect(result.state.players[firstPlayer]?.ready).toBe(true);
+    expect(result.state.players[firstPlayer]?.selectedObjectiveId).toBe(
+      offered,
+    );
     expect(result.state.random).toEqual(state.random);
     expect(result.state.revision).toBe(1);
   });

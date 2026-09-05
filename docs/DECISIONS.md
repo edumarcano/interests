@@ -54,3 +54,19 @@ Tool-specific rule files may exist only as compatibility bridges that direct the
 The repository may be worked on interchangeably by multiple coding agents because of usage limits. Git history, the active branch, tests, repository documentation, and pull-request context are the persistent handoff mechanism; agents must not rely on conversation history being available to the next tool.
 
 Do not add project skills, custom subagents, MCP configuration, or agent-specific workflow frameworks yet. Introduce them only after a recurring workflow demonstrates a concrete need and the user approves it. If skills are introduced later, maintain one canonical implementation with compatibility adapters only where required.
+
+## ARCH-021 - Standard V1 objective-deal scoring and selection
+
+**Status:** Accepted  
+**Date:** September 5, 2026
+
+Resolve Section 9.6 dealing preferences (and consistency item G7) with an explicit, deterministic scoring model:
+
+1. **Validity filter**: An allocation of eight objectives across four players (two each) is valid if and only if every player receives zero Stretch (`T`) objectives and at least one Strong-fit (`S`) objective.
+2. **Scoring formula**: Valid deals are scored across the four offered pairs. For each player:
+   - +1 point if the two offered objectives belong to different strategic families.
+   - +1 point if the two offered objectives offer contrast (one Strong fit and one Viable alternative).
+   Maximum score per player is 2; maximum score per match is 8.
+3. **High-quality subset**: Defined as the set of candidate deals achieving the maximum score for that four-profile combination (`score === maxScore`).
+   Across all 69 feasible four-profile combinations, every combination contains multiple deals achieving the theoretical maximum of 8 (between 3 and 106 deals). Selection from this subset is chosen uniformly at random using the engine PRNG adapter.
+

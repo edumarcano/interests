@@ -1,12 +1,15 @@
+import type { ObjectiveId, ProfileId } from "@finance-game/rules";
 import type { GameId, PlayerId } from "@finance-game/shared";
 
 import type { RandomState } from "../random/prng";
 
-export type GamePhase = "setup" | "active" | "finished";
+export type GamePhase = "objective-choosing" | "ready-for-first-round";
 
 export interface PlayerState {
   readonly id: PlayerId;
-  readonly ready: boolean;
+  readonly profileId: ProfileId;
+  readonly offeredObjectiveIds: readonly [ObjectiveId, ObjectiveId];
+  readonly selectedObjectiveId: ObjectiveId | null;
 }
 
 export interface DeterministicCounters {
