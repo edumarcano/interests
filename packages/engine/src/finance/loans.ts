@@ -33,6 +33,7 @@ export type OriginatePlayerLoanErrorCode =
   | "INVALID_TERM"
   | "INVALID_QUARTER"
   | "INSUFFICIENT_FUNDS"
+  | "DESTINATION_OVERFLOW"
   | "UNSUPPORTED_TERMS";
 
 export type OriginatePlayerLoanResult =
@@ -60,6 +61,7 @@ export type ApplyScheduledPlayerLoanPaymentErrorCode =
   | "LOAN_ALREADY_REPAID"
   | "UNKNOWN_PLAYER"
   | "INSUFFICIENT_FUNDS"
+  | "DESTINATION_OVERFLOW"
   | "INVALID_QUARTER";
 
 export type ApplyScheduledPlayerLoanPaymentResult =
@@ -178,11 +180,15 @@ export function originateConfirmedPlayerLoan(
   });
 
   if (!postResult.ok) {
-    // If posting fails, return original untouched state & counters
-    return reject(
-      postResult.code === "INSUFFICIENT_FUNDS"
-        ? "INSUFFICIENT_FUNDS"
-        : "UNSUPPORTED_TERMS",
+    // Truthfully report reachable posting failure; throw on impossible codes
+    if (postResult.code === "DESTINATION_OVERFLOW") {
+      return reject("DESTINATION_OVERFLOW");
+    }
+    if (postResult.code === "INSUFFICIENT_FUNDS") {
+      return reject("INSUFFICIENT_FUNDS");
+    }
+    throw new Error(
+      `Invariant violation: unexpected cash posting failure during loan origination: ${postResult.code}`,
     );
   }
 
@@ -274,6 +280,11 @@ export function applyScheduledPlayerLoanPayment(
     return reject("UNKNOWN_PLAYER");
   }
 
+  const lenderCash = finance.cashByPlayer[loan.lenderPlayerId];
+  if (lenderCash === undefined) {
+    return reject("UNKNOWN_PLAYER");
+  }
+
   if (borrowerCash < nextInstallment.paymentCents) {
     return reject("INSUFFICIENT_FUNDS");
   }
@@ -293,10 +304,14 @@ export function applyScheduledPlayerLoanPayment(
   });
 
   if (!postResult.ok) {
-    return reject(
-      postResult.code === "INSUFFICIENT_FUNDS"
-        ? "INSUFFICIENT_FUNDS"
-        : "UNKNOWN_PLAYER",
+    if (postResult.code === "DESTINATION_OVERFLOW") {
+      return reject("DESTINATION_OVERFLOW");
+    }
+    if (postResult.code === "INSUFFICIENT_FUNDS") {
+      return reject("INSUFFICIENT_FUNDS");
+    }
+    throw new Error(
+      `Invariant violation: unexpected cash posting failure during scheduled payment: ${postResult.code}`,
     );
   }
 

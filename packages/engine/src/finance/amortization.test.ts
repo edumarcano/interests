@@ -262,5 +262,22 @@ describe("calculatePlayerLoanSchedule", () => {
         termQuarters: 8,
       }),
     ).toThrow(/fails to reduce principal/);
+
+    // Unsupported zero-interest terms where principal < termQuarters (would cause zero installments)
+    expect(() =>
+      calculatePlayerLoanSchedule({
+        principalCents: 1,
+        annualRateBps: 0,
+        termQuarters: 8,
+      }),
+    ).toThrow(/must be at least equal to term in quarters/);
+
+    expect(() =>
+      calculatePlayerLoanSchedule({
+        principalCents: 7,
+        annualRateBps: 0,
+        termQuarters: 8,
+      }),
+    ).toThrow(/must be at least equal to term in quarters/);
   });
 });

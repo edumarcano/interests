@@ -241,6 +241,47 @@ describe("player-loan origination", () => {
     expect(unsupportedTerms.code).toBe("UNSUPPORTED_TERMS");
     expect(unsupportedTerms.finance).toBe(finance);
     expect(unsupportedTerms.counters).toBe(counters);
+
+    // Unsupported zero-interest terms where principal < termQuarters
+    const zeroInterestTiny = originateConfirmedPlayerLoan(finance, counters, {
+      lenderPlayerId: aliceId,
+      borrowerPlayerId: bobId,
+      principalCents: 1,
+      annualRateBps: 0,
+      termQuarters: 8,
+      quarter: 1,
+    });
+    expect(zeroInterestTiny.ok).toBe(false);
+    if (zeroInterestTiny.ok) return;
+    expect(zeroInterestTiny.code).toBe("UNSUPPORTED_TERMS");
+    expect(zeroInterestTiny.finance).toBe(finance);
+    expect(zeroInterestTiny.counters).toBe(counters);
+
+    // Destination balance overflow on borrower
+    const overflowFinance: FinanceState = {
+      cashByPlayer: {
+        ...finance.cashByPlayer,
+        [bobId]: cents(Number.MAX_SAFE_INTEGER - 10),
+      },
+      loansById: {},
+    };
+    const overflowOrigination = originateConfirmedPlayerLoan(
+      overflowFinance,
+      counters,
+      {
+        lenderPlayerId: aliceId,
+        borrowerPlayerId: bobId,
+        principalCents: 100,
+        annualRateBps: 500,
+        termQuarters: 2,
+        quarter: 1,
+      },
+    );
+    expect(overflowOrigination.ok).toBe(false);
+    if (overflowOrigination.ok) return;
+    expect(overflowOrigination.code).toBe("DESTINATION_OVERFLOW");
+    expect(overflowOrigination.finance).toBe(overflowFinance);
+    expect(overflowOrigination.counters).toBe(counters);
   });
 });
 
@@ -444,6 +485,50 @@ describe("scheduled player-loan payment", () => {
     expect(payment.code).toBe("UNKNOWN_LOAN");
     expect(payment.finance).toBe(finance);
     expect(payment.counters).toBe(counters);
+  });
+
+  it("rejects payment on destination balance overflow without partial mutation", () => {
+    let finance = createInitialFinance();
+    let counters = createInitialCounters();
+
+    const origination = originateConfirmedPlayerLoan(finance, counters, {
+      lenderPlayerId: aliceId,
+      borrowerPlayerId: bobId,
+      principalCents: 100_000,
+      annualRateBps: 400,
+      termQuarters: 2,
+      quarter: 1,
+    });
+    expect(origination.ok).toBe(true);
+    if (!origination.ok) return;
+
+    finance = origination.finance;
+    counters = origination.counters;
+    const loanId = origination.loan.id;
+
+    // Simulate lender having cash near Number.MAX_SAFE_INTEGER so receiving payment overflows
+    finance = {
+      ...finance,
+      cashByPlayer: {
+        ...finance.cashByPlayer,
+        [aliceId]: cents(Number.MAX_SAFE_INTEGER - 10),
+      },
+    };
+
+    const payment = applyScheduledPlayerLoanPayment(finance, counters, {
+      loanId,
+      quarter: 2,
+    });
+
+    expect(payment.ok).toBe(false);
+    if (payment.ok) return;
+    expect(payment.code).toBe("DESTINATION_OVERFLOW");
+    expect(payment.finance).toBe(finance);
+    expect(payment.counters).toBe(counters);
+    expect(payment.finance.loansById[loanId]?.installmentsPaid).toBe(0);
+    expect(payment.finance.loansById[loanId]?.outstandingPrincipalCents).toBe(
+      100_000,
+    );
   });
 });
 

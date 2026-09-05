@@ -77,6 +77,15 @@ export function calculatePlayerLoanSchedule(
 
   if (annualRateBps === 0) {
     // Zero-interest loan:
+    // Every installment must reduce principal. If principalCents < termQuarters,
+    // at least one installment would have a zero principal component, causing
+    // premature loan payoff before the contractual term completes.
+    if (principalCents < termQuarters) {
+      throw new RangeError(
+        `Unsupported loan terms: zero-interest loan principal (${principalCents} cents) must be at least equal to term in quarters (${termQuarters}) to ensure each installment reduces principal`,
+      );
+    }
+
     // Total interest is 0. Allocate principal evenly, distributing remainder cents
     // to the earliest installments in deterministic 1-based order.
     const basePrincipal = Math.floor(principalCents / termQuarters);
