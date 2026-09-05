@@ -1,0 +1,8 @@
+---
+description: Use the repository's canonical AI coding instructions
+alwaysApply: true
+---
+
+The canonical project instructions are in `/AGENTS.md`.
+
+Read and follow `/AGENTS.md` before modifying this repository. Do not duplicate project rules in `.cursor/rules`; this file is only a compatibility bridge for Cursor.
