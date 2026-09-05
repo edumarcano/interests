@@ -62,11 +62,14 @@ export function createGame(input: CreateGameInput): GameState {
     modeId: "standard-v1",
     revision: 0,
     phase: "objective-choosing",
+    currentQuarter: 1,
+    lastSettledQuarter: 0,
     playerOrder: [...input.playerIds],
     players,
     finance: {
       cashByPlayer,
       loansById: {},
+      assetsById: {},
     },
     random: setup.random,
     counters: {
@@ -75,6 +78,7 @@ export function createGame(input: CreateGameInput): GameState {
       loan: 0,
       opportunity: 0,
       journal: 0,
+      settlement: 0,
     },
   };
 

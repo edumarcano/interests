@@ -1,4 +1,4 @@
-import { asLoanId, asPlayerId } from "@finance-game/shared";
+import { asAssetId, asLoanId, asPlayerId } from "@finance-game/shared";
 import { describe, expect, it } from "vitest";
 
 import { createGame } from "../game/createGame";
@@ -8,7 +8,8 @@ import {
   applyScheduledPlayerLoanPayment,
   originateConfirmedPlayerLoan,
 } from "./loans";
-import { cents } from "./money";
+import { basisPoints, cents } from "./money";
+import { ownershipPpm } from "./ownership";
 
 const aliceId = asPlayerId("player-alice");
 const bobId = asPlayerId("player-bob");
@@ -24,6 +25,7 @@ function createInitialFinance(): FinanceState {
       [danaId]: cents(300_000), // $3,000
     },
     loansById: {},
+    assetsById: {},
   };
 }
 
@@ -34,6 +36,7 @@ function createInitialCounters(): DeterministicCounters {
     loan: 0,
     opportunity: 0,
     journal: 0,
+    settlement: 0,
   };
 }
 
@@ -264,6 +267,7 @@ describe("player-loan origination", () => {
         [bobId]: cents(Number.MAX_SAFE_INTEGER - 10),
       },
       loansById: {},
+      assetsById: {},
     };
     const overflowOrigination = originateConfirmedPlayerLoan(
       overflowFinance,
@@ -704,5 +708,57 @@ describe("game invariants and setup regression", () => {
     expect(() => assertGameState(corruptedLoanState)).toThrow(
       /Game invariant failed.*outstanding principal/,
     );
+  });
+
+  it("preserves assetsById across loan origination and scheduled payments", () => {
+    const property = {
+      id: asAssetId("asset-prop-1"),
+      kind: "property" as const,
+      marketValueCents: cents(30_000_000),
+      scheduledQuarterlyRentCents: cents(300_000),
+      occupancyBps: basisPoints(9_500),
+      operatingExpenseRatioBps: basisPoints(3_500),
+      ownershipByPlayerPpm: {
+        [aliceId]: ownershipPpm(1_000_000),
+      },
+    };
+
+    const finance: FinanceState = {
+      ...createInitialFinance(),
+      assetsById: {
+        [property.id]: property,
+      },
+    };
+    const counters = createInitialCounters();
+
+    // Originate loan
+    const origination = originateConfirmedPlayerLoan(finance, counters, {
+      lenderPlayerId: aliceId,
+      borrowerPlayerId: bobId,
+      principalCents: 100_000,
+      annualRateBps: 800,
+      termQuarters: 2,
+      quarter: 1,
+    });
+    expect(origination.ok).toBe(true);
+    if (!origination.ok) return;
+
+    expect(origination.finance.assetsById).toBeDefined();
+    expect(origination.finance.assetsById[property.id]).toBe(property);
+
+    // Apply scheduled payment
+    const payment = applyScheduledPlayerLoanPayment(
+      origination.finance,
+      origination.counters,
+      {
+        loanId: origination.loan.id,
+        quarter: 1,
+      },
+    );
+    expect(payment.ok).toBe(true);
+    if (!payment.ok) return;
+
+    expect(payment.finance.assetsById).toBeDefined();
+    expect(payment.finance.assetsById[property.id]).toBe(property);
   });
 });

@@ -1,4 +1,4 @@
-import { asLoanId, asPlayerId } from "@finance-game/shared";
+import { asAssetId, asLoanId, asPlayerId } from "@finance-game/shared";
 import { describe, expect, it } from "vitest";
 
 import type { DeterministicCounters, FinanceState } from "../model/gameState";
@@ -17,6 +17,7 @@ import {
   nonNegativeCents,
   subtractCents,
 } from "./money";
+import { ownershipPpm } from "./ownership";
 import { postCash } from "./posting";
 
 const aliceId = asPlayerId("player-alice");
@@ -33,6 +34,7 @@ function createInitialFinance(): FinanceState {
       [danaId]: cents(300_000), // $3,000
     },
     loansById: {},
+    assetsById: {},
   };
 }
 
@@ -43,6 +45,7 @@ function createInitialCounters(): DeterministicCounters {
     loan: 0,
     opportunity: 0,
     journal: 0,
+    settlement: 0,
   };
 }
 
@@ -386,6 +389,7 @@ describe("financial rejection rules and immutability", () => {
         [danaId]: cents(0),
       },
       loansById: {},
+      assetsById: {},
     };
     const counters = createInitialCounters();
 
@@ -466,6 +470,7 @@ describe("deterministic repeatability", () => {
       loan: 0,
       opportunity: 0,
       journal: Number.MAX_SAFE_INTEGER,
+      settlement: 0,
     };
 
     expect(() =>
@@ -501,6 +506,7 @@ describe("deterministic repeatability", () => {
       loansById: {
         [sampleLoan.id]: sampleLoan,
       },
+      assetsById: {},
     };
     const counters = createInitialCounters();
 
@@ -516,5 +522,46 @@ describe("deterministic repeatability", () => {
     if (!result.ok) return;
     expect(result.finance.loansById).toBe(finance.loansById);
     expect(result.finance.loansById[sampleLoan.id]).toBe(sampleLoan);
+  });
+
+  it("preserves assetsById across cash postings", () => {
+    const sampleProperty = {
+      id: asAssetId("asset-1"),
+      kind: "property" as const,
+      marketValueCents: cents(30_000_000),
+      scheduledQuarterlyRentCents: cents(300_000),
+      occupancyBps: basisPoints(9_500),
+      operatingExpenseRatioBps: basisPoints(3_500),
+      ownershipByPlayerPpm: {
+        [aliceId]: ownershipPpm(1_000_000),
+      },
+    };
+
+    const finance: FinanceState = {
+      cashByPlayer: {
+        [aliceId]: cents(2_000_000),
+        [bobId]: cents(1_000_000),
+        [charlieId]: cents(500_000),
+        [danaId]: cents(300_000),
+      },
+      loansById: {},
+      assetsById: {
+        [sampleProperty.id]: sampleProperty,
+      },
+    };
+    const counters = createInitialCounters();
+
+    const result = postCash(finance, counters, {
+      source: playerCashAccount(aliceId),
+      destination: playerCashAccount(bobId),
+      amountCents: 10_000,
+      reason: "transfer",
+      quarter: 1,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.finance.assetsById).toBe(finance.assetsById);
+    expect(result.finance.assetsById[sampleProperty.id]).toBe(sampleProperty);
   });
 });

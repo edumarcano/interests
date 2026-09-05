@@ -1,4 +1,4 @@
-import type { LoanId } from "@finance-game/shared";
+import type { AssetId, LoanId } from "@finance-game/shared";
 
 import { nextDeterministicId } from "../game/deterministicIds";
 import type { DeterministicCounters, FinanceState } from "../model/gameState";
@@ -13,6 +13,7 @@ export interface CashPostingRequest {
   readonly reason: string;
   readonly quarter: number;
   readonly relatedLoanId?: LoanId;
+  readonly relatedAssetId?: AssetId;
   readonly loanPayment?: LoanPaymentBreakdown;
 }
 
@@ -145,6 +146,9 @@ export function postCash(
     quarter: request.quarter,
     ...(request.relatedLoanId !== undefined
       ? { relatedLoanId: request.relatedLoanId }
+      : {}),
+    ...(request.relatedAssetId !== undefined
+      ? { relatedAssetId: request.relatedAssetId }
       : {}),
     ...(request.loanPayment !== undefined
       ? { loanPayment: request.loanPayment }

@@ -5,6 +5,7 @@ import { basisPoints, cents } from "./finance/money";
 import { applyAction } from "./game/actions";
 import { createGame } from "./game/createGame";
 import { nextDeterministicId } from "./game/deterministicIds";
+import type { DeterministicCounters } from "./model/gameState";
 import { createRandomState, drawBoundedInt, drawUint32 } from "./random/prng";
 
 const players = [
@@ -130,6 +131,12 @@ describe("deterministic kernel", () => {
     expect(j1).toEqual(j2);
     expect(j1.id).toBe("journal-1");
     expect(j1.counters.journal).toBe(1);
+
+    const s1 = nextDeterministicId("settlement", state.counters);
+    const s2 = nextDeterministicId("settlement", state.counters);
+    expect(s1).toEqual(s2);
+    expect(s1.id).toBe("settlement-1");
+    expect(s1.counters.settlement).toBe(1);
   });
 
   it("rejects counter increment when counter is exhausted at MAX_SAFE_INTEGER", () => {
@@ -139,14 +146,16 @@ describe("deterministic kernel", () => {
       "loan",
       "opportunity",
       "journal",
+      "settlement",
     ] as const;
     for (const kind of kinds) {
-      const exhaustedCounters = {
+      const exhaustedCounters: DeterministicCounters = {
         asset: 0,
         contract: 0,
         loan: 0,
         opportunity: 0,
         journal: 0,
+        settlement: 0,
         [kind]: Number.MAX_SAFE_INTEGER,
       };
       expect(() => nextDeterministicId(kind, exhaustedCounters)).toThrow(
@@ -159,12 +168,13 @@ describe("deterministic kernel", () => {
   });
 
   it("rejects counter increment for negative or non-integer counter values", () => {
-    const invalidCounters = {
+    const invalidCounters: DeterministicCounters = {
       asset: -1,
       contract: 1.5,
       loan: Number.NaN,
       opportunity: 0,
       journal: -5,
+      settlement: -2,
     };
     expect(() => nextDeterministicId("asset", invalidCounters)).toThrow(
       RangeError,
@@ -176,6 +186,9 @@ describe("deterministic kernel", () => {
       RangeError,
     );
     expect(() => nextDeterministicId("journal", invalidCounters)).toThrow(
+      RangeError,
+    );
+    expect(() => nextDeterministicId("settlement", invalidCounters)).toThrow(
       RangeError,
     );
   });

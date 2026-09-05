@@ -1,4 +1,4 @@
-import type { LoanId } from "@finance-game/shared";
+import type { AssetId, LoanId } from "@finance-game/shared";
 
 import type { CashAccount } from "./account";
 import type { Cents } from "./money";
@@ -26,5 +26,6 @@ export interface JournalEntry {
   readonly reason: string;
   readonly quarter: number;
   readonly relatedLoanId?: LoanId;
+  readonly relatedAssetId?: AssetId;
   readonly loanPayment?: LoanPaymentBreakdown;
 }
