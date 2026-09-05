@@ -32,6 +32,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Tasks
+TASK.md
+
 # TypeScript
 *.tsbuildinfo
 
