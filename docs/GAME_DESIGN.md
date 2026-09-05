@@ -985,8 +985,8 @@ For V1 fixed-rate player-to-player loans:
    - Final principal component = all remaining opening principal.
    - Final payment = $\text{remaining principal} + \text{final rounded interest}$.
    - Final closing principal = 0 (leaving zero fractional-cent residue).
-10. **Zero-interest loans:** Total interest is exactly zero. Principal is divided as evenly as possible over the term, with remainder cents distributed to earliest installments in deterministic order. Final principal is exactly zero.
-11. **Non-reducing principal rejection:** If cent rounding would cause a positive-rate non-final installment to fail to reduce principal, the loan terms are rejected as unsupported rather than altering formulas or terms.
+10. **Zero-interest loans:** Total interest is exactly zero. Principal is divided as evenly as possible over the term, with remainder cents distributed to earliest installments in deterministic order. Zero-rate terms that would create a zero-value installment (such as $\text{principalCents} < \text{termQuarters}$) are unsupported and rejected. Final principal is exactly zero.
+11. **Non-reducing principal rejection:** If cent rounding would cause a non-final installment to fail to reduce principal (or if zero-interest terms would create a zero-value installment), the loan terms are rejected as unsupported rather than altering formulas or terms.
 12. **Prepayment:** No prepayment or early payoff mechanic is supported in this slice.
 13. **Insufficient cash:** Insufficient borrower cash does NOT create default, partial payment, emergency funding, or negative cash balance; the payment operation rejects unchanged.
 
