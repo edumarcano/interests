@@ -2,7 +2,9 @@ declare const centsBrand: unique symbol;
 declare const basisPointsBrand: unique symbol;
 
 export type Cents = number & { readonly [centsBrand]: "Cents" };
-export type BasisPoints = number & { readonly [basisPointsBrand]: "BasisPoints" };
+export type BasisPoints = number & {
+  readonly [basisPointsBrand]: "BasisPoints";
+};
 
 function requireSafeInteger(value: number, label: string): number {
   if (!Number.isSafeInteger(value)) {
