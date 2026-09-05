@@ -14,9 +14,11 @@ export interface SettleQuarterRequest {
 }
 
 export type SettleQuarterErrorCode =
+  | "WRONG_PHASE"
   | "INVALID_QUARTER"
   | "QUARTER_ALREADY_SETTLED"
-  | "WRONG_QUARTER";
+  | "WRONG_QUARTER"
+  | "DESTINATION_OVERFLOW";
 
 export type SettleQuarterResult =
   | {
@@ -55,6 +57,8 @@ interface PlannedPropertyDistribution {
  * Guarantees:
  * - Deterministic plan computed before any state mutation;
  * - Rejection preserves state, revision, counters, RNG, and emits zero journal entries;
+ * - Destination balance overflow is validated during planning and truthfully rejected;
+ * - Settlement requires completed setup (ready-for-first-round phase);
  * - Atomic execution of postings;
  * - Canonical ordering of assets and owners prevents insertion-order variance;
  * - Exactly one SettlementId created and counter advanced once per successful settlement.
@@ -70,7 +74,12 @@ export function settleQuarter(
     journalEntries: [],
   });
 
-  // 1. Quarter validation
+  // 1. Phase validation: must have completed setup (ready-for-first-round)
+  if (state.phase !== "ready-for-first-round") {
+    return reject("WRONG_PHASE");
+  }
+
+  // 2. Quarter validation
   if (!Number.isSafeInteger(request.quarter) || request.quarter <= 0) {
     return reject("INVALID_QUARTER");
   }
@@ -83,13 +92,20 @@ export function settleQuarter(
     return reject("WRONG_QUARTER");
   }
 
-  // 2. Settlement Planning (Pure, no state mutation)
+  if (state.currentQuarter >= Number.MAX_SAFE_INTEGER) {
+    throw new RangeError(
+      "currentQuarter has reached the maximum safe integer limit",
+    );
+  }
+
+  // 3. Settlement Planning (Pure, no state mutation)
   // Canonical sorting of assets by AssetId
   const sortedAssetIds = (
     Object.keys(state.finance.assetsById) as AssetId[]
   ).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
   const plannedDistributions: PlannedPropertyDistribution[] = [];
+  const plannedInflowByPlayer: Partial<Record<PlayerId, number>> = {};
 
   for (const assetId of sortedAssetIds) {
     const asset = state.finance.assetsById[assetId];
@@ -119,6 +135,12 @@ export function settleQuarter(
       for (const ownerId of sortedOwnerIds) {
         const allocatedCents = allocations[ownerId];
         if (allocatedCents !== undefined && allocatedCents > 0) {
+          const prevInflow = plannedInflowByPlayer[ownerId] ?? 0;
+          if (allocatedCents > Number.MAX_SAFE_INTEGER - prevInflow) {
+            return reject("DESTINATION_OVERFLOW");
+          }
+          plannedInflowByPlayer[ownerId] = prevInflow + allocatedCents;
+
           plannedDistributions.push({
             sourceAccount: externalCashAccount("property-operating-cashflow"),
             destinationPlayerId: ownerId,
@@ -132,7 +154,24 @@ export function settleQuarter(
     }
   }
 
-  // 3. Atomic application
+  // Verify cumulative planned inflow does not overflow any recipient player balance
+  for (const [playerIdStr, totalInflow] of Object.entries(
+    plannedInflowByPlayer,
+  )) {
+    if (totalInflow === undefined) continue;
+    const playerId = playerIdStr as PlayerId;
+    const currentBalance = state.finance.cashByPlayer[playerId];
+    if (currentBalance === undefined) {
+      throw new Error(
+        `Invariant violation: unknown player ${playerId} in cash balances`,
+      );
+    }
+    if (totalInflow > Number.MAX_SAFE_INTEGER - currentBalance) {
+      return reject("DESTINATION_OVERFLOW");
+    }
+  }
+
+  // 4. Atomic application
   // Generate deterministic SettlementId
   const { id: settlementId, counters: countersWithSettlement } =
     nextDeterministicId("settlement", state.counters);

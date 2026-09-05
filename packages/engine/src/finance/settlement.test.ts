@@ -1,6 +1,7 @@
 import { asAssetId, asLoanId, asPlayerId } from "@finance-game/shared";
 import { describe, expect, it } from "vitest";
 
+import { applyAction } from "../game/actions";
 import { createGame } from "../game/createGame";
 import { assertGameState } from "../invariants/assertGameState";
 import type {
@@ -19,6 +20,42 @@ const p3 = asPlayerId("player-3");
 const p4 = asPlayerId("player-4");
 const playerIds = [p1, p2, p3, p4] as const;
 
+function createReadyGame(options?: {
+  readonly gameId?: string;
+  readonly seed?: string;
+  readonly playerIds?: readonly [typeof p1, typeof p2, typeof p3, typeof p4];
+}): GameState {
+  let state = createGame({
+    gameId: options?.gameId ?? "synthetic-settlement-game",
+    seed: options?.seed ?? "settlement-test-seed",
+    playerIds: options?.playerIds ?? playerIds,
+  });
+
+  for (const playerId of state.playerOrder) {
+    const player = state.players[playerId];
+    if (player === undefined) {
+      throw new Error(`Missing player ${playerId}`);
+    }
+    const objectiveId = player.offeredObjectiveIds[0];
+    if (objectiveId === undefined) {
+      throw new Error(`Missing objective offer for player ${playerId}`);
+    }
+    const result = applyAction(state, {
+      type: "CHOOSE_OBJECTIVE",
+      playerId,
+      objectiveId,
+    });
+    if (!result.ok) {
+      throw new Error(
+        `Failed to choose objective for player ${playerId}: ${result.code}`,
+      );
+    }
+    state = result.state;
+  }
+
+  return state;
+}
+
 function buildSyntheticFixture(options?: {
   readonly propertyOwners?: {
     readonly [p1]?: number;
@@ -33,7 +70,7 @@ function buildSyntheticFixture(options?: {
   business: BusinessAsset;
   loan?: PlayerLoan;
 } {
-  const base = createGame({
+  const base = createReadyGame({
     gameId: "synthetic-settlement-game",
     seed: "settlement-test-seed",
     playerIds,
@@ -110,6 +147,26 @@ function buildSyntheticFixture(options?: {
 }
 
 describe("quarter settlement foundation", () => {
+  it("rejects quarter settlement with WRONG_PHASE when match is still in objective-choosing phase", () => {
+    const unready = createGame({
+      gameId: "unready-game",
+      seed: "unready-seed",
+      playerIds,
+    });
+    expect(unready.phase).toBe("objective-choosing");
+
+    const result = settleQuarter(unready, { quarter: 1 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.code).toBe("WRONG_PHASE");
+    expect(result.state).toBe(unready);
+    expect(result.journalEntries).toHaveLength(0);
+    expect(result.state.counters).toEqual(unready.counters);
+    expect(result.state.revision).toBe(unready.revision);
+    expect(result.state.random).toEqual(unready.random);
+  });
+
   it("settles Quarter 1 atomically and reconciles exact property cash flows", () => {
     // Property NOI check:
     // Scheduled rent = 300,000
@@ -264,8 +321,114 @@ describe("quarter settlement foundation", () => {
     expect(q2Result.state.currentQuarter).toBe(3);
   });
 
+  it("rejects quarter settlement with DESTINATION_OVERFLOW when recipient balance would overflow MAX_SAFE_INTEGER", () => {
+    const { state } = buildSyntheticFixture();
+    // In buildSyntheticFixture, p1 receives 111,150 cents of NOI
+    // Set p1 cash near MAX_SAFE_INTEGER so that receiving NOI would overflow
+    const nearMaxState: GameState = {
+      ...state,
+      finance: {
+        ...state.finance,
+        cashByPlayer: {
+          ...state.finance.cashByPlayer,
+          [p1]: cents(Number.MAX_SAFE_INTEGER - 100_000),
+        },
+      },
+    };
+
+    const result = settleQuarter(nearMaxState, { quarter: 1 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.code).toBe("DESTINATION_OVERFLOW");
+    expect(result.state).toBe(nearMaxState);
+    expect(result.journalEntries).toHaveLength(0);
+    expect(result.state.counters).toEqual(nearMaxState.counters);
+    expect(result.state.revision).toBe(nearMaxState.revision);
+    expect(result.state.random).toEqual(nearMaxState.random);
+  });
+
+  it("rejects quarter settlement with DESTINATION_OVERFLOW when cumulative distributions from multiple properties overflow", () => {
+    const base = createReadyGame({
+      gameId: "multi-property-overflow-game",
+      seed: "multi-prop-seed",
+      playerIds,
+    });
+
+    const propAId = asAssetId("asset-prop-a");
+    const propBId = asAssetId("asset-prop-b");
+
+    // Property A NOI: 100 * 1.0 - 40 = 60 cents
+    const propA: PropertyAsset = {
+      id: propAId,
+      kind: "property",
+      marketValueCents: cents(10_000_000),
+      scheduledQuarterlyRentCents: cents(100),
+      occupancyBps: basisPoints(10_000),
+      operatingExpenseRatioBps: basisPoints(4_000),
+      ownershipByPlayerPpm: {
+        [p1]: ownershipPpm(1_000_000),
+      },
+    };
+
+    // Property B NOI: 100 * 1.0 - 50 = 50 cents
+    const propB: PropertyAsset = {
+      id: propBId,
+      kind: "property",
+      marketValueCents: cents(10_000_000),
+      scheduledQuarterlyRentCents: cents(100),
+      occupancyBps: basisPoints(10_000),
+      operatingExpenseRatioBps: basisPoints(5_000),
+      ownershipByPlayerPpm: {
+        [p1]: ownershipPpm(1_000_000),
+      },
+    };
+
+    // Player 1 has room for exactly 100 cents before reaching MAX_SAFE_INTEGER
+    // Individually: propA (60 <= 100) fits, propB (50 <= 100) fits
+    // Cumulatively: 60 + 50 = 110 > 100 -> overflows!
+    const state: GameState = {
+      ...base,
+      finance: {
+        ...base.finance,
+        cashByPlayer: {
+          ...base.finance.cashByPlayer,
+          [p1]: cents(Number.MAX_SAFE_INTEGER - 100),
+        },
+        assetsById: {
+          [propAId]: propA,
+          [propBId]: propB,
+        },
+      },
+    };
+
+    const result = settleQuarter(state, { quarter: 1 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.code).toBe("DESTINATION_OVERFLOW");
+    expect(result.state).toBe(state);
+    expect(result.journalEntries).toHaveLength(0);
+    expect(result.state.counters).toEqual(state.counters);
+    expect(result.state.revision).toBe(state.revision);
+    expect(result.state.random).toEqual(state.random);
+  });
+
+  it("throws RangeError if currentQuarter is at terminal MAX_SAFE_INTEGER", () => {
+    const { state } = buildSyntheticFixture();
+    const terminalState: GameState = {
+      ...state,
+      currentQuarter: Number.MAX_SAFE_INTEGER,
+      lastSettledQuarter: Number.MAX_SAFE_INTEGER - 1,
+    };
+
+    expect(() =>
+      settleQuarter(terminalState, { quarter: Number.MAX_SAFE_INTEGER }),
+    ).toThrow(RangeError);
+  });
+
   it("produces zero distributions for a zero-NOI property or empty asset registry", () => {
-    const base = createGame({
+    const base = createReadyGame({
       gameId: "empty-assets-game",
       seed: "empty-seed",
       playerIds,
@@ -344,7 +507,7 @@ describe("quarter settlement foundation", () => {
       },
     };
 
-    const base = createGame({
+    const base = createReadyGame({
       gameId: "order-test-game",
       seed: "order-seed",
       playerIds,
