@@ -66,6 +66,7 @@ export function createGame(input: CreateGameInput): GameState {
     players,
     finance: {
       cashByPlayer,
+      loansById: {},
     },
     random: setup.random,
     counters: {

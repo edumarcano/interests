@@ -1,7 +1,7 @@
 import type { ObjectiveId, ProfileId } from "@finance-game/rules";
-import type { GameId, PlayerId } from "@finance-game/shared";
+import type { GameId, LoanId, PlayerId } from "@finance-game/shared";
 
-import type { Cents } from "../finance/money";
+import type { BasisPoints, Cents } from "../finance/money";
 import type { RandomState } from "../random/prng";
 
 export type GamePhase = "objective-choosing" | "ready-for-first-round";
@@ -13,8 +13,21 @@ export interface PlayerState {
   readonly selectedObjectiveId: ObjectiveId | null;
 }
 
+export interface PlayerLoan {
+  readonly id: LoanId;
+  readonly kind: "player-loan";
+  readonly lenderPlayerId: PlayerId;
+  readonly borrowerPlayerId: PlayerId;
+  readonly originalPrincipalCents: Cents;
+  readonly outstandingPrincipalCents: Cents;
+  readonly annualRateBps: BasisPoints;
+  readonly termQuarters: number;
+  readonly installmentsPaid: number;
+}
+
 export interface FinanceState {
   readonly cashByPlayer: Readonly<Record<PlayerId, Cents>>;
+  readonly loansById: Readonly<Record<LoanId, PlayerLoan>>;
 }
 
 export interface DeterministicCounters {

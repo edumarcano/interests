@@ -1,4 +1,4 @@
-import { asPlayerId } from "@finance-game/shared";
+import { asLoanId, asPlayerId } from "@finance-game/shared";
 import { describe, expect, it } from "vitest";
 
 import type { DeterministicCounters, FinanceState } from "../model/gameState";
@@ -10,6 +10,7 @@ import {
 } from "./account";
 import {
   addCents,
+  basisPoints,
   cents,
   isNonNegativeCents,
   isSafeCents,
@@ -31,6 +32,7 @@ function createInitialFinance(): FinanceState {
       [charlieId]: cents(500_000), // $5,000
       [danaId]: cents(300_000), // $3,000
     },
+    loansById: {},
   };
 }
 
@@ -383,6 +385,7 @@ describe("financial rejection rules and immutability", () => {
         [charlieId]: cents(0),
         [danaId]: cents(0),
       },
+      loansById: {},
     };
     const counters = createInitialCounters();
 
@@ -474,5 +477,44 @@ describe("deterministic repeatability", () => {
         quarter: 1,
       }),
     ).toThrow(RangeError);
+  });
+
+  it("preserves loansById registry during cash posting", () => {
+    const sampleLoan = {
+      id: asLoanId("loan-1"),
+      kind: "player-loan" as const,
+      lenderPlayerId: aliceId,
+      borrowerPlayerId: bobId,
+      originalPrincipalCents: cents(100_000),
+      outstandingPrincipalCents: cents(100_000),
+      annualRateBps: basisPoints(500),
+      termQuarters: 4,
+      installmentsPaid: 0,
+    };
+    const finance: FinanceState = {
+      cashByPlayer: {
+        [aliceId]: cents(2_000_000),
+        [bobId]: cents(1_000_000),
+        [charlieId]: cents(500_000),
+        [danaId]: cents(300_000),
+      },
+      loansById: {
+        [sampleLoan.id]: sampleLoan,
+      },
+    };
+    const counters = createInitialCounters();
+
+    const result = postCash(finance, counters, {
+      source: playerCashAccount(aliceId),
+      destination: playerCashAccount(bobId),
+      amountCents: 50_000,
+      reason: "transfer",
+      quarter: 1,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.finance.loansById).toBe(finance.loansById);
+    expect(result.finance.loansById[sampleLoan.id]).toBe(sampleLoan);
   });
 });

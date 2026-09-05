@@ -3,8 +3,11 @@ import {
   isPairValid,
   isProfileId,
   OBJECTIVE_IDS,
+  PLAYER_LOAN_MAX_TERM_QUARTERS,
+  PLAYER_LOAN_MIN_TERM_QUARTERS,
   STANDARD_V1_PLAYER_COUNT,
 } from "@finance-game/rules";
+import { calculatePlayerLoanSchedule } from "../finance/amortization";
 import type { GameState } from "../model/gameState";
 import { RNG_ALGORITHM } from "../random/prng";
 
@@ -196,6 +199,137 @@ export function assertGameState(state: GameState): void {
     ) {
       throw new Error(
         `Game invariant failed: extra unknown player ${cashKey} in cash balances`,
+      );
+    }
+  }
+
+  // Loan registry invariants
+  if (
+    state.finance.loansById === undefined ||
+    state.finance.loansById === null ||
+    typeof state.finance.loansById !== "object"
+  ) {
+    throw new Error(
+      "Game invariant failed: loansById map is missing or invalid",
+    );
+  }
+
+  for (const [loanKey, loan] of Object.entries(state.finance.loansById)) {
+    if (loan === undefined || loan === null || typeof loan !== "object") {
+      throw new Error(`Game invariant failed: loan ${loanKey} is invalid`);
+    }
+    if (loanKey !== loan.id) {
+      throw new Error(
+        `Game invariant failed: loan key ${loanKey} does not match loan.id ${loan.id}`,
+      );
+    }
+    if (loan.kind !== "player-loan") {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} has invalid kind ${String(loan.kind)}`,
+      );
+    }
+    if (!state.playerOrder.includes(loan.lenderPlayerId)) {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} has unknown lender ${loan.lenderPlayerId}`,
+      );
+    }
+    if (!state.playerOrder.includes(loan.borrowerPlayerId)) {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} has unknown borrower ${loan.borrowerPlayerId}`,
+      );
+    }
+    if (loan.lenderPlayerId === loan.borrowerPlayerId) {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} has same lender and borrower`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(loan.originalPrincipalCents) ||
+      loan.originalPrincipalCents <= 0
+    ) {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} originalPrincipalCents must be a positive safe integer`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(loan.outstandingPrincipalCents) ||
+      loan.outstandingPrincipalCents < 0
+    ) {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} outstandingPrincipalCents must be a non-negative safe integer`,
+      );
+    }
+    if (loan.outstandingPrincipalCents > loan.originalPrincipalCents) {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} outstandingPrincipalCents exceeds originalPrincipalCents`,
+      );
+    }
+    if (!Number.isSafeInteger(loan.annualRateBps) || loan.annualRateBps < 0) {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} annualRateBps must be a non-negative safe integer`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(loan.termQuarters) ||
+      loan.termQuarters < PLAYER_LOAN_MIN_TERM_QUARTERS ||
+      loan.termQuarters > PLAYER_LOAN_MAX_TERM_QUARTERS
+    ) {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} termQuarters must be between ${PLAYER_LOAN_MIN_TERM_QUARTERS} and ${PLAYER_LOAN_MAX_TERM_QUARTERS}`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(loan.installmentsPaid) ||
+      loan.installmentsPaid < 0 ||
+      loan.installmentsPaid > loan.termQuarters
+    ) {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} installmentsPaid must be an integer between 0 and termQuarters`,
+      );
+    }
+
+    // Schedule consistency
+    let schedule: ReturnType<typeof calculatePlayerLoanSchedule>;
+    try {
+      schedule = calculatePlayerLoanSchedule({
+        principalCents: loan.originalPrincipalCents,
+        annualRateBps: loan.annualRateBps,
+        termQuarters: loan.termQuarters,
+      });
+    } catch (err) {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} schedule is invalid: ${String(err)}`,
+      );
+    }
+
+    const prevRow =
+      loan.installmentsPaid > 0
+        ? schedule[loan.installmentsPaid - 1]
+        : undefined;
+
+    if (loan.installmentsPaid > 0 && prevRow === undefined) {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} schedule has no row for installment ${loan.installmentsPaid}`,
+      );
+    }
+
+    const expectedRemaining =
+      loan.installmentsPaid === 0
+        ? loan.originalPrincipalCents
+        : (prevRow?.closingPrincipalCents ?? -1);
+
+    if (loan.outstandingPrincipalCents !== expectedRemaining) {
+      throw new Error(
+        `Game invariant failed: loan ${loan.id} outstanding principal ${loan.outstandingPrincipalCents} does not match expected remaining principal ${expectedRemaining} for installmentsPaid ${loan.installmentsPaid}`,
+      );
+    }
+
+    if (
+      loan.installmentsPaid === loan.termQuarters &&
+      loan.outstandingPrincipalCents !== 0
+    ) {
+      throw new Error(
+        `Game invariant failed: completed loan ${loan.id} must have zero outstanding principal`,
       );
     }
   }

@@ -1,8 +1,10 @@
+import type { LoanId } from "@finance-game/shared";
+
 import { nextDeterministicId } from "../game/deterministicIds";
 import type { DeterministicCounters, FinanceState } from "../model/gameState";
 import { type CashAccount, isSameCashAccount } from "./account";
-import type { JournalEntry } from "./journal";
-import { cents } from "./money";
+import type { JournalEntry, LoanPaymentBreakdown } from "./journal";
+import { cents, isNonNegativeCents } from "./money";
 
 export interface CashPostingRequest {
   readonly source: CashAccount;
@@ -10,7 +12,8 @@ export interface CashPostingRequest {
   readonly amountCents: number;
   readonly reason: string;
   readonly quarter: number;
-  readonly relatedEntityId?: string;
+  readonly relatedLoanId?: LoanId;
+  readonly loanPayment?: LoanPaymentBreakdown;
 }
 
 export type CashPostingErrorCode =
@@ -54,6 +57,18 @@ export function postCash(
     request.amountCents > Number.MAX_SAFE_INTEGER
   ) {
     return reject("INVALID_AMOUNT");
+  }
+
+  // If structured loan payment breakdown is provided, validate it matches total amount
+  if (request.loanPayment !== undefined) {
+    if (
+      !isNonNegativeCents(request.loanPayment.principalCents) ||
+      !isNonNegativeCents(request.loanPayment.interestCents) ||
+      request.loanPayment.principalCents + request.loanPayment.interestCents !==
+        request.amountCents
+    ) {
+      return reject("INVALID_AMOUNT");
+    }
   }
 
   // 2. Quarter validation: must be a non-negative safe integer
@@ -128,14 +143,20 @@ export function postCash(
     amountCents: cents(request.amountCents),
     reason: request.reason,
     quarter: request.quarter,
-    ...(request.relatedEntityId !== undefined
-      ? { relatedEntityId: request.relatedEntityId }
+    ...(request.relatedLoanId !== undefined
+      ? { relatedLoanId: request.relatedLoanId }
+      : {}),
+    ...(request.loanPayment !== undefined
+      ? { loanPayment: request.loanPayment }
       : {}),
   };
 
   return {
     ok: true,
-    finance: { cashByPlayer: nextCashByPlayer },
+    finance: {
+      ...finance,
+      cashByPlayer: nextCashByPlayer,
+    },
     counters: nextCounters,
     entry,
   };
