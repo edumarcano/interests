@@ -1,7 +1,6 @@
 import type { PlayerId } from "@finance-game/shared";
-
-import type { GameState } from "../model/gameState";
 import { assertGameState } from "../invariants/assertGameState";
+import type { GameState } from "../model/gameState";
 
 export interface SetPlayerReadyAction {
   readonly type: "SET_PLAYER_READY";
@@ -13,7 +12,11 @@ export type GameAction = SetPlayerReadyAction;
 
 export type ActionResult =
   | { readonly ok: true; readonly state: GameState }
-  | { readonly ok: false; readonly state: GameState; readonly code: "INVALID_ACTION" | "UNKNOWN_PLAYER" | "WRONG_PHASE" };
+  | {
+      readonly ok: false;
+      readonly state: GameState;
+      readonly code: "INVALID_ACTION" | "UNKNOWN_PLAYER" | "WRONG_PHASE";
+    };
 
 export function applyAction(state: GameState, action: unknown): ActionResult {
   if (!isSetPlayerReadyAction(action)) {
@@ -45,5 +48,9 @@ function isSetPlayerReadyAction(value: unknown): value is SetPlayerReadyAction {
     return false;
   }
   const candidate = value as Partial<SetPlayerReadyAction>;
-  return candidate.type === "SET_PLAYER_READY" && typeof candidate.playerId === "string" && typeof candidate.ready === "boolean";
+  return (
+    candidate.type === "SET_PLAYER_READY" &&
+    typeof candidate.playerId === "string" &&
+    typeof candidate.ready === "boolean"
+  );
 }
