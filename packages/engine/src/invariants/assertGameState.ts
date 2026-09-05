@@ -139,4 +139,64 @@ export function assertGameState(state: GameState): void {
       );
     }
   }
+  if (
+    !Number.isSafeInteger(state.counters.journal) ||
+    state.counters.journal < 0
+  ) {
+    throw new Error(
+      "Game invariant failed: journal counter must be a non-negative safe integer",
+    );
+  }
+
+  // Financial state invariants
+  if (
+    state.finance === undefined ||
+    state.finance === null ||
+    typeof state.finance !== "object"
+  ) {
+    throw new Error(
+      "Game invariant failed: finance state is missing or invalid",
+    );
+  }
+
+  if (
+    state.finance.cashByPlayer === undefined ||
+    state.finance.cashByPlayer === null ||
+    typeof state.finance.cashByPlayer !== "object"
+  ) {
+    throw new Error(
+      "Game invariant failed: cashByPlayer map is missing or invalid",
+    );
+  }
+
+  const cashPlayerIds = Object.keys(state.finance.cashByPlayer);
+  if (cashPlayerIds.length !== STANDARD_V1_PLAYER_COUNT) {
+    throw new Error(
+      `Game invariant failed: cashByPlayer must have exactly ${STANDARD_V1_PLAYER_COUNT} player balances, got ${cashPlayerIds.length}`,
+    );
+  }
+
+  for (const playerId of state.playerOrder) {
+    const balance = state.finance.cashByPlayer[playerId];
+    if (balance === undefined) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} is missing a cash balance`,
+      );
+    }
+    if (!Number.isSafeInteger(balance) || balance < 0) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} cash balance must be a non-negative safe integer of cents, got ${String(balance)}`,
+      );
+    }
+  }
+
+  for (const cashKey of cashPlayerIds) {
+    if (
+      !state.playerOrder.includes(cashKey as (typeof state.playerOrder)[number])
+    ) {
+      throw new Error(
+        `Game invariant failed: extra unknown player ${cashKey} in cash balances`,
+      );
+    }
+  }
 }

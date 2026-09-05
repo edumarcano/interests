@@ -81,10 +81,11 @@ describe("deterministic kernel", () => {
     });
     expect(result.ok).toBe(false);
     expect(result.state).toBe(state);
+    expect(result.journalEntries).toEqual([]);
     expect(state).toEqual(snapshot);
   });
 
-  it("returns a new state for an accepted action without consuming randomness", () => {
+  it("returns a new state for an accepted action without consuming randomness or mutating finance", () => {
     const state = createGame({
       gameId: "game-1",
       seed: "seed",
@@ -108,6 +109,9 @@ describe("deterministic kernel", () => {
     );
     expect(result.state.random).toEqual(state.random);
     expect(result.state.revision).toBe(1);
+    expect(result.journalEntries).toEqual([]);
+    expect(result.state.finance).toBe(state.finance);
+    expect(result.state.counters.journal).toBe(0);
   });
 
   it("generates deterministic IDs from explicit counters", () => {
@@ -120,6 +124,12 @@ describe("deterministic kernel", () => {
     const second = nextDeterministicId("asset", state.counters);
     expect(first).toEqual(second);
     expect(first.id).toBe("asset-1");
+
+    const j1 = nextDeterministicId("journal", state.counters);
+    const j2 = nextDeterministicId("journal", state.counters);
+    expect(j1).toEqual(j2);
+    expect(j1.id).toBe("journal-1");
+    expect(j1.counters.journal).toBe(1);
   });
 
   it("rejects unsafe money and rate values", () => {
