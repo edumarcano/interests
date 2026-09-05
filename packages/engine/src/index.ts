@@ -5,6 +5,7 @@ export * from "./finance/money";
 export * from "./game/actions";
 export * from "./game/createGame";
 export * from "./game/deterministicIds";
+export * from "./game/setup";
 export * from "./invariants/assertGameState";
 export * from "./model/gameState";
 export * from "./random/prng";

@@ -583,6 +583,23 @@ With four players receiving two choices each, there are exactly eight objective 
 
 > **SETUP RESULT** No duplicate objectives, no first-pick advantage, no collision-resolution screen, and no compatibility ratings exposed to players.
 
+### 9.6.1 Objective-deal scoring and selection [PROTOTYPE]
+
+The initial prototype scoring policy resolves algorithm steps 4 and 5 as follows:
+
+1. **Validity filter**: An allocation of eight objectives across four players (two each) is valid if and only if every player receives zero Stretch (`T`) objectives and at least one Strong-fit (`S`) objective.
+
+2. **Scoring formula**: Valid deals are scored across the four offered pairs. For each player:
+   - `+1` if the two offered objectives belong to different strategic families.
+   - `+1` if the pair offers contrast (one Strong fit and one Viable alternative, `S+V`).
+   The full deal score is the sum across all four players (maximum 8).
+
+3. **High-quality subset**: Defined as all valid deals with `score >= maxScore - 1`. For all 69 feasible four-profile combinations, `maxScore` is 8, so the high-quality subset includes all deals with score 7 or 8. This preserves preference for family diversity and S+V contrast while retaining controlled variety across matches.
+
+4. **Selection**: Select uniformly from that high-quality subset using the engine PRNG adapter with an unbiased bounded-integer helper based on rejection sampling.
+
+This scoring model is a prototype balance rule. Consistency register item G7 remains OPEN pending variant audits, balance simulations, and human playtesting.
+
 ## 9.7 Victory and game length
 
 The game should not end simply because a fixed number of rounds has elapsed, and it should not show a visible countdown that makes the finish administrative. Instead, the game should have a controlled duration with an unpredictable ending.

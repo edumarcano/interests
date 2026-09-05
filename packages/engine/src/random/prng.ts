@@ -46,3 +46,27 @@ export function drawUnitInterval(random: RandomState): RandomDraw {
     nextState: draw.nextState,
   };
 }
+
+/**
+ * Draw an integer uniformly at random from [0, bound - 1]
+ * using rejection sampling to eliminate modulo bias.
+ */
+export function drawBoundedInt(random: RandomState, bound: number): RandomDraw {
+  if (!Number.isSafeInteger(bound) || bound <= 0 || bound > 0x1_0000_0000) {
+    throw new RangeError(
+      "bound must be a positive safe integer within 32-bit range",
+    );
+  }
+  const limit = 0x1_0000_0000 - (0x1_0000_0000 % bound);
+  let current = random;
+  while (true) {
+    const draw = drawUint32(current);
+    current = draw.nextState;
+    if (draw.value < limit) {
+      return {
+        value: draw.value % bound,
+        nextState: current,
+      };
+    }
+  }
+}

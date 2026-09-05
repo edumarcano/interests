@@ -1,7 +1,9 @@
+import { STANDARD_V1_PLAYER_COUNT } from "@finance-game/rules";
 import { asGameId, type PlayerId } from "@finance-game/shared";
 import { assertGameState } from "../invariants/assertGameState";
 import type { GameState, PlayerState } from "../model/gameState";
 import { createRandomState } from "../random/prng";
+import { generateDeterministicSetup } from "./setup";
 
 export interface CreateGameInput {
   readonly gameId: string;
@@ -10,21 +12,51 @@ export interface CreateGameInput {
 }
 
 export function createGame(input: CreateGameInput): GameState {
-  const players = Object.fromEntries(
-    input.playerIds.map((id) => [
-      id,
-      { id, ready: false } satisfies PlayerState,
-    ]),
-  ) as Record<PlayerId, PlayerState>;
+  if (input.playerIds.length !== STANDARD_V1_PLAYER_COUNT) {
+    throw new Error(
+      `Invalid initialization: standard-v1 requires exactly ${STANDARD_V1_PLAYER_COUNT} players, got ${input.playerIds.length}`,
+    );
+  }
+
+  const uniquePlayerIds = new Set(input.playerIds);
+  if (uniquePlayerIds.size !== input.playerIds.length) {
+    throw new Error(
+      "Invalid initialization: player IDs must be unique within a game",
+    );
+  }
+
+  const initialRandom = createRandomState(input.seed);
+  const setup = generateDeterministicSetup(input.playerIds, initialRandom);
+
+  const players: Record<PlayerId, PlayerState> = {} as Record<
+    PlayerId,
+    PlayerState
+  >;
+
+  for (const playerId of input.playerIds) {
+    const profileId = setup.profileAssignments[playerId];
+    const offeredObjectiveIds = setup.objectiveOffers[playerId];
+    if (profileId === undefined || offeredObjectiveIds === undefined) {
+      throw new Error(
+        `Setup failed: missing profile or objective offers for player ${playerId}`,
+      );
+    }
+    players[playerId] = {
+      id: playerId,
+      profileId,
+      offeredObjectiveIds,
+      selectedObjectiveId: null,
+    };
+  }
 
   const state: GameState = {
     gameId: asGameId(input.gameId),
     modeId: "standard-v1",
     revision: 0,
-    phase: "setup",
+    phase: "objective-choosing",
     playerOrder: [...input.playerIds],
     players,
-    random: createRandomState(input.seed),
+    random: setup.random,
     counters: {
       asset: 0,
       contract: 0,

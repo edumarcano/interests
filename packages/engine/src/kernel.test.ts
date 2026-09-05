@@ -5,7 +5,7 @@ import { basisPoints, cents } from "./finance/money";
 import { applyAction } from "./game/actions";
 import { createGame } from "./game/createGame";
 import { nextDeterministicId } from "./game/deterministicIds";
-import { createRandomState, drawUint32 } from "./random/prng";
+import { createRandomState, drawBoundedInt, drawUint32 } from "./random/prng";
 
 const players = [
   asPlayerId("p1"),
@@ -30,6 +30,43 @@ describe("deterministic kernel", () => {
     expect(first).toEqual(second);
   });
 
+  it("draws unbiased bounded integers deterministically", () => {
+    const random = createRandomState("bounded-seed");
+    const draw1 = drawBoundedInt(random, 10);
+    const draw2 = drawBoundedInt(random, 10);
+    expect(draw1).toEqual(draw2);
+    expect(draw1.value).toBeGreaterThanOrEqual(0);
+    expect(draw1.value).toBeLessThan(10);
+
+    // Test rejection sampling bounds validation
+    expect(() => drawBoundedInt(random, 0)).toThrow(RangeError);
+    expect(() => drawBoundedInt(random, -5)).toThrow(RangeError);
+    expect(() => drawBoundedInt(random, 1.5)).toThrow(RangeError);
+    expect(() => drawBoundedInt(random, 0x1_0000_0001)).toThrow(RangeError);
+
+    // Test bound === 1
+    const unitDraw = drawBoundedInt(random, 1);
+    expect(unitDraw.value).toBe(0);
+
+    // Deterministic distribution across buckets
+    let current = createRandomState("distribution-seed");
+    const counts = [0, 0, 0, 0, 0];
+    for (let i = 0; i < 5000; i += 1) {
+      const d = drawBoundedInt(current, 5);
+      const bucket = d.value;
+      const prev = counts[bucket];
+      if (prev !== undefined) {
+        counts[bucket] = prev + 1;
+      }
+      current = d.nextState;
+    }
+    // Each bucket should get roughly 1000 draws (between 850 and 1150)
+    for (const count of counts) {
+      expect(count).toBeGreaterThan(850);
+      expect(count).toBeLessThan(1150);
+    }
+  });
+
   it("does not mutate state or random state when an action is rejected", () => {
     const state = createGame({
       gameId: "game-1",
@@ -38,9 +75,9 @@ describe("deterministic kernel", () => {
     });
     const snapshot = structuredClone(state);
     const result = applyAction(state, {
-      type: "SET_PLAYER_READY",
+      type: "CHOOSE_OBJECTIVE",
       playerId: "missing",
-      ready: true,
+      objectiveId: "founder",
     });
     expect(result.ok).toBe(false);
     expect(result.state).toBe(state);
@@ -54,15 +91,21 @@ describe("deterministic kernel", () => {
       playerIds: players,
     });
     const firstPlayer = players[0];
+    const playerState = state.players[firstPlayer];
+    expect(playerState).toBeDefined();
+    if (playerState === undefined) return;
+    const offered = playerState.offeredObjectiveIds[0];
     const result = applyAction(state, {
-      type: "SET_PLAYER_READY",
+      type: "CHOOSE_OBJECTIVE",
       playerId: firstPlayer,
-      ready: true,
+      objectiveId: offered,
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state).not.toBe(state);
-    expect(result.state.players[firstPlayer]?.ready).toBe(true);
+    expect(result.state.players[firstPlayer]?.selectedObjectiveId).toBe(
+      offered,
+    );
     expect(result.state.random).toEqual(state.random);
     expect(result.state.revision).toBe(1);
   });
