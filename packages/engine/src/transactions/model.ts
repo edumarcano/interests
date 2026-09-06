@@ -1,13 +1,30 @@
 import type { AssetId, PlayerId, TransactionId } from "@finance-game/shared";
 
 import type { JournalEntry } from "../finance/journal";
-import type { Cents } from "../finance/money";
+import type { BasisPoints, Cents } from "../finance/money";
 import type { GameState } from "../model/gameState";
+
+export type CashReservationPurpose = "purchase-price" | "player-loan-funding";
 
 export interface CashReservation {
   readonly playerId: PlayerId;
   readonly amountCents: Cents;
-  readonly purpose: "purchase-price";
+  readonly purpose: CashReservationPurpose;
+}
+
+export interface PlayerLoanFinancingOffer {
+  readonly lenderPlayerId: PlayerId;
+  readonly principalCents: Cents;
+  readonly annualRateBps: BasisPoints;
+  readonly termQuarters: number;
+  readonly termsRevision: number;
+  readonly status: "offered" | "accepted";
+  readonly reservation: CashReservation;
+}
+
+export interface PlayerLoanFinancingRequest {
+  readonly requestedPrincipalCents: Cents;
+  readonly offer: PlayerLoanFinancingOffer | null;
 }
 
 export interface CashBusinessPurchaseTransaction {
@@ -19,6 +36,7 @@ export interface CashBusinessPurchaseTransaction {
   readonly purchasePriceCents: Cents;
   readonly createdQuarter: number;
   readonly reservation: CashReservation;
+  readonly playerLoanFinancing?: PlayerLoanFinancingRequest;
 }
 
 export type ActiveTransaction = CashBusinessPurchaseTransaction;
@@ -28,6 +46,20 @@ export interface OpenCashBusinessPurchaseInput {
   readonly sellerPlayerId: PlayerId;
   readonly assetId: AssetId;
   readonly purchasePriceCents: number;
+}
+
+export interface OpenFinancedBusinessPurchaseInput {
+  readonly buyerPlayerId: PlayerId;
+  readonly sellerPlayerId: PlayerId;
+  readonly assetId: AssetId;
+  readonly purchasePriceCents: number;
+  readonly buyerCashContributionCents: number;
+  readonly requestedPrincipalCents: number;
+}
+
+export interface SubmitPlayerLoanFinancingOfferInput {
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
 }
 
 export type TransactionErrorCode =
@@ -46,7 +78,20 @@ export type TransactionErrorCode =
   | "INSUFFICIENT_FUNDS"
   | "DESTINATION_OVERFLOW"
   | "INVALID_RESERVATION"
-  | "TRANSACTION_ID_EXHAUSTED";
+  | "TRANSACTION_ID_EXHAUSTED"
+  | "INVALID_FINANCING_REQUEST"
+  | "NO_FINANCING_REQUEST"
+  | "OFFER_ALREADY_EXISTS"
+  | "INVALID_RATE"
+  | "INVALID_TERM"
+  | "UNSUPPORTED_TERMS"
+  | "NO_OFFER"
+  | "UNAUTHORIZED_BUYER"
+  | "OFFER_ALREADY_ACCEPTED"
+  | "STALE_TERMS_REVISION"
+  | "FINANCING_NOT_READY"
+  | "LOAN_ID_EXHAUSTED"
+  | "JOURNAL_ID_EXHAUSTED";
 
 export type TransactionResult =
   | {

@@ -108,6 +108,7 @@ describe("player-loan origination", () => {
       annualRateBps: 1_000,
       termQuarters: 3,
       installmentsPaid: 0,
+      originatedQuarter: 1,
     });
 
     // 3. Cash movements: lender decreases, borrower increases
@@ -279,6 +280,49 @@ describe("player-loan origination", () => {
     expect(unsupportedTerms.finance).toBe(finance);
     expect(unsupportedTerms.counters).toBe(counters);
 
+    // Invalid quarter: 0
+    const zeroQuarter = originateConfirmedPlayerLoan(finance, counters, {
+      lenderPlayerId: aliceId,
+      borrowerPlayerId: bobId,
+      principalCents: 100_000,
+      annualRateBps: 500,
+      termQuarters: 3,
+      quarter: 0,
+    });
+    expect(zeroQuarter.ok).toBe(false);
+    if (zeroQuarter.ok) return;
+    expect(zeroQuarter.code).toBe("INVALID_QUARTER");
+    expect(zeroQuarter.finance).toBe(finance);
+    expect(zeroQuarter.counters).toBe(counters);
+
+    // Invalid quarter: negative
+    const negativeQuarter = originateConfirmedPlayerLoan(finance, counters, {
+      lenderPlayerId: aliceId,
+      borrowerPlayerId: bobId,
+      principalCents: 100_000,
+      annualRateBps: 500,
+      termQuarters: 3,
+      quarter: -1,
+    });
+    expect(negativeQuarter.ok).toBe(false);
+    if (negativeQuarter.ok) return;
+    expect(negativeQuarter.code).toBe("INVALID_QUARTER");
+    expect(negativeQuarter.finance).toBe(finance);
+    expect(negativeQuarter.counters).toBe(counters);
+
+    // Invalid quarter: non-integer
+    const floatQuarter = originateConfirmedPlayerLoan(finance, counters, {
+      lenderPlayerId: aliceId,
+      borrowerPlayerId: bobId,
+      principalCents: 100_000,
+      annualRateBps: 500,
+      termQuarters: 3,
+      quarter: 1.5,
+    });
+    expect(floatQuarter.ok).toBe(false);
+    if (floatQuarter.ok) return;
+    expect(floatQuarter.code).toBe("INVALID_QUARTER");
+    expect(floatQuarter.finance).toBe(finance);
     // Unsupported zero-interest terms where principal < termQuarters
     const zeroInterestTiny = originateConfirmedPlayerLoan(finance, counters, {
       lenderPlayerId: aliceId,
@@ -319,6 +363,24 @@ describe("player-loan origination", () => {
     expect(overflowOrigination.code).toBe("DESTINATION_OVERFLOW");
     expect(overflowOrigination.finance).toBe(overflowFinance);
     expect(overflowOrigination.counters).toBe(counters);
+  });
+
+  it("derives originatedQuarter directly from authoritative positive origination quarter", () => {
+    const finance = createInitialFinance();
+    const counters = createInitialCounters();
+
+    const result = originateConfirmedPlayerLoan(finance, counters, {
+      lenderPlayerId: aliceId,
+      borrowerPlayerId: bobId,
+      principalCents: 500_000,
+      annualRateBps: 1_000,
+      termQuarters: 4,
+      quarter: 5,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.loan.originatedQuarter).toBe(5);
   });
 });
 

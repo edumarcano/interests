@@ -2,7 +2,7 @@ import {
   PLAYER_LOAN_MAX_TERM_QUARTERS,
   PLAYER_LOAN_MIN_TERM_QUARTERS,
 } from "@finance-game/rules";
-import type { LoanId, PlayerId } from "@finance-game/shared";
+import type { LoanId, PlayerId, TransactionId } from "@finance-game/shared";
 
 import { nextDeterministicId } from "../game/deterministicIds";
 import type {
@@ -23,6 +23,7 @@ export interface OriginatePlayerLoanRequest {
   readonly annualRateBps: number;
   readonly termQuarters: number;
   readonly quarter: number;
+  readonly relatedTransactionId?: TransactionId;
 }
 
 export type OriginatePlayerLoanErrorCode =
@@ -34,7 +35,8 @@ export type OriginatePlayerLoanErrorCode =
   | "INVALID_QUARTER"
   | "INSUFFICIENT_FUNDS"
   | "DESTINATION_OVERFLOW"
-  | "UNSUPPORTED_TERMS";
+  | "UNSUPPORTED_TERMS"
+  | "LOAN_ID_EXHAUSTED";
 
 export type OriginatePlayerLoanResult =
   | {
@@ -148,8 +150,8 @@ export function originateConfirmedPlayerLoan(
     return reject("INVALID_TERM");
   }
 
-  // 6. Quarter validation
-  if (!Number.isSafeInteger(request.quarter) || request.quarter < 0) {
+  // 6. Quarter validation: authoritative origination quarter must be a positive safe integer
+  if (!Number.isSafeInteger(request.quarter) || request.quarter <= 0) {
     return reject("INVALID_QUARTER");
   }
 
@@ -164,7 +166,11 @@ export function originateConfirmedPlayerLoan(
     return reject("UNSUPPORTED_TERMS");
   }
 
-  // 8. Generate deterministic LoanId
+  // 8. Preflight loan counter capacity and generate deterministic LoanId
+  if (counters.loan >= Number.MAX_SAFE_INTEGER) {
+    return reject("LOAN_ID_EXHAUSTED");
+  }
+
   const { id: loanId, counters: countersWithLoan } = nextDeterministicId(
     "loan",
     counters,
@@ -178,6 +184,9 @@ export function originateConfirmedPlayerLoan(
     reason: "loan-origination",
     quarter: request.quarter,
     relatedLoanId: loanId,
+    ...(request.relatedTransactionId !== undefined
+      ? { relatedTransactionId: request.relatedTransactionId }
+      : {}),
   });
 
   if (!postResult.ok) {
@@ -204,6 +213,7 @@ export function originateConfirmedPlayerLoan(
     annualRateBps: basisPoints(request.annualRateBps),
     termQuarters: request.termQuarters,
     installmentsPaid: 0,
+    originatedQuarter: request.quarter,
   };
 
   const nextLoansById = {

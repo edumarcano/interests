@@ -67,6 +67,7 @@ export interface PlayerLoan {
   readonly annualRateBps: BasisPoints;
   readonly termQuarters: number;
   readonly installmentsPaid: number;
+  readonly originatedQuarter: number;
 }
 
 export type LegacyBankLoanPurpose = "personal-debt" | "property-mortgage";

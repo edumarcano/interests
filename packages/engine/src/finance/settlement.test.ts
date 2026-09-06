@@ -145,6 +145,7 @@ function buildSyntheticFixture(options?: {
       annualRateBps: basisPoints(800),
       termQuarters: 4,
       installmentsPaid: 0,
+      originatedQuarter: 1,
     };
     loansById = { [loanId]: loan };
   }

@@ -11,13 +11,28 @@ export function getReservedCashCents(
   state: GameState,
   playerId: PlayerId,
 ): Cents {
-  if (
-    state.activeTransaction !== null &&
-    state.activeTransaction.reservation.playerId === playerId
-  ) {
-    return cents(state.activeTransaction.reservation.amountCents);
+  if (state.activeTransaction === null) {
+    return cents(0);
   }
-  return cents(0);
+  let totalReserved = 0;
+  if (state.activeTransaction.reservation.playerId === playerId) {
+    totalReserved += state.activeTransaction.reservation.amountCents;
+  }
+  const offer = state.activeTransaction.playerLoanFinancing?.offer;
+  if (
+    offer !== null &&
+    offer !== undefined &&
+    offer.reservation.playerId === playerId
+  ) {
+    if (
+      offer.reservation.amountCents >
+      Number.MAX_SAFE_INTEGER - totalReserved
+    ) {
+      throw new RangeError("Reserved cash sum exceeded MAX_SAFE_INTEGER");
+    }
+    totalReserved += offer.reservation.amountCents;
+  }
+  return cents(totalReserved);
 }
 
 /**
