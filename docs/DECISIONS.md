@@ -74,4 +74,18 @@ Implement the deterministic financial foundations required to execute Quarter 1 
    4. Legacy bank loan payments by LoanId (`player -> bank` with structured principal/interest breakdown).
 7. **Idempotency & Replay:** Quarter 1 settlement advances `currentQuarter` to 2 and sets `lastSettledQuarter` to 1. Retrying returns `QUARTER_ALREADY_SETTLED` with state unchanged and zero journal entries.
 
+## ARCH-022 - Corrected bounded RNG semantics
+
+**Status:** Accepted  
+**Date:** September 5, 2026
+
+Refine ARCH-019 to correct bounded-random sampling bias before market, opportunity, or balance simulation begins:
+
+1. **Root cause:** The `xorshift32-v1` implementation performed rejection sampling assuming a raw generator domain of $2^{32}$ (`0x1_0000_0000`). Because zero is the absorbing xorshift32 state, the valid non-zero xorshift32 cycle contains $2^{32} - 1$ states (`0xffffffff` = 4,294,967,295), creating a microscopic modulo bias and accepting an invalid bound of $2^{32}$.
+2. **`xorshift32-v2` Semantics:** Introduce `xorshift32-v2` as the active default generator for new games (`RNG_ALGORITHM = RNG_ALGORITHM_V2`). It preserves the seed hashing algorithm and raw xorshift32 state transition unchanged. Bounded draws remap raw draws uniformly via `sample = raw - 1` over the true domain size of `0xffffffff`, with rejection limit `DOMAIN_SIZE - (DOMAIN_SIZE % bound)` and valid bounds strictly in `[1, 0xffffffff]`.
+3. **Legacy Compatibility:** Explicit `xorshift32-v1` random states remain fully supported and retain the legacy bounded sampling behavior, preserving deterministic replay compatibility for recorded v1 matches.
+4. **State Invariant:** Generator state is strictly enforced across the engine to be an integer in `[1, 0xffffffff]`. Non-integer, zero, negative, out-of-range values, and unrecognized algorithm identifiers are rejected before any draw or bitwise coercion.
+5. **Operational Randomness:** Security-sensitive randomness (tokens, room codes, credentials) remains outside the engine kernel and continues to use platform CSPRNGs.
+
+
 

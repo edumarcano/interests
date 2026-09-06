@@ -15,7 +15,7 @@ import { calculateBusinessEquity } from "../finance/business";
 import { TOTAL_OWNERSHIP_PPM } from "../finance/ownership";
 import { calculatePropertyCashFlow } from "../finance/property";
 import type { GameState } from "../model/gameState";
-import { RNG_ALGORITHM } from "../random/prng";
+import { isValidRandomState } from "../random/prng";
 
 export function assertGameState(state: GameState): void {
   if (!Number.isSafeInteger(state.revision) || state.revision < 0) {
@@ -23,10 +23,7 @@ export function assertGameState(state: GameState): void {
       "Game invariant failed: revision must be a non-negative safe integer",
     );
   }
-  if (
-    state.random.algorithm !== RNG_ALGORITHM ||
-    !Number.isInteger(state.random.state)
-  ) {
+  if (!isValidRandomState(state.random)) {
     throw new Error("Game invariant failed: random state is invalid");
   }
 
