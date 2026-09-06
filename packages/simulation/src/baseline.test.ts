@@ -18,7 +18,9 @@ import {
   STANDARD_SIMULATION_PLAYER_IDS,
   simulateReadyGame,
 } from "./baseline";
+import { aggregateBatchReport } from "./metrics";
 import type { BaselineSimulationConfig } from "./types";
+import { SIMULATION_VERSION } from "./version";
 
 describe("passive baseline simulation", () => {
   describe("setup policy (Section 29)", () => {
@@ -246,6 +248,45 @@ describe("passive baseline simulation", () => {
           report.totals.totalSettledQuarters,
         );
       }
+    });
+  });
+
+  describe("centralized version & robust metrics validation", () => {
+    it("uses centralized SIMULATION_VERSION matching report metadata", () => {
+      const config: BaselineSimulationConfig = {
+        gameCount: 1,
+        quarterCount: 1,
+        seedPrefix: "version-test",
+      };
+      const report = runPassiveBaselineBatch(config);
+      expect(report.simulationVersion).toBe(SIMULATION_VERSION);
+      expect(report.simulationVersion).toBe(
+        report.workspaceCompatibility.engine,
+      );
+    });
+
+    it("throws when aggregateBatchReport encounters missing player measurement data", () => {
+      const gameResult = runPassiveBaselineGame({
+        seed: "missing-data-seed",
+        gameId: "missing-data-game",
+        quarterCount: 1,
+      });
+
+      // Corrupt openingPlayers
+      const corruptedResult = {
+        ...gameResult,
+        openingPlayers: {} as typeof gameResult.openingPlayers,
+      };
+
+      const config: BaselineSimulationConfig = {
+        gameCount: 1,
+        quarterCount: 1,
+        seedPrefix: "corrupt-test",
+      };
+
+      expect(() => aggregateBatchReport(config, [corruptedResult])).toThrow(
+        "Simulation invariant failed: game missing-data-game has no opening players recorded",
+      );
     });
   });
 });

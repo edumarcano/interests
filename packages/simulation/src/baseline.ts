@@ -31,8 +31,9 @@ import type {
   SimulationQuarterTrace,
   SimulationSettlementFailure,
 } from "./types";
+import { SIMULATION_VERSION } from "./version";
 
-export const SIMULATION_VERSION = "0.0.1";
+export { SIMULATION_VERSION };
 
 export const STANDARD_SIMULATION_PLAYER_IDS: readonly PlayerId[] = [
   asPlayerId("simulation-player-1"),

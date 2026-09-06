@@ -1,4 +1,5 @@
 import {
+  ENGINE_VERSION,
   type GameState,
   type JournalEntry,
   type SettleQuarterErrorCode,
@@ -29,6 +30,7 @@ import {
   type SimulationPlayerCashFlow,
   type SimulationPlayerSnapshot,
 } from "./types";
+import { SIMULATION_VERSION } from "./version";
 
 export function safeAdd(a: number, b: number, context = "addition"): number {
   if (!Number.isSafeInteger(a) || !Number.isSafeInteger(b)) {
@@ -161,62 +163,71 @@ export function applySettlementJournalToCashFlows(
     if (entry.destination.kind === "player") {
       const pId = entry.destination.playerId;
       const flow = cashFlows[pId];
-      if (flow !== undefined) {
-        if (entry.reason === "cash-yield") {
-          flow.cashYieldReceivedCents = safeAdd(
-            flow.cashYieldReceivedCents,
-            entry.amountCents,
-            "cashYieldReceivedCents",
-          );
-        } else if (entry.reason === "public-market-dividend") {
-          flow.publicMarketDividendsReceivedCents = safeAdd(
-            flow.publicMarketDividendsReceivedCents,
-            entry.amountCents,
-            "publicMarketDividendsReceivedCents",
-          );
-        } else if (entry.reason === "recurring-personal-income") {
-          flow.recurringIncomeReceivedCents = safeAdd(
-            flow.recurringIncomeReceivedCents,
-            entry.amountCents,
-            "recurringIncomeReceivedCents",
-          );
-        } else if (entry.reason === "property-operating-distribution") {
-          flow.propertyDistributionsReceivedCents = safeAdd(
-            flow.propertyDistributionsReceivedCents,
-            entry.amountCents,
-            "propertyDistributionsReceivedCents",
-          );
-        }
+      if (flow === undefined) {
+        throw new Error(
+          `Simulation invariant failed: unknown destination player ${pId} in settlement journal`,
+        );
+      }
+      if (entry.reason === "cash-yield") {
+        flow.cashYieldReceivedCents = safeAdd(
+          flow.cashYieldReceivedCents,
+          entry.amountCents,
+          "cashYieldReceivedCents",
+        );
+      } else if (entry.reason === "public-market-dividend") {
+        flow.publicMarketDividendsReceivedCents = safeAdd(
+          flow.publicMarketDividendsReceivedCents,
+          entry.amountCents,
+          "publicMarketDividendsReceivedCents",
+        );
+      } else if (entry.reason === "recurring-personal-income") {
+        flow.recurringIncomeReceivedCents = safeAdd(
+          flow.recurringIncomeReceivedCents,
+          entry.amountCents,
+          "recurringIncomeReceivedCents",
+        );
+      } else if (entry.reason === "property-operating-distribution") {
+        flow.propertyDistributionsReceivedCents = safeAdd(
+          flow.propertyDistributionsReceivedCents,
+          entry.amountCents,
+          "propertyDistributionsReceivedCents",
+        );
       }
     }
 
     if (entry.source.kind === "player") {
       const pId = entry.source.playerId;
       const flow = cashFlows[pId];
-      if (flow !== undefined) {
-        if (entry.reason === "recurring-living-expense") {
-          flow.livingExpensesPaidCents = safeAdd(
-            flow.livingExpensesPaidCents,
-            entry.amountCents,
-            "livingExpensesPaidCents",
+      if (flow === undefined) {
+        throw new Error(
+          `Simulation invariant failed: unknown source player ${pId} in settlement journal`,
+        );
+      }
+      if (entry.reason === "recurring-living-expense") {
+        flow.livingExpensesPaidCents = safeAdd(
+          flow.livingExpensesPaidCents,
+          entry.amountCents,
+          "livingExpensesPaidCents",
+        );
+      } else if (
+        entry.reason === "legacy-personal-debt-payment" ||
+        entry.reason === "legacy-mortgage-payment"
+      ) {
+        if (entry.loanPayment === undefined) {
+          throw new Error(
+            `Simulation invariant failed: missing structured loanPayment metadata on loan payment journal entry for ${pId}`,
           );
-        } else if (
-          entry.reason === "legacy-personal-debt-payment" ||
-          entry.reason === "legacy-mortgage-payment"
-        ) {
-          if (entry.loanPayment !== undefined) {
-            flow.legacyPrincipalPaidCents = safeAdd(
-              flow.legacyPrincipalPaidCents,
-              entry.loanPayment.principalCents,
-              "legacyPrincipalPaidCents",
-            );
-            flow.legacyInterestPaidCents = safeAdd(
-              flow.legacyInterestPaidCents,
-              entry.loanPayment.interestCents,
-              "legacyInterestPaidCents",
-            );
-          }
         }
+        flow.legacyPrincipalPaidCents = safeAdd(
+          flow.legacyPrincipalPaidCents,
+          entry.loanPayment.principalCents,
+          "legacyPrincipalPaidCents",
+        );
+        flow.legacyInterestPaidCents = safeAdd(
+          flow.legacyInterestPaidCents,
+          entry.loanPayment.interestCents,
+          "legacyInterestPaidCents",
+        );
       }
     }
   }
@@ -253,7 +264,7 @@ function summarizeInts(values: readonly number[]): IntSummary {
   let min = first;
   let max = first;
   for (const v of values) {
-    sum = safeAdd(sum, v, "summarizeInts");
+    sum = safeAdd(sum, v, "summarizeInts sum");
     if (v < min) min = v;
     if (v > max) max = v;
   }
@@ -271,7 +282,7 @@ function summarizeCashFlow(values: readonly number[]): CashFlowSummary {
   }
   let sum = 0;
   for (const v of values) {
-    sum = safeAdd(sum, v, "summarizeCashFlow");
+    sum = safeAdd(sum, v, "summarizeCashFlow sum");
   }
   return {
     sum,
@@ -282,8 +293,8 @@ function summarizeCashFlow(values: readonly number[]): CashFlowSummary {
 export function aggregateBatchReport(
   config: BaselineSimulationConfig,
   results: readonly PassiveBaselineGameResult[],
-  simulationVersion: string,
-  engineVersion: string,
+  simulationVersion: string = SIMULATION_VERSION,
+  engineVersion: string = ENGINE_VERSION,
 ): BaselineSimulationReport {
   let completedHorizon = 0;
   let withFailure = 0;
@@ -379,17 +390,30 @@ export function aggregateBatchReport(
       "totalSettledQuarters",
     );
     if (game.failure === null) {
-      completedHorizon += 1;
+      completedHorizon = safeAdd(completedHorizon, 1, "completedHorizon");
     } else {
-      withFailure += 1;
+      withFailure = safeAdd(withFailure, 1, "withFailure");
       const { code, quarter } = game.failure;
-      settlementFailuresByCode[code] =
-        (settlementFailuresByCode[code] ?? 0) + 1;
-      settlementFailuresByQuarter[quarter] =
-        (settlementFailuresByQuarter[quarter] ?? 0) + 1;
+      settlementFailuresByCode[code] = safeAdd(
+        settlementFailuresByCode[code] ?? 0,
+        1,
+        "failuresByCode",
+      );
+      settlementFailuresByQuarter[quarter] = safeAdd(
+        settlementFailuresByQuarter[quarter] ?? 0,
+        1,
+        "failuresByQuarter",
+      );
     }
 
-    for (const pId of Object.keys(game.openingPlayers) as PlayerId[]) {
+    const playerIds = Object.keys(game.openingPlayers) as PlayerId[];
+    if (playerIds.length === 0) {
+      throw new Error(
+        `Simulation invariant failed: game ${game.gameId} has no opening players recorded`,
+      );
+    }
+
+    for (const pId of playerIds) {
       const open = game.openingPlayers[pId];
       const final = game.finalPlayers[pId];
       const flow = game.playerCashFlows[pId];
@@ -401,53 +425,76 @@ export function aggregateBatchReport(
         flow === undefined ||
         liq === undefined
       ) {
-        continue;
+        throw new Error(
+          `Simulation invariant failed: missing player measurement data for player ${pId} in game ${game.gameId}`,
+        );
       }
 
       const acc = profileAccumulators[open.profileId];
-      if (acc !== undefined) {
-        acc.exposures += 1;
-        acc.openingCash.push(open.cashCents);
-        acc.endingCash.push(final.cashCents);
-        acc.minimumCash.push(liq.minimumCashCents);
-        acc.openingPublicMarketValue.push(open.publicMarketValueCents);
-        acc.endingPublicMarketValue.push(final.publicMarketValueCents);
-        acc.openingLiquidCapital.push(open.liquidCapitalCents);
-        acc.endingLiquidCapital.push(final.liquidCapitalCents);
-        acc.openingLegacyDebt.push(open.legacyBankDebtCents);
-        acc.endingLegacyDebt.push(final.legacyBankDebtCents);
-        acc.openingLiquidNetPosition.push(open.liquidNetPositionCents);
-        acc.endingLiquidNetPosition.push(final.liquidNetPositionCents);
-
-        acc.cashYieldReceived.push(flow.cashYieldReceivedCents);
-        acc.publicMarketDividendsReceived.push(
-          flow.publicMarketDividendsReceivedCents,
+      if (acc === undefined) {
+        throw new Error(
+          `Simulation invariant failed: unknown profile ID ${open.profileId} for player ${pId} in game ${game.gameId}`,
         );
-        acc.recurringIncomeReceived.push(flow.recurringIncomeReceivedCents);
-        acc.propertyDistributionsReceived.push(
-          flow.propertyDistributionsReceivedCents,
-        );
-        acc.livingExpensesPaid.push(flow.livingExpensesPaidCents);
-        acc.legacyPrincipalPaid.push(flow.legacyPrincipalPaidCents);
-        acc.legacyInterestPaid.push(flow.legacyInterestPaidCents);
       }
+
+      acc.exposures = safeAdd(acc.exposures, 1, "profile exposures");
+      acc.openingCash.push(open.cashCents);
+      acc.endingCash.push(final.cashCents);
+      acc.minimumCash.push(liq.minimumCashCents);
+      acc.openingPublicMarketValue.push(open.publicMarketValueCents);
+      acc.endingPublicMarketValue.push(final.publicMarketValueCents);
+      acc.openingLiquidCapital.push(open.liquidCapitalCents);
+      acc.endingLiquidCapital.push(final.liquidCapitalCents);
+      acc.openingLegacyDebt.push(open.legacyBankDebtCents);
+      acc.endingLegacyDebt.push(final.legacyBankDebtCents);
+      acc.openingLiquidNetPosition.push(open.liquidNetPositionCents);
+      acc.endingLiquidNetPosition.push(final.liquidNetPositionCents);
+
+      acc.cashYieldReceived.push(flow.cashYieldReceivedCents);
+      acc.publicMarketDividendsReceived.push(
+        flow.publicMarketDividendsReceivedCents,
+      );
+      acc.recurringIncomeReceived.push(flow.recurringIncomeReceivedCents);
+      acc.propertyDistributionsReceived.push(
+        flow.propertyDistributionsReceivedCents,
+      );
+      acc.livingExpensesPaid.push(flow.livingExpensesPaidCents);
+      acc.legacyPrincipalPaid.push(flow.legacyPrincipalPaidCents);
+      acc.legacyInterestPaid.push(flow.legacyInterestPaidCents);
     }
 
     for (const trace of game.quarterTraces) {
-      if (ECONOMIC_REGIME_IDS.includes(trace.regimeUsed)) {
-        regimeOccupancy[trace.regimeUsed] += 1;
+      if (!ECONOMIC_REGIME_IDS.includes(trace.regimeUsed)) {
+        throw new Error(
+          `Simulation invariant failed: invalid regimeUsed ${String(trace.regimeUsed)} in game ${game.gameId}`,
+        );
       }
-      if (
-        ECONOMIC_REGIME_IDS.includes(trace.regimeUsed) &&
-        ECONOMIC_REGIME_IDS.includes(trace.nextRegime)
-      ) {
-        transitions[trace.regimeUsed][trace.nextRegime] += 1;
+      if (!ECONOMIC_REGIME_IDS.includes(trace.nextRegime)) {
+        throw new Error(
+          `Simulation invariant failed: invalid nextRegime ${String(trace.nextRegime)} in game ${game.gameId}`,
+        );
       }
+
+      regimeOccupancy[trace.regimeUsed] = safeAdd(
+        regimeOccupancy[trace.regimeUsed],
+        1,
+        "regimeOccupancy",
+      );
+
+      transitions[trace.regimeUsed][trace.nextRegime] = safeAdd(
+        transitions[trace.regimeUsed][trace.nextRegime],
+        1,
+        "transitions",
+      );
+
       for (const instId of PUBLIC_MARKET_INSTRUMENT_IDS) {
         const bps = trace.returnBpsByInstrument[instId];
-        if (bps !== undefined) {
-          instrumentReturnsRaw[instId].push(bps);
+        if (bps === undefined || !Number.isSafeInteger(bps)) {
+          throw new Error(
+            `Simulation invariant failed: missing or non-safe integer returnBps for ${instId} in game ${game.gameId} quarter ${trace.quarter}`,
+          );
         }
+        instrumentReturnsRaw[instId].push(bps);
       }
     }
   }
@@ -510,17 +557,19 @@ export function aggregateBatchReport(
       };
     } else {
       let sum = 0;
+      let count = 0;
       let min = first;
       let max = first;
       for (const bps of raw) {
         sum = safeAdd(sum, bps, "marketReturnSum");
+        count = safeAdd(count, 1, "marketReturnCount");
         if (bps < min) min = bps;
         if (bps > max) max = bps;
       }
       marketReturns[instId] = {
-        count: raw.length,
+        count,
         sumBps: sum,
-        roundedAverageBps: roundedAverage(sum, raw.length),
+        roundedAverageBps: roundedAverage(sum, count),
         minimumBps: min,
         maximumBps: max,
       };
