@@ -5,6 +5,7 @@ import {
   OBJECTIVE_IDS,
   PLAYER_LOAN_MAX_TERM_QUARTERS,
   PLAYER_LOAN_MIN_TERM_QUARTERS,
+  PUBLIC_MARKET_INSTRUMENT_IDS,
   STANDARD_V1_PLAYER_COUNT,
 } from "@finance-game/rules";
 import {
@@ -12,6 +13,7 @@ import {
   calculatePlayerLoanSchedule,
 } from "../finance/amortization";
 import { calculateBusinessEquity } from "../finance/business";
+import { totalPublicMarketValueCents } from "../finance/markets";
 import { TOTAL_OWNERSHIP_PPM } from "../finance/ownership";
 import { calculatePropertyCashFlow } from "../finance/property";
 import type { GameState } from "../model/gameState";
@@ -676,6 +678,192 @@ export function assertGameState(state: GameState): void {
           `Game invariant failed: business ${asset.id} calculation failed: ${String(err)}`,
         );
       }
+    }
+  }
+
+  // Public-market current portfolios invariants
+  if (
+    state.finance.publicMarketsByPlayer === undefined ||
+    state.finance.publicMarketsByPlayer === null ||
+    typeof state.finance.publicMarketsByPlayer !== "object"
+  ) {
+    throw new Error(
+      "Game invariant failed: publicMarketsByPlayer map is missing or invalid",
+    );
+  }
+
+  const marketPlayerIds = Object.keys(state.finance.publicMarketsByPlayer);
+  if (marketPlayerIds.length !== STANDARD_V1_PLAYER_COUNT) {
+    throw new Error(
+      `Game invariant failed: publicMarketsByPlayer must have exactly ${STANDARD_V1_PLAYER_COUNT} player portfolios, got ${marketPlayerIds.length}`,
+    );
+  }
+
+  for (const playerId of state.playerOrder) {
+    const portfolio = state.finance.publicMarketsByPlayer[playerId];
+    if (
+      portfolio === undefined ||
+      portfolio === null ||
+      typeof portfolio !== "object"
+    ) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} is missing a public-market portfolio`,
+      );
+    }
+    const instrumentKeys = Object.keys(portfolio);
+    if (instrumentKeys.length !== PUBLIC_MARKET_INSTRUMENT_IDS.length) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} portfolio must have exactly ${PUBLIC_MARKET_INSTRUMENT_IDS.length} instruments, got ${instrumentKeys.length}`,
+      );
+    }
+    for (const instrumentId of PUBLIC_MARKET_INSTRUMENT_IDS) {
+      const value = portfolio[instrumentId];
+      if (!Number.isSafeInteger(value) || value < 0) {
+        throw new Error(
+          `Game invariant failed: player ${playerId} portfolio ${instrumentId} must be a non-negative safe integer of cents, got ${String(value)}`,
+        );
+      }
+    }
+    try {
+      totalPublicMarketValueCents(portfolio);
+    } catch (err) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} portfolio sum failed: ${String(err)}`,
+      );
+    }
+  }
+
+  for (const marketKey of marketPlayerIds) {
+    if (
+      !state.playerOrder.includes(
+        marketKey as (typeof state.playerOrder)[number],
+      )
+    ) {
+      throw new Error(
+        `Game invariant failed: extra unknown player ${marketKey} in publicMarketsByPlayer`,
+      );
+    }
+  }
+
+  // Quarter-start finance basis invariants
+  const basis = state.finance.quarterStartBasis;
+  if (basis === undefined || basis === null || typeof basis !== "object") {
+    throw new Error(
+      "Game invariant failed: quarterStartBasis is missing or invalid",
+    );
+  }
+
+  if (!Number.isSafeInteger(basis.quarter) || basis.quarter <= 0) {
+    throw new Error(
+      `Game invariant failed: quarterStartBasis.quarter must be a positive safe integer, got ${String(basis.quarter)}`,
+    );
+  }
+
+  if (basis.quarter !== state.currentQuarter) {
+    throw new Error(
+      `Game invariant failed: quarterStartBasis.quarter (${basis.quarter}) must equal currentQuarter (${state.currentQuarter})`,
+    );
+  }
+
+  if (
+    basis.cashByPlayer === undefined ||
+    basis.cashByPlayer === null ||
+    typeof basis.cashByPlayer !== "object"
+  ) {
+    throw new Error(
+      "Game invariant failed: quarterStartBasis.cashByPlayer is missing or invalid",
+    );
+  }
+
+  const basisCashPlayerIds = Object.keys(basis.cashByPlayer);
+  if (basisCashPlayerIds.length !== STANDARD_V1_PLAYER_COUNT) {
+    throw new Error(
+      `Game invariant failed: quarterStartBasis.cashByPlayer must have exactly ${STANDARD_V1_PLAYER_COUNT} player balances, got ${basisCashPlayerIds.length}`,
+    );
+  }
+
+  for (const playerId of state.playerOrder) {
+    const basisCash = basis.cashByPlayer[playerId];
+    if (basisCash === undefined) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} is missing in quarterStartBasis.cashByPlayer`,
+      );
+    }
+    if (!Number.isSafeInteger(basisCash) || basisCash < 0) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} basis cash must be a non-negative safe integer of cents, got ${String(basisCash)}`,
+      );
+    }
+  }
+
+  for (const key of basisCashPlayerIds) {
+    if (
+      !state.playerOrder.includes(key as (typeof state.playerOrder)[number])
+    ) {
+      throw new Error(
+        `Game invariant failed: extra unknown player ${key} in quarterStartBasis.cashByPlayer`,
+      );
+    }
+  }
+
+  if (
+    basis.publicMarketsByPlayer === undefined ||
+    basis.publicMarketsByPlayer === null ||
+    typeof basis.publicMarketsByPlayer !== "object"
+  ) {
+    throw new Error(
+      "Game invariant failed: quarterStartBasis.publicMarketsByPlayer is missing or invalid",
+    );
+  }
+
+  const basisMarketPlayerIds = Object.keys(basis.publicMarketsByPlayer);
+  if (basisMarketPlayerIds.length !== STANDARD_V1_PLAYER_COUNT) {
+    throw new Error(
+      `Game invariant failed: quarterStartBasis.publicMarketsByPlayer must have exactly ${STANDARD_V1_PLAYER_COUNT} player portfolios, got ${basisMarketPlayerIds.length}`,
+    );
+  }
+
+  for (const playerId of state.playerOrder) {
+    const basisPortfolio = basis.publicMarketsByPlayer[playerId];
+    if (
+      basisPortfolio === undefined ||
+      basisPortfolio === null ||
+      typeof basisPortfolio !== "object"
+    ) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} is missing in quarterStartBasis.publicMarketsByPlayer`,
+      );
+    }
+    const basisKeys = Object.keys(basisPortfolio);
+    if (basisKeys.length !== PUBLIC_MARKET_INSTRUMENT_IDS.length) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} basis portfolio must have exactly ${PUBLIC_MARKET_INSTRUMENT_IDS.length} instruments, got ${basisKeys.length}`,
+      );
+    }
+    for (const instrumentId of PUBLIC_MARKET_INSTRUMENT_IDS) {
+      const val = basisPortfolio[instrumentId];
+      if (!Number.isSafeInteger(val) || val < 0) {
+        throw new Error(
+          `Game invariant failed: player ${playerId} basis portfolio ${instrumentId} must be a non-negative safe integer of cents, got ${String(val)}`,
+        );
+      }
+    }
+    try {
+      totalPublicMarketValueCents(basisPortfolio);
+    } catch (err) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} basis portfolio sum failed: ${String(err)}`,
+      );
+    }
+  }
+
+  for (const key of basisMarketPlayerIds) {
+    if (
+      !state.playerOrder.includes(key as (typeof state.playerOrder)[number])
+    ) {
+      throw new Error(
+        `Game invariant failed: extra unknown player ${key} in quarterStartBasis.publicMarketsByPlayer`,
+      );
     }
   }
 }

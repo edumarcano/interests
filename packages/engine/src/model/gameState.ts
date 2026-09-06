@@ -1,4 +1,8 @@
-import type { ObjectiveId, ProfileId } from "@finance-game/rules";
+import type {
+  ObjectiveId,
+  ProfileId,
+  PublicMarketInstrumentId,
+} from "@finance-game/rules";
 import type { AssetId, GameId, LoanId, PlayerId } from "@finance-game/shared";
 
 import type { BasisPoints, Cents } from "../finance/money";
@@ -17,6 +21,18 @@ export interface PlayerState {
 export interface RecurringPersonalFinance {
   readonly quarterlyIncomeCents: Cents;
   readonly quarterlyLivingExpenseCents: Cents;
+}
+
+export type PublicMarketPortfolio = Readonly<
+  Record<PublicMarketInstrumentId, Cents>
+>;
+
+export interface QuarterStartFinanceBasis {
+  readonly quarter: number;
+  readonly cashByPlayer: Readonly<Record<PlayerId, Cents>>;
+  readonly publicMarketsByPlayer: Readonly<
+    Record<PlayerId, PublicMarketPortfolio>
+  >;
 }
 
 export interface PlayerLoan {
@@ -77,6 +93,10 @@ export interface FinanceState {
   >;
   readonly loansById: Readonly<Record<LoanId, Loan>>;
   readonly assetsById: Readonly<Record<AssetId, Asset>>;
+  readonly publicMarketsByPlayer: Readonly<
+    Record<PlayerId, PublicMarketPortfolio>
+  >;
+  readonly quarterStartBasis: QuarterStartFinanceBasis;
 }
 
 export interface DeterministicCounters {

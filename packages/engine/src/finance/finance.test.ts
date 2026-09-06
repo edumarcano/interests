@@ -17,6 +17,7 @@ import {
   isSameCashAccount,
   playerCashAccount,
 } from "./account";
+import { createZeroPublicMarketPortfolio } from "./markets";
 import {
   addCents,
   basisPoints,
@@ -56,16 +57,30 @@ function createInitialRecurring(): Record<PlayerId, RecurringPersonalFinance> {
 }
 
 function createInitialFinance(): FinanceState {
+  const cashByPlayer = {
+    [aliceId]: cents(2_000_000), // $20,000
+    [bobId]: cents(1_000_000), // $10,000
+    [charlieId]: cents(500_000), // $5,000
+    [danaId]: cents(300_000), // $3,000
+  };
+  const zero = createZeroPublicMarketPortfolio();
+  const publicMarketsByPlayer = {
+    [aliceId]: zero,
+    [bobId]: zero,
+    [charlieId]: zero,
+    [danaId]: zero,
+  };
   return {
-    cashByPlayer: {
-      [aliceId]: cents(2_000_000), // $20,000
-      [bobId]: cents(1_000_000), // $10,000
-      [charlieId]: cents(500_000), // $5,000
-      [danaId]: cents(300_000), // $3,000
-    },
+    cashByPlayer,
     recurringByPlayer: createInitialRecurring(),
     loansById: {},
     assetsById: {},
+    publicMarketsByPlayer,
+    quarterStartBasis: {
+      quarter: 1,
+      cashByPlayer: { ...cashByPlayer },
+      publicMarketsByPlayer: { ...publicMarketsByPlayer },
+    },
   };
 }
 
@@ -413,15 +428,13 @@ describe("financial rejection rules and immutability", () => {
 
   it("rejects destination balance overflow", () => {
     const finance: FinanceState = {
+      ...createInitialFinance(),
       cashByPlayer: {
         [aliceId]: cents(100),
         [bobId]: cents(Number.MAX_SAFE_INTEGER - 50),
         [charlieId]: cents(0),
         [danaId]: cents(0),
       },
-      recurringByPlayer: createInitialRecurring(),
-      loansById: {},
-      assetsById: {},
     };
     const counters = createInitialCounters();
 
@@ -529,17 +542,10 @@ describe("deterministic repeatability", () => {
       installmentsPaid: 0,
     };
     const finance: FinanceState = {
-      cashByPlayer: {
-        [aliceId]: cents(2_000_000),
-        [bobId]: cents(1_000_000),
-        [charlieId]: cents(500_000),
-        [danaId]: cents(300_000),
-      },
-      recurringByPlayer: createInitialRecurring(),
+      ...createInitialFinance(),
       loansById: {
         [sampleLoan.id]: sampleLoan,
       },
-      assetsById: {},
     };
     const counters = createInitialCounters();
 
@@ -571,14 +577,7 @@ describe("deterministic repeatability", () => {
     };
 
     const finance: FinanceState = {
-      cashByPlayer: {
-        [aliceId]: cents(2_000_000),
-        [bobId]: cents(1_000_000),
-        [charlieId]: cents(500_000),
-        [danaId]: cents(300_000),
-      },
-      recurringByPlayer: createInitialRecurring(),
-      loansById: {},
+      ...createInitialFinance(),
       assetsById: {
         [sampleProperty.id]: sampleProperty,
       },

@@ -1,3 +1,4 @@
+import type { PublicMarketInstrumentId } from "@finance-game/rules";
 import type { AssetId, LoanId } from "@finance-game/shared";
 
 import type { CashAccount } from "./account";
@@ -27,5 +28,6 @@ export interface JournalEntry {
   readonly quarter: number;
   readonly relatedLoanId?: LoanId;
   readonly relatedAssetId?: AssetId;
+  readonly relatedMarketInstrumentId?: PublicMarketInstrumentId;
   readonly loanPayment?: LoanPaymentBreakdown;
 }

@@ -18,6 +18,8 @@ import type {
   GameState,
   Loan,
   PlayerState,
+  PublicMarketPortfolio,
+  QuarterStartFinanceBasis,
   RecurringPersonalFinance,
 } from "../model/gameState";
 import { createRandomState } from "../random/prng";
@@ -54,6 +56,8 @@ export function createGame(input: CreateGameInput): GameState {
   const cashByPlayer: Record<PlayerId, Cents> = {} as Record<PlayerId, Cents>;
   const recurringByPlayer: Record<PlayerId, RecurringPersonalFinance> =
     {} as Record<PlayerId, RecurringPersonalFinance>;
+  const publicMarketsByPlayer: Record<PlayerId, PublicMarketPortfolio> =
+    {} as Record<PlayerId, PublicMarketPortfolio>;
 
   for (const playerId of input.playerIds) {
     const profileId = setup.profileAssignments[playerId];
@@ -97,6 +101,12 @@ export function createGame(input: CreateGameInput): GameState {
     recurringByPlayer[playerId] = {
       quarterlyIncomeCents: cents(quarterlyIncome),
       quarterlyLivingExpenseCents: cents(quarterlyLivingExpense),
+    };
+
+    publicMarketsByPlayer[playerId] = {
+      "broad-market-fund": cents(finances.startingPublicInvestmentsCents),
+      "growth-fund": cents(0),
+      "income-defensive-fund": cents(0),
     };
   }
 
@@ -229,6 +239,12 @@ export function createGame(input: CreateGameInput): GameState {
     }
   }
 
+  const quarterStartBasis: QuarterStartFinanceBasis = {
+    quarter: 1,
+    cashByPlayer: { ...cashByPlayer },
+    publicMarketsByPlayer: { ...publicMarketsByPlayer },
+  };
+
   const state: GameState = {
     gameId: asGameId(input.gameId),
     modeId: "standard-v1",
@@ -243,6 +259,8 @@ export function createGame(input: CreateGameInput): GameState {
       recurringByPlayer,
       loansById,
       assetsById,
+      publicMarketsByPlayer,
+      quarterStartBasis,
     },
     random: setup.random,
     counters: currentCounters,

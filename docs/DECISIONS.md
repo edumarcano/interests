@@ -87,5 +87,23 @@ Refine ARCH-019 to correct bounded-random sampling bias before market, opportuni
 4. **State Invariant:** Generator state is strictly enforced across the engine to be an integer in `[1, 0xffffffff]`. Non-integer, zero, negative, out-of-range values, and unrecognized algorithm identifiers are rejected before any draw or bitwise coercion.
 5. **Operational Randomness:** Security-sensitive randomness (tokens, room codes, credentials) remains outside the engine kernel and continues to use platform CSPRNGs.
 
+## ARCH-023 - Public-market value-balance representation and yield settlement
 
+**Status:** Accepted  
+**Date:** September 5, 2026
 
+Establish the bounded public-market holdings and yield-settlement foundation for Standard V1:
+
+1. **Fungible Value-Balance Representation (`@finance-game/engine`):** Model public market investments as per-player mark-to-market balances in integer cents (`publicMarketsByPlayer: Record<PlayerId, PublicMarketPortfolio>`) across three fixed instruments (`broad-market-fund`, `growth-fund`, `income-defensive-fund`). Do not introduce discrete share counts, unit prices, tax lots, or discrete `AssetId` entities.
+2. **Standard V1 Opening Allocation (`createGame`):** In Standard V1 setup, profile starting public investments are allocated 100% to `broad-market-fund`, with zero in `growth-fund` and `income-defensive-fund`. This reconciles exactly with profile starting balance sheets without consuming RNG, advancing ID counters, or posting journal entries.
+3. **Authoritative Quarter-Start Entitlement Basis (`quarterStartBasis`):** Store an authoritative `quarterStartBasis: QuarterStartFinanceBasis` snapshot in `FinanceState` capturing opening cash and public market portfolios for the quarter. Quarterly cash yield and public-market dividends are strictly calculated from this snapshot, ensuring mid-quarter cash transfers or spends do not retroactively alter that quarter's entitlement.
+4. **Nominal Yield Calculation & Rounding (`calculateQuarterlyYieldCents`):** Quarterly yields use nominal annual rate / 4 with `ROUND_HALF_UP` rounding to integer cents (`principalCents × annualYieldBps / 40000`) using `FinanceDecimal`. Cash yield opening rate is 300 BPS (base rate 450 BPS minus 150 BPS offset, with 50 BPS floor). Instrument annual dividend yields are 150 BPS (`broad-market-fund`), 50 BPS (`growth-fund`), and 350 BPS (`income-defensive-fund`). Zero yields emit no journal entries.
+5. **Canonical Settlement Sequence (`settleQuarter`):** Multi-stage planning validates capacity and solvency across all inflows and outflows before any mutation. Execution follows an atomic 6-stage sequence:
+   1. Cash yield by PlayerId (`bank -> player`, reason `"cash-yield"`);
+   2. Public-market dividends in canonical instrument order then PlayerId (`market -> player`, reason `"public-market-dividend"`, with `relatedMarketInstrumentId`);
+   3. Recurring personal income by PlayerId (`personal-earned-income -> player`);
+   4. Property operating distributions by AssetId then PlayerId (`property-operating-cashflow -> player`);
+   5. Living expenses by PlayerId (`player -> living-expense-sink`);
+   6. Legacy bank loan payments by LoanId (`player -> bank` with principal/interest breakdown).
+6. **Next Quarter Basis Roll:** Upon successful settlement of Quarter N, `quarterStartBasis` is advanced to `quarter: N + 1` with closing cash and public market portfolios from Quarter N, ensuring newly settled cash and dividends earn yield in Quarter N+1.
+7. **Deferred Scope:** Stochastic price movement, macroeconomic regimes, market trading, transaction fees, share counts, and qualifying liquidity underwriting are explicitly deferred.

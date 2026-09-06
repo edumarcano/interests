@@ -8,6 +8,7 @@ import {
   applyScheduledPlayerLoanPayment,
   originateConfirmedPlayerLoan,
 } from "./loans";
+import { createZeroPublicMarketPortfolio } from "./markets";
 import { basisPoints, cents } from "./money";
 import { ownershipPpm } from "./ownership";
 
@@ -17,13 +18,21 @@ const charlieId = asPlayerId("player-charlie");
 const danaId = asPlayerId("player-dana");
 
 function createInitialFinance(): FinanceState {
+  const cashByPlayer = {
+    [aliceId]: cents(2_000_000), // $20,000
+    [bobId]: cents(1_000_000), // $10,000
+    [charlieId]: cents(500_000), // $5,000
+    [danaId]: cents(300_000), // $3,000
+  };
+  const zero = createZeroPublicMarketPortfolio();
+  const publicMarketsByPlayer = {
+    [aliceId]: zero,
+    [bobId]: zero,
+    [charlieId]: zero,
+    [danaId]: zero,
+  };
   return {
-    cashByPlayer: {
-      [aliceId]: cents(2_000_000), // $20,000
-      [bobId]: cents(1_000_000), // $10,000
-      [charlieId]: cents(500_000), // $5,000
-      [danaId]: cents(300_000), // $3,000
-    },
+    cashByPlayer,
     recurringByPlayer: {
       [aliceId]: {
         quarterlyIncomeCents: cents(25_000_00),
@@ -44,6 +53,12 @@ function createInitialFinance(): FinanceState {
     },
     loansById: {},
     assetsById: {},
+    publicMarketsByPlayer,
+    quarterStartBasis: {
+      quarter: 1,
+      cashByPlayer: { ...cashByPlayer },
+      publicMarketsByPlayer: { ...publicMarketsByPlayer },
+    },
   };
 }
 
@@ -280,13 +295,11 @@ describe("player-loan origination", () => {
 
     // Destination balance overflow on borrower
     const overflowFinance: FinanceState = {
+      ...finance,
       cashByPlayer: {
         ...finance.cashByPlayer,
         [bobId]: cents(Number.MAX_SAFE_INTEGER - 10),
       },
-      recurringByPlayer: finance.recurringByPlayer,
-      loansById: {},
-      assetsById: {},
     };
     const overflowOrigination = originateConfirmedPlayerLoan(
       overflowFinance,

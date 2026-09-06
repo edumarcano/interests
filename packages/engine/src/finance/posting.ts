@@ -1,3 +1,4 @@
+import type { PublicMarketInstrumentId } from "@finance-game/rules";
 import type { AssetId, LoanId } from "@finance-game/shared";
 
 import { nextDeterministicId } from "../game/deterministicIds";
@@ -14,6 +15,7 @@ export interface CashPostingRequest {
   readonly quarter: number;
   readonly relatedLoanId?: LoanId;
   readonly relatedAssetId?: AssetId;
+  readonly relatedMarketInstrumentId?: PublicMarketInstrumentId;
   readonly loanPayment?: LoanPaymentBreakdown;
 }
 
@@ -149,6 +151,9 @@ export function postCash(
       : {}),
     ...(request.relatedAssetId !== undefined
       ? { relatedAssetId: request.relatedAssetId }
+      : {}),
+    ...(request.relatedMarketInstrumentId !== undefined
+      ? { relatedMarketInstrumentId: request.relatedMarketInstrumentId }
       : {}),
     ...(request.loanPayment !== undefined
       ? { loanPayment: request.loanPayment }
