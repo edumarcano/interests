@@ -5,7 +5,10 @@ import { TOTAL_OWNERSHIP_PPM } from "../finance/ownership";
 import { nextDeterministicId } from "../game/deterministicIds";
 import { assertGameState } from "../invariants/assertGameState";
 import type { GameState } from "../model/gameState";
-import { openCashBusinessPurchaseTransaction } from "../transactions/cashBusinessPurchase";
+import {
+  openCashBusinessPurchaseTransaction,
+  openFinancedBusinessPurchaseTransaction,
+} from "../transactions/cashBusinessPurchase";
 import type {
   BusinessPurchaseDueDiligence,
   CreateOpportunityErrorCode,
@@ -242,6 +245,93 @@ export function pursuePrivateBusinessPurchaseOpportunity(
   if (!transactionId) {
     throw new Error(
       "Invariant failed: openCashBusinessPurchaseTransaction reported success without returning a transactionId",
+    );
+  }
+
+  const pursuedOpportunity: PrivateBusinessPurchaseOpportunity = {
+    ...opportunity,
+    status: "pursued",
+    relatedTransactionId: transactionId,
+  };
+
+  // One atomic transition: do not increment revision a second time
+  const nextState: GameState = {
+    ...txResult.state,
+    opportunitiesById: {
+      ...txResult.state.opportunitiesById,
+      [opportunityId]: pursuedOpportunity,
+    },
+  };
+
+  assertGameState(nextState);
+
+  return {
+    ok: true,
+    state: nextState,
+    opportunityId,
+    transactionId,
+  };
+}
+
+export interface PursueOpportunityWithFinancingRequestInput {
+  readonly buyerCashContributionCents: number;
+  readonly requestedPrincipalCents: number;
+}
+
+/**
+ * Pure domain function to pursue a private business-purchase opportunity with a player-loan financing request.
+ * Delegates legality, buyer cash contribution reservation, and financing request tracking to the transaction kernel.
+ */
+export function pursuePrivateBusinessPurchaseOpportunityWithFinancingRequest(
+  state: GameState,
+  opportunityId: OpportunityId,
+  playerId: PlayerId,
+  financing: PursueOpportunityWithFinancingRequestInput,
+): PursueOpportunityResult {
+  const reject = (
+    code: Exclude<PursueOpportunityErrorCode, "TRANSACTION_REJECTED">,
+  ): PursueOpportunityResult => ({
+    ok: false,
+    state,
+    code,
+  });
+
+  const opportunity = state.opportunitiesById[opportunityId];
+  if (
+    !opportunity ||
+    (opportunity.access === "private" &&
+      opportunity.targetPlayerId !== playerId)
+  ) {
+    return reject("NOT_FOUND_OR_NOT_VISIBLE");
+  }
+
+  if (opportunity.status !== "available") {
+    return reject("OPPORTUNITY_NOT_AVAILABLE");
+  }
+
+  // Delegate directly to transaction kernel
+  const txResult = openFinancedBusinessPurchaseTransaction(state, {
+    buyerPlayerId: opportunity.targetPlayerId,
+    sellerPlayerId: opportunity.sellerPlayerId,
+    assetId: opportunity.assetId,
+    purchasePriceCents: opportunity.askingPriceCents,
+    buyerCashContributionCents: financing.buyerCashContributionCents,
+    requestedPrincipalCents: financing.requestedPrincipalCents,
+  });
+
+  if (!txResult.ok) {
+    return {
+      ok: false,
+      state,
+      code: "TRANSACTION_REJECTED",
+      transactionCode: txResult.code,
+    };
+  }
+
+  const transactionId = txResult.transactionId;
+  if (!transactionId) {
+    throw new Error(
+      "Invariant failed: openFinancedBusinessPurchaseTransaction reported success without returning a transactionId",
     );
   }
 

@@ -18,11 +18,15 @@ import type {
   GameState,
   LegacyBankLoan,
   MarketUpdateRecord,
+  PlayerLoan,
   PublicMarketPortfolio,
   QuarterStartFinanceBasis,
 } from "../model/gameState";
 import { externalCashAccount, playerCashAccount } from "./account";
-import { calculateLegacyBankLoanNextPayment } from "./amortization";
+import {
+  calculateLegacyBankLoanNextPayment,
+  calculatePlayerLoanSchedule,
+} from "./amortization";
 import { generateQuarterMarketUpdate } from "./economy";
 import type { JournalEntry } from "./journal";
 import {
@@ -101,6 +105,16 @@ interface PlannedLegacyBankLoanPayment {
   readonly closingPrincipalCents: number;
   readonly reason: string;
   readonly relatedAssetId?: AssetId;
+}
+
+interface PlannedPlayerLoanPayment {
+  readonly loanId: LoanId;
+  readonly borrowerPlayerId: PlayerId;
+  readonly lenderPlayerId: PlayerId;
+  readonly paymentCents: number;
+  readonly principalCents: number;
+  readonly interestCents: number;
+  readonly closingPrincipalCents: number;
 }
 
 /**
@@ -374,7 +388,8 @@ export function settleQuarter(
     }
   }
 
-  // E. Solvency & Destination Overflow Planning Validation
+  // E. Solvency & Destination Overflow Planning Validation (Pre-Player-Loan Stages)
+  const cashAtStartOfPlayerLoanStage: Partial<Record<PlayerId, number>> = {};
   for (const playerId of state.playerOrder) {
     const currentBalance = state.finance.cashByPlayer[playerId];
     if (currentBalance === undefined) {
@@ -392,6 +407,84 @@ export function settleQuarter(
     const projectedEndingCash = currentBalance + totalInflow - totalOutflow;
     if (projectedEndingCash < 0) {
       return reject("INSUFFICIENT_FUNDS");
+    }
+    cashAtStartOfPlayerLoanStage[playerId] = projectedEndingCash;
+  }
+
+  // F. Scheduled player-loan repayments, ordered by LoanId
+  const plannedPlayerLoanPayments: PlannedPlayerLoanPayment[] = [];
+  const plannedPlayerLoanOutflowByBorrower: Partial<Record<PlayerId, number>> =
+    {};
+  const plannedPlayerLoanInflowByLender: Partial<Record<PlayerId, number>> = {};
+
+  for (const loanId of sortedLoanIds) {
+    const loan = state.finance.loansById[loanId];
+    if (
+      loan !== undefined &&
+      loan.kind === "player-loan" &&
+      loan.originatedQuarter < request.quarter &&
+      loan.installmentsPaid < loan.termQuarters &&
+      loan.outstandingPrincipalCents > 0
+    ) {
+      const schedule = calculatePlayerLoanSchedule({
+        principalCents: loan.originalPrincipalCents,
+        annualRateBps: loan.annualRateBps,
+        termQuarters: loan.termQuarters,
+      });
+
+      const nextInstallment = schedule[loan.installmentsPaid];
+      if (nextInstallment === undefined) {
+        throw new Error(
+          `Invariant violation: missing schedule row for player loan ${loan.id} installment ${loan.installmentsPaid}`,
+        );
+      }
+
+      const borrowerId = loan.borrowerPlayerId;
+      const lenderId = loan.lenderPlayerId;
+
+      const prevOutflow = plannedPlayerLoanOutflowByBorrower[borrowerId] ?? 0;
+      if (
+        nextInstallment.paymentCents >
+        Number.MAX_SAFE_INTEGER - prevOutflow
+      ) {
+        return reject("INSUFFICIENT_FUNDS");
+      }
+      plannedPlayerLoanOutflowByBorrower[borrowerId] =
+        prevOutflow + nextInstallment.paymentCents;
+
+      const prevInflow = plannedPlayerLoanInflowByLender[lenderId] ?? 0;
+      if (nextInstallment.paymentCents > Number.MAX_SAFE_INTEGER - prevInflow) {
+        return reject("DESTINATION_OVERFLOW");
+      }
+      plannedPlayerLoanInflowByLender[lenderId] =
+        prevInflow + nextInstallment.paymentCents;
+
+      plannedPlayerLoanPayments.push({
+        loanId: loan.id,
+        borrowerPlayerId: borrowerId,
+        lenderPlayerId: lenderId,
+        paymentCents: nextInstallment.paymentCents,
+        principalCents: nextInstallment.principalCents,
+        interestCents: nextInstallment.interestCents,
+        closingPrincipalCents: nextInstallment.closingPrincipalCents,
+      });
+    }
+  }
+
+  // Evaluate borrower solvency using cash at the start of the player-loan stage
+  // (Incoming player-loan receipts during this stage do not fund outgoing obligations!)
+  for (const playerId of state.playerOrder) {
+    const stageStartCash = cashAtStartOfPlayerLoanStage[playerId] ?? 0;
+    const playerLoanOutflow = plannedPlayerLoanOutflowByBorrower[playerId] ?? 0;
+    if (playerLoanOutflow > stageStartCash) {
+      return reject("INSUFFICIENT_FUNDS");
+    }
+
+    // Destination capacity check for lenders receiving repayments
+    const playerLoanInflow = plannedPlayerLoanInflowByLender[playerId] ?? 0;
+    const netPreReceiptBalance = stageStartCash - playerLoanOutflow;
+    if (playerLoanInflow > Number.MAX_SAFE_INTEGER - netPreReceiptBalance) {
+      return reject("DESTINATION_OVERFLOW");
     }
   }
 
@@ -596,7 +689,48 @@ export function settleQuarter(
     updatedLoansById[loanPayment.loanId] = updatedLoan;
   }
 
-  // 4.7 Record completed market update and transition economy to QN+1 regime
+  // 4.7 Apply scheduled player-loan payments
+  for (const loanPayment of plannedPlayerLoanPayments) {
+    const postRequest: CashPostingRequest = {
+      source: playerCashAccount(loanPayment.borrowerPlayerId),
+      destination: playerCashAccount(loanPayment.lenderPlayerId),
+      amountCents: loanPayment.paymentCents,
+      reason: "loan-payment",
+      quarter: request.quarter,
+      relatedLoanId: loanPayment.loanId,
+      loanPayment: {
+        principalCents: cents(loanPayment.principalCents),
+        interestCents: cents(loanPayment.interestCents),
+      },
+    };
+
+    const postResult = postCash(currentFinance, currentCounters, postRequest);
+    if (!postResult.ok) {
+      throw new Error(
+        `Invariant violation: unexpected cash posting failure during player loan settlement: ${postResult.code}`,
+      );
+    }
+
+    currentFinance = postResult.finance;
+    currentCounters = postResult.counters;
+    journalEntries.push(postResult.entry);
+
+    const originalLoan = updatedLoansById[loanPayment.loanId];
+    if (originalLoan === undefined || originalLoan.kind !== "player-loan") {
+      throw new Error(
+        `Invariant violation: missing player loan ${loanPayment.loanId}`,
+      );
+    }
+
+    const updatedLoan: PlayerLoan = {
+      ...originalLoan,
+      outstandingPrincipalCents: cents(loanPayment.closingPrincipalCents),
+      installmentsPaid: originalLoan.installmentsPaid + 1,
+    };
+    updatedLoansById[loanPayment.loanId] = updatedLoan;
+  }
+
+  // 4.8 Record completed market update and transition economy to QN+1 regime
   const lastMarketUpdate: MarketUpdateRecord = {
     quarter: request.quarter,
     regimeUsed: marketUpdate.regimeUsed,

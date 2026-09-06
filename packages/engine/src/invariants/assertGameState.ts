@@ -393,6 +393,15 @@ export function assertGameState(state: GameState): void {
           `Game invariant failed: loan ${loan.id} installmentsPaid must be an integer between 0 and termQuarters`,
         );
       }
+      if (
+        !Number.isSafeInteger(loan.originatedQuarter) ||
+        loan.originatedQuarter <= 0 ||
+        loan.originatedQuarter > state.currentQuarter
+      ) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} originatedQuarter must be a positive safe integer <= currentQuarter (${state.currentQuarter}), got ${String(loan.originatedQuarter)}`,
+        );
+      }
 
       // Schedule consistency
       let schedule: ReturnType<typeof calculatePlayerLoanSchedule>;
@@ -1048,29 +1057,169 @@ function assertEconomyState(state: GameState): void {
         `Game invariant failed: reservation purpose must be purchase-price, got ${String(tx.reservation.purpose)}`,
       );
     }
-    if (
-      !Number.isSafeInteger(tx.reservation.amountCents) ||
-      tx.reservation.amountCents <= 0
-    ) {
-      throw new Error(
-        "Game invariant failed: reservation amountCents must be a positive safe integer",
-      );
-    }
-    if (tx.reservation.amountCents !== tx.purchasePriceCents) {
-      throw new Error(
-        `Game invariant failed: reservation amountCents (${tx.reservation.amountCents}) must equal purchasePriceCents (${tx.purchasePriceCents})`,
-      );
-    }
     if (tx.reservation.playerId !== tx.buyerPlayerId) {
       throw new Error(
         `Game invariant failed: reservation playerId (${tx.reservation.playerId}) must match buyerPlayerId (${tx.buyerPlayerId})`,
       );
     }
     const buyerCash = state.finance.cashByPlayer[tx.buyerPlayerId];
-    if (buyerCash === undefined || buyerCash < tx.reservation.amountCents) {
-      throw new Error(
-        `Game invariant failed: buyer actual cash (${String(buyerCash)}) must be >= reservation amount (${tx.reservation.amountCents})`,
-      );
+
+    if (tx.playerLoanFinancing === undefined) {
+      // Cash-only transaction
+      if (
+        !Number.isSafeInteger(tx.reservation.amountCents) ||
+        tx.reservation.amountCents <= 0
+      ) {
+        throw new Error(
+          "Game invariant failed: reservation amountCents must be a positive safe integer",
+        );
+      }
+      if (tx.reservation.amountCents !== tx.purchasePriceCents) {
+        throw new Error(
+          `Game invariant failed: reservation amountCents (${tx.reservation.amountCents}) must equal purchasePriceCents (${tx.purchasePriceCents})`,
+        );
+      }
+      if (buyerCash === undefined || buyerCash < tx.reservation.amountCents) {
+        throw new Error(
+          `Game invariant failed: buyer actual cash (${String(buyerCash)}) must be >= reservation amount (${tx.reservation.amountCents})`,
+        );
+      }
+    } else {
+      // Financed transaction
+      const financing = tx.playerLoanFinancing;
+      if (!financing || typeof financing !== "object") {
+        throw new Error(
+          "Game invariant failed: playerLoanFinancing must be an object",
+        );
+      }
+      if (
+        !Number.isSafeInteger(financing.requestedPrincipalCents) ||
+        financing.requestedPrincipalCents <= 0
+      ) {
+        throw new Error(
+          "Game invariant failed: requestedPrincipalCents must be a positive safe integer",
+        );
+      }
+      if (
+        !Number.isSafeInteger(tx.reservation.amountCents) ||
+        tx.reservation.amountCents < 0
+      ) {
+        throw new Error(
+          "Game invariant failed: financed buyer reservation amountCents must be a non-negative safe integer",
+        );
+      }
+      if (
+        tx.reservation.amountCents + financing.requestedPrincipalCents !==
+        tx.purchasePriceCents
+      ) {
+        throw new Error(
+          `Game invariant failed: buyer contribution (${tx.reservation.amountCents}) + requested principal (${financing.requestedPrincipalCents}) must equal purchase price (${tx.purchasePriceCents})`,
+        );
+      }
+      if (buyerCash === undefined || buyerCash < tx.reservation.amountCents) {
+        throw new Error(
+          `Game invariant failed: buyer actual cash (${String(buyerCash)}) must be >= reservation amount (${tx.reservation.amountCents})`,
+        );
+      }
+
+      if (financing.offer !== null) {
+        const offer = financing.offer;
+        if (!offer || typeof offer !== "object") {
+          throw new Error(
+            "Game invariant failed: financing offer must be an object",
+          );
+        }
+        if (!state.playerOrder.includes(offer.lenderPlayerId)) {
+          throw new Error(
+            `Game invariant failed: offer lender ${offer.lenderPlayerId} is unknown`,
+          );
+        }
+        if (offer.lenderPlayerId === tx.buyerPlayerId) {
+          throw new Error(
+            "Game invariant failed: offer lender must differ from buyer",
+          );
+        }
+        if (offer.lenderPlayerId === tx.sellerPlayerId) {
+          throw new Error(
+            "Game invariant failed: offer lender must differ from seller",
+          );
+        }
+        if (offer.principalCents !== financing.requestedPrincipalCents) {
+          throw new Error(
+            `Game invariant failed: offer principal (${offer.principalCents}) must equal requested principal (${financing.requestedPrincipalCents})`,
+          );
+        }
+        if (
+          !Number.isSafeInteger(offer.annualRateBps) ||
+          offer.annualRateBps < 0
+        ) {
+          throw new Error(
+            "Game invariant failed: offer annualRateBps must be a non-negative safe integer",
+          );
+        }
+        if (
+          !Number.isSafeInteger(offer.termQuarters) ||
+          offer.termQuarters < PLAYER_LOAN_MIN_TERM_QUARTERS ||
+          offer.termQuarters > PLAYER_LOAN_MAX_TERM_QUARTERS
+        ) {
+          throw new Error(
+            `Game invariant failed: offer termQuarters must be between ${PLAYER_LOAN_MIN_TERM_QUARTERS} and ${PLAYER_LOAN_MAX_TERM_QUARTERS}`,
+          );
+        }
+        if (
+          !Number.isSafeInteger(offer.termsRevision) ||
+          offer.termsRevision <= 0
+        ) {
+          throw new Error(
+            "Game invariant failed: offer termsRevision must be a positive safe integer",
+          );
+        }
+        if (offer.status !== "offered" && offer.status !== "accepted") {
+          throw new Error(
+            `Game invariant failed: unrecognized offer status ${String(offer.status)}`,
+          );
+        }
+        if (!offer.reservation || typeof offer.reservation !== "object") {
+          throw new Error(
+            "Game invariant failed: offer reservation must be an object",
+          );
+        }
+        if (offer.reservation.playerId !== offer.lenderPlayerId) {
+          throw new Error(
+            `Game invariant failed: offer reservation playerId (${offer.reservation.playerId}) must match lenderPlayerId (${offer.lenderPlayerId})`,
+          );
+        }
+        if (offer.reservation.purpose !== "player-loan-funding") {
+          throw new Error(
+            `Game invariant failed: offer reservation purpose must be player-loan-funding, got ${String(offer.reservation.purpose)}`,
+          );
+        }
+        if (offer.reservation.amountCents !== offer.principalCents) {
+          throw new Error(
+            `Game invariant failed: offer reservation amountCents (${offer.reservation.amountCents}) must match offer principal (${offer.principalCents})`,
+          );
+        }
+        const lenderCash = state.finance.cashByPlayer[offer.lenderPlayerId];
+        if (
+          lenderCash === undefined ||
+          lenderCash < offer.reservation.amountCents
+        ) {
+          throw new Error(
+            `Game invariant failed: lender actual cash (${String(lenderCash)}) must be >= offer reservation amount (${offer.reservation.amountCents})`,
+          );
+        }
+        try {
+          calculatePlayerLoanSchedule({
+            principalCents: offer.principalCents,
+            annualRateBps: offer.annualRateBps,
+            termQuarters: offer.termQuarters,
+          });
+        } catch (err) {
+          throw new Error(
+            `Game invariant failed: financing offer schedule is invalid: ${String(err)}`,
+          );
+        }
+      }
     }
     const sellerOwnership = asset.ownershipByPlayerPpm[tx.sellerPlayerId];
     if (sellerOwnership !== TOTAL_OWNERSHIP_PPM) {

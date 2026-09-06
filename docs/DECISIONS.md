@@ -245,3 +245,56 @@ Establish the first private business-purchase opportunity lifecycle in `@finance
 9. **Deferred Scope & OPEN Boundaries:**
    - Random opportunity selection, eligibility pools, focus weighting, spotlight sequencing (G1), paid diligence, multiple diligence tiers, financing offers, auctions, counteroffers, transaction retry policies, and opportunity expiry (A6) remain explicitly deferred.
    - This slice does not resolve OPEN decisions A4, A5, A6, or G1, and does not claim Milestone 4 complete.
+
+## ARCH-028 - Transaction-scoped player-loan financing and recurring repayment
+
+**Status:** Accepted  
+**Date:** September 6, 2026
+
+Establish the first executable domain version of Architecture Milestone 4 (one opportunity, investigation, financing offer, reservation, atomic close) in `@finance-game/engine`:
+
+1. **Transaction-Scoped Player-Loan Financing Model (`CashBusinessPurchaseTransaction`):**
+   - Extend the authoritative transaction model to optionally carry a narrow player-loan financing request (`playerLoanFinancing?: PlayerLoanFinancingRequest`).
+   - The financing request specifies `requestedPrincipalCents` and tracks at most one firm third-party financing offer (`offer: PlayerLoanFinancingOffer | null`).
+   - Exact funding equation: `buyerCashContributionCents + requestedPrincipalCents === purchasePriceCents` (safe checked integer arithmetic). Buyer contribution can be zero (100% financed purchase).
+
+2. **Dual-Reservation Architecture (`CashReservation`):**
+   - Extend `CashReservation.purpose` to `"purchase-price" | "player-loan-funding"`.
+   - Buyer cash contribution is reserved upon transaction opening (`"purchase-price"`).
+   - Lender loan principal is reserved upon offer submission (`"player-loan-funding"`).
+   - Neither reservation moves actual cash before close.
+   - `getReservedCashCents()` computes the safe sum of all active reservations owned by a player; `getAvailableCashCents()` deducts total reserved cash from actual balance.
+   - Cancellation releases both buyer and lender reservations without moving cash, altering ownership, creating loans, or consuming deterministic IDs.
+
+3. **Firm Offer Submission & Exact-Revision Acceptance:**
+   - Add domain primitives `submitPlayerLoanFinancingOffer` and `acceptPlayerLoanFinancingOffer`.
+   - The lender specifies APR basis points and term (2 to 8 quarters) using the approved PR #6 player-loan constraints and amortization calculator.
+   - The lender must be a third-party human player (differing from buyer and seller).
+   - Acceptance requires the buyer to explicitly bind to `expectedTermsRevision` (terms revision 1 in this slice). Stale or mismatched terms reject atomically.
+
+4. **Atomic Funded Close Sequence (`closeCashBusinessPurchaseTransaction`):**
+   - Financed transactions require an accepted financing offer (`FINANCING_NOT_READY` rejection if offer is absent or unaccepted).
+   - Closing executes an all-or-nothing atomic sequence:
+     1. Originate loan lender $\to$ buyer for requested principal (`originateConfirmedPlayerLoan`);
+     2. Post cash buyer $\to$ seller for full purchase price (`postCash`);
+     3. Transfer 100% sole business ownership to buyer;
+     4. Clear active transaction and release reservations.
+   - Emits exactly two journal entries in canonical order: loan origination (`relatedLoanId`, `relatedTransactionId`), then business purchase (`relatedAssetId`, `relatedTransactionId`).
+   - Preflights loan counter and journal counter (2 entries); capacity exhaustion returns typed atomic rejections (`LOAN_ID_EXHAUSTED`, `JOURNAL_ID_EXHAUSTED`).
+
+5. **PlayerLoan `originatedQuarter` & Settlement Timing ($Q_N \to Q_{N+1}$):**
+   - Add `originatedQuarter: number` to `PlayerLoan` and validate in state invariants.
+   - Scheduled player-loan repayment is integrated into authoritative `settleQuarter()`.
+   - A player loan is due in Quarter $Q$ only when `loan.originatedQuarter < Q` and `installmentsPaid < termQuarters`. Loans originated in $Q_1$ have zero repayment in $Q_1$; first repayment occurs in $Q_2$.
+
+6. **Order-Independent Settlement Planning & Solvency:**
+   - Player loan repayment forms a dedicated settlement stage after legacy bank loans.
+   - Repayments are executed in canonical `LoanId` ascending order.
+   - Solvency is evaluated across all borrowers simultaneously against cash available at the start of the player-loan stage.
+   - Incoming player-loan payments during the same stage do not fund a borrower's outgoing obligations, ensuring deterministic simultaneous settlement rather than order-dependent funding.
+   - If any borrower cannot afford their scheduled installment, the entire quarter settlement rejects atomically under the existing no-default prototype convention.
+
+7. **Milestone 4 Status & Deferred Scope:**
+   - This completes the first executable domain version of Architecture Milestone 4 (opportunity discovery $\to$ optional investigation $\to$ financed pursuit $\to$ lender firm offer $\to$ buyer acceptance $\to$ atomic funded close $\to$ recurring quarterly repayment).
+   - Competing offers, seller financing, bank financing, equity financing, collateral, defaults, prepayment, refinancing, transaction expiry, negotiation UI, and spotlight sequencing remain deferred.
+

@@ -542,6 +542,7 @@ describe("deterministic repeatability", () => {
       annualRateBps: basisPoints(500),
       termQuarters: 4,
       installmentsPaid: 0,
+      originatedQuarter: 1,
     };
     const finance: FinanceState = {
       ...createInitialFinance(),

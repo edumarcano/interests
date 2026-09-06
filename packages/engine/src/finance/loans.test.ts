@@ -108,6 +108,7 @@ describe("player-loan origination", () => {
       annualRateBps: 1_000,
       termQuarters: 3,
       installmentsPaid: 0,
+      originatedQuarter: 1,
     });
 
     // 3. Cash movements: lender decreases, borrower increases
