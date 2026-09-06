@@ -13,6 +13,7 @@ import {
   type ProfileId,
   PUBLIC_MARKET_INSTRUMENT_IDS,
   type PublicMarketInstrumentId,
+  STANDARD_V1_PLAYER_COUNT,
 } from "@finance-game/rules";
 import type { PlayerId } from "@finance-game/shared";
 
@@ -406,14 +407,35 @@ export function aggregateBatchReport(
       );
     }
 
-    const playerIds = Object.keys(game.openingPlayers) as PlayerId[];
-    if (playerIds.length === 0) {
+    const openingPlayerIds = Object.keys(game.openingPlayers) as PlayerId[];
+    if (openingPlayerIds.length !== STANDARD_V1_PLAYER_COUNT) {
       throw new Error(
-        `Simulation invariant failed: game ${game.gameId} has no opening players recorded`,
+        `Simulation invariant failed: game ${game.gameId} expected exactly ${STANDARD_V1_PLAYER_COUNT} opening players, got ${openingPlayerIds.length}`,
       );
     }
 
-    for (const pId of playerIds) {
+    const finalPlayerIds = Object.keys(game.finalPlayers) as PlayerId[];
+    if (finalPlayerIds.length !== STANDARD_V1_PLAYER_COUNT) {
+      throw new Error(
+        `Simulation invariant failed: game ${game.gameId} expected exactly ${STANDARD_V1_PLAYER_COUNT} final players, got ${finalPlayerIds.length}`,
+      );
+    }
+
+    const cashFlowPlayerIds = Object.keys(game.playerCashFlows) as PlayerId[];
+    if (cashFlowPlayerIds.length !== STANDARD_V1_PLAYER_COUNT) {
+      throw new Error(
+        `Simulation invariant failed: game ${game.gameId} expected exactly ${STANDARD_V1_PLAYER_COUNT} player cash flow records, got ${cashFlowPlayerIds.length}`,
+      );
+    }
+
+    const liquidityPlayerIds = Object.keys(game.playerLiquidity) as PlayerId[];
+    if (liquidityPlayerIds.length !== STANDARD_V1_PLAYER_COUNT) {
+      throw new Error(
+        `Simulation invariant failed: game ${game.gameId} expected exactly ${STANDARD_V1_PLAYER_COUNT} player liquidity records, got ${liquidityPlayerIds.length}`,
+      );
+    }
+
+    for (const pId of openingPlayerIds) {
       const open = game.openingPlayers[pId];
       const final = game.finalPlayers[pId];
       const flow = game.playerCashFlows[pId];

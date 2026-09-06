@@ -1,6 +1,7 @@
 import {
   applyAction,
   createGame,
+  ENGINE_VERSION,
   settleQuarter,
   totalPublicMarketValueCents,
 } from "@finance-game/engine";
@@ -9,6 +10,7 @@ import {
   PROFILE_IDS,
   PUBLIC_MARKET_INSTRUMENT_IDS,
 } from "@finance-game/rules";
+import type { PlayerId } from "@finance-game/shared";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -260,32 +262,98 @@ describe("passive baseline simulation", () => {
       };
       const report = runPassiveBaselineBatch(config);
       expect(report.simulationVersion).toBe(SIMULATION_VERSION);
-      expect(report.simulationVersion).toBe(
-        report.workspaceCompatibility.engine,
-      );
+      expect(report.engineVersion).toBe(ENGINE_VERSION);
+      expect(report.workspaceCompatibility.engine).toBe(ENGINE_VERSION);
     });
 
-    it("throws when aggregateBatchReport encounters missing player measurement data", () => {
+    it("throws when aggregateBatchReport encounters partial player measurement sets (e.g. exactly one player missing)", () => {
       const gameResult = runPassiveBaselineGame({
-        seed: "missing-data-seed",
-        gameId: "missing-data-game",
+        seed: "partial-player-seed",
+        gameId: "partial-player-game",
         quarterCount: 1,
       });
 
-      // Corrupt openingPlayers
-      const corruptedResult = {
-        ...gameResult,
-        openingPlayers: {} as typeof gameResult.openingPlayers,
-      };
+      const playerIds = Object.keys(gameResult.openingPlayers) as PlayerId[];
+      expect(playerIds.length).toBe(4);
+      const omittedPlayerId = playerIds[0];
+      if (!omittedPlayerId) throw new Error("Expected at least one player");
 
       const config: BaselineSimulationConfig = {
         gameCount: 1,
         quarterCount: 1,
-        seedPrefix: "corrupt-test",
+        seedPrefix: "partial-test",
       };
 
-      expect(() => aggregateBatchReport(config, [corruptedResult])).toThrow(
-        "Simulation invariant failed: game missing-data-game has no opening players recorded",
+      // 1. All players missing (0 opening players)
+      expect(() =>
+        aggregateBatchReport(config, [
+          {
+            ...gameResult,
+            openingPlayers: {} as typeof gameResult.openingPlayers,
+          },
+        ]),
+      ).toThrow(
+        "Simulation invariant failed: game partial-player-game expected exactly 4 opening players, got 0",
+      );
+
+      // 2. Exactly one player missing from openingPlayers (3 players)
+      const partialOpeningPlayers = { ...gameResult.openingPlayers };
+      delete partialOpeningPlayers[omittedPlayerId];
+
+      expect(() =>
+        aggregateBatchReport(config, [
+          {
+            ...gameResult,
+            openingPlayers: partialOpeningPlayers,
+          },
+        ]),
+      ).toThrow(
+        "Simulation invariant failed: game partial-player-game expected exactly 4 opening players, got 3",
+      );
+
+      // 3. Exactly one player missing from finalPlayers
+      const partialFinalPlayers = { ...gameResult.finalPlayers };
+      delete partialFinalPlayers[omittedPlayerId];
+
+      expect(() =>
+        aggregateBatchReport(config, [
+          {
+            ...gameResult,
+            finalPlayers: partialFinalPlayers,
+          },
+        ]),
+      ).toThrow(
+        "Simulation invariant failed: game partial-player-game expected exactly 4 final players, got 3",
+      );
+
+      // 4. Exactly one player missing from playerCashFlows
+      const partialCashFlows = { ...gameResult.playerCashFlows };
+      delete partialCashFlows[omittedPlayerId];
+
+      expect(() =>
+        aggregateBatchReport(config, [
+          {
+            ...gameResult,
+            playerCashFlows: partialCashFlows,
+          },
+        ]),
+      ).toThrow(
+        "Simulation invariant failed: game partial-player-game expected exactly 4 player cash flow records, got 3",
+      );
+
+      // 5. Exactly one player missing from playerLiquidity
+      const partialLiquidity = { ...gameResult.playerLiquidity };
+      delete partialLiquidity[omittedPlayerId];
+
+      expect(() =>
+        aggregateBatchReport(config, [
+          {
+            ...gameResult,
+            playerLiquidity: partialLiquidity,
+          },
+        ]),
+      ).toThrow(
+        "Simulation invariant failed: game partial-player-game expected exactly 4 player liquidity records, got 3",
       );
     });
   });
