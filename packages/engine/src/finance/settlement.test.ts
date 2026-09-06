@@ -107,6 +107,7 @@ function buildSyntheticFixture(options?: {
     annualRevenueCents: cents(50_000_000),
     annualOperatingProfitCents: cents(8_000_000),
     enterpriseValueCents: cents(32_000_000),
+    debtPrincipalCents: cents(0),
     ownershipByPlayerPpm: {
       [p3]: ownershipPpm(1_000_000),
     },
@@ -134,6 +135,24 @@ function buildSyntheticFixture(options?: {
     ...base,
     finance: {
       ...base.finance,
+      recurringByPlayer: {
+        [p1]: {
+          quarterlyIncomeCents: cents(0),
+          quarterlyLivingExpenseCents: cents(0),
+        },
+        [p2]: {
+          quarterlyIncomeCents: cents(0),
+          quarterlyLivingExpenseCents: cents(0),
+        },
+        [p3]: {
+          quarterlyIncomeCents: cents(0),
+          quarterlyLivingExpenseCents: cents(0),
+        },
+        [p4]: {
+          quarterlyIncomeCents: cents(0),
+          quarterlyLivingExpenseCents: cents(0),
+        },
+      },
       loansById,
       assetsById: {
         [propertyId]: property,
@@ -257,7 +276,7 @@ describe("quarter settlement foundation", () => {
     if (loan) {
       const loanAfter = result.state.finance.loansById[loan.id];
       expect(loanAfter).toBeDefined();
-      if (!loanAfter) return;
+      if (loanAfter?.kind !== "player-loan") return;
       expect(loanAfter.installmentsPaid).toBe(0);
       expect(loanAfter.outstandingPrincipalCents).toBe(
         loan.originalPrincipalCents,
@@ -434,8 +453,35 @@ describe("quarter settlement foundation", () => {
       playerIds,
     });
 
+    const isolatedBase: GameState = {
+      ...base,
+      finance: {
+        ...base.finance,
+        recurringByPlayer: {
+          [p1]: {
+            quarterlyIncomeCents: cents(0),
+            quarterlyLivingExpenseCents: cents(0),
+          },
+          [p2]: {
+            quarterlyIncomeCents: cents(0),
+            quarterlyLivingExpenseCents: cents(0),
+          },
+          [p3]: {
+            quarterlyIncomeCents: cents(0),
+            quarterlyLivingExpenseCents: cents(0),
+          },
+          [p4]: {
+            quarterlyIncomeCents: cents(0),
+            quarterlyLivingExpenseCents: cents(0),
+          },
+        },
+        loansById: {},
+        assetsById: {},
+      },
+    };
+
     // Empty asset registry settles cleanly
-    const emptyResult = settleQuarter(base, { quarter: 1 });
+    const emptyResult = settleQuarter(isolatedBase, { quarter: 1 });
     expect(emptyResult.ok).toBe(true);
     if (!emptyResult.ok) return;
 
@@ -460,9 +506,9 @@ describe("quarter settlement foundation", () => {
     };
 
     const stateWithZeroProp: GameState = {
-      ...base,
+      ...isolatedBase,
       finance: {
-        ...base.finance,
+        ...isolatedBase.finance,
         assetsById: {
           [zeroProperty.id]: zeroProperty,
         },

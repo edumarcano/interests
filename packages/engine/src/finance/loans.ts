@@ -58,6 +58,7 @@ export interface ApplyScheduledPlayerLoanPaymentRequest {
 
 export type ApplyScheduledPlayerLoanPaymentErrorCode =
   | "UNKNOWN_LOAN"
+  | "WRONG_LOAN_KIND"
   | "LOAN_ALREADY_REPAID"
   | "UNKNOWN_PLAYER"
   | "INSUFFICIENT_FUNDS"
@@ -252,6 +253,9 @@ export function applyScheduledPlayerLoanPayment(
   const loan = finance.loansById[request.loanId];
   if (loan === undefined) {
     return reject("UNKNOWN_LOAN");
+  }
+  if (loan.kind !== "player-loan") {
+    return reject("WRONG_LOAN_KIND");
   }
 
   // 3. Verify loan is not already fully repaid

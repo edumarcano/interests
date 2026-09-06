@@ -4,6 +4,13 @@ export interface BusinessEquityInput {
   readonly annualRevenueCents: Cents;
   readonly annualOperatingProfitCents: Cents;
   readonly enterpriseValueCents: Cents;
+  readonly debtPrincipalCents?: Cents;
+}
+
+export interface BusinessEquityResult {
+  readonly enterpriseValueCents: Cents;
+  readonly debtPrincipalCents: Cents;
+  readonly equityValueCents: Cents;
 }
 
 export interface DebtFreeBusinessEquityResult {
@@ -12,15 +19,16 @@ export interface DebtFreeBusinessEquityResult {
 }
 
 /**
- * Pure calculation of debt-free business equity value.
+ * Pure calculation of business equity value.
  *
- * NOTE: This is explicitly for the debt-free foundation slice where
- * equity value = enterprise value (no debt, no entity cash, no retained earnings).
+ * Equity value = enterprise value - business debt principal.
+ * For PR #8 starting business slice, business debt is balance-sheet-only
+ * (no retained earnings, no entity cash, no business-debt schedule).
  * A4 remains OPEN.
  */
-export function calculateDebtFreeBusinessEquity(
+export function calculateBusinessEquity(
   business: BusinessEquityInput,
-): DebtFreeBusinessEquityResult {
+): BusinessEquityResult {
   if (!isNonNegativeCents(business.annualRevenueCents)) {
     throw new RangeError(
       `annualRevenueCents must be non-negative safe integer cents, got ${String(business.annualRevenueCents)}`,
@@ -39,9 +47,41 @@ export function calculateDebtFreeBusinessEquity(
     );
   }
 
+  const debtCents = business.debtPrincipalCents ?? cents(0);
+  if (!isNonNegativeCents(debtCents)) {
+    throw new RangeError(
+      `debtPrincipalCents must be non-negative safe integer cents, got ${String(debtCents)}`,
+    );
+  }
+
+  if (debtCents > business.enterpriseValueCents) {
+    throw new RangeError(
+      `debtPrincipalCents (${debtCents}) cannot exceed enterpriseValueCents (${business.enterpriseValueCents}) for supported starting business fixtures`,
+    );
+  }
+
   return {
     enterpriseValueCents: business.enterpriseValueCents,
-    equityValueCents: cents(business.enterpriseValueCents),
+    debtPrincipalCents: debtCents,
+    equityValueCents: cents(business.enterpriseValueCents - debtCents),
+  };
+}
+
+/**
+ * Pure calculation of debt-free business equity value.
+ *
+ * NOTE: Backwards-compatible helper delegating to calculateBusinessEquity with zero debt.
+ */
+export function calculateDebtFreeBusinessEquity(
+  business: BusinessEquityInput,
+): DebtFreeBusinessEquityResult {
+  const result = calculateBusinessEquity({
+    ...business,
+    debtPrincipalCents: cents(0),
+  });
+  return {
+    enterpriseValueCents: result.enterpriseValueCents,
+    equityValueCents: result.equityValueCents,
   };
 }
 

@@ -1,7 +1,16 @@
-import { asAssetId, asLoanId, asPlayerId } from "@finance-game/shared";
+import {
+  asAssetId,
+  asLoanId,
+  asPlayerId,
+  type PlayerId,
+} from "@finance-game/shared";
 import { describe, expect, it } from "vitest";
 
-import type { DeterministicCounters, FinanceState } from "../model/gameState";
+import type {
+  DeterministicCounters,
+  FinanceState,
+  RecurringPersonalFinance,
+} from "../model/gameState";
 import {
   externalCashAccount,
   isExternalAccount,
@@ -25,6 +34,27 @@ const bobId = asPlayerId("player-bob");
 const charlieId = asPlayerId("player-charlie");
 const danaId = asPlayerId("player-dana");
 
+function createInitialRecurring(): Record<PlayerId, RecurringPersonalFinance> {
+  return {
+    [aliceId]: {
+      quarterlyIncomeCents: cents(25_000_00),
+      quarterlyLivingExpenseCents: cents(13_800_00),
+    },
+    [bobId]: {
+      quarterlyIncomeCents: cents(18_000_00),
+      quarterlyLivingExpenseCents: cents(10_200_00),
+    },
+    [charlieId]: {
+      quarterlyIncomeCents: cents(17_000_00),
+      quarterlyLivingExpenseCents: cents(12_000_00),
+    },
+    [danaId]: {
+      quarterlyIncomeCents: cents(11_250_00),
+      quarterlyLivingExpenseCents: cents(9_600_00),
+    },
+  };
+}
+
 function createInitialFinance(): FinanceState {
   return {
     cashByPlayer: {
@@ -33,6 +63,7 @@ function createInitialFinance(): FinanceState {
       [charlieId]: cents(500_000), // $5,000
       [danaId]: cents(300_000), // $3,000
     },
+    recurringByPlayer: createInitialRecurring(),
     loansById: {},
     assetsById: {},
   };
@@ -388,6 +419,7 @@ describe("financial rejection rules and immutability", () => {
         [charlieId]: cents(0),
         [danaId]: cents(0),
       },
+      recurringByPlayer: createInitialRecurring(),
       loansById: {},
       assetsById: {},
     };
@@ -503,6 +535,7 @@ describe("deterministic repeatability", () => {
         [charlieId]: cents(500_000),
         [danaId]: cents(300_000),
       },
+      recurringByPlayer: createInitialRecurring(),
       loansById: {
         [sampleLoan.id]: sampleLoan,
       },
@@ -544,6 +577,7 @@ describe("deterministic repeatability", () => {
         [charlieId]: cents(500_000),
         [danaId]: cents(300_000),
       },
+      recurringByPlayer: createInitialRecurring(),
       loansById: {},
       assetsById: {
         [sampleProperty.id]: sampleProperty,
@@ -563,5 +597,22 @@ describe("deterministic repeatability", () => {
     if (!result.ok) return;
     expect(result.finance.assetsById).toBe(finance.assetsById);
     expect(result.finance.assetsById[sampleProperty.id]).toBe(sampleProperty);
+  });
+
+  it("preserves recurringByPlayer across cash postings", () => {
+    const finance = createInitialFinance();
+    const counters = createInitialCounters();
+
+    const result = postCash(finance, counters, {
+      source: playerCashAccount(aliceId),
+      destination: playerCashAccount(bobId),
+      amountCents: 10_000,
+      reason: "transfer",
+      quarter: 1,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.finance.recurringByPlayer).toBe(finance.recurringByPlayer);
   });
 });

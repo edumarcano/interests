@@ -1,10 +1,17 @@
-import type { AssetId, PlayerId, SettlementId } from "@finance-game/shared";
+import type {
+  AssetId,
+  LoanId,
+  PlayerId,
+  SettlementId,
+} from "@finance-game/shared";
 
 import { nextDeterministicId } from "../game/deterministicIds";
 import { assertGameState } from "../invariants/assertGameState";
-import type { GameState } from "../model/gameState";
+import type { GameState, LegacyBankLoan } from "../model/gameState";
 import { externalCashAccount, playerCashAccount } from "./account";
+import { calculateLegacyBankLoanNextPayment } from "./amortization";
 import type { JournalEntry } from "./journal";
+import { cents } from "./money";
 import { allocateProportionalCents } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
 import { calculatePropertyCashFlow } from "./property";
@@ -18,7 +25,8 @@ export type SettleQuarterErrorCode =
   | "INVALID_QUARTER"
   | "QUARTER_ALREADY_SETTLED"
   | "WRONG_QUARTER"
-  | "DESTINATION_OVERFLOW";
+  | "DESTINATION_OVERFLOW"
+  | "INSUFFICIENT_FUNDS";
 
 export type SettleQuarterResult =
   | {
@@ -34,6 +42,11 @@ export type SettleQuarterResult =
       readonly journalEntries: readonly [];
     };
 
+interface PlannedPersonalIncome {
+  readonly playerId: PlayerId;
+  readonly amountCents: number;
+}
+
 interface PlannedPropertyDistribution {
   readonly sourceAccount: ReturnType<typeof externalCashAccount>;
   readonly destinationPlayerId: PlayerId;
@@ -43,24 +56,47 @@ interface PlannedPropertyDistribution {
   readonly assetId: AssetId;
 }
 
+interface PlannedLivingExpense {
+  readonly playerId: PlayerId;
+  readonly amountCents: number;
+}
+
+interface PlannedLegacyBankLoanPayment {
+  readonly loanId: LoanId;
+  readonly borrowerPlayerId: PlayerId;
+  readonly paymentCents: number;
+  readonly principalCents: number;
+  readonly interestCents: number;
+  readonly closingPrincipalCents: number;
+  readonly reason: string;
+  readonly relatedAssetId?: AssetId;
+}
+
 /**
  * Pure internal authoritative quarter-settlement operation.
  *
- * Slices supported in PR #7:
- * - Debt-free property operating cash-flow distribution.
+ * Supported in PR #8:
+ * - Recurring personal/spendable income (personal-earned-income -> player)
+ * - Debt-free property operating cash-flow distribution (property-operating-cashflow -> player)
+ * - Recurring living expenses (player -> living-expense-sink)
+ * - Opening legacy bank loans: personal debt and Property Starter mortgage (player -> bank)
  *
- * Deliberately NOT supported (A1-A6 remain OPEN):
- * - Business distributions (A4);
- * - Scheduled player-loan payments / default (A5);
- * - Personal legacy debt, mortgages, salaries, living expenses.
+ * Deliberately NOT supported (A4-A6 remain OPEN):
+ * - Business distributions;
+ * - Business-debt schedules;
+ * - Player-loan automatic settlement;
+ * - Dividends, cash interest, taxes, default/recovery/collateral.
  *
  * Guarantees:
+ * - Solvency and destination overflow validated for all players during planning;
  * - Deterministic plan computed before any state mutation;
  * - Rejection preserves state, revision, counters, RNG, and emits zero journal entries;
- * - Destination balance overflow is validated during planning and truthfully rejected;
  * - Settlement requires completed setup (ready-for-first-round phase);
- * - Atomic execution of postings;
- * - Canonical ordering of assets and owners prevents insertion-order variance;
+ * - Atomic execution of postings in strict canonical order:
+ *     1. Personal income (PlayerId)
+ *     2. Property distributions (AssetId then PlayerId)
+ *     3. Living expenses (PlayerId)
+ *     4. Legacy bank loan payments (LoanId)
  * - Exactly one SettlementId created and counter advanced once per successful settlement.
  */
 export function settleQuarter(
@@ -98,20 +134,43 @@ export function settleQuarter(
     );
   }
 
-  // 3. Settlement Planning (Pure, no state mutation)
-  // Canonical sorting of assets by AssetId
+  // 3. Settlement Planning (Pure, zero state mutation)
+  const plannedInflowByPlayer: Partial<Record<PlayerId, number>> = {};
+  const plannedOutflowByPlayer: Partial<Record<PlayerId, number>> = {};
+
+  const sortedPlayerIds = [...state.playerOrder].sort((a, b) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
+
+  // A. Recurring personal income, ordered by PlayerId
+  const plannedIncomes: PlannedPersonalIncome[] = [];
+  for (const playerId of sortedPlayerIds) {
+    const rec = state.finance.recurringByPlayer?.[playerId];
+    if (rec !== undefined && rec.quarterlyIncomeCents > 0) {
+      const prevInflow = plannedInflowByPlayer[playerId] ?? 0;
+      if (rec.quarterlyIncomeCents > Number.MAX_SAFE_INTEGER - prevInflow) {
+        return reject("DESTINATION_OVERFLOW");
+      }
+      plannedInflowByPlayer[playerId] = prevInflow + rec.quarterlyIncomeCents;
+      plannedIncomes.push({
+        playerId,
+        amountCents: rec.quarterlyIncomeCents,
+      });
+    }
+  }
+
+  // B. Property operating distributions, ordered by AssetId then PlayerId
   const sortedAssetIds = (
     Object.keys(state.finance.assetsById) as AssetId[]
   ).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
-  const plannedDistributions: PlannedPropertyDistribution[] = [];
-  const plannedInflowByPlayer: Partial<Record<PlayerId, number>> = {};
+  const plannedPropertyDistributions: PlannedPropertyDistribution[] = [];
 
   for (const assetId of sortedAssetIds) {
     const asset = state.finance.assetsById[assetId];
     if (asset === undefined) continue;
 
-    // Business assets are intentionally NOT cash-settled in PR #7 (A4 remains OPEN)
+    // Business assets are intentionally NOT cash-settled in PR #8 (A4 remains OPEN)
     if (asset.kind === "business") {
       continue;
     }
@@ -127,7 +186,6 @@ export function settleQuarter(
         asset.ownershipByPlayerPpm,
       );
 
-      // Canonical sorting of owners by PlayerId
       const sortedOwnerIds = (Object.keys(allocations) as PlayerId[]).sort(
         (a, b) => (a < b ? -1 : a > b ? 1 : 0),
       );
@@ -141,7 +199,7 @@ export function settleQuarter(
           }
           plannedInflowByPlayer[ownerId] = prevInflow + allocatedCents;
 
-          plannedDistributions.push({
+          plannedPropertyDistributions.push({
             sourceAccount: externalCashAccount("property-operating-cashflow"),
             destinationPlayerId: ownerId,
             amountCents: allocatedCents,
@@ -154,25 +212,92 @@ export function settleQuarter(
     }
   }
 
-  // Verify cumulative planned inflow does not overflow any recipient player balance
-  for (const [playerIdStr, totalInflow] of Object.entries(
-    plannedInflowByPlayer,
-  )) {
-    if (totalInflow === undefined) continue;
-    const playerId = playerIdStr as PlayerId;
+  // C. Recurring living expenses, ordered by PlayerId
+  const plannedLivingExpenses: PlannedLivingExpense[] = [];
+  for (const playerId of sortedPlayerIds) {
+    const rec = state.finance.recurringByPlayer?.[playerId];
+    if (rec !== undefined && rec.quarterlyLivingExpenseCents > 0) {
+      const prevOutflow = plannedOutflowByPlayer[playerId] ?? 0;
+      if (
+        rec.quarterlyLivingExpenseCents >
+        Number.MAX_SAFE_INTEGER - prevOutflow
+      ) {
+        return reject("INSUFFICIENT_FUNDS");
+      }
+      plannedOutflowByPlayer[playerId] =
+        prevOutflow + rec.quarterlyLivingExpenseCents;
+      plannedLivingExpenses.push({
+        playerId,
+        amountCents: rec.quarterlyLivingExpenseCents,
+      });
+    }
+  }
+
+  // D. Legacy bank-loan payments, ordered by LoanId
+  const sortedLoanIds = (Object.keys(state.finance.loansById) as LoanId[]).sort(
+    (a, b) => (a < b ? -1 : a > b ? 1 : 0),
+  );
+
+  const plannedLoanPayments: PlannedLegacyBankLoanPayment[] = [];
+  for (const loanId of sortedLoanIds) {
+    const loan = state.finance.loansById[loanId];
+    if (
+      loan !== undefined &&
+      loan.kind === "legacy-bank-loan" &&
+      loan.outstandingPrincipalCents > 0
+    ) {
+      const paymentCalc = calculateLegacyBankLoanNextPayment({
+        outstandingPrincipalCents: loan.outstandingPrincipalCents,
+        annualRateBps: loan.annualRateBps,
+        scheduledQuarterlyPaymentCents: loan.scheduledQuarterlyPaymentCents,
+      });
+
+      const borrowerId = loan.borrowerPlayerId;
+      const prevOutflow = plannedOutflowByPlayer[borrowerId] ?? 0;
+      if (paymentCalc.paymentCents > Number.MAX_SAFE_INTEGER - prevOutflow) {
+        return reject("INSUFFICIENT_FUNDS");
+      }
+      plannedOutflowByPlayer[borrowerId] =
+        prevOutflow + paymentCalc.paymentCents;
+
+      plannedLoanPayments.push({
+        loanId: loan.id,
+        borrowerPlayerId: borrowerId,
+        paymentCents: paymentCalc.paymentCents,
+        principalCents: paymentCalc.principalCents,
+        interestCents: paymentCalc.interestCents,
+        closingPrincipalCents: paymentCalc.closingPrincipalCents,
+        reason:
+          loan.purpose === "property-mortgage"
+            ? "legacy-mortgage-payment"
+            : "legacy-personal-debt-payment",
+        relatedAssetId: loan.relatedAssetId,
+      });
+    }
+  }
+
+  // E. Solvency & Destination Overflow Planning Validation
+  for (const playerId of state.playerOrder) {
     const currentBalance = state.finance.cashByPlayer[playerId];
     if (currentBalance === undefined) {
       throw new Error(
         `Invariant violation: unknown player ${playerId} in cash balances`,
       );
     }
+    const totalInflow = plannedInflowByPlayer[playerId] ?? 0;
+    const totalOutflow = plannedOutflowByPlayer[playerId] ?? 0;
+
     if (totalInflow > Number.MAX_SAFE_INTEGER - currentBalance) {
       return reject("DESTINATION_OVERFLOW");
     }
+
+    const projectedEndingCash = currentBalance + totalInflow - totalOutflow;
+    if (projectedEndingCash < 0) {
+      return reject("INSUFFICIENT_FUNDS");
+    }
   }
 
-  // 4. Atomic application
-  // Generate deterministic SettlementId
+  // 4. Atomic Application in deterministic order
   const { id: settlementId, counters: countersWithSettlement } =
     nextDeterministicId("settlement", state.counters);
 
@@ -180,7 +305,30 @@ export function settleQuarter(
   let currentCounters = countersWithSettlement;
   const journalEntries: JournalEntry[] = [];
 
-  for (const distribution of plannedDistributions) {
+  // 4.1 Apply recurring personal income
+  for (const inc of plannedIncomes) {
+    const postRequest: CashPostingRequest = {
+      source: externalCashAccount("personal-earned-income"),
+      destination: playerCashAccount(inc.playerId),
+      amountCents: inc.amountCents,
+      reason: "recurring-personal-income",
+      quarter: request.quarter,
+    };
+
+    const postResult = postCash(currentFinance, currentCounters, postRequest);
+    if (!postResult.ok) {
+      throw new Error(
+        `Invariant violation: unexpected cash posting failure during personal income settlement: ${postResult.code}`,
+      );
+    }
+
+    currentFinance = postResult.finance;
+    currentCounters = postResult.counters;
+    journalEntries.push(postResult.entry);
+  }
+
+  // 4.2 Apply property operating distributions
+  for (const distribution of plannedPropertyDistributions) {
     const postRequest: CashPostingRequest = {
       source: distribution.sourceAccount,
       destination: playerCashAccount(distribution.destinationPlayerId),
@@ -193,7 +341,7 @@ export function settleQuarter(
     const postResult = postCash(currentFinance, currentCounters, postRequest);
     if (!postResult.ok) {
       throw new Error(
-        `Invariant violation: unexpected cash posting failure during quarter settlement: ${postResult.code}`,
+        `Invariant violation: unexpected cash posting failure during property distribution settlement: ${postResult.code}`,
       );
     }
 
@@ -201,6 +349,87 @@ export function settleQuarter(
     currentCounters = postResult.counters;
     journalEntries.push(postResult.entry);
   }
+
+  // 4.3 Apply recurring living expenses
+  for (const exp of plannedLivingExpenses) {
+    const postRequest: CashPostingRequest = {
+      source: playerCashAccount(exp.playerId),
+      destination: externalCashAccount("living-expense-sink"),
+      amountCents: exp.amountCents,
+      reason: "recurring-living-expense",
+      quarter: request.quarter,
+    };
+
+    const postResult = postCash(currentFinance, currentCounters, postRequest);
+    if (!postResult.ok) {
+      throw new Error(
+        `Invariant violation: unexpected cash posting failure during living expense settlement: ${postResult.code}`,
+      );
+    }
+
+    currentFinance = postResult.finance;
+    currentCounters = postResult.counters;
+    journalEntries.push(postResult.entry);
+  }
+
+  // 4.4 Apply legacy bank-loan payments
+  const updatedLoansById: Record<
+    LoanId,
+    GameState["finance"]["loansById"][LoanId]
+  > = {
+    ...currentFinance.loansById,
+  };
+
+  for (const loanPayment of plannedLoanPayments) {
+    const postRequest: CashPostingRequest = {
+      source: playerCashAccount(loanPayment.borrowerPlayerId),
+      destination: externalCashAccount("bank"),
+      amountCents: loanPayment.paymentCents,
+      reason: loanPayment.reason,
+      quarter: request.quarter,
+      relatedLoanId: loanPayment.loanId,
+      ...(loanPayment.relatedAssetId !== undefined
+        ? { relatedAssetId: loanPayment.relatedAssetId }
+        : {}),
+      loanPayment: {
+        principalCents: cents(loanPayment.principalCents),
+        interestCents: cents(loanPayment.interestCents),
+      },
+    };
+
+    const postResult = postCash(currentFinance, currentCounters, postRequest);
+    if (!postResult.ok) {
+      throw new Error(
+        `Invariant violation: unexpected cash posting failure during legacy loan settlement: ${postResult.code}`,
+      );
+    }
+
+    currentFinance = postResult.finance;
+    currentCounters = postResult.counters;
+    journalEntries.push(postResult.entry);
+
+    const originalLoan = updatedLoansById[loanPayment.loanId];
+    if (
+      originalLoan === undefined ||
+      originalLoan.kind !== "legacy-bank-loan"
+    ) {
+      throw new Error(
+        `Invariant violation: missing legacy bank loan ${loanPayment.loanId}`,
+      );
+    }
+
+    const updatedLoan: LegacyBankLoan = {
+      ...originalLoan,
+      outstandingPrincipalCents: cents(loanPayment.closingPrincipalCents),
+      paymentsApplied: originalLoan.paymentsApplied + 1,
+    };
+    updatedLoansById[loanPayment.loanId] = updatedLoan;
+  }
+
+  currentFinance = {
+    ...currentFinance,
+    loansById: updatedLoansById,
+  };
 
   const nextState: GameState = {
     ...state,
