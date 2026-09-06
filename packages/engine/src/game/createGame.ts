@@ -1,8 +1,10 @@
 import {
   OPENING_PERSONAL_DEBT_APR_BPS,
   PROFILES,
+  STANDARD_V1_OPENING_BASE_RATE_BPS,
   STANDARD_V1_OPENING_PUBLIC_MARKET_INSTRUMENT_ID,
   STANDARD_V1_PLAYER_COUNT,
+  STANDARD_V1_STARTING_REGIME,
 } from "@finance-game/rules";
 import {
   type AssetId,
@@ -263,6 +265,11 @@ export function createGame(input: CreateGameInput): GameState {
       assetsById,
       publicMarketsByPlayer,
       quarterStartBasis,
+    },
+    economy: {
+      currentRegime: STANDARD_V1_STARTING_REGIME,
+      baseRateBps: basisPoints(STANDARD_V1_OPENING_BASE_RATE_BPS),
+      lastMarketUpdate: null,
     },
     random: setup.random,
     counters: currentCounters,

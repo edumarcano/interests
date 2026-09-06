@@ -1,5 +1,7 @@
 import {
+  PUBLIC_MARKET_INSTRUMENT_IDS,
   PUBLIC_MARKET_INSTRUMENTS,
+  STANDARD_V1_OPENING_BASE_RATE_BPS,
   STANDARD_V1_OPENING_CASH_YIELD_BPS,
 } from "@finance-game/rules";
 import { asAssetId, asLoanId, asPlayerId } from "@finance-game/shared";
@@ -15,12 +17,14 @@ import type {
   PropertyAsset,
 } from "../model/gameState";
 import { externalCashAccount, playerCashAccount } from "./account";
+import { generateQuarterMarketUpdate } from "./economy";
 import {
   applyScheduledPlayerLoanPayment,
   originateConfirmedPlayerLoan,
 } from "./loans";
 import {
   calculateQuarterlyYieldCents,
+  calculateRevaluedMarketValueCents,
   createZeroPublicMarketPortfolio,
 } from "./markets";
 import { basisPoints, cents } from "./money";
@@ -335,8 +339,11 @@ describe("quarter settlement foundation", () => {
     // 9. Revision increments once
     expect(result.state.revision).toBe(initialRevision + 1);
 
-    // 10. Randomness untouched
-    expect(result.state.random).toEqual(initialRandom);
+    // 10. Economy state updated and RNG advances by the 4 economy draws
+    expect(result.state.economy.currentRegime).toBeDefined();
+    expect(result.state.economy.lastMarketUpdate?.quarter).toBe(1);
+    expect(result.state.random.algorithm).toBe(initialRandom.algorithm);
+    expect(result.state.random.state).not.toBe(initialRandom.state);
 
     // Invariants pass
     assertGameState(result.state);
@@ -791,17 +798,31 @@ describe("quarter settlement foundation", () => {
       }),
     );
 
-    // Verify current portfolio was preserved and not overwritten by Q1 settlement
+    const marketUpdate = settleResult.state.economy.lastMarketUpdate;
+    expect(marketUpdate).toBeDefined();
+    if (!marketUpdate) return;
+
     const closingP1Portfolio =
       settleResult.state.finance.publicMarketsByPlayer[p1];
     expect(closingP1Portfolio).toBeDefined();
     if (!closingP1Portfolio) return;
 
-    expect(closingP1Portfolio["broad-market-fund"]).toBe(0);
-    expect(closingP1Portfolio["growth-fund"]).toBe(5_000_000);
-    expect(closingP1Portfolio["income-defensive-fund"]).toBe(2_000_000);
+    const expectedGrowthCents = calculateRevaluedMarketValueCents({
+      currentValueCents: 5_000_000,
+      returnBps: marketUpdate.returnBpsByInstrument["growth-fund"],
+    });
+    const expectedDefensiveCents = calculateRevaluedMarketValueCents({
+      currentValueCents: 2_000_000,
+      returnBps: marketUpdate.returnBpsByInstrument["income-defensive-fund"],
+    });
 
-    // Verify Quarter 2 opening basis rolls from the closing current portfolio
+    expect(closingP1Portfolio["broad-market-fund"]).toBe(0);
+    expect(closingP1Portfolio["growth-fund"]).toBe(expectedGrowthCents);
+    expect(closingP1Portfolio["income-defensive-fund"]).toBe(
+      expectedDefensiveCents,
+    );
+
+    // Verify Quarter 2 opening basis rolls from the revalued closing current portfolio
     expect(settleResult.state.finance.quarterStartBasis.quarter).toBe(2);
     expect(
       settleResult.state.finance.quarterStartBasis.publicMarketsByPlayer[p1],
@@ -1094,5 +1115,468 @@ describe("reference preservation audit (Section 28)", () => {
       originalMarkets,
     );
     expect(actionResult.state.finance.quarterStartBasis).toBe(originalBasis);
+    expect(actionResult.state.economy).toBe(freshGame.economy);
+  });
+
+  it("preserves economy state by reference across postCash", () => {
+    const readyGame = createReadyGame();
+    const originalEconomy = readyGame.economy;
+
+    const postResult = postCash(readyGame.finance, readyGame.counters, {
+      source: playerCashAccount(p1),
+      destination: playerCashAccount(p2),
+      amountCents: cents(10_000),
+      reason: "transfer",
+      quarter: 1,
+    });
+    expect(postResult.ok).toBe(true);
+    // postCash operates on FinanceState; GameState.economy is preserved
+    expect(readyGame.economy).toBe(originalEconomy);
+  });
+
+  it("preserves economy state by reference across rejected settlement", () => {
+    const readyGame = createReadyGame();
+    const originalEconomy = readyGame.economy;
+    const originalRandom = readyGame.random;
+
+    // Settle wrong quarter to trigger rejection
+    const rejectResult = settleQuarter(readyGame, { quarter: 99 });
+    expect(rejectResult.ok).toBe(false);
+    expect(rejectResult.state.economy).toBe(originalEconomy);
+    expect(rejectResult.state.random).toBe(originalRandom);
+  });
+});
+
+describe("rejected settlement RNG and state preservation (Section 24)", () => {
+  it("rolls back RNG and preserves state on deterministic cash flow failure", () => {
+    const base = createReadyGame();
+
+    // Create an artificial insufficient funds state by emptying cash of a player with living expenses
+    const brokeState: GameState = {
+      ...base,
+      finance: {
+        ...base.finance,
+        cashByPlayer: {
+          ...base.finance.cashByPlayer,
+          [p1]: cents(0),
+        },
+        recurringByPlayer: {
+          ...base.finance.recurringByPlayer,
+          [p1]: {
+            quarterlyIncomeCents: cents(0),
+            quarterlyLivingExpenseCents: cents(500_000),
+          },
+        },
+      },
+    };
+
+    const result = settleQuarter(brokeState, { quarter: 1 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.code).toBe("INSUFFICIENT_FUNDS");
+    expect(result.state).toBe(brokeState);
+    expect(result.state.random).toBe(brokeState.random);
+    expect(result.state.economy).toBe(brokeState.economy);
+    expect(result.state.revision).toBe(brokeState.revision);
+    expect(result.state.counters).toBe(brokeState.counters);
+    expect(result.journalEntries).toHaveLength(0);
+  });
+
+  it("rolls back tentative RNG and rejects atomically on market arithmetic overflow", () => {
+    const base = createReadyGame();
+
+    const preview = generateQuarterMarketUpdate({
+      regime: base.economy.currentRegime,
+      random: base.random,
+    });
+
+    const positiveInstrument =
+      PUBLIC_MARKET_INSTRUMENT_IDS.find(
+        (id) => preview.returnBpsByInstrument[id] > 0,
+      ) ?? "growth-fund";
+
+    // Set a maximum safe holding on an instrument with positive return
+    const overflowPortfolios = {
+      ...base.finance.publicMarketsByPlayer,
+      [p1]: {
+        "broad-market-fund": cents(0),
+        "growth-fund": cents(0),
+        "income-defensive-fund": cents(0),
+        [positiveInstrument]: cents(Number.MAX_SAFE_INTEGER),
+      },
+    };
+
+    const overflowState: GameState = {
+      ...base,
+      finance: {
+        ...base.finance,
+        publicMarketsByPlayer: overflowPortfolios,
+      },
+    };
+
+    assertGameState(overflowState);
+
+    const result = settleQuarter(overflowState, { quarter: 1 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.code).toBe("MARKET_VALUE_OVERFLOW");
+    expect(result.state).toBe(overflowState);
+    expect(result.state.random).toBe(overflowState.random);
+    expect(result.state.economy).toBe(overflowState.economy);
+    expect(result.state.revision).toBe(overflowState.revision);
+    expect(result.state.counters).toBe(overflowState.counters);
+    expect(result.journalEntries).toHaveLength(0);
+  });
+});
+
+describe("deterministic market-path integration regression (Section 25)", () => {
+  it("produces exact, repeatable market update and closing balances for fixed seed", () => {
+    const input = {
+      gameId: "fixture-game-1",
+      seed: "fixed-deterministic-seed-alpha",
+      playerIds,
+    };
+
+    const gameA = createReadyGame(input);
+    const resultA = settleQuarter(gameA, { quarter: 1 });
+    expect(resultA.ok).toBe(true);
+    if (!resultA.ok) return;
+
+    // Lock exact literal expectations for this fixed seed
+    expect(resultA.state.economy.lastMarketUpdate).toEqual({
+      quarter: 1,
+      regimeUsed: "expansion",
+      returnBpsByInstrument: {
+        "broad-market-fund": 45,
+        "growth-fund": -139,
+        "income-defensive-fund": 356,
+      },
+    });
+
+    expect(resultA.state.economy.currentRegime).toBe("expansion");
+
+    expect(resultA.state.random).toEqual({
+      algorithm: "xorshift32-v2",
+      state: 1756619055,
+    });
+
+    expect(resultA.state.finance.publicMarketsByPlayer).toEqual({
+      [p1]: {
+        "broad-market-fund": cents(1_004_500),
+        "growth-fund": cents(0),
+        "income-defensive-fund": cents(0),
+      },
+      [p2]: {
+        "broad-market-fund": cents(2_009_000),
+        "growth-fund": cents(0),
+        "income-defensive-fund": cents(0),
+      },
+      [p3]: {
+        "broad-market-fund": cents(0),
+        "growth-fund": cents(0),
+        "income-defensive-fund": cents(0),
+      },
+      [p4]: {
+        "broad-market-fund": cents(0),
+        "growth-fund": cents(0),
+        "income-defensive-fund": cents(0),
+      },
+    });
+
+    // Recreate same game from same input and prove byte-for-byte equality
+    const gameB = createReadyGame(input);
+    const resultB = settleQuarter(gameB, { quarter: 1 });
+    expect(resultB.ok).toBe(true);
+    if (!resultB.ok) return;
+
+    expect(resultA.state).toEqual(resultB.state);
+  });
+});
+
+describe("multi-quarter deterministic regression (Section 26)", () => {
+  it("remains byte-for-byte deterministic across 8 consecutive settled quarters", () => {
+    const input = {
+      gameId: "multi-quarter-match",
+      seed: "multi-quarter-seed-42",
+      playerIds,
+    };
+
+    let stateA = createReadyGame(input);
+    let stateB = createReadyGame(input);
+
+    expect(stateA).toEqual(stateB);
+
+    for (let q = 1; q <= 8; q += 1) {
+      const resA = settleQuarter(stateA, { quarter: q });
+      const resB = settleQuarter(stateB, { quarter: q });
+
+      expect(resA.ok).toBe(true);
+      expect(resB.ok).toBe(true);
+      if (!resA.ok || !resB.ok) return;
+
+      expect(resA.settlementId).toBe(resB.settlementId);
+      expect(resA.journalEntries).toEqual(resB.journalEntries);
+      expect(resA.state).toEqual(resB.state);
+
+      // Verify invariants on state
+      assertGameState(resA.state);
+
+      stateA = resA.state;
+      stateB = resB.state;
+    }
+
+    expect(stateA.lastSettledQuarter).toBe(8);
+    expect(stateA.currentQuarter).toBe(9);
+    expect(stateA.economy.lastMarketUpdate?.quarter).toBe(8);
+  });
+});
+
+describe("same market return across players (Section 27)", () => {
+  it("applies the exact same instrument return BPS to all players holding that instrument", () => {
+    const base = createReadyGame();
+
+    const p1Broad = cents(1_000_000); // $10,000
+    const p2Broad = cents(2_500_000); // $25,000
+
+    const customPortfolios = {
+      ...base.finance.publicMarketsByPlayer,
+      [p1]: {
+        "broad-market-fund": p1Broad,
+        "growth-fund": cents(0),
+        "income-defensive-fund": cents(0),
+      },
+      [p2]: {
+        "broad-market-fund": p2Broad,
+        "growth-fund": cents(0),
+        "income-defensive-fund": cents(0),
+      },
+    };
+
+    const customState: GameState = {
+      ...base,
+      finance: {
+        ...base.finance,
+        publicMarketsByPlayer: customPortfolios,
+      },
+    };
+
+    const result = settleQuarter(customState, { quarter: 1 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const update = result.state.economy.lastMarketUpdate;
+    expect(update).toBeDefined();
+    if (!update) return;
+
+    const broadReturn = update.returnBpsByInstrument["broad-market-fund"];
+    const expectedP1Broad = calculateRevaluedMarketValueCents({
+      currentValueCents: p1Broad,
+      returnBps: broadReturn,
+    });
+    const expectedP2Broad = calculateRevaluedMarketValueCents({
+      currentValueCents: p2Broad,
+      returnBps: broadReturn,
+    });
+
+    const closingP1 = result.state.finance.publicMarketsByPlayer[p1];
+    const closingP2 = result.state.finance.publicMarketsByPlayer[p2];
+
+    expect(closingP1?.["broad-market-fund"]).toBe(expectedP1Broad);
+    expect(closingP2?.["broad-market-fund"]).toBe(expectedP2Broad);
+  });
+});
+
+describe("zero-holding path regression (Section 28)", () => {
+  it("advances economy path and transitions regime when all player portfolios are zero", () => {
+    const base = createReadyGame();
+
+    const zeroPortfolios = {
+      [p1]: createZeroPublicMarketPortfolio(),
+      [p2]: createZeroPublicMarketPortfolio(),
+      [p3]: createZeroPublicMarketPortfolio(),
+      [p4]: createZeroPublicMarketPortfolio(),
+    };
+
+    const zeroState: GameState = {
+      ...base,
+      finance: {
+        ...base.finance,
+        publicMarketsByPlayer: zeroPortfolios,
+      },
+    };
+
+    const initialRandom = zeroState.random;
+    const initialRegime = zeroState.economy.currentRegime;
+
+    // Reference cycle consuming exactly the 4 economy draws
+    const expectedCycle = generateQuarterMarketUpdate({
+      regime: initialRegime,
+      random: initialRandom,
+    });
+
+    const result = settleQuarter(zeroState, { quarter: 1 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Market update exactly matches the single 4-draw market cycle
+    const zeroUpdate = result.state.economy.lastMarketUpdate;
+    expect(zeroUpdate).toBeDefined();
+    if (!zeroUpdate) return;
+    expect(zeroUpdate.quarter).toBe(1);
+    expect(zeroUpdate.regimeUsed).toBe(expectedCycle.regimeUsed);
+    expect(zeroUpdate.returnBpsByInstrument).toEqual(
+      expectedCycle.returnBpsByInstrument,
+    );
+
+    // Economy regime after settlement exactly matches the transition draw
+    expect(result.state.economy.currentRegime).toBe(expectedCycle.nextRegime);
+
+    // RNG state exactly matches the 4-draw cycle endpoint (proving no extra economy draws)
+    expect(result.state.random).toEqual(expectedCycle.nextRandom);
+
+    // Portfolios remain 0
+    for (const pid of playerIds) {
+      expect(result.state.finance.publicMarketsByPlayer[pid]).toEqual(
+        createZeroPublicMarketPortfolio(),
+      );
+    }
+
+    // No mark-to-market journal entries
+    const reasons = result.journalEntries.map((e) => e.reason);
+    expect(reasons).not.toContain("market-gain");
+    expect(reasons).not.toContain("market-loss");
+    expect(reasons).not.toContain("revaluation");
+  });
+});
+
+describe("current holdings versus basis regression (Section 29)", () => {
+  it("uses quarterStartBasis for dividends and current holdings for price revaluation", () => {
+    const base = createReadyGame();
+
+    const basisBroad = cents(2_000_000); // $20,000
+    const currentBroad = cents(1_000_000); // $10,000
+
+    const customBasis = {
+      ...base.finance.quarterStartBasis,
+      publicMarketsByPlayer: {
+        ...base.finance.quarterStartBasis.publicMarketsByPlayer,
+        [p1]: {
+          "broad-market-fund": basisBroad,
+          "growth-fund": cents(0),
+          "income-defensive-fund": cents(0),
+        },
+      },
+    };
+
+    const customCurrentMarkets = {
+      ...base.finance.publicMarketsByPlayer,
+      [p1]: {
+        "broad-market-fund": currentBroad,
+        "growth-fund": cents(0),
+        "income-defensive-fund": cents(0),
+      },
+    };
+
+    const testState: GameState = {
+      ...base,
+      finance: {
+        ...base.finance,
+        quarterStartBasis: customBasis,
+        publicMarketsByPlayer: customCurrentMarkets,
+      },
+    };
+
+    const result = settleQuarter(testState, { quarter: 1 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Dividend must use basisBroad ($20,000)
+    const p1DividendEntry = result.journalEntries.find(
+      (e) =>
+        e.reason === "public-market-dividend" &&
+        e.destination.kind === "player" &&
+        e.destination.playerId === p1,
+    );
+    expect(p1DividendEntry).toBeDefined();
+    expect(p1DividendEntry?.amountCents).toBe(
+      calculateQuarterlyYieldCents({
+        principalCents: basisBroad,
+        annualYieldBps:
+          PUBLIC_MARKET_INSTRUMENTS["broad-market-fund"].annualDividendYieldBps,
+      }),
+    );
+
+    // Price movement must use currentBroad ($10,000)
+    const update = result.state.economy.lastMarketUpdate;
+    expect(update).toBeDefined();
+    if (!update) return;
+
+    const expectedClosing = calculateRevaluedMarketValueCents({
+      currentValueCents: currentBroad,
+      returnBps: update.returnBpsByInstrument["broad-market-fund"],
+    });
+
+    expect(
+      result.state.finance.publicMarketsByPlayer[p1]?.["broad-market-fund"],
+    ).toBe(expectedClosing);
+
+    // Quarter 2 basis must contain revalued closing position
+    expect(
+      result.state.finance.quarterStartBasis.publicMarketsByPlayer[p1]?.[
+        "broad-market-fund"
+      ],
+    ).toBe(expectedClosing);
+  });
+});
+
+describe("no market movement in cash journal (Section 30)", () => {
+  it("never creates cash journal entries for market price movement", () => {
+    const readyGame = createReadyGame();
+    const result = settleQuarter(readyGame, { quarter: 1 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    for (const entry of result.journalEntries) {
+      expect(entry.reason).not.toMatch(
+        /market-gain|market-loss|revaluation|mark-to-market/i,
+      );
+    }
+  });
+});
+
+describe("preservation of base rate, property, and business values (Section 33-37)", () => {
+  it("keeps base rate fixed at 450 BPS, and preserves property/business valuations across settlement", () => {
+    const readyGame = createReadyGame();
+    const initialBaseRate = readyGame.economy.baseRateBps;
+    expect(initialBaseRate).toBe(STANDARD_V1_OPENING_BASE_RATE_BPS);
+
+    const initialAssets = readyGame.finance.assetsById;
+
+    const result = settleQuarter(readyGame, { quarter: 1 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Base rate remains 450 BPS
+    expect(result.state.economy.baseRateBps).toBe(
+      STANDARD_V1_OPENING_BASE_RATE_BPS,
+    );
+
+    // Property and business valuations unchanged
+    for (const [assetId, asset] of Object.entries(
+      result.state.finance.assetsById,
+    )) {
+      const original = initialAssets[assetId as keyof typeof initialAssets];
+      expect(original).toBeDefined();
+      if (!original) continue;
+
+      if (asset.kind === "property" && original.kind === "property") {
+        expect(asset.marketValueCents).toBe(original.marketValueCents);
+      } else if (asset.kind === "business" && original.kind === "business") {
+        expect(asset.enterpriseValueCents).toBe(original.enterpriseValueCents);
+        expect(asset.debtPrincipalCents).toBe(original.debtPrincipalCents);
+      }
+    }
   });
 });

@@ -107,3 +107,31 @@ Establish the bounded public-market holdings and yield-settlement foundation for
    6. Legacy bank loan payments by LoanId (`player -> bank` with principal/interest breakdown).
 6. **Next Quarter Basis Roll:** Upon successful settlement of Quarter N, `quarterStartBasis` is advanced to `quarter: N + 1` with closing cash and public market portfolios from Quarter N, ensuring newly settled cash and dividends earn yield in Quarter N+1.
 7. **Deferred Scope:** Stochastic price movement, macroeconomic regimes, market trading, transaction fees, share counts, and qualifying liquidity underwriting are explicitly deferred.
+
+## ARCH-024 - Deterministic shared economy and market-quarter sequencing
+
+**Status:** Accepted  
+**Date:** September 6, 2026
+
+Establish the authoritative shared-economy cycle and deterministic public-market revaluation foundation for Standard V1:
+
+1. **Authoritative Economy State (`EconomyState`):** Model a shared authoritative `economy` in `GameState` tracking `currentRegime: EconomicRegimeId`, `baseRateBps: BasisPoints`, and `lastMarketUpdate: MarketUpdateRecord | null`. Standard V1 starts in `expansion` with `baseRateBps = 450` (4.50%). Setup consumes zero additional RNG, counters, IDs, or revision.
+2. **Canonical Regimes and Prototype Transitions (`@finance-game/rules`):** Define five economic regimes in canonical order: `expansion`, `overheating`, `slowdown`, `recession`, `recovery`. Transition probabilities are immutable rule-owned prototype constants where each row sums to 100%. Next regime is sampled via `drawBoundedInt(random, 100)` over cumulative probabilities in canonical order without floating-point comparisons.
+3. **One Shared Market Return Per Instrument:** In each quarter, public-market price returns are determined by the regime mean plus bounded discrete uniform integer-BPS noise ($\text{returnBps} = \text{regimeMeanBps} + \text{noiseBps}$). Inclusive noise amplitudes are fixed in rules: Broad ($\pm 400$ BPS), Growth ($\pm 600$ BPS), Defensive ($\pm 250$ BPS). Every player holding an instrument shares the exact same price return.
+4. **Holdings-Independent RNG Order:** Market return generation consumes engine RNG in strict canonical order:
+   1. Broad Market Fund noise
+   2. Growth Fund noise
+   3. Income / Defensive Fund noise
+   4. Next-regime transition roll  
+   Draws occur regardless of whether any player holds an instrument or whether all holdings are zero, ensuring the macro path does not diverge based on portfolio decisions.
+5. **Mark-to-Market Revaluation vs. Dividend Basis:**
+   - **Dividends:** Calculated from the quarter-start entitlement basis (`finance.quarterStartBasis.publicMarketsByPlayer`) and posted as cash journal entries (`market -> player`).
+   - **Price Revaluation:** Applied at quarter close to current closing holdings (`finance.publicMarketsByPlayer`) via $\text{newValue} = \text{round}(\text{currentValue} \times (10000 + \text{returnBps}) / 10000)$ using `FinanceDecimal` with `ROUND_HALF_UP`. Revaluation updates portfolio balances directly and emits no cash journal entries.
+6. **Quarter-Close Timing and Basis Roll:** Settlement sequencing follows:
+   1. Settle Quarter $N$ cash flows (yield, dividends, income, properties, expenses, loans);
+   2. Apply Quarter $N$ price movement using Quarter $N$ regime to current holdings;
+   3. Record completed `lastMarketUpdate` and transition `economy.currentRegime` to Quarter $N+1$;
+   4. Capture Quarter $N+1$ `quarterStartBasis` containing revalued closing market holdings and closing cash;
+   5. Commit tentative next `RandomState` and advance quarter.
+7. **Two-Phase Atomicity and RNG Rollback:** Settlement validates cash solvency, capacity, and market revaluation bounds in pure planning before any state change. Any failure (including `MARKET_VALUE_OVERFLOW`) rejects atomically and returns the original state with RNG state unchanged.
+8. **Deferred Macro Scope:** Base rate remains fixed at 450 BPS (with cash yield derived via `calculateCashYieldBps(baseRateBps)`). Market trading, transaction fees, shares/unit prices, property revaluation, business performance movement, inflation indexing, and credit-environment transitions remain explicitly deferred.

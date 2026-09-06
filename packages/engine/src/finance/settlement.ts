@@ -1,8 +1,8 @@
 import {
+  calculateCashYieldBps,
   PUBLIC_MARKET_INSTRUMENT_IDS,
   PUBLIC_MARKET_INSTRUMENTS,
   type PublicMarketInstrumentId,
-  STANDARD_V1_OPENING_CASH_YIELD_BPS,
 } from "@finance-game/rules";
 import type {
   AssetId,
@@ -14,14 +14,21 @@ import type {
 import { nextDeterministicId } from "../game/deterministicIds";
 import { assertGameState } from "../invariants/assertGameState";
 import type {
+  EconomyState,
   GameState,
   LegacyBankLoan,
+  MarketUpdateRecord,
+  PublicMarketPortfolio,
   QuarterStartFinanceBasis,
 } from "../model/gameState";
 import { externalCashAccount, playerCashAccount } from "./account";
 import { calculateLegacyBankLoanNextPayment } from "./amortization";
+import { generateQuarterMarketUpdate } from "./economy";
 import type { JournalEntry } from "./journal";
-import { calculateQuarterlyYieldCents } from "./markets";
+import {
+  calculateQuarterlyYieldCents,
+  revaluePublicMarketPortfolio,
+} from "./markets";
 import { cents } from "./money";
 import { allocateProportionalCents } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
@@ -37,7 +44,8 @@ export type SettleQuarterErrorCode =
   | "QUARTER_ALREADY_SETTLED"
   | "WRONG_QUARTER"
   | "DESTINATION_OVERFLOW"
-  | "INSUFFICIENT_FUNDS";
+  | "INSUFFICIENT_FUNDS"
+  | "MARKET_VALUE_OVERFLOW";
 
 export type SettleQuarterResult =
   | {
@@ -176,9 +184,12 @@ export function settleQuarter(
     const basisCash =
       state.finance.quarterStartBasis.cashByPlayer[playerId] ?? 0;
     if (basisCash > 0) {
+      const annualCashYieldBps = calculateCashYieldBps(
+        state.economy.baseRateBps,
+      );
       const yieldCents = calculateQuarterlyYieldCents({
         principalCents: basisCash,
-        annualYieldBps: STANDARD_V1_OPENING_CASH_YIELD_BPS,
+        annualYieldBps: annualCashYieldBps,
       });
       if (yieldCents > 0) {
         const prevInflow = plannedInflowByPlayer[playerId] ?? 0;
@@ -378,6 +389,33 @@ export function settleQuarter(
     }
   }
 
+  // Phase C: Tentative economy planning (Pure, tentative RNG cursor, zero state mutation)
+  const marketUpdate = generateQuarterMarketUpdate({
+    regime: state.economy.currentRegime,
+    random: state.random,
+  });
+
+  const revaluedMarketsByPlayer: Record<PlayerId, PublicMarketPortfolio> =
+    {} as Record<PlayerId, PublicMarketPortfolio>;
+
+  for (const playerId of sortedPlayerIds) {
+    const currentPortfolio = state.finance.publicMarketsByPlayer[playerId];
+    if (currentPortfolio === undefined) {
+      throw new Error(
+        `Invariant violation: unknown player ${playerId} in publicMarketsByPlayer`,
+      );
+    }
+    try {
+      const revalued = revaluePublicMarketPortfolio(
+        currentPortfolio,
+        marketUpdate.returnBpsByInstrument,
+      );
+      revaluedMarketsByPlayer[playerId] = revalued;
+    } catch {
+      return reject("MARKET_VALUE_OVERFLOW");
+    }
+  }
+
   // 4. Atomic Application in deterministic order
   const { id: settlementId, counters: countersWithSettlement } =
     nextDeterministicId("settlement", state.counters);
@@ -552,15 +590,29 @@ export function settleQuarter(
     updatedLoansById[loanPayment.loanId] = updatedLoan;
   }
 
+  // 4.7 Record completed market update and transition economy to QN+1 regime
+  const lastMarketUpdate: MarketUpdateRecord = {
+    quarter: request.quarter,
+    regimeUsed: marketUpdate.regimeUsed,
+    returnBpsByInstrument: marketUpdate.returnBpsByInstrument,
+  };
+
+  const nextEconomy: EconomyState = {
+    currentRegime: marketUpdate.nextRegime,
+    baseRateBps: state.economy.baseRateBps,
+    lastMarketUpdate,
+  };
+
   const nextQuarter = request.quarter + 1;
   const nextQuarterBasis: QuarterStartFinanceBasis = {
     quarter: nextQuarter,
     cashByPlayer: { ...currentFinance.cashByPlayer },
-    publicMarketsByPlayer: { ...currentFinance.publicMarketsByPlayer },
+    publicMarketsByPlayer: { ...revaluedMarketsByPlayer },
   };
 
   currentFinance = {
     ...currentFinance,
+    publicMarketsByPlayer: revaluedMarketsByPlayer,
     loansById: updatedLoansById,
     quarterStartBasis: nextQuarterBasis,
   };
@@ -571,6 +623,8 @@ export function settleQuarter(
     currentQuarter: nextQuarter,
     lastSettledQuarter: request.quarter,
     finance: currentFinance,
+    economy: nextEconomy,
+    random: marketUpdate.nextRandom,
     counters: currentCounters,
   };
 

@@ -99,3 +99,88 @@ export function calculateQuarterlyYieldCents(
 
   return cents(resultNum);
 }
+
+export interface CalculateRevaluedMarketValueInput {
+  readonly currentValueCents: number;
+  readonly returnBps: number;
+}
+
+/**
+ * Pure helper calculating quarterly mark-to-market revaluation:
+ *
+ *   newValueCents = round(oldValueCents * (10000 + returnBps) / 10000)
+ *
+ * Uses FinanceDecimal with ROUND_HALF_UP.
+ * Rejects overflow, negative principal, non-safe integers, and returnBps < -10000.
+ */
+export function calculateRevaluedMarketValueCents(
+  input: CalculateRevaluedMarketValueInput,
+): Cents {
+  const { currentValueCents, returnBps } = input;
+
+  if (!Number.isSafeInteger(currentValueCents) || currentValueCents < 0) {
+    throw new RangeError(
+      `currentValueCents must be a non-negative safe integer, got ${String(currentValueCents)}`,
+    );
+  }
+
+  if (!Number.isSafeInteger(returnBps)) {
+    throw new RangeError(
+      `returnBps must be a safe integer of basis points, got ${String(returnBps)}`,
+    );
+  }
+
+  const multiplierBps = 10_000 + returnBps;
+  if (multiplierBps < 0) {
+    throw new RangeError(
+      `returnBps must be >= -10000 to prevent negative value multiplier, got ${String(returnBps)}`,
+    );
+  }
+
+  if (currentValueCents === 0 || multiplierBps === 0) {
+    return cents(0);
+  }
+
+  const calculated = new FinanceDecimal(currentValueCents)
+    .times(multiplierBps)
+    .dividedBy(10_000)
+    .round();
+
+  const resultNum = calculated.toNumber();
+  if (!Number.isSafeInteger(resultNum) || resultNum < 0) {
+    throw new RangeError(
+      "Calculated revalued market value exceeds safe integer limit",
+    );
+  }
+
+  return cents(resultNum);
+}
+
+/**
+ * Pure helper to revalue a public-market portfolio across canonical instruments.
+ */
+export function revaluePublicMarketPortfolio(
+  portfolio: PublicMarketPortfolio,
+  returnBpsByInstrument: Readonly<Record<PublicMarketInstrumentId, number>>,
+): Record<PublicMarketInstrumentId, Cents> {
+  const result = createZeroPublicMarketPortfolio();
+
+  for (const instrumentId of PUBLIC_MARKET_INSTRUMENT_IDS) {
+    const currentVal = portfolio[instrumentId] ?? 0;
+    const returnBps = returnBpsByInstrument[instrumentId];
+    if (!Number.isSafeInteger(returnBps)) {
+      throw new RangeError(
+        `Invalid returnBps for ${instrumentId}: ${String(returnBps)}`,
+      );
+    }
+    const revalued = calculateRevaluedMarketValueCents({
+      currentValueCents: currentVal,
+      returnBps,
+    });
+    result[instrumentId] = revalued;
+  }
+
+  // Ensure total portfolio value is safe integer
+  totalPublicMarketValueCents(result);
+  return result;
+}
