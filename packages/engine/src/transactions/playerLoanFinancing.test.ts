@@ -1,7 +1,7 @@
 import { asAssetId, asPlayerId, asTransactionId } from "@finance-game/shared";
 import { describe, expect, it } from "vitest";
 
-import { cents } from "../finance/money";
+import { basisPoints, cents } from "../finance/money";
 import { createSoleOwnership } from "../finance/ownership";
 import { applyAction } from "../game/actions";
 import { createGame } from "../game/createGame";
@@ -933,6 +933,121 @@ describe("Section 29: Close Failure Regressions (Atomicity)", () => {
     if (result.ok) return;
     expect(result.code).toBe("JOURNAL_ID_EXHAUSTED");
     expect(result.state).toBe(exhaustedJournalState);
+    expect(result.journalEntries).toHaveLength(0);
+  });
+
+  it("fails atomically when accepted offer has invalid rate at close", () => {
+    const { state, transactionId } = setupAcceptedFinancedState();
+    const tx = state.activeTransaction;
+    const financing = tx?.playerLoanFinancing;
+    const offer = financing?.offer;
+    if (
+      tx === null ||
+      financing === undefined ||
+      offer === null ||
+      offer === undefined
+    ) {
+      throw new Error("Missing active transaction or offer");
+    }
+    const invalidRateState: GameState = {
+      ...state,
+      activeTransaction: {
+        ...tx,
+        playerLoanFinancing: {
+          ...financing,
+          offer: {
+            ...offer,
+            annualRateBps: basisPoints(-1),
+          },
+        },
+      },
+    };
+
+    const result = closeCashBusinessPurchaseTransaction(
+      invalidRateState,
+      transactionId,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe("INVALID_RATE");
+    expect(result.state).toBe(invalidRateState);
+    expect(result.journalEntries).toHaveLength(0);
+  });
+
+  it("fails atomically when accepted offer has invalid term at close", () => {
+    const { state, transactionId } = setupAcceptedFinancedState();
+    const tx = state.activeTransaction;
+    const financing = tx?.playerLoanFinancing;
+    const offer = financing?.offer;
+    if (
+      tx === null ||
+      financing === undefined ||
+      offer === null ||
+      offer === undefined
+    ) {
+      throw new Error("Missing active transaction or offer");
+    }
+    const invalidTermState: GameState = {
+      ...state,
+      activeTransaction: {
+        ...tx,
+        playerLoanFinancing: {
+          ...financing,
+          offer: {
+            ...offer,
+            termQuarters: 1, // below MIN_TERM_QUARTERS (2)
+          },
+        },
+      },
+    };
+
+    const result = closeCashBusinessPurchaseTransaction(
+      invalidTermState,
+      transactionId,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe("INVALID_TERM");
+    expect(result.state).toBe(invalidTermState);
+    expect(result.journalEntries).toHaveLength(0);
+  });
+
+  it("fails atomically when accepted offer has unsupported amortization terms at close", () => {
+    const { state, transactionId } = setupAcceptedFinancedState();
+    const tx = state.activeTransaction;
+    const financing = tx?.playerLoanFinancing;
+    const offer = financing?.offer;
+    if (
+      tx === null ||
+      financing === undefined ||
+      offer === null ||
+      offer === undefined
+    ) {
+      throw new Error("Missing active transaction or offer");
+    }
+    // Rate at MAX_SAFE_INTEGER causes regularPayment to exceed Number.MAX_SAFE_INTEGER
+    const unsupportedState: GameState = {
+      ...state,
+      activeTransaction: {
+        ...tx,
+        playerLoanFinancing: {
+          ...financing,
+          offer: {
+            ...offer,
+            annualRateBps: basisPoints(Number.MAX_SAFE_INTEGER),
+          },
+        },
+      },
+    };
+
+    const result = closeCashBusinessPurchaseTransaction(
+      unsupportedState,
+      transactionId,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe("UNSUPPORTED_TERMS");
+    expect(result.state).toBe(unsupportedState);
     expect(result.journalEntries).toHaveLength(0);
   });
 });

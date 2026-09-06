@@ -456,3 +456,103 @@ describe("Section 24: Player-Loan Insufficient Funds (Atomic Rejection)", () => 
     expect(loan.outstandingPrincipalCents).toBe(4_000_000);
   });
 });
+
+describe("Section 24: Player-Loan Transient Destination Overflow (Canonical LoanId Ordering)", () => {
+  it("rejects quarter settlement atomically when an earlier incoming payment overflows before a later outgoing payment", () => {
+    const base = createReadyGame();
+    const loan1Id = asLoanId("loan-1");
+    const loan2Id = asLoanId("loan-2");
+
+    // loan-1: buyerId pays sellerId 100 cents (earlier LoanId in canonical order)
+    const loan1: PlayerLoan = {
+      id: loan1Id,
+      kind: "player-loan",
+      borrowerPlayerId: buyerId,
+      lenderPlayerId: sellerId,
+      originalPrincipalCents: cents(200),
+      outstandingPrincipalCents: cents(200),
+      annualRateBps: basisPoints(0),
+      termQuarters: 2,
+      installmentsPaid: 0,
+      originatedQuarter: 1,
+    };
+
+    // loan-2: sellerId pays lenderId 300 cents (later LoanId in canonical order)
+    const loan2: PlayerLoan = {
+      id: loan2Id,
+      kind: "player-loan",
+      borrowerPlayerId: sellerId,
+      lenderPlayerId: lenderId,
+      originalPrincipalCents: cents(600),
+      outstandingPrincipalCents: cents(600),
+      annualRateBps: basisPoints(0),
+      termQuarters: 2,
+      installmentsPaid: 0,
+      originatedQuarter: 1,
+    };
+
+    // sellerId has cash near MAX_SAFE_INTEGER:
+    // Starting balance: MAX_SAFE_INTEGER - 50
+    // If loan-1 arrives first (+100 cents), balance would transiently reach MAX_SAFE_INTEGER + 50 (> MAX_SAFE_INTEGER).
+    // Even though later loan-2 would deduct 300 cents (resulting in safe net MAX_SAFE_INTEGER - 250),
+    // canonical LoanId-ordered posting must guarantee safe execution without transient overflow.
+    const state: GameState = {
+      ...base,
+      currentQuarter: 2,
+      lastSettledQuarter: 1,
+      finance: {
+        ...base.finance,
+        recurringByPlayer: {
+          [buyerId]: {
+            quarterlyIncomeCents: cents(0),
+            quarterlyLivingExpenseCents: cents(0),
+          },
+          [sellerId]: {
+            quarterlyIncomeCents: cents(0),
+            quarterlyLivingExpenseCents: cents(0),
+          },
+          [lenderId]: {
+            quarterlyIncomeCents: cents(0),
+            quarterlyLivingExpenseCents: cents(0),
+          },
+          [neutralId]: {
+            quarterlyIncomeCents: cents(0),
+            quarterlyLivingExpenseCents: cents(0),
+          },
+        },
+        quarterStartBasis: {
+          ...base.finance.quarterStartBasis,
+          quarter: 2,
+        },
+        cashByPlayer: {
+          ...base.finance.cashByPlayer,
+          [buyerId]: cents(1_000_000),
+          [sellerId]: cents(Number.MAX_SAFE_INTEGER - 50),
+          [lenderId]: cents(1_000_000),
+          [neutralId]: cents(1_000_000),
+        },
+        loansById: {
+          [loan1Id]: loan1,
+          [loan2Id]: loan2,
+        },
+      },
+    };
+
+    const initialCounters = { ...state.counters };
+    const initialRandom = { ...state.random };
+    const initialRevision = state.revision;
+
+    const result = settleQuarter(state, { quarter: 2 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.code).toBe("DESTINATION_OVERFLOW");
+    expect(result.state).toBe(state);
+    expect(result.journalEntries).toHaveLength(0);
+
+    // Verify complete immutability
+    expect(result.state.counters).toEqual(initialCounters);
+    expect(result.state.random).toEqual(initialRandom);
+    expect(result.state.revision).toBe(initialRevision);
+  });
+});

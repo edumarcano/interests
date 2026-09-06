@@ -23,7 +23,6 @@ export interface OriginatePlayerLoanRequest {
   readonly annualRateBps: number;
   readonly termQuarters: number;
   readonly quarter: number;
-  readonly originatedQuarter?: number;
   readonly relatedTransactionId?: TransactionId;
 }
 
@@ -151,8 +150,8 @@ export function originateConfirmedPlayerLoan(
     return reject("INVALID_TERM");
   }
 
-  // 6. Quarter validation
-  if (!Number.isSafeInteger(request.quarter) || request.quarter < 0) {
+  // 6. Quarter validation: authoritative origination quarter must be a positive safe integer
+  if (!Number.isSafeInteger(request.quarter) || request.quarter <= 0) {
     return reject("INVALID_QUARTER");
   }
 
@@ -214,7 +213,7 @@ export function originateConfirmedPlayerLoan(
     annualRateBps: basisPoints(request.annualRateBps),
     termQuarters: request.termQuarters,
     installmentsPaid: 0,
-    originatedQuarter: request.originatedQuarter ?? request.quarter,
+    originatedQuarter: request.quarter,
   };
 
   const nextLoansById = {

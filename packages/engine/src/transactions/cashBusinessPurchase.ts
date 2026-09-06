@@ -714,6 +714,33 @@ export function closeCashBusinessPurchaseTransaction(
     return reject("DESTINATION_OVERFLOW");
   }
 
+  // Loan terms revalidation
+  if (
+    !Number.isSafeInteger(offer.annualRateBps) ||
+    offer.annualRateBps < 0 ||
+    offer.annualRateBps > Number.MAX_SAFE_INTEGER
+  ) {
+    return reject("INVALID_RATE");
+  }
+
+  if (
+    !Number.isSafeInteger(offer.termQuarters) ||
+    offer.termQuarters < PLAYER_LOAN_MIN_TERM_QUARTERS ||
+    offer.termQuarters > PLAYER_LOAN_MAX_TERM_QUARTERS
+  ) {
+    return reject("INVALID_TERM");
+  }
+
+  try {
+    calculatePlayerLoanSchedule({
+      principalCents: offer.principalCents,
+      annualRateBps: offer.annualRateBps,
+      termQuarters: offer.termQuarters,
+    });
+  } catch {
+    return reject("UNSUPPORTED_TERMS");
+  }
+
   // Counter preflight: 1 LoanId, 2 JournalIds
   if (state.counters.loan >= Number.MAX_SAFE_INTEGER) {
     return reject("LOAN_ID_EXHAUSTED");
@@ -733,7 +760,6 @@ export function closeCashBusinessPurchaseTransaction(
       annualRateBps: offer.annualRateBps,
       termQuarters: offer.termQuarters,
       quarter: state.currentQuarter,
-      originatedQuarter: state.currentQuarter,
       relatedTransactionId: tx.id,
     },
   );
@@ -747,6 +773,15 @@ export function closeCashBusinessPurchaseTransaction(
     }
     if (loanResult.code === "INSUFFICIENT_FUNDS") {
       return reject("INSUFFICIENT_FUNDS");
+    }
+    if (loanResult.code === "INVALID_RATE") {
+      return reject("INVALID_RATE");
+    }
+    if (loanResult.code === "INVALID_TERM") {
+      return reject("INVALID_TERM");
+    }
+    if (loanResult.code === "UNSUPPORTED_TERMS") {
+      return reject("UNSUPPORTED_TERMS");
     }
     throw new Error(
       `Invariant violation: unexpected loan origination failure during financed close: ${loanResult.code}`,

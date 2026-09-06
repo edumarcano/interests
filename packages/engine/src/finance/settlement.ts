@@ -120,19 +120,19 @@ interface PlannedPlayerLoanPayment {
 /**
  * Pure internal authoritative quarter-settlement operation.
  *
- * Supported in PR #10:
+ * Supported in PR #10 and PR #15:
  * - Cash yield from quarter-start cash (bank -> player)
  * - Public-market dividends from quarter-start holdings (market -> player)
  * - Recurring personal/spendable income (personal-earned-income -> player)
  * - Debt-free property operating cash-flow distribution (property-operating-cashflow -> player)
  * - Recurring living expenses (player -> living-expense-sink)
  * - Opening legacy bank loans: personal debt and Property Starter mortgage (player -> bank)
+ * - Scheduled player-loan repayments: confirmed player loans (borrower player -> lender player, LoanId order)
  * - Authoritative quarter-start finance basis capture for Quarter N+1
  *
  * Deliberately NOT supported (A4-A6 remain OPEN):
  * - Business distributions;
  * - Business-debt schedules;
- * - Player-loan automatic settlement;
  * - Market price movements, trading, transaction fees, default/recovery/collateral.
  *
  * Guarantees:
@@ -147,6 +147,7 @@ interface PlannedPlayerLoanPayment {
  *     4. Property distributions (AssetId then PlayerId)
  *     5. Living expenses (PlayerId)
  *     6. Legacy bank loan payments (LoanId)
+ *     7. Scheduled player-loan payments (LoanId)
  * - Exactly one SettlementId created and counter advanced once per successful settlement.
  * - Next quarter finance basis captured from closing Quarter N state.
  */
@@ -479,13 +480,24 @@ export function settleQuarter(
     if (playerLoanOutflow > stageStartCash) {
       return reject("INSUFFICIENT_FUNDS");
     }
+  }
 
-    // Destination capacity check for lenders receiving repayments
-    const playerLoanInflow = plannedPlayerLoanInflowByLender[playerId] ?? 0;
-    const netPreReceiptBalance = stageStartCash - playerLoanOutflow;
-    if (playerLoanInflow > Number.MAX_SAFE_INTEGER - netPreReceiptBalance) {
+  // Simulate canonical LoanId-ordered posting to guarantee no transient destination overflow.
+  // Each player's running balance starts at their cash at the beginning of the player-loan stage.
+  const runningCashByPlayer: Partial<Record<PlayerId, number>> = {
+    ...cashAtStartOfPlayerLoanStage,
+  };
+
+  for (const loanPayment of plannedPlayerLoanPayments) {
+    const lenderCash = runningCashByPlayer[loanPayment.lenderPlayerId] ?? 0;
+    if (loanPayment.paymentCents > Number.MAX_SAFE_INTEGER - lenderCash) {
       return reject("DESTINATION_OVERFLOW");
     }
+    const borrowerCash = runningCashByPlayer[loanPayment.borrowerPlayerId] ?? 0;
+    runningCashByPlayer[loanPayment.borrowerPlayerId] =
+      borrowerCash - loanPayment.paymentCents;
+    runningCashByPlayer[loanPayment.lenderPlayerId] =
+      lenderCash + loanPayment.paymentCents;
   }
 
   // Phase C: Tentative economy planning (Pure, tentative RNG cursor, zero state mutation)
