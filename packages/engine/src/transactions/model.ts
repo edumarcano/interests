@@ -45,7 +45,8 @@ export type TransactionErrorCode =
   | "INSUFFICIENT_AVAILABLE_CASH"
   | "INSUFFICIENT_FUNDS"
   | "DESTINATION_OVERFLOW"
-  | "INVALID_RESERVATION";
+  | "INVALID_RESERVATION"
+  | "TRANSACTION_ID_EXHAUSTED";
 
 export type TransactionResult =
   | {

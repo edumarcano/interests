@@ -584,6 +584,40 @@ describe("cash-business-purchase transaction lifecycle", () => {
         state.counters.transaction,
       );
     });
+
+    it("rejects atomically with TRANSACTION_ID_EXHAUSTED when transaction counter is exhausted at MAX_SAFE_INTEGER", () => {
+      const { state, businessAssetId } = createTransactionFixture();
+      const exhaustedState: GameState = {
+        ...state,
+        counters: {
+          ...state.counters,
+          transaction: Number.MAX_SAFE_INTEGER,
+        },
+      };
+
+      const result = openCashBusinessPurchaseTransaction(exhaustedState, {
+        buyerPlayerId: p1,
+        sellerPlayerId: p2,
+        assetId: businessAssetId,
+        purchasePriceCents: 1_000_000,
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error();
+      expect(result.code).toBe("TRANSACTION_ID_EXHAUSTED");
+      expect(result.state).toBe(exhaustedState); // exact reference identity
+      expect(result.journalEntries).toHaveLength(0);
+      expect(result.state.revision).toBe(exhaustedState.revision);
+      expect(result.state.counters).toEqual(exhaustedState.counters);
+      expect(result.state.random).toEqual(exhaustedState.random);
+      expect(result.state.finance.cashByPlayer).toEqual(
+        exhaustedState.finance.cashByPlayer,
+      );
+      expect(result.state.finance.assetsById).toEqual(
+        exhaustedState.finance.assetsById,
+      );
+      expect(result.state.activeTransaction).toBeNull();
+    });
   });
 
   describe("cancellation rejection rules", () => {
@@ -901,6 +935,55 @@ describe("cash-business-purchase transaction lifecycle", () => {
       expect(() => assertGameState(corruptedCounter)).toThrow(
         /deterministic counters must be non-negative safe integers|transaction counter must be a non-negative safe integer/,
       );
+    });
+  });
+
+  describe("deterministic repeatability", () => {
+    it("produces deeply equal results and states when identical open call is run twice from the exact same initial state", () => {
+      const fixture1 = createTransactionFixture();
+      const fixture2 = createTransactionFixture();
+
+      // Initial fixtures from identical inputs are deeply equal
+      expect(fixture1.state).toEqual(fixture2.state);
+      expect(fixture1.businessAssetId).toBe(fixture2.businessAssetId);
+
+      const input: OpenCashBusinessPurchaseInput = {
+        buyerPlayerId: p1,
+        sellerPlayerId: p2,
+        assetId: fixture1.businessAssetId,
+        purchasePriceCents: 6_000_000,
+      };
+
+      const result1 = openCashBusinessPurchaseTransaction(
+        fixture1.state,
+        input,
+      );
+      const result2 = openCashBusinessPurchaseTransaction(
+        fixture2.state,
+        input,
+      );
+
+      expect(result1.ok).toBe(true);
+      expect(result2.ok).toBe(true);
+      if (!result1.ok || !result2.ok) throw new Error();
+
+      // Deep equality of complete transaction results
+      expect(result1).toEqual(result2);
+
+      // Explicit verification of required components
+      expect(result1.transactionId).toBe(asTransactionId("transaction-1"));
+      expect(result2.transactionId).toBe(asTransactionId("transaction-1"));
+      expect(result1.state.counters).toEqual(result2.state.counters);
+      expect(result1.state.counters.transaction).toBe(1);
+      expect(result1.state.revision).toBe(result2.state.revision);
+      expect(result1.state.random).toEqual(result2.state.random);
+      expect(result1.state.activeTransaction).toEqual(
+        result2.state.activeTransaction,
+      );
+      expect(result1.state.activeTransaction?.reservation).toEqual(
+        result2.state.activeTransaction?.reservation,
+      );
+      expect(result1.journalEntries).toEqual(result2.journalEntries);
     });
   });
 });

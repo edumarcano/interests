@@ -85,7 +85,12 @@ export function openCashBusinessPurchaseTransaction(
     return reject("INSUFFICIENT_AVAILABLE_CASH");
   }
 
-  // 8. Generate deterministic transaction ID
+  // 8. Transaction counter validation: counter must be able to advance safely
+  if (state.counters.transaction >= Number.MAX_SAFE_INTEGER) {
+    return reject("TRANSACTION_ID_EXHAUSTED");
+  }
+
+  // 9. Generate deterministic transaction ID
   const { id: transactionId, counters: nextCounters } = nextDeterministicId(
     "transaction",
     state.counters,
