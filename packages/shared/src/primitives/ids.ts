@@ -10,6 +10,7 @@ export type AssetId = BrandedId<"AssetId">;
 export type LoanId = BrandedId<"LoanId">;
 export type OpportunityId = BrandedId<"OpportunityId">;
 export type ContractId = BrandedId<"ContractId">;
+export type SettlementId = BrandedId<"SettlementId">;
 
 export function asGameId(value: string): GameId {
   return value as GameId;
@@ -33,4 +34,8 @@ export function asOpportunityId(value: string): OpportunityId {
 
 export function asContractId(value: string): ContractId {
   return value as ContractId;
+}
+
+export function asSettlementId(value: string): SettlementId {
+  return value as SettlementId;
 }

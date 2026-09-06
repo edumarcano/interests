@@ -5,6 +5,7 @@ export const EXTERNAL_ACCOUNTS = [
   "bank",
   "market",
   "living-expense-sink",
+  "property-operating-cashflow",
 ] as const;
 
 export type ExternalAccount = (typeof EXTERNAL_ACCOUNTS)[number];

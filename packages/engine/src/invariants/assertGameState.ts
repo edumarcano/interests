@@ -8,6 +8,9 @@ import {
   STANDARD_V1_PLAYER_COUNT,
 } from "@finance-game/rules";
 import { calculatePlayerLoanSchedule } from "../finance/amortization";
+import { calculateDebtFreeBusinessEquity } from "../finance/business";
+import { TOTAL_OWNERSHIP_PPM } from "../finance/ownership";
+import { calculatePropertyCashFlow } from "../finance/property";
 import type { GameState } from "../model/gameState";
 import { RNG_ALGORITHM } from "../random/prng";
 
@@ -148,6 +151,37 @@ export function assertGameState(state: GameState): void {
   ) {
     throw new Error(
       "Game invariant failed: journal counter must be a non-negative safe integer",
+    );
+  }
+  if (
+    !Number.isSafeInteger(state.counters.settlement) ||
+    state.counters.settlement < 0
+  ) {
+    throw new Error(
+      "Game invariant failed: settlement counter must be a non-negative safe integer",
+    );
+  }
+
+  // Quarter state invariants
+  if (
+    !Number.isSafeInteger(state.currentQuarter) ||
+    state.currentQuarter <= 0
+  ) {
+    throw new Error(
+      "Game invariant failed: currentQuarter must be a positive safe integer",
+    );
+  }
+  if (
+    !Number.isSafeInteger(state.lastSettledQuarter) ||
+    state.lastSettledQuarter < 0
+  ) {
+    throw new Error(
+      "Game invariant failed: lastSettledQuarter must be a non-negative safe integer",
+    );
+  }
+  if (state.lastSettledQuarter !== state.currentQuarter - 1) {
+    throw new Error(
+      `Game invariant failed: lastSettledQuarter (${state.lastSettledQuarter}) must equal currentQuarter - 1 (${state.currentQuarter - 1})`,
     );
   }
 
@@ -331,6 +365,162 @@ export function assertGameState(state: GameState): void {
       throw new Error(
         `Game invariant failed: completed loan ${loan.id} must have zero outstanding principal`,
       );
+    }
+  }
+
+  // Asset registry invariants
+  if (
+    state.finance.assetsById === undefined ||
+    state.finance.assetsById === null ||
+    typeof state.finance.assetsById !== "object"
+  ) {
+    throw new Error(
+      "Game invariant failed: assetsById map is missing or invalid",
+    );
+  }
+
+  for (const [assetKey, asset] of Object.entries(state.finance.assetsById)) {
+    if (asset === undefined || asset === null || typeof asset !== "object") {
+      throw new Error(`Game invariant failed: asset ${assetKey} is invalid`);
+    }
+    if (assetKey !== asset.id) {
+      throw new Error(
+        `Game invariant failed: asset key ${assetKey} does not match asset.id ${asset.id}`,
+      );
+    }
+    const rawAsset = asset as { kind?: unknown };
+    if (rawAsset.kind !== "property" && rawAsset.kind !== "business") {
+      throw new Error(
+        `Game invariant failed: asset ${assetKey} has unsupported kind ${String(rawAsset.kind)}`,
+      );
+    }
+
+    // Ownership map invariants
+    if (
+      asset.ownershipByPlayerPpm === undefined ||
+      asset.ownershipByPlayerPpm === null ||
+      typeof asset.ownershipByPlayerPpm !== "object"
+    ) {
+      throw new Error(
+        `Game invariant failed: asset ${asset.id} ownershipByPlayerPpm is missing or invalid`,
+      );
+    }
+
+    const ownerIds = Object.keys(asset.ownershipByPlayerPpm);
+    if (ownerIds.length === 0) {
+      throw new Error(
+        `Game invariant failed: asset ${asset.id} must have at least one owner`,
+      );
+    }
+
+    let totalOwnershipPpm = 0;
+    for (const ownerId of ownerIds) {
+      if (
+        !state.playerOrder.includes(
+          ownerId as (typeof state.playerOrder)[number],
+        )
+      ) {
+        throw new Error(
+          `Game invariant failed: asset ${asset.id} has unknown owner ${ownerId}`,
+        );
+      }
+      const ppm =
+        asset.ownershipByPlayerPpm[
+          ownerId as (typeof state.playerOrder)[number]
+        ];
+      if (
+        ppm === undefined ||
+        !Number.isSafeInteger(ppm) ||
+        ppm <= 0 ||
+        ppm > TOTAL_OWNERSHIP_PPM
+      ) {
+        throw new Error(
+          `Game invariant failed: asset ${asset.id} owner ${ownerId} has invalid ownership PPM: ${String(ppm)}`,
+        );
+      }
+      totalOwnershipPpm += ppm;
+    }
+
+    if (totalOwnershipPpm !== TOTAL_OWNERSHIP_PPM) {
+      throw new Error(
+        `Game invariant failed: asset ${asset.id} total ownership PPM must equal ${TOTAL_OWNERSHIP_PPM}, got ${totalOwnershipPpm}`,
+      );
+    }
+
+    if (asset.kind === "property") {
+      if (
+        !Number.isSafeInteger(asset.marketValueCents) ||
+        asset.marketValueCents < 0
+      ) {
+        throw new Error(
+          `Game invariant failed: property ${asset.id} marketValueCents must be non-negative safe integer cents`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(asset.scheduledQuarterlyRentCents) ||
+        asset.scheduledQuarterlyRentCents < 0
+      ) {
+        throw new Error(
+          `Game invariant failed: property ${asset.id} scheduledQuarterlyRentCents must be non-negative safe integer cents`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(asset.occupancyBps) ||
+        asset.occupancyBps < 0 ||
+        asset.occupancyBps > 10_000
+      ) {
+        throw new Error(
+          `Game invariant failed: property ${asset.id} occupancyBps must be an integer between 0 and 10000`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(asset.operatingExpenseRatioBps) ||
+        asset.operatingExpenseRatioBps < 0 ||
+        asset.operatingExpenseRatioBps > 10_000
+      ) {
+        throw new Error(
+          `Game invariant failed: property ${asset.id} operatingExpenseRatioBps must be an integer between 0 and 10000`,
+        );
+      }
+      try {
+        calculatePropertyCashFlow(asset);
+      } catch (err) {
+        throw new Error(
+          `Game invariant failed: property ${asset.id} calculation failed: ${String(err)}`,
+        );
+      }
+    } else if (asset.kind === "business") {
+      if (
+        !Number.isSafeInteger(asset.annualRevenueCents) ||
+        asset.annualRevenueCents < 0
+      ) {
+        throw new Error(
+          `Game invariant failed: business ${asset.id} annualRevenueCents must be non-negative safe integer cents`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(asset.annualOperatingProfitCents) ||
+        asset.annualOperatingProfitCents < 0
+      ) {
+        throw new Error(
+          `Game invariant failed: business ${asset.id} annualOperatingProfitCents must be non-negative safe integer cents`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(asset.enterpriseValueCents) ||
+        asset.enterpriseValueCents < 0
+      ) {
+        throw new Error(
+          `Game invariant failed: business ${asset.id} enterpriseValueCents must be non-negative safe integer cents`,
+        );
+      }
+      try {
+        calculateDebtFreeBusinessEquity(asset);
+      } catch (err) {
+        throw new Error(
+          `Game invariant failed: business ${asset.id} calculation failed: ${String(err)}`,
+        );
+      }
     }
   }
 }
