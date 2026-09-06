@@ -164,4 +164,27 @@ describe("profile starting cash rule data", () => {
       expect(equityCents).toBeGreaterThanOrEqual(0);
     }
   });
+
+  it("matches GAME_DESIGN.md Section 15.2 starting public investments exactly", () => {
+    const expectedPublicInvestments: Record<ProfileId, number> = {
+      "high-income-professional": 2_000_000,
+      "corporate-climber": 1_000_000,
+      "disciplined-saver": 500_000,
+      "small-business-owner": 0,
+      "property-starter": 700_000,
+      "market-investor": 8_000_000,
+      "self-employed-operator": 0,
+      "early-stage-entrepreneur": 0,
+    };
+
+    for (const profileId of PROFILE_IDS) {
+      const { startingPublicInvestmentsCents } =
+        PROFILES[profileId].startingFinances;
+      expect(Number.isSafeInteger(startingPublicInvestmentsCents)).toBe(true);
+      expect(startingPublicInvestmentsCents).toBeGreaterThanOrEqual(0);
+      expect(startingPublicInvestmentsCents).toBe(
+        expectedPublicInvestments[profileId],
+      );
+    }
+  });
 });

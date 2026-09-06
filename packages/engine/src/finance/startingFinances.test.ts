@@ -23,6 +23,8 @@ import type {
   GameState,
   LegacyBankLoan,
   PropertyAsset,
+  PublicMarketPortfolio,
+  QuarterStartFinanceBasis,
 } from "../model/gameState";
 import { calculateLegacyBankLoanNextPayment } from "./amortization";
 import { calculateBusinessEquity } from "./business";
@@ -206,6 +208,37 @@ function createSyntheticProfileGame(profileId: ProfileId): {
     loansById[createdLoanId] = personalDebt;
   }
 
+  const publicMarketsByPlayer: Record<PlayerId, PublicMarketPortfolio> = {
+    [p1]: {
+      "broad-market-fund": cents(
+        profileFinances.startingPublicInvestmentsCents,
+      ),
+      "growth-fund": cents(0),
+      "income-defensive-fund": cents(0),
+    },
+    [p2]: {
+      "broad-market-fund": cents(0),
+      "growth-fund": cents(0),
+      "income-defensive-fund": cents(0),
+    },
+    [p3]: {
+      "broad-market-fund": cents(0),
+      "growth-fund": cents(0),
+      "income-defensive-fund": cents(0),
+    },
+    [p4]: {
+      "broad-market-fund": cents(0),
+      "growth-fund": cents(0),
+      "income-defensive-fund": cents(0),
+    },
+  };
+
+  const quarterStartBasis: QuarterStartFinanceBasis = {
+    quarter: 1,
+    cashByPlayer: { ...cashByPlayer },
+    publicMarketsByPlayer: { ...publicMarketsByPlayer },
+  };
+
   const state: GameState = {
     ...base,
     finance: {
@@ -214,6 +247,8 @@ function createSyntheticProfileGame(profileId: ProfileId): {
       recurringByPlayer,
       loansById,
       assetsById,
+      publicMarketsByPlayer,
+      quarterStartBasis,
     },
   };
 
@@ -414,74 +449,101 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
     });
   });
 
-  describe("Sections 24 & 25: Quarter-1 core surplus and ending cash for all eight profiles", () => {
+  describe("Sections 13, 16, 24 & 25: Quarter-1 cash flows, core surplus, yield, dividends, and full ending cash", () => {
     const testCases: readonly {
       profileId: ProfileId;
       name: string;
       openingCashCents: number;
-      expectedSurplusCents: number;
+      startingPublicInvestmentsCents: number;
+      expectedCoreSurplusCents: number;
+      expectedCashYieldCents: number;
+      expectedDividendCents: number;
       expectedEndingCashCents: number;
     }[] = [
       {
         profileId: "high-income-professional",
         name: "High-Income Professional",
         openingCashCents: 5_000_000,
-        expectedSurplusCents: 1_545_000,
-        expectedEndingCashCents: 6_545_000,
+        startingPublicInvestmentsCents: 2_000_000,
+        expectedCoreSurplusCents: 1_545_000,
+        expectedCashYieldCents: 37_500,
+        expectedDividendCents: 7_500,
+        expectedEndingCashCents: 6_590_000,
       },
       {
         profileId: "corporate-climber",
         name: "Corporate Climber",
         openingCashCents: 3_500_000,
-        expectedSurplusCents: 985_000,
-        expectedEndingCashCents: 4_485_000,
+        startingPublicInvestmentsCents: 1_000_000,
+        expectedCoreSurplusCents: 985_000,
+        expectedCashYieldCents: 26_250,
+        expectedDividendCents: 3_750,
+        expectedEndingCashCents: 4_515_000,
       },
       {
         profileId: "disciplined-saver",
         name: "Disciplined Saver",
         openingCashCents: 10_500_000,
-        expectedSurplusCents: 735_000,
-        expectedEndingCashCents: 11_235_000,
+        startingPublicInvestmentsCents: 500_000,
+        expectedCoreSurplusCents: 735_000,
+        expectedCashYieldCents: 78_750,
+        expectedDividendCents: 1_875,
+        expectedEndingCashCents: 11_315_625,
       },
       {
         profileId: "small-business-owner",
         name: "Small Business Owner",
         openingCashCents: 3_000_000,
-        expectedSurplusCents: 425_000,
-        expectedEndingCashCents: 3_425_000,
+        startingPublicInvestmentsCents: 0,
+        expectedCoreSurplusCents: 425_000,
+        expectedCashYieldCents: 22_500,
+        expectedDividendCents: 0,
+        expectedEndingCashCents: 3_447_500,
       },
       {
         profileId: "property-starter",
         name: "Property Starter",
         openingCashCents: 2_800_000,
-        expectedSurplusCents: 840_000,
-        expectedEndingCashCents: 3_640_000,
+        startingPublicInvestmentsCents: 700_000,
+        expectedCoreSurplusCents: 840_000,
+        expectedCashYieldCents: 21_000,
+        expectedDividendCents: 2_625,
+        expectedEndingCashCents: 3_663_625,
       },
       {
         profileId: "market-investor",
         name: "Market Investor",
         openingCashCents: 2_500_000,
-        expectedSurplusCents: 625_000,
-        expectedEndingCashCents: 3_125_000,
+        startingPublicInvestmentsCents: 8_000_000,
+        expectedCoreSurplusCents: 625_000,
+        expectedCashYieldCents: 18_750,
+        expectedDividendCents: 30_000,
+        expectedEndingCashCents: 3_173_750,
       },
       {
         profileId: "self-employed-operator",
         name: "Self-Employed Operator",
         openingCashCents: 4_000_000,
-        expectedSurplusCents: 1_050_000,
-        expectedEndingCashCents: 5_050_000,
+        startingPublicInvestmentsCents: 0,
+        expectedCoreSurplusCents: 1_050_000,
+        expectedCashYieldCents: 30_000,
+        expectedDividendCents: 0,
+        expectedEndingCashCents: 5_080_000,
       },
       {
         profileId: "early-stage-entrepreneur",
         name: "Early-Stage Entrepreneur",
         openingCashCents: 2_000_000,
-        expectedSurplusCents: 165_000,
-        expectedEndingCashCents: 2_165_000,
+        startingPublicInvestmentsCents: 0,
+        expectedCoreSurplusCents: 165_000,
+        expectedCashYieldCents: 15_000,
+        expectedDividendCents: 0,
+        expectedEndingCashCents: 2_180_000,
       },
     ];
 
     for (const tc of testCases) {
-      it(`reproduces exact Quarter-1 surplus and ending cash for ${tc.name}`, () => {
+      it(`reconciles Section 24 core surplus, Section 13 cash yield, Section 16 dividend, and Section 25 full ending cash for ${tc.name}`, () => {
         const { state, playerId } = createSyntheticProfileGame(tc.profileId);
         const openingCash = state.finance.cashByPlayer[playerId];
         expect(openingCash).toBe(cents(tc.openingCashCents));
@@ -498,11 +560,230 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         if (endingCash === undefined || openingCash === undefined) {
           throw new Error("Missing cash balance");
         }
-        const actualSurplus = endingCash - openingCash;
 
-        expect(actualSurplus).toBe(cents(tc.expectedSurplusCents));
+        // Section 24: Core surplus components evaluated independently
+        const playerEntries = result.journalEntries.filter(
+          (e) =>
+            (e.destination.kind === "player" &&
+              e.destination.playerId === playerId) ||
+            (e.source.kind === "player" && e.source.playerId === playerId),
+        );
+
+        const personalIncome =
+          playerEntries.find((e) => e.reason === "recurring-personal-income")
+            ?.amountCents ?? 0;
+        const propertyIncome =
+          playerEntries.find(
+            (e) => e.reason === "property-operating-distribution",
+          )?.amountCents ?? 0;
+        const livingExpense =
+          playerEntries.find((e) => e.reason === "recurring-living-expense")
+            ?.amountCents ?? 0;
+        const debtPayments = playerEntries
+          .filter(
+            (e) =>
+              e.reason === "legacy-personal-debt-payment" ||
+              e.reason === "legacy-mortgage-payment",
+          )
+          .reduce((sum, e) => sum + e.amountCents, 0);
+
+        const coreSurplus =
+          personalIncome + propertyIncome - livingExpense - debtPayments;
+        expect(coreSurplus).toBe(cents(tc.expectedCoreSurplusCents));
+
+        // Section 13: Exact cash yield fixture
+        const cashYieldEntry = playerEntries.find(
+          (e) => e.reason === "cash-yield",
+        );
+        if (tc.expectedCashYieldCents > 0) {
+          expect(cashYieldEntry).toBeDefined();
+          expect(cashYieldEntry?.amountCents).toBe(
+            cents(tc.expectedCashYieldCents),
+          );
+          expect(cashYieldEntry?.source).toEqual({
+            kind: "external",
+            account: "bank",
+          });
+          expect(cashYieldEntry?.relatedMarketInstrumentId).toBeUndefined();
+        } else {
+          expect(cashYieldEntry).toBeUndefined();
+        }
+
+        // Section 16: Exact opening dividend fixture
+        const dividendEntry = playerEntries.find(
+          (e) => e.reason === "public-market-dividend",
+        );
+        if (tc.expectedDividendCents > 0) {
+          expect(dividendEntry).toBeDefined();
+          expect(dividendEntry?.amountCents).toBe(
+            cents(tc.expectedDividendCents),
+          );
+          expect(dividendEntry?.source).toEqual({
+            kind: "external",
+            account: "market",
+          });
+          expect(dividendEntry?.relatedMarketInstrumentId).toBe(
+            "broad-market-fund",
+          );
+        } else {
+          expect(dividendEntry).toBeUndefined();
+        }
+
+        // Section 25: Full Quarter-1 ending cash
+        const totalCashDelta = endingCash - openingCash;
+        const expectedTotalDelta =
+          tc.expectedCoreSurplusCents +
+          tc.expectedCashYieldCents +
+          tc.expectedDividendCents;
+        expect(totalCashDelta).toBe(cents(expectedTotalDelta));
         expect(endingCash).toBe(cents(tc.expectedEndingCashCents));
+
         assertGameState(result.state);
+      });
+    }
+  });
+
+  describe("Section 26: Opening balance sheet reconciliation matching GAME_DESIGN Section 15.2", () => {
+    const balanceSheetTestCases: readonly {
+      profileId: ProfileId;
+      name: string;
+      expectedCashCents: number;
+      expectedPublicInvestmentsCents: number;
+      expectedBusinessEquityCents: number;
+      expectedPropertyGrossCents: number;
+      expectedMortgageDebtCents: number;
+      expectedPersonalDebtCents: number;
+      expectedNetWorthCents: number;
+    }[] = [
+      {
+        profileId: "high-income-professional",
+        name: "High-Income Professional",
+        expectedCashCents: 5_000_000,
+        expectedPublicInvestmentsCents: 2_000_000,
+        expectedBusinessEquityCents: 0,
+        expectedPropertyGrossCents: 0,
+        expectedMortgageDebtCents: 0,
+        expectedPersonalDebtCents: 5_500_000,
+        expectedNetWorthCents: 1_500_000, // 50k + 20k - 55k = 15k
+      },
+      {
+        profileId: "corporate-climber",
+        name: "Corporate Climber",
+        expectedCashCents: 3_500_000,
+        expectedPublicInvestmentsCents: 1_000_000,
+        expectedBusinessEquityCents: 0,
+        expectedPropertyGrossCents: 0,
+        expectedMortgageDebtCents: 0,
+        expectedPersonalDebtCents: 1_800_000,
+        expectedNetWorthCents: 2_700_000, // 35k + 10k - 18k = 27k
+      },
+      {
+        profileId: "disciplined-saver",
+        name: "Disciplined Saver",
+        expectedCashCents: 10_500_000,
+        expectedPublicInvestmentsCents: 500_000,
+        expectedBusinessEquityCents: 0,
+        expectedPropertyGrossCents: 0,
+        expectedMortgageDebtCents: 0,
+        expectedPersonalDebtCents: 500_000,
+        expectedNetWorthCents: 10_500_000, // 105k + 5k - 5k = 105k
+      },
+      {
+        profileId: "small-business-owner",
+        name: "Small Business Owner",
+        expectedCashCents: 3_000_000,
+        expectedPublicInvestmentsCents: 0,
+        expectedBusinessEquityCents: 26_000_000,
+        expectedPropertyGrossCents: 0,
+        expectedMortgageDebtCents: 0,
+        expectedPersonalDebtCents: 1_000_000,
+        expectedNetWorthCents: 28_000_000, // 30k + 260k - 10k = 280k
+      },
+      {
+        profileId: "property-starter",
+        name: "Property Starter",
+        expectedCashCents: 2_800_000,
+        expectedPublicInvestmentsCents: 700_000,
+        expectedBusinessEquityCents: 0,
+        expectedPropertyGrossCents: 33_000_000,
+        expectedMortgageDebtCents: 25_500_000,
+        expectedPersonalDebtCents: 0,
+        expectedNetWorthCents: 11_000_000, // 28k + 7k + 75k = 110k
+      },
+      {
+        profileId: "market-investor",
+        name: "Market Investor",
+        expectedCashCents: 2_500_000,
+        expectedPublicInvestmentsCents: 8_000_000,
+        expectedBusinessEquityCents: 0,
+        expectedPropertyGrossCents: 0,
+        expectedMortgageDebtCents: 0,
+        expectedPersonalDebtCents: 1_000_000,
+        expectedNetWorthCents: 9_500_000, // 25k + 80k - 10k = 95k
+      },
+      {
+        profileId: "self-employed-operator",
+        name: "Self-Employed Operator",
+        expectedCashCents: 4_000_000,
+        expectedPublicInvestmentsCents: 0,
+        expectedBusinessEquityCents: 7_000_000,
+        expectedPropertyGrossCents: 0,
+        expectedMortgageDebtCents: 0,
+        expectedPersonalDebtCents: 800_000,
+        expectedNetWorthCents: 10_200_000, // 40k + 70k - 8k = 102k
+      },
+      {
+        profileId: "early-stage-entrepreneur",
+        name: "Early-Stage Entrepreneur",
+        expectedCashCents: 2_000_000,
+        expectedPublicInvestmentsCents: 0,
+        expectedBusinessEquityCents: 17_000_000,
+        expectedPropertyGrossCents: 0,
+        expectedMortgageDebtCents: 0,
+        expectedPersonalDebtCents: 0,
+        expectedNetWorthCents: 19_000_000, // 20k + 170k = 190k
+      },
+    ];
+
+    for (const tc of balanceSheetTestCases) {
+      it(`reconciles opening balance sheet and net worth for ${tc.name}`, () => {
+        const profile = STARTING_FINANCES_BY_PROFILE[tc.profileId];
+        expect(profile.startingCashCents).toBe(tc.expectedCashCents);
+        expect(profile.startingPublicInvestmentsCents).toBe(
+          tc.expectedPublicInvestmentsCents,
+        );
+
+        let businessEquity = 0;
+        if (profile.businessFixture !== undefined) {
+          businessEquity =
+            profile.businessFixture.enterpriseValueCents -
+            profile.businessFixture.debtPrincipalCents;
+        }
+        expect(businessEquity).toBe(tc.expectedBusinessEquityCents);
+
+        let propertyGross = 0;
+        let mortgageDebt = 0;
+        if (profile.propertyFixture !== undefined) {
+          propertyGross = profile.propertyFixture.marketValueCents;
+        }
+        if (profile.mortgageFixture !== undefined) {
+          mortgageDebt = profile.mortgageFixture.openingPrincipalCents;
+        }
+        expect(propertyGross).toBe(tc.expectedPropertyGrossCents);
+        expect(mortgageDebt).toBe(tc.expectedMortgageDebtCents);
+
+        expect(profile.openingPersonalDebtPrincipalCents).toBe(
+          tc.expectedPersonalDebtCents,
+        );
+
+        const calculatedNetWorth =
+          tc.expectedCashCents +
+          tc.expectedPublicInvestmentsCents +
+          businessEquity +
+          (propertyGross - mortgageDebt) -
+          tc.expectedPersonalDebtCents;
+
+        expect(calculatedNetWorth).toBe(tc.expectedNetWorthCents);
       });
     }
   });
@@ -614,38 +895,87 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         if (initialCash === undefined || endingCash === undefined) {
           throw new Error(`Missing cash balance for player ${pid}`);
         }
-        const actualSurplus = endingCash - initialCash;
 
         // Verify surplus against the canonical fixture
-        let expectedSurplus: number;
+        let expectedCoreSurplus: number;
+        let expectedCashYield: number;
+        let expectedDividend: number;
         switch (profileId) {
           case "high-income-professional":
-            expectedSurplus = 1_545_000;
+            expectedCoreSurplus = 1_545_000;
+            expectedCashYield = 37_500;
+            expectedDividend = 7_500;
             break;
           case "corporate-climber":
-            expectedSurplus = 985_000;
+            expectedCoreSurplus = 985_000;
+            expectedCashYield = 26_250;
+            expectedDividend = 3_750;
             break;
           case "disciplined-saver":
-            expectedSurplus = 735_000;
+            expectedCoreSurplus = 735_000;
+            expectedCashYield = 78_750;
+            expectedDividend = 1_875;
             break;
           case "small-business-owner":
-            expectedSurplus = 425_000;
+            expectedCoreSurplus = 425_000;
+            expectedCashYield = 22_500;
+            expectedDividend = 0;
             break;
           case "property-starter":
-            expectedSurplus = 840_000;
+            expectedCoreSurplus = 840_000;
+            expectedCashYield = 21_000;
+            expectedDividend = 2_625;
             break;
           case "market-investor":
-            expectedSurplus = 625_000;
+            expectedCoreSurplus = 625_000;
+            expectedCashYield = 18_750;
+            expectedDividend = 30_000;
             break;
           case "self-employed-operator":
-            expectedSurplus = 1_050_000;
+            expectedCoreSurplus = 1_050_000;
+            expectedCashYield = 30_000;
+            expectedDividend = 0;
             break;
           case "early-stage-entrepreneur":
-            expectedSurplus = 165_000;
+            expectedCoreSurplus = 165_000;
+            expectedCashYield = 15_000;
+            expectedDividend = 0;
             break;
         }
 
-        expect(actualSurplus).toBe(cents(expectedSurplus));
+        const playerEntries = result.journalEntries.filter(
+          (e) =>
+            (e.destination.kind === "player" &&
+              e.destination.playerId === pid) ||
+            (e.source.kind === "player" && e.source.playerId === pid),
+        );
+
+        const personalIncome =
+          playerEntries.find((e) => e.reason === "recurring-personal-income")
+            ?.amountCents ?? 0;
+        const propertyIncome =
+          playerEntries.find(
+            (e) => e.reason === "property-operating-distribution",
+          )?.amountCents ?? 0;
+        const livingExpense =
+          playerEntries.find((e) => e.reason === "recurring-living-expense")
+            ?.amountCents ?? 0;
+        const debtPayments = playerEntries
+          .filter(
+            (e) =>
+              e.reason === "legacy-personal-debt-payment" ||
+              e.reason === "legacy-mortgage-payment",
+          )
+          .reduce((sum, e) => sum + e.amountCents, 0);
+
+        const actualCoreSurplus =
+          personalIncome + propertyIncome - livingExpense - debtPayments;
+        expect(actualCoreSurplus).toBe(cents(expectedCoreSurplus));
+
+        const actualDelta = endingCash - initialCash;
+        expect(actualDelta).toBe(
+          cents(expectedCoreSurplus + expectedCashYield + expectedDividend),
+        );
       }
     });
   });

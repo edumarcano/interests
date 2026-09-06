@@ -44,6 +44,7 @@ export interface ProfileStartingFinances {
   readonly monthlyLivingExpenseCents: number;
   readonly openingPersonalDebtPrincipalCents: number;
   readonly monthlyPersonalDebtPaymentCents: number;
+  readonly startingPublicInvestmentsCents: number;
   readonly propertyFixture?: StartingPropertyFixture;
   readonly mortgageFixture?: StartingMortgageFixture;
   readonly businessFixture?: StartingBusinessFixture;
@@ -62,6 +63,7 @@ const HIGH_INCOME_PROFESSIONAL_FINANCES: ProfileStartingFinances = {
   monthlyLivingExpenseCents: 650_000,
   openingPersonalDebtPrincipalCents: 5_500_000,
   monthlyPersonalDebtPaymentCents: 85_000,
+  startingPublicInvestmentsCents: 2_000_000,
 };
 
 const CORPORATE_CLIMBER_FINANCES: ProfileStartingFinances = {
@@ -70,6 +72,7 @@ const CORPORATE_CLIMBER_FINANCES: ProfileStartingFinances = {
   monthlyLivingExpenseCents: 460_000,
   openingPersonalDebtPrincipalCents: 1_800_000,
   monthlyPersonalDebtPaymentCents: 45_000,
+  startingPublicInvestmentsCents: 1_000_000,
 };
 
 const DISCIPLINED_SAVER_FINANCES: ProfileStartingFinances = {
@@ -78,6 +81,7 @@ const DISCIPLINED_SAVER_FINANCES: ProfileStartingFinances = {
   monthlyLivingExpenseCents: 340_000,
   openingPersonalDebtPrincipalCents: 500_000,
   monthlyPersonalDebtPaymentCents: 15_000,
+  startingPublicInvestmentsCents: 500_000,
 };
 
 const SMALL_BUSINESS_OWNER_FINANCES: ProfileStartingFinances = {
@@ -86,6 +90,7 @@ const SMALL_BUSINESS_OWNER_FINANCES: ProfileStartingFinances = {
   monthlyLivingExpenseCents: 400_000,
   openingPersonalDebtPrincipalCents: 1_000_000,
   monthlyPersonalDebtPaymentCents: 25_000,
+  startingPublicInvestmentsCents: 0,
   businessFixture: {
     annualRevenueCents: 50_000_000,
     annualOperatingProfitCents: 8_000_000,
@@ -101,6 +106,7 @@ const PROPERTY_STARTER_FINANCES: ProfileStartingFinances = {
   monthlyLivingExpenseCents: 420_000,
   openingPersonalDebtPrincipalCents: 0,
   monthlyPersonalDebtPaymentCents: 0,
+  startingPublicInvestmentsCents: 700_000,
   propertyFixture: {
     marketValueCents: 33_000_000,
     scheduledQuarterlyRentCents: 945_000,
@@ -122,6 +128,7 @@ const MARKET_INVESTOR_FINANCES: ProfileStartingFinances = {
   monthlyLivingExpenseCents: 400_000,
   openingPersonalDebtPrincipalCents: 1_000_000,
   monthlyPersonalDebtPaymentCents: 25_000,
+  startingPublicInvestmentsCents: 8_000_000,
 };
 
 const SELF_EMPLOYED_OPERATOR_FINANCES: ProfileStartingFinances = {
@@ -130,6 +137,7 @@ const SELF_EMPLOYED_OPERATOR_FINANCES: ProfileStartingFinances = {
   monthlyLivingExpenseCents: 430_000,
   openingPersonalDebtPrincipalCents: 800_000,
   monthlyPersonalDebtPaymentCents: 20_000,
+  startingPublicInvestmentsCents: 0,
   businessFixture: {
     annualRevenueCents: 15_500_000,
     annualOperatingProfitCents: 10_000_000,
@@ -145,6 +153,7 @@ const EARLY_STAGE_ENTREPRENEUR_FINANCES: ProfileStartingFinances = {
   monthlyLivingExpenseCents: 320_000,
   openingPersonalDebtPrincipalCents: 0,
   monthlyPersonalDebtPaymentCents: 0,
+  startingPublicInvestmentsCents: 0,
   businessFixture: {
     annualRevenueCents: 30_000_000,
     annualOperatingProfitCents: 5_400_000,

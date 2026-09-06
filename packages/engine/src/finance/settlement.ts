@@ -1,3 +1,9 @@
+import {
+  PUBLIC_MARKET_INSTRUMENT_IDS,
+  PUBLIC_MARKET_INSTRUMENTS,
+  type PublicMarketInstrumentId,
+  STANDARD_V1_OPENING_CASH_YIELD_BPS,
+} from "@finance-game/rules";
 import type {
   AssetId,
   LoanId,
@@ -7,10 +13,15 @@ import type {
 
 import { nextDeterministicId } from "../game/deterministicIds";
 import { assertGameState } from "../invariants/assertGameState";
-import type { GameState, LegacyBankLoan } from "../model/gameState";
+import type {
+  GameState,
+  LegacyBankLoan,
+  QuarterStartFinanceBasis,
+} from "../model/gameState";
 import { externalCashAccount, playerCashAccount } from "./account";
 import { calculateLegacyBankLoanNextPayment } from "./amortization";
 import type { JournalEntry } from "./journal";
+import { calculateQuarterlyYieldCents } from "./markets";
 import { cents } from "./money";
 import { allocateProportionalCents } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
@@ -41,6 +52,17 @@ export type SettleQuarterResult =
       readonly code: SettleQuarterErrorCode;
       readonly journalEntries: readonly [];
     };
+
+interface PlannedCashYield {
+  readonly playerId: PlayerId;
+  readonly amountCents: number;
+}
+
+interface PlannedDividend {
+  readonly playerId: PlayerId;
+  readonly instrumentId: PublicMarketInstrumentId;
+  readonly amountCents: number;
+}
 
 interface PlannedPersonalIncome {
   readonly playerId: PlayerId;
@@ -75,17 +97,20 @@ interface PlannedLegacyBankLoanPayment {
 /**
  * Pure internal authoritative quarter-settlement operation.
  *
- * Supported in PR #8:
+ * Supported in PR #10:
+ * - Cash yield from quarter-start cash (bank -> player)
+ * - Public-market dividends from quarter-start holdings (market -> player)
  * - Recurring personal/spendable income (personal-earned-income -> player)
  * - Debt-free property operating cash-flow distribution (property-operating-cashflow -> player)
  * - Recurring living expenses (player -> living-expense-sink)
  * - Opening legacy bank loans: personal debt and Property Starter mortgage (player -> bank)
+ * - Authoritative quarter-start finance basis capture for Quarter N+1
  *
  * Deliberately NOT supported (A4-A6 remain OPEN):
  * - Business distributions;
  * - Business-debt schedules;
  * - Player-loan automatic settlement;
- * - Dividends, cash interest, taxes, default/recovery/collateral.
+ * - Market price movements, trading, transaction fees, default/recovery/collateral.
  *
  * Guarantees:
  * - Solvency and destination overflow validated for all players during planning;
@@ -93,11 +118,14 @@ interface PlannedLegacyBankLoanPayment {
  * - Rejection preserves state, revision, counters, RNG, and emits zero journal entries;
  * - Settlement requires completed setup (ready-for-first-round phase);
  * - Atomic execution of postings in strict canonical order:
- *     1. Personal income (PlayerId)
- *     2. Property distributions (AssetId then PlayerId)
- *     3. Living expenses (PlayerId)
- *     4. Legacy bank loan payments (LoanId)
+ *     1. Cash yield (PlayerId)
+ *     2. Public-market dividends (instrument-ID canonical order, then PlayerId)
+ *     3. Personal income (PlayerId)
+ *     4. Property distributions (AssetId then PlayerId)
+ *     5. Living expenses (PlayerId)
+ *     6. Legacy bank loan payments (LoanId)
  * - Exactly one SettlementId created and counter advanced once per successful settlement.
+ * - Next quarter finance basis captured from closing Quarter N state.
  */
 export function settleQuarter(
   state: GameState,
@@ -142,7 +170,60 @@ export function settleQuarter(
     a < b ? -1 : a > b ? 1 : 0,
   );
 
-  // A. Recurring personal income, ordered by PlayerId
+  // A. Cash yield, ordered by PlayerId (calculated from quarter-start cash basis)
+  const plannedCashYields: PlannedCashYield[] = [];
+  for (const playerId of sortedPlayerIds) {
+    const basisCash =
+      state.finance.quarterStartBasis.cashByPlayer[playerId] ?? 0;
+    if (basisCash > 0) {
+      const yieldCents = calculateQuarterlyYieldCents({
+        principalCents: basisCash,
+        annualYieldBps: STANDARD_V1_OPENING_CASH_YIELD_BPS,
+      });
+      if (yieldCents > 0) {
+        const prevInflow = plannedInflowByPlayer[playerId] ?? 0;
+        if (yieldCents > Number.MAX_SAFE_INTEGER - prevInflow) {
+          return reject("DESTINATION_OVERFLOW");
+        }
+        plannedInflowByPlayer[playerId] = prevInflow + yieldCents;
+        plannedCashYields.push({
+          playerId,
+          amountCents: yieldCents,
+        });
+      }
+    }
+  }
+
+  // B. Public-market dividends, ordered by instrument canonical ID order, then PlayerId
+  const plannedDividends: PlannedDividend[] = [];
+  for (const instrumentId of PUBLIC_MARKET_INSTRUMENT_IDS) {
+    const instrumentDef = PUBLIC_MARKET_INSTRUMENTS[instrumentId];
+    for (const playerId of sortedPlayerIds) {
+      const basisPortfolio =
+        state.finance.quarterStartBasis.publicMarketsByPlayer[playerId];
+      const basisHolding = basisPortfolio?.[instrumentId] ?? 0;
+      if (basisHolding > 0) {
+        const divCents = calculateQuarterlyYieldCents({
+          principalCents: basisHolding,
+          annualYieldBps: instrumentDef.annualDividendYieldBps,
+        });
+        if (divCents > 0) {
+          const prevInflow = plannedInflowByPlayer[playerId] ?? 0;
+          if (divCents > Number.MAX_SAFE_INTEGER - prevInflow) {
+            return reject("DESTINATION_OVERFLOW");
+          }
+          plannedInflowByPlayer[playerId] = prevInflow + divCents;
+          plannedDividends.push({
+            playerId,
+            instrumentId,
+            amountCents: divCents,
+          });
+        }
+      }
+    }
+  }
+
+  // C. Recurring personal income, ordered by PlayerId
   const plannedIncomes: PlannedPersonalIncome[] = [];
   for (const playerId of sortedPlayerIds) {
     const rec = state.finance.recurringByPlayer?.[playerId];
@@ -159,7 +240,7 @@ export function settleQuarter(
     }
   }
 
-  // B. Property operating distributions, ordered by AssetId then PlayerId
+  // D. Property operating distributions, ordered by AssetId then PlayerId
   const sortedAssetIds = (
     Object.keys(state.finance.assetsById) as AssetId[]
   ).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
@@ -305,7 +386,52 @@ export function settleQuarter(
   let currentCounters = countersWithSettlement;
   const journalEntries: JournalEntry[] = [];
 
-  // 4.1 Apply recurring personal income
+  // 4.1 Apply cash yield
+  for (const yieldPost of plannedCashYields) {
+    const postRequest: CashPostingRequest = {
+      source: externalCashAccount("bank"),
+      destination: playerCashAccount(yieldPost.playerId),
+      amountCents: yieldPost.amountCents,
+      reason: "cash-yield",
+      quarter: request.quarter,
+    };
+
+    const postResult = postCash(currentFinance, currentCounters, postRequest);
+    if (!postResult.ok) {
+      throw new Error(
+        `Invariant violation: unexpected cash posting failure during cash yield settlement: ${postResult.code}`,
+      );
+    }
+
+    currentFinance = postResult.finance;
+    currentCounters = postResult.counters;
+    journalEntries.push(postResult.entry);
+  }
+
+  // 4.2 Apply public-market dividends
+  for (const divPost of plannedDividends) {
+    const postRequest: CashPostingRequest = {
+      source: externalCashAccount("market"),
+      destination: playerCashAccount(divPost.playerId),
+      amountCents: divPost.amountCents,
+      reason: "public-market-dividend",
+      quarter: request.quarter,
+      relatedMarketInstrumentId: divPost.instrumentId,
+    };
+
+    const postResult = postCash(currentFinance, currentCounters, postRequest);
+    if (!postResult.ok) {
+      throw new Error(
+        `Invariant violation: unexpected cash posting failure during public market dividend settlement: ${postResult.code}`,
+      );
+    }
+
+    currentFinance = postResult.finance;
+    currentCounters = postResult.counters;
+    journalEntries.push(postResult.entry);
+  }
+
+  // 4.3 Apply recurring personal income
   for (const inc of plannedIncomes) {
     const postRequest: CashPostingRequest = {
       source: externalCashAccount("personal-earned-income"),
@@ -327,7 +453,7 @@ export function settleQuarter(
     journalEntries.push(postResult.entry);
   }
 
-  // 4.2 Apply property operating distributions
+  // 4.4 Apply property operating distributions
   for (const distribution of plannedPropertyDistributions) {
     const postRequest: CashPostingRequest = {
       source: distribution.sourceAccount,
@@ -350,7 +476,7 @@ export function settleQuarter(
     journalEntries.push(postResult.entry);
   }
 
-  // 4.3 Apply recurring living expenses
+  // 4.5 Apply recurring living expenses
   for (const exp of plannedLivingExpenses) {
     const postRequest: CashPostingRequest = {
       source: playerCashAccount(exp.playerId),
@@ -372,7 +498,7 @@ export function settleQuarter(
     journalEntries.push(postResult.entry);
   }
 
-  // 4.4 Apply legacy bank-loan payments
+  // 4.6 Apply legacy bank-loan payments
   const updatedLoansById: Record<
     LoanId,
     GameState["finance"]["loansById"][LoanId]
@@ -426,15 +552,23 @@ export function settleQuarter(
     updatedLoansById[loanPayment.loanId] = updatedLoan;
   }
 
+  const nextQuarter = request.quarter + 1;
+  const nextQuarterBasis: QuarterStartFinanceBasis = {
+    quarter: nextQuarter,
+    cashByPlayer: { ...currentFinance.cashByPlayer },
+    publicMarketsByPlayer: { ...currentFinance.publicMarketsByPlayer },
+  };
+
   currentFinance = {
     ...currentFinance,
     loansById: updatedLoansById,
+    quarterStartBasis: nextQuarterBasis,
   };
 
   const nextState: GameState = {
     ...state,
     revision: state.revision + 1,
-    currentQuarter: request.quarter + 1,
+    currentQuarter: nextQuarter,
     lastSettledQuarter: request.quarter,
     finance: currentFinance,
     counters: currentCounters,

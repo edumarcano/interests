@@ -1,3 +1,7 @@
+import {
+  PUBLIC_MARKET_INSTRUMENTS,
+  STANDARD_V1_OPENING_CASH_YIELD_BPS,
+} from "@finance-game/rules";
 import { asAssetId, asLoanId, asPlayerId } from "@finance-game/shared";
 import { describe, expect, it } from "vitest";
 
@@ -10,8 +14,18 @@ import type {
   PlayerLoan,
   PropertyAsset,
 } from "../model/gameState";
+import { externalCashAccount, playerCashAccount } from "./account";
+import {
+  applyScheduledPlayerLoanPayment,
+  originateConfirmedPlayerLoan,
+} from "./loans";
+import {
+  calculateQuarterlyYieldCents,
+  createZeroPublicMarketPortfolio,
+} from "./markets";
 import { basisPoints, cents } from "./money";
 import { type OwnershipPpm, ownershipPpm } from "./ownership";
+import { postCash } from "./posting";
 import { settleQuarter } from "./settlement";
 
 const p1 = asPlayerId("player-1");
@@ -131,6 +145,8 @@ function buildSyntheticFixture(options?: {
     loansById = { [loanId]: loan };
   }
 
+  const zeroPortfolio = createZeroPublicMarketPortfolio();
+
   const state: GameState = {
     ...base,
     finance: {
@@ -151,6 +167,27 @@ function buildSyntheticFixture(options?: {
         [p4]: {
           quarterlyIncomeCents: cents(0),
           quarterlyLivingExpenseCents: cents(0),
+        },
+      },
+      publicMarketsByPlayer: {
+        [p1]: zeroPortfolio,
+        [p2]: zeroPortfolio,
+        [p3]: zeroPortfolio,
+        [p4]: zeroPortfolio,
+      },
+      quarterStartBasis: {
+        quarter: 1,
+        cashByPlayer: {
+          [p1]: cents(0),
+          [p2]: cents(0),
+          [p3]: cents(0),
+          [p4]: cents(0),
+        },
+        publicMarketsByPlayer: {
+          [p1]: zeroPortfolio,
+          [p2]: zeroPortfolio,
+          [p3]: zeroPortfolio,
+          [p4]: zeroPortfolio,
         },
       },
       loansById,
@@ -453,6 +490,8 @@ describe("quarter settlement foundation", () => {
       playerIds,
     });
 
+    const zeroPortfolio = createZeroPublicMarketPortfolio();
+
     const isolatedBase: GameState = {
       ...base,
       finance: {
@@ -473,6 +512,27 @@ describe("quarter settlement foundation", () => {
           [p4]: {
             quarterlyIncomeCents: cents(0),
             quarterlyLivingExpenseCents: cents(0),
+          },
+        },
+        publicMarketsByPlayer: {
+          [p1]: zeroPortfolio,
+          [p2]: zeroPortfolio,
+          [p3]: zeroPortfolio,
+          [p4]: zeroPortfolio,
+        },
+        quarterStartBasis: {
+          quarter: 1,
+          cashByPlayer: {
+            [p1]: cents(0),
+            [p2]: cents(0),
+            [p3]: cents(0),
+            [p4]: cents(0),
+          },
+          publicMarketsByPlayer: {
+            [p1]: zeroPortfolio,
+            [p2]: zeroPortfolio,
+            [p3]: zeroPortfolio,
+            [p4]: zeroPortfolio,
           },
         },
         loansById: {},
@@ -605,5 +665,434 @@ describe("quarter settlement foundation", () => {
       resultB.state.finance.cashByPlayer,
     );
     expect(resultA.state.counters).toEqual(resultB.state.counters);
+  });
+
+  it("preserves quarter-start entitlement basis when current cash is modified mid-quarter", () => {
+    const readyGame = createReadyGame();
+    const player1CashBasis =
+      readyGame.finance.quarterStartBasis.cashByPlayer[p1];
+    expect(player1CashBasis).toBeDefined();
+    if (player1CashBasis === undefined) return;
+    expect(player1CashBasis).toBeGreaterThan(0);
+
+    // Mid-quarter, player 1 spends cash via postCash
+    const postResult = postCash(readyGame.finance, readyGame.counters, {
+      source: playerCashAccount(p1),
+      destination: externalCashAccount("bank"),
+      amountCents: cents(50_000),
+      reason: "mid-quarter-spend",
+      quarter: 1,
+    });
+    expect(postResult.ok).toBe(true);
+    if (!postResult.ok) return;
+
+    const modifiedState: GameState = {
+      ...readyGame,
+      finance: postResult.finance,
+      counters: postResult.counters,
+    };
+
+    // Verify current cash is reduced but basis cash is untouched
+    expect(modifiedState.finance.cashByPlayer[p1]).toBe(
+      player1CashBasis - 50_000,
+    );
+    expect(modifiedState.finance.quarterStartBasis.cashByPlayer[p1]).toBe(
+      player1CashBasis,
+    );
+
+    // Settle quarter 1
+    const settleResult = settleQuarter(modifiedState, { quarter: 1 });
+    expect(settleResult.ok).toBe(true);
+    if (!settleResult.ok) return;
+
+    // Expected cash yield is based on player1CashBasis, NOT (player1CashBasis - 50_000)
+    const expectedCashYield = calculateQuarterlyYieldCents({
+      principalCents: player1CashBasis,
+      annualYieldBps: STANDARD_V1_OPENING_CASH_YIELD_BPS,
+    });
+    const yieldEntry = settleResult.journalEntries.find(
+      (e) =>
+        e.reason === "cash-yield" &&
+        e.destination.kind === "player" &&
+        e.destination.playerId === p1,
+    );
+    expect(yieldEntry).toBeDefined();
+    expect(yieldEntry?.amountCents).toBe(expectedCashYield);
+  });
+
+  it("preserves quarter-start entitlement basis when current public market holdings are modified mid-quarter", () => {
+    const readyGame = createReadyGame();
+    const basisPortfolio =
+      readyGame.finance.quarterStartBasis.publicMarketsByPlayer[p1];
+    expect(basisPortfolio).toBeDefined();
+    if (!basisPortfolio) return;
+    const initialBroadHolding = basisPortfolio["broad-market-fund"];
+    expect(initialBroadHolding).toBeGreaterThan(0);
+
+    // Mid-quarter, player 1 reallocates current public market holdings
+    // (broad set to 0, growth set to 50k, defensive set to 20k)
+    // while quarterStartBasis remains strictly untouched.
+    const modifiedPortfolios = {
+      ...readyGame.finance.publicMarketsByPlayer,
+      [p1]: {
+        "broad-market-fund": cents(0),
+        "growth-fund": cents(5_000_000),
+        "income-defensive-fund": cents(2_000_000),
+      },
+    };
+
+    const modifiedState: GameState = {
+      ...readyGame,
+      finance: {
+        ...readyGame.finance,
+        publicMarketsByPlayer: modifiedPortfolios,
+      },
+    };
+
+    // Verify current portfolio differs from quarterStartBasis
+    const currentP1Portfolio = modifiedState.finance.publicMarketsByPlayer[p1];
+    expect(currentP1Portfolio).toBeDefined();
+    if (!currentP1Portfolio) return;
+
+    const basisP1Portfolio =
+      modifiedState.finance.quarterStartBasis.publicMarketsByPlayer[p1];
+    expect(basisP1Portfolio).toBeDefined();
+    if (!basisP1Portfolio) return;
+
+    expect(currentP1Portfolio["broad-market-fund"]).toBe(0);
+    expect(currentP1Portfolio["growth-fund"]).toBe(5_000_000);
+    expect(basisP1Portfolio["broad-market-fund"]).toBe(initialBroadHolding);
+    expect(basisP1Portfolio["growth-fund"]).toBe(0);
+
+    // Settle quarter 1
+    const settleResult = settleQuarter(modifiedState, { quarter: 1 });
+    expect(settleResult.ok).toBe(true);
+    if (!settleResult.ok) return;
+
+    // The dividends received must reflect quarterStartBasis (broad-market-fund with initialBroadHolding),
+    // NOT the modified current portfolio (which had zero broad-market and positive growth/defensive)
+    const p1DividendEntries = settleResult.journalEntries.filter(
+      (e) =>
+        e.reason === "public-market-dividend" &&
+        e.destination.kind === "player" &&
+        e.destination.playerId === p1,
+    );
+
+    // Exactly 1 dividend entry for broad-market-fund, and 0 for growth or defensive
+    expect(p1DividendEntries).toHaveLength(1);
+    const broadEntry = p1DividendEntries[0];
+    expect(broadEntry).toBeDefined();
+    expect(broadEntry?.relatedMarketInstrumentId).toBe("broad-market-fund");
+    expect(broadEntry?.amountCents).toBe(
+      calculateQuarterlyYieldCents({
+        principalCents: initialBroadHolding,
+        annualYieldBps:
+          PUBLIC_MARKET_INSTRUMENTS["broad-market-fund"].annualDividendYieldBps,
+      }),
+    );
+
+    // Verify current portfolio was preserved and not overwritten by Q1 settlement
+    const closingP1Portfolio =
+      settleResult.state.finance.publicMarketsByPlayer[p1];
+    expect(closingP1Portfolio).toBeDefined();
+    if (!closingP1Portfolio) return;
+
+    expect(closingP1Portfolio["broad-market-fund"]).toBe(0);
+    expect(closingP1Portfolio["growth-fund"]).toBe(5_000_000);
+    expect(closingP1Portfolio["income-defensive-fund"]).toBe(2_000_000);
+
+    // Verify Quarter 2 opening basis rolls from the closing current portfolio
+    expect(settleResult.state.finance.quarterStartBasis.quarter).toBe(2);
+    expect(
+      settleResult.state.finance.quarterStartBasis.publicMarketsByPlayer[p1],
+    ).toEqual(closingP1Portfolio);
+  });
+
+  it("settles growth and defensive fund dividends with correct yield calculation and journal metadata", () => {
+    const base = createReadyGame();
+
+    const growthHolding = cents(1_000_000); // $10,000
+    const defensiveHolding = cents(2_000_000); // $20,000
+    const broadHolding = cents(500_000); // $5,000
+
+    const customPortfolios = {
+      ...base.finance.publicMarketsByPlayer,
+      [p1]: {
+        "broad-market-fund": broadHolding,
+        "growth-fund": growthHolding,
+        "income-defensive-fund": defensiveHolding,
+      },
+    };
+
+    const customBasis = {
+      ...base.finance.quarterStartBasis,
+      publicMarketsByPlayer: customPortfolios,
+    };
+
+    const stateWithCustomMarkets: GameState = {
+      ...base,
+      finance: {
+        ...base.finance,
+        publicMarketsByPlayer: customPortfolios,
+        quarterStartBasis: customBasis,
+      },
+    };
+
+    const result = settleQuarter(stateWithCustomMarkets, { quarter: 1 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Verify journal entries for dividends
+    const p1DividendEntries = result.journalEntries.filter(
+      (e) =>
+        e.reason === "public-market-dividend" &&
+        e.destination.kind === "player" &&
+        e.destination.playerId === p1,
+    );
+
+    // Expect 3 dividend entries for p1 (broad, growth, defensive)
+    expect(p1DividendEntries).toHaveLength(3);
+
+    const broadEntry = p1DividendEntries.find(
+      (e) => e.relatedMarketInstrumentId === "broad-market-fund",
+    );
+    const growthEntry = p1DividendEntries.find(
+      (e) => e.relatedMarketInstrumentId === "growth-fund",
+    );
+    const defensiveEntry = p1DividendEntries.find(
+      (e) => e.relatedMarketInstrumentId === "income-defensive-fund",
+    );
+
+    expect(broadEntry).toBeDefined();
+    expect(growthEntry).toBeDefined();
+    expect(defensiveEntry).toBeDefined();
+
+    // Growth fund: 50 bps / 4 = 12.5 bps -> 1,000,000 * 50 / 40,000 = 1,250 cents ($12.50)
+    expect(growthEntry?.amountCents).toBe(
+      calculateQuarterlyYieldCents({
+        principalCents: growthHolding,
+        annualYieldBps:
+          PUBLIC_MARKET_INSTRUMENTS["growth-fund"].annualDividendYieldBps,
+      }),
+    );
+    expect(growthEntry?.amountCents).toBe(1_250);
+
+    // Defensive fund: 350 bps / 4 = 87.5 bps -> 2,000,000 * 350 / 40,000 = 17,500 cents ($175.00)
+    expect(defensiveEntry?.amountCents).toBe(
+      calculateQuarterlyYieldCents({
+        principalCents: defensiveHolding,
+        annualYieldBps:
+          PUBLIC_MARKET_INSTRUMENTS["income-defensive-fund"]
+            .annualDividendYieldBps,
+      }),
+    );
+    expect(defensiveEntry?.amountCents).toBe(17_500);
+
+    // Verify canonical ordering: cash-yield before public-market-dividend, and dividends in canonical instrument order
+    const reasonsInOrder = result.journalEntries.map((e) => e.reason);
+    const firstYieldIndex = reasonsInOrder.indexOf("cash-yield");
+    const firstDividendIndex = reasonsInOrder.indexOf("public-market-dividend");
+    const firstIncomeIndex = reasonsInOrder.indexOf(
+      "recurring-personal-income",
+    );
+
+    expect(firstYieldIndex).toBeGreaterThanOrEqual(0);
+    expect(firstDividendIndex).toBeGreaterThan(firstYieldIndex);
+    expect(firstIncomeIndex).toBeGreaterThan(firstDividendIndex);
+
+    // Verify instrument order within dividends
+    const instrumentOrder = p1DividendEntries.map(
+      (e) => e.relatedMarketInstrumentId,
+    );
+    expect(instrumentOrder).toEqual([
+      "broad-market-fund",
+      "growth-fund",
+      "income-defensive-fund",
+    ]);
+  });
+
+  it("captures Quarter 2 opening finance basis from Quarter 1 closing state so newly earned cash earns yield in Quarter 2", () => {
+    const readyGame = createReadyGame();
+    const initialP1Cash = readyGame.finance.cashByPlayer[p1];
+    expect(initialP1Cash).toBeDefined();
+    if (initialP1Cash === undefined) return;
+
+    // Settle quarter 1
+    const q1Result = settleQuarter(readyGame, { quarter: 1 });
+    expect(q1Result.ok).toBe(true);
+    if (!q1Result.ok) return;
+
+    const closingP1CashQ1 = q1Result.state.finance.cashByPlayer[p1];
+    expect(closingP1CashQ1).toBeDefined();
+    if (closingP1CashQ1 === undefined) return;
+    expect(closingP1CashQ1).toBeGreaterThan(initialP1Cash);
+
+    // Check Quarter 2 opening basis captured in state
+    expect(q1Result.state.finance.quarterStartBasis.quarter).toBe(2);
+    expect(q1Result.state.finance.quarterStartBasis.cashByPlayer[p1]).toBe(
+      closingP1CashQ1,
+    );
+    expect(
+      q1Result.state.finance.quarterStartBasis.publicMarketsByPlayer,
+    ).toEqual(q1Result.state.finance.publicMarketsByPlayer);
+
+    // Now settle quarter 2
+    const q2Result = settleQuarter(q1Result.state, { quarter: 2 });
+    expect(q2Result.ok).toBe(true);
+    if (!q2Result.ok) return;
+
+    // Quarter 2 cash yield for p1 must be based on closingP1CashQ1
+    const expectedQ2Yield = calculateQuarterlyYieldCents({
+      principalCents: closingP1CashQ1,
+      annualYieldBps: STANDARD_V1_OPENING_CASH_YIELD_BPS,
+    });
+    const q2YieldEntry = q2Result.journalEntries.find(
+      (e) =>
+        e.reason === "cash-yield" &&
+        e.destination.kind === "player" &&
+        e.destination.playerId === p1,
+    );
+    expect(q2YieldEntry).toBeDefined();
+    expect(q2YieldEntry?.amountCents).toBe(expectedQ2Yield);
+    expect(expectedQ2Yield).toBeGreaterThan(
+      calculateQuarterlyYieldCents({
+        principalCents: initialP1Cash,
+        annualYieldBps: STANDARD_V1_OPENING_CASH_YIELD_BPS,
+      }),
+    );
+  });
+
+  it("rejects duplicate settlement of the same quarter and preserves state immutability", () => {
+    const readyGame = createReadyGame();
+
+    const q1Result = settleQuarter(readyGame, { quarter: 1 });
+    expect(q1Result.ok).toBe(true);
+    if (!q1Result.ok) return;
+
+    const stateAfterQ1 = q1Result.state;
+    const snapshotBeforeRetry = JSON.parse(JSON.stringify(stateAfterQ1));
+
+    // Attempt to settle quarter 1 again
+    const retryResult = settleQuarter(stateAfterQ1, { quarter: 1 });
+    expect(retryResult.ok).toBe(false);
+    if (retryResult.ok) return;
+
+    expect(retryResult.code).toBe("QUARTER_ALREADY_SETTLED");
+    expect(retryResult.state).toBe(stateAfterQ1);
+    expect(retryResult.journalEntries).toHaveLength(0);
+    expect(JSON.parse(JSON.stringify(retryResult.state))).toEqual(
+      snapshotBeforeRetry,
+    );
+  });
+});
+
+describe("reference preservation audit (Section 28)", () => {
+  it("preserves publicMarketsByPlayer and quarterStartBasis by reference across postCash", () => {
+    const readyGame = createReadyGame();
+    const originalMarkets = readyGame.finance.publicMarketsByPlayer;
+    const originalBasis = readyGame.finance.quarterStartBasis;
+
+    const postResult = postCash(readyGame.finance, readyGame.counters, {
+      source: playerCashAccount(p1),
+      destination: playerCashAccount(p2),
+      amountCents: cents(10_000),
+      reason: "transfer",
+      quarter: 1,
+    });
+    expect(postResult.ok).toBe(true);
+    if (!postResult.ok) return;
+
+    expect(postResult.finance.publicMarketsByPlayer).toBe(originalMarkets);
+    expect(postResult.finance.quarterStartBasis).toBe(originalBasis);
+  });
+
+  it("preserves publicMarketsByPlayer and quarterStartBasis by reference across originatePlayerLoan", () => {
+    const readyGame = createReadyGame();
+    const originalMarkets = readyGame.finance.publicMarketsByPlayer;
+    const originalBasis = readyGame.finance.quarterStartBasis;
+
+    const loanResult = originateConfirmedPlayerLoan(
+      readyGame.finance,
+      readyGame.counters,
+      {
+        lenderPlayerId: p1,
+        borrowerPlayerId: p2,
+        principalCents: cents(50_000),
+        annualRateBps: basisPoints(800),
+        termQuarters: 4,
+        quarter: 1,
+      },
+    );
+    expect(loanResult.ok).toBe(true);
+    if (!loanResult.ok) return;
+
+    expect(loanResult.finance.publicMarketsByPlayer).toBe(originalMarkets);
+    expect(loanResult.finance.quarterStartBasis).toBe(originalBasis);
+  });
+
+  it("preserves publicMarketsByPlayer and quarterStartBasis by reference across applyScheduledPlayerLoanPayment", () => {
+    const readyGame = createReadyGame();
+
+    const loanResult = originateConfirmedPlayerLoan(
+      readyGame.finance,
+      readyGame.counters,
+      {
+        lenderPlayerId: p1,
+        borrowerPlayerId: p2,
+        principalCents: cents(50_000),
+        annualRateBps: basisPoints(800),
+        termQuarters: 4,
+        quarter: 1,
+      },
+    );
+    expect(loanResult.ok).toBe(true);
+    if (!loanResult.ok) return;
+
+    const originalMarkets = loanResult.finance.publicMarketsByPlayer;
+    const originalBasis = loanResult.finance.quarterStartBasis;
+
+    const paymentResult = applyScheduledPlayerLoanPayment(
+      loanResult.finance,
+      loanResult.counters,
+      {
+        loanId: loanResult.loan.id,
+        quarter: 1,
+      },
+    );
+    expect(paymentResult.ok).toBe(true);
+    if (!paymentResult.ok) return;
+
+    expect(paymentResult.finance.publicMarketsByPlayer).toBe(originalMarkets);
+    expect(paymentResult.finance.quarterStartBasis).toBe(originalBasis);
+  });
+
+  it("preserves publicMarketsByPlayer and quarterStartBasis by reference across chooseObjective action", () => {
+    const freshGame = createGame({
+      gameId: "test-game",
+      seed: "test-seed",
+      playerIds,
+    });
+    const originalMarkets = freshGame.finance.publicMarketsByPlayer;
+    const originalBasis = freshGame.finance.quarterStartBasis;
+
+    const p1Player = freshGame.players[p1];
+    expect(p1Player).toBeDefined();
+    if (!p1Player) return;
+    const objectiveId = p1Player.offeredObjectiveIds[0];
+    expect(objectiveId).toBeDefined();
+    if (!objectiveId) return;
+
+    const actionResult = applyAction(freshGame, {
+      type: "CHOOSE_OBJECTIVE",
+      playerId: p1,
+      objectiveId,
+    });
+    expect(actionResult.ok).toBe(true);
+    if (!actionResult.ok) return;
+
+    expect(actionResult.state.finance.publicMarketsByPlayer).toBe(
+      originalMarkets,
+    );
+    expect(actionResult.state.finance.quarterStartBasis).toBe(originalBasis);
   });
 });

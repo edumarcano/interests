@@ -1,6 +1,7 @@
 import {
   OPENING_PERSONAL_DEBT_APR_BPS,
   PROFILES,
+  STANDARD_V1_OPENING_PUBLIC_MARKET_INSTRUMENT_ID,
   STANDARD_V1_PLAYER_COUNT,
 } from "@finance-game/rules";
 import {
@@ -9,6 +10,7 @@ import {
   type LoanId,
   type PlayerId,
 } from "@finance-game/shared";
+import { createZeroPublicMarketPortfolio } from "../finance/markets";
 import { basisPoints, type Cents, cents } from "../finance/money";
 import { ownershipPpm } from "../finance/ownership";
 import { assertGameState } from "../invariants/assertGameState";
@@ -18,6 +20,8 @@ import type {
   GameState,
   Loan,
   PlayerState,
+  PublicMarketPortfolio,
+  QuarterStartFinanceBasis,
   RecurringPersonalFinance,
 } from "../model/gameState";
 import { createRandomState } from "../random/prng";
@@ -54,6 +58,8 @@ export function createGame(input: CreateGameInput): GameState {
   const cashByPlayer: Record<PlayerId, Cents> = {} as Record<PlayerId, Cents>;
   const recurringByPlayer: Record<PlayerId, RecurringPersonalFinance> =
     {} as Record<PlayerId, RecurringPersonalFinance>;
+  const publicMarketsByPlayer: Record<PlayerId, PublicMarketPortfolio> =
+    {} as Record<PlayerId, PublicMarketPortfolio>;
 
   for (const playerId of input.playerIds) {
     const profileId = setup.profileAssignments[playerId];
@@ -98,6 +104,12 @@ export function createGame(input: CreateGameInput): GameState {
       quarterlyIncomeCents: cents(quarterlyIncome),
       quarterlyLivingExpenseCents: cents(quarterlyLivingExpense),
     };
+
+    const portfolio = createZeroPublicMarketPortfolio();
+    portfolio[STANDARD_V1_OPENING_PUBLIC_MARKET_INSTRUMENT_ID] = cents(
+      finances.startingPublicInvestmentsCents,
+    );
+    publicMarketsByPlayer[playerId] = portfolio;
   }
 
   let currentCounters: DeterministicCounters = {
@@ -229,6 +241,12 @@ export function createGame(input: CreateGameInput): GameState {
     }
   }
 
+  const quarterStartBasis: QuarterStartFinanceBasis = {
+    quarter: 1,
+    cashByPlayer: { ...cashByPlayer },
+    publicMarketsByPlayer: { ...publicMarketsByPlayer },
+  };
+
   const state: GameState = {
     gameId: asGameId(input.gameId),
     modeId: "standard-v1",
@@ -243,6 +261,8 @@ export function createGame(input: CreateGameInput): GameState {
       recurringByPlayer,
       loansById,
       assetsById,
+      publicMarketsByPlayer,
+      quarterStartBasis,
     },
     random: setup.random,
     counters: currentCounters,

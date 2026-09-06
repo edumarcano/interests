@@ -5,6 +5,7 @@ export const RULES_SHARED_VERSION = SHARED_VERSION;
 
 export * from "./compatibility";
 export * from "./loans";
+export * from "./markets";
 export * from "./mode";
 export * from "./objectives";
 export * from "./profiles";

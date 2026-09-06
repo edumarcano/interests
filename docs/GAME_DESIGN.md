@@ -733,7 +733,7 @@ Investigation reveals generated facts; it must not draw a new asset. Reconnectio
 
 Standard V1 starts from one neutral baseline: base rate 4.5%; moderate inflation; healthy economic activity; normal credit. The path becomes stochastic afterward. Boom/recession starts are future scenarios, not independent random advantages at standard setup.
 
-Annual cash yield = max(0.5%, base rate minus 1.5 percentage points). The opening yield is 3.0%. Living expenses rise with inflation; salary changes through career opportunities rather than automatic indexation. Under the approved quarter-start recurring entitlement convention (A1), future cash interest uses quarter-start cash, and future dividends use quarter-start holdings; only the actual public-market and cash-yield settlement mechanics and exact annual-to-quarter conversion remain deferred.
+Annual cash yield = max(0.5%, base rate minus 1.5 percentage points). The opening yield is 3.0% (300 basis points). Cash yield is calculated on an authoritative quarter-start cash basis (`quarterStartBasis.cashByPlayer`) using a nominal annual rate / 4 convention, rounded to safe integer cents via `FinanceDecimal` with `ROUND_HALF_UP` (`principalCents × annualYieldBps / 40000`). Cash spent or earned during a quarter does not retroactively adjust that quarter's entitlement; closing cash after settlement becomes the basis for the subsequent quarter. Living expenses rise with inflation; salary changes through career opportunities rather than automatic indexation.
 
 | **Transaction**                | **Prototype cost**                                           |
 |--------------------------------|--------------------------------------------------------------|
@@ -781,6 +781,8 @@ Business values in this table are equity values under the later explicit enterpr
 | Early-Stage Entrepreneur | \$20k    | \-                     | \$170k              | \-                        | \-                | \$190k        |
 
 VALUATION RECONCILIATION The later business table explicitly made \$260k, \$70k, and \$170k equity values, not gross values before business debt. Consequently net worth is \$280k, \$102k, and \$190k for the Small Business Owner, Self-Employed Operator, and Early-Stage Entrepreneur. The earlier \$220k, \$82k, and \$130k totals are superseded; the stronger ownership baselines must be rechecked for balance.
+
+STANDARD V1 OPENING PUBLIC MARKET ALLOCATION [PROTOTYPE] In Standard V1 opening setup, each profile's starting public investments balance is allocated 100% to the Broad Market Fund (`broad-market-fund`), with 0% allocated to Growth Fund (`growth-fund`) and 0% to Income / Defensive Fund (`income-defensive-fund`). Total opening public market portfolio value exactly reconciles with the profile's opening liquid balance sheet.
 
 ## 15.3 Liquidity and a static four-quarter comparison
 
@@ -894,7 +896,7 @@ Low-sensitivity companies take approximately half the regime effect; high-sensit
 | Recession   | -4.0%                | -6.5%                 | -1.5%                    |
 | Recovery    | +3.5%                | +5.0%                 | +2.0%                    |
 
-Means are quarterly price movements, not guaranteed or total returns. Typical noise was proposed at around +/-4% for Broad, +/-6% for Growth, and +/-2.5% for Defensive. Specify whether these are bounded ranges or volatility measures before coding draws. Dividends are separate cash flows and must not also be embedded in the price-return series. Under the approved quarter-start recurring entitlement convention (A1), future dividend entitlement uses quarter-start share holdings (the actual public-market trading and dividend settlement mechanics remain deferred). No order book or dozens of individual stocks are required for V1.
+Means are quarterly price movements, not guaranteed or total returns. In V1, public-market holdings are represented per player as fungible mark-to-market value balances in integer cents across the three instruments (`broad-market-fund`, `growth-fund`, `income-defensive-fund`), without tracking discrete share counts, unit prices, tax lots, or individual `AssetId` records. Dividends are separate cash flows paid quarterly at nominal annual dividend yield / 4, rounded to integer cents using `FinanceDecimal` with `ROUND_HALF_UP` (`principalCents × annualDividendYieldBps / 40000`), and must not be embedded in price returns. Under the authoritative quarter-start entitlement convention (`quarterStartBasis.publicMarketsByPlayer`), dividend entitlements are fixed at quarter start and are unaffected by mid-quarter transactions. Stochastic price movements, market trading, transaction fees, and macroeconomic regimes remain deferred for future milestones; noise distribution bounds and volatility models remain OPEN. No order book or dozens of individual stocks are required for V1.
 
 ## 16.6 Property valuation movement [PROTOTYPE]
 
