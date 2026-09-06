@@ -1,4 +1,5 @@
 import type {
+  EconomicRegimeId,
   ObjectiveId,
   ProfileId,
   PublicMarketInstrumentId,
@@ -108,6 +109,20 @@ export interface DeterministicCounters {
   readonly settlement: number;
 }
 
+export interface MarketUpdateRecord {
+  readonly quarter: number;
+  readonly regimeUsed: EconomicRegimeId;
+  readonly returnBpsByInstrument: Readonly<
+    Record<PublicMarketInstrumentId, number>
+  >;
+}
+
+export interface EconomyState {
+  readonly currentRegime: EconomicRegimeId;
+  readonly baseRateBps: BasisPoints;
+  readonly lastMarketUpdate: MarketUpdateRecord | null;
+}
+
 export interface GameState {
   readonly gameId: GameId;
   readonly modeId: "standard-v1";
@@ -118,6 +133,7 @@ export interface GameState {
   readonly playerOrder: readonly PlayerId[];
   readonly players: Readonly<Record<PlayerId, PlayerState>>;
   readonly finance: FinanceState;
+  readonly economy: EconomyState;
   readonly random: RandomState;
   readonly counters: DeterministicCounters;
 }

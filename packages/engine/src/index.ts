@@ -2,6 +2,7 @@ import { RULES_SHARED_VERSION, RULES_VERSION } from "@finance-game/rules";
 import { SHARED_VERSION } from "@finance-game/shared";
 
 export * from "./finance/account";
+export * from "./finance/economy";
 export * from "./finance/journal";
 export * from "./finance/markets";
 export * from "./finance/money";

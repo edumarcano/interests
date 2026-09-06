@@ -1,4 +1,5 @@
 import {
+  isEconomicRegimeId,
   isObjectiveId,
   isPairValid,
   isProfileId,
@@ -6,6 +7,7 @@ import {
   PLAYER_LOAN_MAX_TERM_QUARTERS,
   PLAYER_LOAN_MIN_TERM_QUARTERS,
   PUBLIC_MARKET_INSTRUMENT_IDS,
+  STANDARD_V1_OPENING_BASE_RATE_BPS,
   STANDARD_V1_PLAYER_COUNT,
 } from "@finance-game/rules";
 import {
@@ -864,6 +866,98 @@ export function assertGameState(state: GameState): void {
       throw new Error(
         `Game invariant failed: extra unknown player ${key} in quarterStartBasis.publicMarketsByPlayer`,
       );
+    }
+  }
+
+  assertEconomyState(state);
+}
+
+function assertEconomyState(state: GameState): void {
+  const economy = state.economy;
+  if (
+    economy === undefined ||
+    economy === null ||
+    typeof economy !== "object"
+  ) {
+    throw new Error(
+      "Game invariant failed: economy state is missing or invalid",
+    );
+  }
+
+  if (!isEconomicRegimeId(economy.currentRegime)) {
+    throw new Error(
+      `Game invariant failed: currentRegime is invalid: ${String(economy.currentRegime)}`,
+    );
+  }
+
+  if (!Number.isSafeInteger(economy.baseRateBps) || economy.baseRateBps < 0) {
+    throw new Error(
+      `Game invariant failed: baseRateBps must be a non-negative safe integer, got ${String(economy.baseRateBps)}`,
+    );
+  }
+
+  if (economy.baseRateBps !== STANDARD_V1_OPENING_BASE_RATE_BPS) {
+    throw new Error(
+      `Game invariant failed: baseRateBps must equal ${STANDARD_V1_OPENING_BASE_RATE_BPS} in this slice, got ${economy.baseRateBps}`,
+    );
+  }
+
+  if (state.lastSettledQuarter === 0) {
+    if (economy.lastMarketUpdate !== null) {
+      throw new Error(
+        "Game invariant failed: lastMarketUpdate must be null before any quarter has settled",
+      );
+    }
+  } else {
+    if (economy.lastMarketUpdate === null) {
+      throw new Error(
+        `Game invariant failed: lastMarketUpdate must be present after quarter ${state.lastSettledQuarter} has settled`,
+      );
+    }
+    const update = economy.lastMarketUpdate;
+    if (
+      !Number.isSafeInteger(update.quarter) ||
+      update.quarter <= 0 ||
+      update.quarter > state.lastSettledQuarter
+    ) {
+      throw new Error(
+        `Game invariant failed: lastMarketUpdate.quarter must be a positive safe integer <= lastSettledQuarter (${state.lastSettledQuarter}), got ${String(update.quarter)}`,
+      );
+    }
+    if (update.quarter !== state.lastSettledQuarter) {
+      throw new Error(
+        `Game invariant failed: lastMarketUpdate.quarter (${update.quarter}) must equal lastSettledQuarter (${state.lastSettledQuarter}) for settled match`,
+      );
+    }
+    if (!isEconomicRegimeId(update.regimeUsed)) {
+      throw new Error(
+        `Game invariant failed: lastMarketUpdate.regimeUsed is invalid: ${String(update.regimeUsed)}`,
+      );
+    }
+    const returnKeys = Object.keys(update.returnBpsByInstrument);
+    if (returnKeys.length !== PUBLIC_MARKET_INSTRUMENT_IDS.length) {
+      throw new Error(
+        `Game invariant failed: lastMarketUpdate.returnBpsByInstrument must have exactly ${PUBLIC_MARKET_INSTRUMENT_IDS.length} instruments, got ${returnKeys.length}`,
+      );
+    }
+    for (const instrumentId of PUBLIC_MARKET_INSTRUMENT_IDS) {
+      const ret = update.returnBpsByInstrument[instrumentId];
+      if (!Number.isSafeInteger(ret)) {
+        throw new Error(
+          `Game invariant failed: return for ${instrumentId} in lastMarketUpdate must be a safe integer of basis points, got ${String(ret)}`,
+        );
+      }
+    }
+    for (const key of returnKeys) {
+      if (
+        !PUBLIC_MARKET_INSTRUMENT_IDS.includes(
+          key as (typeof PUBLIC_MARKET_INSTRUMENT_IDS)[number],
+        )
+      ) {
+        throw new Error(
+          `Game invariant failed: unknown instrument ${key} in lastMarketUpdate.returnBpsByInstrument`,
+        );
+      }
     }
   }
 }

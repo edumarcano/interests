@@ -275,7 +275,21 @@ Property values, business performance, markets, employment, and opportunity weig
 
 ## 7.2 Hidden regime and momentum
 
-Under the visible indicators, the engine may track a hidden regime such as expansion, overheating, slowdown, recession, and recovery. Players should never see a stage counter. Transitions are probabilistic, and the economy should usually move with momentum rather than redraw itself randomly each round.
+Under the visible indicators, the engine may track a hidden regime such as expansion, overheating, slowdown, recession, and recovery. Players should never see a stage counter. Transitions are probabilistic, and the economy should usually move with momentum rather than redraw itself randomly each round. Standard V1 starts in Expansion.
+
+### Prototype transition matrix [PROTOTYPE]
+
+The Standard V1 engine uses the following approved prototype transition matrix (probabilities in percent, summing to 100 per row). This matrix provides macro momentum and continuity for playtesting and is subject to rebalancing:
+
+| Current regime | Expansion | Overheating | Slowdown | Recession | Recovery |
+|----------------|----------:|------------:|---------:|---------:|---------:|
+| Expansion      | 75%       | 20%         | 5%       | 0%       | 0%       |
+| Overheating    | 10%       | 60%         | 30%      | 0%       | 0%       |
+| Slowdown       | 0%        | 5%          | 60%      | 30%      | 5%       |
+| Recession      | 0%        | 0%          | 10%      | 55%      | 35%      |
+| Recovery       | 45%       | 0%          | 5%       | 0%       | 50%      |
+
+In this slice, the base interest rate remains fixed at 4.5% (450 BPS). Stochastic base-rate movement, inflation indexing, and credit-environment transitions remain deferred.
 
 > **SIMULATION RULE** Next economy = current state + momentum + bounded randomness + event effects. Randomness creates uncertainty; state continuity makes planning meaningful.
 
@@ -896,7 +910,31 @@ Low-sensitivity companies take approximately half the regime effect; high-sensit
 | Recession   | -4.0%                | -6.5%                 | -1.5%                    |
 | Recovery    | +3.5%                | +5.0%                 | +2.0%                    |
 
-Means are quarterly price movements, not guaranteed or total returns. In V1, public-market holdings are represented per player as fungible mark-to-market value balances in integer cents across the three instruments (`broad-market-fund`, `growth-fund`, `income-defensive-fund`), without tracking discrete share counts, unit prices, tax lots, or individual `AssetId` records. Dividends are separate cash flows paid quarterly at nominal annual dividend yield / 4, rounded to integer cents using `FinanceDecimal` with `ROUND_HALF_UP` (`principalCents × annualDividendYieldBps / 40000`), and must not be embedded in price returns. Under the authoritative quarter-start entitlement convention (`quarterStartBasis.publicMarketsByPlayer`), dividend entitlements are fixed at quarter start and are unaffected by mid-quarter transactions. Stochastic price movements, market trading, transaction fees, and macroeconomic regimes remain deferred for future milestones; noise distribution bounds and volatility models remain OPEN. No order book or dozens of individual stocks are required for V1.
+Means are quarterly price movements, not guaranteed or total returns. In V1, public-market holdings are represented per player as fungible mark-to-market value balances in integer cents across the three instruments (`broad-market-fund`, `growth-fund`, `income-defensive-fund`), without tracking discrete share counts, unit prices, tax lots, or individual `AssetId` records.
+
+### Noise model and return formula [PROTOTYPE]
+
+Quarterly public-market price returns are determined by the current economic regime mean plus bounded discrete uniform integer-basis-point noise:
+
+$$\text{returnBps} = \text{regimeMeanBps} + \text{noiseBps}$$
+
+where noise is drawn uniformly and independently per instrument from inclusive integer-BPS intervals:
+- **Broad Market Fund:** $\pm 400$ BPS ($-4.00\%$ to $+4.00\%$)
+- **Growth Fund:** $\pm 600$ BPS ($-6.00\%$ to $+6.00\%$)
+- **Income / Defensive Fund:** $\pm 250$ BPS ($-2.50\%$ to $+2.50\%$)
+
+Every player holding an instrument shares the exact same quarterly return. Draws occur in deterministic sequence (Broad $\to$ Growth $\to$ Defensive $\to$ regime transition) regardless of player portfolio compositions.
+
+### Quarter timing and settlement sequencing
+
+1. **Dividends:** Paid during quarter settlement from the authoritative quarter-start entitlement basis (`quarterStartBasis.publicMarketsByPlayer`) at nominal annual dividend yield / 4, rounded to integer cents using `FinanceDecimal` with `ROUND_HALF_UP` (`principalCents × annualDividendYieldBps / 40000`). Dividends are cash flows and do not alter fund values.
+2. **Price movement:** Applied at quarter close to **current** holdings (`finance.publicMarketsByPlayer`), revaluing them mark-to-market:
+   $$\text{newValueCents} = \text{round}\left(\frac{\text{currentValueCents} \times (10000 + \text{returnBps})}{10000}\right)$$
+   Price movements change portfolio balances directly and emit no cash journal entries.
+3. **Economy transition:** Transitions the authoritative regime to the next-quarter regime via the prototype matrix.
+4. **Next-quarter basis roll:** Captures the revalued closing holdings into `quarterStartBasis` for Quarter $N+1$.
+
+Public-market trading, transaction fees, order books, individual stocks, property revaluation, and business performance movement remain deferred.
 
 ## 16.6 Property valuation movement [PROTOTYPE]
 
