@@ -275,6 +275,7 @@ export function createGame(input: CreateGameInput): GameState {
     random: setup.random,
     counters: currentCounters,
     activeTransaction: null,
+    opportunitiesById: {},
   };
 
   assertGameState(state);

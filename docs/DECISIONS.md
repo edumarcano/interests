@@ -193,5 +193,55 @@ Establish the initial atomic cash asset-sale transaction foundation in `@finance
    - `settleQuarter` rejects with `"ACTIVE_TRANSACTION"` whenever `state.activeTransaction !== null`, preserving state, revision, counters, RNG, and journal entries. Transactions must resolve before round settlement executes.
 
 8. **Deferred Milestone 4 Scope & OPEN Questions:**
-   - Opportunities, investigation, focus weighting, financing offers, auctions, counter-offers, transaction expiry, fees, and taxes remain deferred.
-   - This milestone does not resolve OPEN game-design questions A4 (business distributions), A5 (debt default/collateral), A6 (market fees/expiry), or G1 (spotlight sequencing).
+    - Opportunities, investigation, focus weighting, financing offers, auctions, counter-offers, transaction expiry, fees, and taxes remain deferred.
+    - This milestone does not resolve OPEN game-design questions A4 (business distributions), A5 (debt default/collateral), A6 (market fees/expiry), or G1 (spotlight sequencing).
+
+## ARCH-027 - Private opportunity lifecycle and pregenerated diligence facts
+
+**Status:** Accepted  
+**Date:** September 6, 2026
+
+Establish the first private business-purchase opportunity lifecycle in `@finance-game/engine` as the next narrow vertical slice of Architecture Milestone 4:
+
+1. **Authoritative Normalized Opportunity Registry (`opportunitiesById`):**
+   - Model `opportunitiesById: Record<OpportunityId, Opportunity>` at the top level of `GameState`, initialized to `{}` for new games.
+   - Opportunities are stored in a single normalized match registry rather than nested or duplicated inside individual `PlayerState` records.
+
+2. **First Supported Private Business Opportunity Kind (`private-business-purchase`):**
+   - Model `PrivateBusinessPurchaseOpportunity` representing private access by a target buyer to purchase 100% sole ownership of an existing debt-free business from another player at a fixed asking price.
+   - Pre-conditions match the PR #13 transaction capability (debt-free business, sole 100% seller ownership, positive safe-integer price). Affordability is deliberately not required for opportunity discovery.
+
+3. **Deterministic Trusted Creation & RNG Boundary:**
+   - Add trusted domain primitive `createPrivateBusinessPurchaseOpportunity()`.
+   - Successful creation advances `counters.opportunity` via `nextDeterministicId("opportunity", counters)` and revision by 1.
+   - Discovery consumes zero gameplay RNG (`drawBoundedInt` is not called). Selection, weighting, and focus tables remain a future opportunity-selection responsibility.
+   - Preflight counter exhaustion returns typed `OPPORTUNITY_ID_EXHAUSTED` atomically without throwing.
+
+4. **Pregenerated Due-Diligence Snapshot:**
+   - At opportunity discovery, snapshot `annualRevenueCents`, `annualOperatingProfitCents`, `enterpriseValueCents`, and `debtPrincipalCents` from the underlying business into `investigation.facts`.
+   - Subsequent investigation merely discloses this stored snapshot; it never regenerates facts from the live asset or rerolls values.
+
+5. **Target-Only Private Projection (`getOpportunityView`):**
+   - Private opportunities are completely concealed from unauthorized players (seller and third parties receive typed `NOT_FOUND_OR_NOT_VISIBLE`).
+   - Prior to investigation, the target player's view contains basic opportunity terms (seller, asset, asking price, status) while diligence facts remain `null`.
+   - After investigation, the view reveals the exact stored due-diligence snapshot.
+
+6. **Optional Zero-Cost Investigation (`investigatePrivateBusinessPurchaseOpportunity`):**
+   - Target player may investigate to reveal diligence facts (`investigated: false -> true`).
+   - Investigation consumes zero cash, zero RNG, and zero IDs, advancing revision by 1.
+   - Repeat attempts reject atomically with `ALREADY_INVESTIGATED`.
+   - Investigation is optional: an uninvestigated opportunity may still be pursued directly.
+
+7. **Pursuit via PR #13 Transaction Kernel Delegation (`pursuePrivateBusinessPurchaseOpportunity`):**
+   - Pursuit validates opportunity availability and target player identity, then delegates legality and execution directly to `openCashBusinessPurchaseTransaction()`.
+   - If the transaction kernel rejects (insufficient cash, active transaction collision, stale ownership, encumbered debt), the rejection is surfaced with `{ code: "TRANSACTION_REJECTED", transactionCode }`, and the opportunity remains `available` with zero state/counter/revision changes.
+   - Upon successful transaction opening, opportunity status transitions to `"pursued"` and stores `relatedTransactionId` as a single atomic transition (revision is not incremented a second time).
+   - Once pursued, the opportunity cannot be pursued again (one-shot pursuit in this slice).
+
+8. **Historical State Invariants & Settlement Independence:**
+   - Completed ownership transfer does not invalidate historical opportunity records; `assertGameState` allows past seller/business references.
+   - The presence of available or pursued opportunities does not block quarterly settlement. Active transactions remain the sole settlement-blocking mechanism.
+
+9. **Deferred Scope & OPEN Boundaries:**
+   - Random opportunity selection, eligibility pools, focus weighting, spotlight sequencing (G1), paid diligence, multiple diligence tiers, financing offers, auctions, counteroffers, transaction retry policies, and opportunity expiry (A6) remain explicitly deferred.
+   - This slice does not resolve OPEN decisions A4, A5, A6, or G1, and does not claim Milestone 4 complete.

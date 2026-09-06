@@ -166,6 +166,14 @@ export function assertGameState(state: GameState): void {
     );
   }
   if (
+    !Number.isSafeInteger(state.counters.opportunity) ||
+    state.counters.opportunity < 0
+  ) {
+    throw new Error(
+      "Game invariant failed: opportunity counter must be a non-negative safe integer",
+    );
+  }
+  if (
     !Number.isSafeInteger(state.counters.transaction) ||
     state.counters.transaction < 0
   ) {
@@ -878,6 +886,7 @@ export function assertGameState(state: GameState): void {
   }
 
   assertEconomyState(state);
+  assertOpportunitiesState(state);
 }
 
 function assertEconomyState(state: GameState): void {
@@ -1078,6 +1087,170 @@ function assertEconomyState(state: GameState): void {
       throw new Error(
         `Game invariant failed: createdQuarter must be a positive safe integer, got ${String(tx.createdQuarter)}`,
       );
+    }
+  }
+}
+
+function assertOpportunitiesState(state: GameState): void {
+  if (
+    state.opportunitiesById === undefined ||
+    state.opportunitiesById === null ||
+    typeof state.opportunitiesById !== "object"
+  ) {
+    throw new Error(
+      "Game invariant failed: opportunitiesById map is missing or invalid",
+    );
+  }
+
+  for (const [opportunityKey, opportunity] of Object.entries(
+    state.opportunitiesById,
+  )) {
+    if (
+      opportunity === undefined ||
+      opportunity === null ||
+      typeof opportunity !== "object"
+    ) {
+      throw new Error(
+        `Game invariant failed: opportunity ${opportunityKey} is invalid`,
+      );
+    }
+    if (opportunityKey !== opportunity.id) {
+      throw new Error(
+        `Game invariant failed: opportunity key ${opportunityKey} does not match opportunity.id ${opportunity.id}`,
+      );
+    }
+    if (typeof opportunity.id !== "string" || opportunity.id.trim() === "") {
+      throw new Error(
+        "Game invariant failed: opportunity.id must be a non-empty string",
+      );
+    }
+    if (opportunity.kind !== "private-business-purchase") {
+      throw new Error(
+        `Game invariant failed: unrecognized opportunity kind ${String((opportunity as { kind: unknown }).kind)}`,
+      );
+    }
+    if (opportunity.access !== "private") {
+      throw new Error(
+        `Game invariant failed: opportunity access must be private, got ${String(opportunity.access)}`,
+      );
+    }
+    if (!state.players[opportunity.targetPlayerId]) {
+      throw new Error(
+        `Game invariant failed: target player ${opportunity.targetPlayerId} does not exist`,
+      );
+    }
+    if (!state.players[opportunity.sellerPlayerId]) {
+      throw new Error(
+        `Game invariant failed: seller player ${opportunity.sellerPlayerId} does not exist`,
+      );
+    }
+    if (opportunity.targetPlayerId === opportunity.sellerPlayerId) {
+      throw new Error(
+        "Game invariant failed: target and seller must be distinct players",
+      );
+    }
+    const asset = state.finance.assetsById[opportunity.assetId];
+    if (!asset) {
+      throw new Error(
+        `Game invariant failed: referenced asset ${opportunity.assetId} does not exist`,
+      );
+    }
+    if (asset.kind !== "business") {
+      throw new Error(
+        `Game invariant failed: referenced asset must be a business, got ${asset.kind}`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(opportunity.askingPriceCents) ||
+      opportunity.askingPriceCents <= 0
+    ) {
+      throw new Error(
+        "Game invariant failed: askingPriceCents must be a positive safe integer",
+      );
+    }
+    if (
+      !Number.isSafeInteger(opportunity.createdQuarter) ||
+      opportunity.createdQuarter <= 0 ||
+      opportunity.createdQuarter > state.currentQuarter
+    ) {
+      throw new Error(
+        `Game invariant failed: createdQuarter must be a positive safe integer <= currentQuarter (${state.currentQuarter}), got ${String(opportunity.createdQuarter)}`,
+      );
+    }
+    if (
+      !opportunity.investigation ||
+      typeof opportunity.investigation !== "object"
+    ) {
+      throw new Error(
+        "Game invariant failed: opportunity.investigation must be an object",
+      );
+    }
+    if (typeof opportunity.investigation.investigated !== "boolean") {
+      throw new Error(
+        "Game invariant failed: opportunity.investigation.investigated must be a boolean",
+      );
+    }
+    const facts = opportunity.investigation.facts;
+    if (!facts || typeof facts !== "object") {
+      throw new Error(
+        "Game invariant failed: opportunity.investigation.facts must be an object",
+      );
+    }
+    if (
+      !Number.isSafeInteger(facts.annualRevenueCents) ||
+      facts.annualRevenueCents < 0
+    ) {
+      throw new Error(
+        `Game invariant failed: diligence annualRevenueCents must be a non-negative safe integer, got ${String(facts.annualRevenueCents)}`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(facts.annualOperatingProfitCents) ||
+      facts.annualOperatingProfitCents < 0
+    ) {
+      throw new Error(
+        `Game invariant failed: diligence annualOperatingProfitCents must be a non-negative safe integer, got ${String(facts.annualOperatingProfitCents)}`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(facts.enterpriseValueCents) ||
+      facts.enterpriseValueCents < 0
+    ) {
+      throw new Error(
+        `Game invariant failed: diligence enterpriseValueCents must be a non-negative safe integer, got ${String(facts.enterpriseValueCents)}`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(facts.debtPrincipalCents) ||
+      facts.debtPrincipalCents < 0
+    ) {
+      throw new Error(
+        `Game invariant failed: diligence debtPrincipalCents must be a non-negative safe integer, got ${String(facts.debtPrincipalCents)}`,
+      );
+    }
+    if (
+      opportunity.status !== "available" &&
+      opportunity.status !== "pursued"
+    ) {
+      throw new Error(
+        `Game invariant failed: unrecognized opportunity status ${String(opportunity.status)}`,
+      );
+    }
+    if (opportunity.status === "available") {
+      if (opportunity.relatedTransactionId !== undefined) {
+        throw new Error(
+          "Game invariant failed: available opportunity must not have relatedTransactionId",
+        );
+      }
+    } else if (opportunity.status === "pursued") {
+      if (
+        typeof opportunity.relatedTransactionId !== "string" ||
+        opportunity.relatedTransactionId.trim() === ""
+      ) {
+        throw new Error(
+          "Game invariant failed: pursued opportunity must have a non-empty relatedTransactionId",
+        );
+      }
     }
   }
 }
