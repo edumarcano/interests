@@ -1,5 +1,4 @@
 import {
-  ECONOMIC_REGIME_IDS,
   PUBLIC_MARKET_INSTRUMENT_IDS,
   PUBLIC_MARKET_INSTRUMENTS,
   STANDARD_V1_OPENING_BASE_RATE_BPS,
@@ -1245,38 +1244,54 @@ describe("deterministic market-path integration regression (Section 25)", () => 
     expect(resultA.ok).toBe(true);
     if (!resultA.ok) return;
 
+    // Lock exact literal expectations for this fixed seed
+    expect(resultA.state.economy.lastMarketUpdate).toEqual({
+      quarter: 1,
+      regimeUsed: "expansion",
+      returnBpsByInstrument: {
+        "broad-market-fund": 45,
+        "growth-fund": -139,
+        "income-defensive-fund": 356,
+      },
+    });
+
+    expect(resultA.state.economy.currentRegime).toBe("expansion");
+
+    expect(resultA.state.random).toEqual({
+      algorithm: "xorshift32-v2",
+      state: 1756619055,
+    });
+
+    expect(resultA.state.finance.publicMarketsByPlayer).toEqual({
+      [p1]: {
+        "broad-market-fund": cents(1_004_500),
+        "growth-fund": cents(0),
+        "income-defensive-fund": cents(0),
+      },
+      [p2]: {
+        "broad-market-fund": cents(2_009_000),
+        "growth-fund": cents(0),
+        "income-defensive-fund": cents(0),
+      },
+      [p3]: {
+        "broad-market-fund": cents(0),
+        "growth-fund": cents(0),
+        "income-defensive-fund": cents(0),
+      },
+      [p4]: {
+        "broad-market-fund": cents(0),
+        "growth-fund": cents(0),
+        "income-defensive-fund": cents(0),
+      },
+    });
+
+    // Recreate same game from same input and prove byte-for-byte equality
     const gameB = createReadyGame(input);
     const resultB = settleQuarter(gameB, { quarter: 1 });
     expect(resultB.ok).toBe(true);
     if (!resultB.ok) return;
 
-    // Both must be byte-for-byte identical
     expect(resultA.state).toEqual(resultB.state);
-
-    const update = resultA.state.economy.lastMarketUpdate;
-    expect(update).toBeDefined();
-    if (!update) return;
-
-    expect(update.quarter).toBe(1);
-    expect(update.regimeUsed).toBe("expansion");
-    expect(
-      Number.isSafeInteger(update.returnBpsByInstrument["broad-market-fund"]),
-    ).toBe(true);
-    expect(
-      Number.isSafeInteger(update.returnBpsByInstrument["growth-fund"]),
-    ).toBe(true);
-    expect(
-      Number.isSafeInteger(
-        update.returnBpsByInstrument["income-defensive-fund"],
-      ),
-    ).toBe(true);
-    expect(ECONOMIC_REGIME_IDS).toContain(resultA.state.economy.currentRegime);
-
-    // Lock exact values produced by the deterministic engine
-    expect(update).toEqual(resultB.state.economy.lastMarketUpdate);
-    expect(resultA.state.finance.publicMarketsByPlayer).toEqual(
-      resultB.state.finance.publicMarketsByPlayer,
-    );
   });
 });
 
@@ -1393,21 +1408,33 @@ describe("zero-holding path regression (Section 28)", () => {
     };
 
     const initialRandom = zeroState.random;
+    const initialRegime = zeroState.economy.currentRegime;
+
+    // Reference cycle consuming exactly the 4 economy draws
+    const expectedCycle = generateQuarterMarketUpdate({
+      regime: initialRegime,
+      random: initialRandom,
+    });
+
     const result = settleQuarter(zeroState, { quarter: 1 });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    // Market update still generated with 3 returns
+    // Market update exactly matches the single 4-draw market cycle
     const zeroUpdate = result.state.economy.lastMarketUpdate;
     expect(zeroUpdate).toBeDefined();
     if (!zeroUpdate) return;
-    expect(Object.keys(zeroUpdate.returnBpsByInstrument)).toHaveLength(3);
+    expect(zeroUpdate.quarter).toBe(1);
+    expect(zeroUpdate.regimeUsed).toBe(expectedCycle.regimeUsed);
+    expect(zeroUpdate.returnBpsByInstrument).toEqual(
+      expectedCycle.returnBpsByInstrument,
+    );
 
-    // Economy still transitioned
-    expect(result.state.economy.currentRegime).toBeDefined();
+    // Economy regime after settlement exactly matches the transition draw
+    expect(result.state.economy.currentRegime).toBe(expectedCycle.nextRegime);
 
-    // RNG advanced by exactly the 4 economy draws
-    expect(result.state.random.state).not.toBe(initialRandom.state);
+    // RNG state exactly matches the 4-draw cycle endpoint (proving no extra economy draws)
+    expect(result.state.random).toEqual(expectedCycle.nextRandom);
 
     // Portfolios remain 0
     for (const pid of playerIds) {
