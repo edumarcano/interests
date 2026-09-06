@@ -124,7 +124,7 @@ describe("deterministic kernel", () => {
     const first = nextDeterministicId("asset", state.counters);
     const second = nextDeterministicId("asset", state.counters);
     expect(first).toEqual(second);
-    expect(first.id).toBe("asset-1");
+    expect(first.id).toBe(`asset-${state.counters.asset + 1}`);
 
     const j1 = nextDeterministicId("journal", state.counters);
     const j2 = nextDeterministicId("journal", state.counters);

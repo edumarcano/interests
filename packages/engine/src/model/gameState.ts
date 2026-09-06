@@ -14,6 +14,11 @@ export interface PlayerState {
   readonly selectedObjectiveId: ObjectiveId | null;
 }
 
+export interface RecurringPersonalFinance {
+  readonly quarterlyIncomeCents: Cents;
+  readonly quarterlyLivingExpenseCents: Cents;
+}
+
 export interface PlayerLoan {
   readonly id: LoanId;
   readonly kind: "player-loan";
@@ -25,6 +30,23 @@ export interface PlayerLoan {
   readonly termQuarters: number;
   readonly installmentsPaid: number;
 }
+
+export type LegacyBankLoanPurpose = "personal-debt" | "property-mortgage";
+
+export interface LegacyBankLoan {
+  readonly id: LoanId;
+  readonly kind: "legacy-bank-loan";
+  readonly borrowerPlayerId: PlayerId;
+  readonly purpose: LegacyBankLoanPurpose;
+  readonly originalPrincipalCents: Cents;
+  readonly outstandingPrincipalCents: Cents;
+  readonly annualRateBps: BasisPoints;
+  readonly scheduledQuarterlyPaymentCents: Cents;
+  readonly paymentsApplied: number;
+  readonly relatedAssetId?: AssetId;
+}
+
+export type Loan = PlayerLoan | LegacyBankLoan;
 
 export interface PropertyAsset {
   readonly id: AssetId;
@@ -42,6 +64,7 @@ export interface BusinessAsset {
   readonly annualRevenueCents: Cents;
   readonly annualOperatingProfitCents: Cents;
   readonly enterpriseValueCents: Cents;
+  readonly debtPrincipalCents: Cents;
   readonly ownershipByPlayerPpm: Readonly<Record<PlayerId, OwnershipPpm>>;
 }
 
@@ -49,7 +72,10 @@ export type Asset = PropertyAsset | BusinessAsset;
 
 export interface FinanceState {
   readonly cashByPlayer: Readonly<Record<PlayerId, Cents>>;
-  readonly loansById: Readonly<Record<LoanId, PlayerLoan>>;
+  readonly recurringByPlayer: Readonly<
+    Record<PlayerId, RecurringPersonalFinance>
+  >;
+  readonly loansById: Readonly<Record<LoanId, Loan>>;
   readonly assetsById: Readonly<Record<AssetId, Asset>>;
 }
 

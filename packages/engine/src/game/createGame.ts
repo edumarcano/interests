@@ -1,9 +1,27 @@
-import { PROFILES, STANDARD_V1_PLAYER_COUNT } from "@finance-game/rules";
-import { asGameId, type PlayerId } from "@finance-game/shared";
-import { type Cents, cents } from "../finance/money";
+import {
+  OPENING_PERSONAL_DEBT_APR_BPS,
+  PROFILES,
+  STANDARD_V1_PLAYER_COUNT,
+} from "@finance-game/rules";
+import {
+  type AssetId,
+  asGameId,
+  type LoanId,
+  type PlayerId,
+} from "@finance-game/shared";
+import { basisPoints, type Cents, cents } from "../finance/money";
+import { ownershipPpm } from "../finance/ownership";
 import { assertGameState } from "../invariants/assertGameState";
-import type { GameState, PlayerState } from "../model/gameState";
+import type {
+  Asset,
+  DeterministicCounters,
+  GameState,
+  Loan,
+  PlayerState,
+  RecurringPersonalFinance,
+} from "../model/gameState";
 import { createRandomState } from "../random/prng";
+import { nextDeterministicId } from "./deterministicIds";
 import { generateDeterministicSetup } from "./setup";
 
 export interface CreateGameInput {
@@ -34,6 +52,8 @@ export function createGame(input: CreateGameInput): GameState {
     PlayerState
   >;
   const cashByPlayer: Record<PlayerId, Cents> = {} as Record<PlayerId, Cents>;
+  const recurringByPlayer: Record<PlayerId, RecurringPersonalFinance> =
+    {} as Record<PlayerId, RecurringPersonalFinance>;
 
   for (const playerId of input.playerIds) {
     const profileId = setup.profileAssignments[playerId];
@@ -55,6 +75,158 @@ export function createGame(input: CreateGameInput): GameState {
       selectedObjectiveId: null,
     };
     cashByPlayer[playerId] = cents(profileDef.startingCashCents);
+
+    const finances = profileDef.startingFinances;
+    const quarterlyIncome = finances.annualIncomeCents / 4;
+    const quarterlyLivingExpense = finances.monthlyLivingExpenseCents * 3;
+
+    if (!Number.isSafeInteger(quarterlyIncome) || quarterlyIncome < 0) {
+      throw new RangeError(
+        `Quarterly income must be a non-negative safe integer for profile ${profileId}`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(quarterlyLivingExpense) ||
+      quarterlyLivingExpense < 0
+    ) {
+      throw new RangeError(
+        `Quarterly living expense must be a non-negative safe integer for profile ${profileId}`,
+      );
+    }
+
+    recurringByPlayer[playerId] = {
+      quarterlyIncomeCents: cents(quarterlyIncome),
+      quarterlyLivingExpenseCents: cents(quarterlyLivingExpense),
+    };
+  }
+
+  let currentCounters: DeterministicCounters = {
+    asset: 0,
+    contract: 0,
+    loan: 0,
+    opportunity: 0,
+    journal: 0,
+    settlement: 0,
+  };
+
+  // 1. Starting Assets creation in canonical playerOrder
+  const assetsById: Record<AssetId, Asset> = {};
+  const propertyAssetIdByPlayer: Partial<Record<PlayerId, AssetId>> = {};
+
+  for (const playerId of input.playerIds) {
+    const profileId = setup.profileAssignments[playerId];
+    if (profileId === undefined) continue;
+    const profileDef = PROFILES[profileId];
+    if (profileDef === undefined) continue;
+
+    const { propertyFixture, businessFixture } = profileDef.startingFinances;
+
+    if (propertyFixture !== undefined) {
+      const nextAsset = nextDeterministicId("asset", currentCounters);
+      currentCounters = nextAsset.counters;
+      const assetId = nextAsset.id;
+      propertyAssetIdByPlayer[playerId] = assetId;
+
+      assetsById[assetId] = {
+        id: assetId,
+        kind: "property",
+        marketValueCents: cents(propertyFixture.marketValueCents),
+        scheduledQuarterlyRentCents: cents(
+          propertyFixture.scheduledQuarterlyRentCents,
+        ),
+        occupancyBps: basisPoints(propertyFixture.occupancyBps),
+        operatingExpenseRatioBps: basisPoints(
+          propertyFixture.operatingExpenseRatioBps,
+        ),
+        ownershipByPlayerPpm: {
+          [playerId]: ownershipPpm(propertyFixture.ownershipPpm),
+        },
+      };
+    }
+
+    if (businessFixture !== undefined) {
+      const nextAsset = nextDeterministicId("asset", currentCounters);
+      currentCounters = nextAsset.counters;
+      const assetId = nextAsset.id;
+
+      assetsById[assetId] = {
+        id: assetId,
+        kind: "business",
+        annualRevenueCents: cents(businessFixture.annualRevenueCents),
+        annualOperatingProfitCents: cents(
+          businessFixture.annualOperatingProfitCents,
+        ),
+        enterpriseValueCents: cents(businessFixture.enterpriseValueCents),
+        debtPrincipalCents: cents(businessFixture.debtPrincipalCents),
+        ownershipByPlayerPpm: {
+          [playerId]: ownershipPpm(businessFixture.ownershipPpm),
+        },
+      };
+    }
+  }
+
+  // 2. Starting Legacy Bank Loans creation in canonical playerOrder
+  const loansById: Record<LoanId, Loan> = {};
+
+  for (const playerId of input.playerIds) {
+    const profileId = setup.profileAssignments[playerId];
+    if (profileId === undefined) continue;
+    const profileDef = PROFILES[profileId];
+    if (profileDef === undefined) continue;
+
+    const finances = profileDef.startingFinances;
+
+    if (finances.openingPersonalDebtPrincipalCents > 0) {
+      const nextLoan = nextDeterministicId("loan", currentCounters);
+      currentCounters = nextLoan.counters;
+      const loanId = nextLoan.id;
+      const quarterlyPayment = finances.monthlyPersonalDebtPaymentCents * 3;
+
+      loansById[loanId] = {
+        id: loanId,
+        kind: "legacy-bank-loan",
+        borrowerPlayerId: playerId,
+        purpose: "personal-debt",
+        originalPrincipalCents: cents(
+          finances.openingPersonalDebtPrincipalCents,
+        ),
+        outstandingPrincipalCents: cents(
+          finances.openingPersonalDebtPrincipalCents,
+        ),
+        annualRateBps: basisPoints(OPENING_PERSONAL_DEBT_APR_BPS),
+        scheduledQuarterlyPaymentCents: cents(quarterlyPayment),
+        paymentsApplied: 0,
+      };
+    }
+
+    if (finances.mortgageFixture !== undefined) {
+      const relatedPropertyId = propertyAssetIdByPlayer[playerId];
+      if (relatedPropertyId === undefined) {
+        throw new Error(
+          `Setup invariant failed: property mortgage for player ${playerId} has no matching property asset`,
+        );
+      }
+
+      const nextLoan = nextDeterministicId("loan", currentCounters);
+      currentCounters = nextLoan.counters;
+      const loanId = nextLoan.id;
+      const mFixture = finances.mortgageFixture;
+
+      loansById[loanId] = {
+        id: loanId,
+        kind: "legacy-bank-loan",
+        borrowerPlayerId: playerId,
+        purpose: "property-mortgage",
+        originalPrincipalCents: cents(mFixture.openingPrincipalCents),
+        outstandingPrincipalCents: cents(mFixture.openingPrincipalCents),
+        annualRateBps: basisPoints(mFixture.annualRateBps),
+        scheduledQuarterlyPaymentCents: cents(
+          mFixture.scheduledQuarterlyPaymentCents,
+        ),
+        paymentsApplied: 0,
+        relatedAssetId: relatedPropertyId,
+      };
+    }
   }
 
   const state: GameState = {
@@ -68,18 +240,12 @@ export function createGame(input: CreateGameInput): GameState {
     players,
     finance: {
       cashByPlayer,
-      loansById: {},
-      assetsById: {},
+      recurringByPlayer,
+      loansById,
+      assetsById,
     },
     random: setup.random,
-    counters: {
-      asset: 0,
-      contract: 0,
-      loan: 0,
-      opportunity: 0,
-      journal: 0,
-      settlement: 0,
-    },
+    counters: currentCounters,
   };
 
   assertGameState(state);

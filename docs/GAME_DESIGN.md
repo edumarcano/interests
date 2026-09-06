@@ -733,7 +733,7 @@ Investigation reveals generated facts; it must not draw a new asset. Reconnectio
 
 Standard V1 starts from one neutral baseline: base rate 4.5%; moderate inflation; healthy economic activity; normal credit. The path becomes stochastic afterward. Boom/recession starts are future scenarios, not independent random advantages at standard setup.
 
-Annual cash yield = max(0.5%, base rate minus 1.5 percentage points). The opening yield is 3.0%. Living expenses rise with inflation; salary changes through career opportunities rather than automatic indexation. The cash-interest balance basis and exact annual-to-quarter conversion remain implementation decisions.
+Annual cash yield = max(0.5%, base rate minus 1.5 percentage points). The opening yield is 3.0%. Living expenses rise with inflation; salary changes through career opportunities rather than automatic indexation. Under the approved quarter-start recurring entitlement convention (A1), future cash interest uses quarter-start cash, and future dividends use quarter-start holdings; only the actual public-market and cash-yield settlement mechanics and exact annual-to-quarter conversion remain deferred.
 
 | **Transaction**                | **Prototype cost**                                           |
 |--------------------------------|--------------------------------------------------------------|
@@ -763,7 +763,7 @@ Each baseline is a fixture for the first simulation, not a proven equal-strength
 
 Core quarterly surplus = annual player income / 4 - three months of living costs - three months of personal debt payments, plus net property distributions where present. Property Starter includes a target \$500/month rental contribution. Business income is not another salary added on top of the business distribution.
 
-DERIVED PAYMENT FIXTURES Personal debt payments above are the amounts implied by the previously selected surplus targets. Interest rates and remaining terms for those opening debts have not yet been selected. Business debt schedules and owner-distribution policy must also be reconciled before running full simulations.
+APPROVED OPENING DEBT & OWNER INCOME [PROTOTYPE] Opening personal debts are grandfathered legacy bank debts with fixed nominal APR of 8.00% (quarterly periodic rate of 2.00%). The quarterly scheduled payment is exactly 3 × the monthly personal debt payment in the table above. Payments follow fixed-payment amortization with HALF_UP interest rounding and final-period cleanup. For the three starting businesses, the annual spendable income figures above are authoritative for quarter settlement; no additional business operating distributions or separate business debt amortizations occur in Quarter 1 to prevent double-counting income.
 
 ## 15.2 Opening balance sheets [PROTOTYPE]
 
@@ -838,15 +838,17 @@ Good condition tends toward lower costs. Average condition increases maintenance
 
 SCALE Tier boundaries are generator bands, not mandatory definitions of spotlight intensity or objective finales. Values above the displayed upper ranges need explicit content bounds; "+" is not an unbounded random distribution.
 
-## 16.2 Property Starter fixture and arithmetic check
+## 16.2 Property Starter fixture and arithmetic check [PROTOTYPE]
 
-Target fixture: value \$330,000; mortgage \$255,000; scheduled rent about \$3,150/month; occupancy 95%; operating-expense ratio 35%; existing mortgage rate about 5.5%; target net cash flow about \$500/month.
+The Property Starter's opening mortgage is an explicitly grandfathered legacy loan. Opening property: value \$330,000, scheduled rent \$3,150/month (\$9,450/quarter), occupancy 95%, operating-expense ratio 35%. Opening mortgage: principal \$255,000, fixed nominal APR 5.50%, scheduled quarterly payment \$4,335.37.
 
-These inputs give monthly effective rent \$2,992.50, operating expenses \$1,047.38, and NOI \$1,945.13. A \$500 cash-flow target implies about \$1,445.13 monthly debt service. Mortgage amortization is not yet specified; this target cannot be treated as an exact result until that schedule is set. The opening LTV is 77.27%, above the new-loan normal limit, so existing-loan treatment must be explicit.
+Opening LTV is \$255,000 / \$330,000 = 77.27%, accepted as an existing legacy loan without rerun underwriting. Under approved rounding: quarterly scheduled rent is \$9,450.00; effective rent is \$8,977.50; operating expenses are \$3,142.13; NOI is \$5,835.37. Settle Quarter 1 mortgage debt service of \$4,335.37 (\$3,506.25 interest, \$829.12 principal; closing principal \$254,170.88). Net property contribution is \$5,835.37 - \$4,335.37 = \$1,500.00/quarter, exactly reproducing the intended \$500/month rental contribution.
 
 ## 16.3 Business accounting and valuation [PROTOTYPE]
 
 Businesses share revenue, operating margin/profit, debt, value, economic sensitivity, capacity, and ownership. Operating profit = revenue x operating margin. Enterprise value = normalized annual operating profit x valuation multiple. Equity value = enterprise value - business debt. For an owner-dependent practice, use the specified owner-earnings valuation basis instead.
+
+For starting businesses in Quarter 1, business debt is balance-sheet-only and derives opening equity; it does not amortize in Quarter 1, and no separate business operating profit distributions occur (owner income is authoritative spendable income). Retained earnings, future distributions, entity cash, and business debt schedules remain open.
 
 | **Business type**        | **Operating margin**                     | **Valuation basis**                      |
 |--------------------------|------------------------------------------|------------------------------------------|
@@ -862,7 +864,7 @@ Owner-dependent earnings compensate the player's labor. They are not automatical
 | Self-Employed Operator   | \$155k             | \$100k                           | \$90k                | \$20k    | \$70k      |
 | Early-Stage Entrepreneur | \$300k             | \$54k                            | \$230k               | \$60k    | \$170k     |
 
-These are approximate fixtures. The practice is valued on owner earnings, not as a scalable company. The \$230k growth-business valuation is approximately 4.26x its \$54k profit. Opening owner-income targets of \$68k, \$96k, and \$45k imply \$12k, \$4k, and \$9k respectively remain for asset debt service and any retained cash. Do not force these targets through an incompatible new-acquisition loan schedule.
+These are approximate fixtures. The practice is valued on owner earnings, not as a scalable company. The \$230k growth-business valuation is approximately 4.26x its \$54k profit. Opening owner-income targets of \$68k, \$96k, and \$45k are authoritative spendable income for opening quarter settlement; business operating profit is not distributed separately to avoid double counting. Opening business debt is balance-sheet-only and does not amortize in Quarter 1.
 
 ## 16.4 Business performance by economy [PROTOTYPE]
 
@@ -892,7 +894,7 @@ Low-sensitivity companies take approximately half the regime effect; high-sensit
 | Recession   | -4.0%                | -6.5%                 | -1.5%                    |
 | Recovery    | +3.5%                | +5.0%                 | +2.0%                    |
 
-Means are quarterly price movements, not guaranteed or total returns. Typical noise was proposed at around +/-4% for Broad, +/-6% for Growth, and +/-2.5% for Defensive. Specify whether these are bounded ranges or volatility measures before coding draws. Dividends are separate cash flows and must not also be embedded in the price-return series. No order book or dozens of individual stocks are required for V1.
+Means are quarterly price movements, not guaranteed or total returns. Typical noise was proposed at around +/-4% for Broad, +/-6% for Growth, and +/-2.5% for Defensive. Specify whether these are bounded ranges or volatility measures before coding draws. Dividends are separate cash flows and must not also be embedded in the price-return series. Under the approved quarter-start recurring entitlement convention (A1), future dividend entitlement uses quarter-start share holdings (the actual public-market trading and dividend settlement mechanics remain deferred). No order book or dozens of individual stocks are required for V1.
 
 ## 16.6 Property valuation movement [PROTOTYPE]
 
@@ -945,7 +947,7 @@ Variable property rate = current base rate + borrower spread. Fixed property rat
 
 LTV = property loan balance / qualifying property value. DSCR = qualifying annual NOI / annual debt service. Both constraints apply: a nominal 75% loan still fails when income coverage is too low. The lead buyer's credit sets primary bank terms; investor equity helps fund the acquisition but does not create a multi-borrower credit engine in V1.
 
-The proposed post-closing reserve is one quarter of the lead buyer's living costs plus one quarter of property debt service. The scope for existing properties, property operating cash, and partner funds must be specified. Starting loans may reflect earlier terms, but whether the 77.27% Property Starter mortgage is explicitly grandfathered remains a required fixture decision.
+The proposed post-closing reserve is one quarter of the lead buyer's living costs plus one quarter of property debt service. The scope for existing properties, property operating cash, and partner funds must be specified. Starting loans may reflect earlier terms; the 77.27% Property Starter mortgage ($255,000 at 5.50% APR) is explicitly approved and grandfathered as a legacy bank loan and does not weaken or alter new-loan underwriting constraints.
 
 ## 17.3 Business acquisition lending [PROTOTYPE]
 
@@ -1050,10 +1052,10 @@ The core design is established, but the following rules must be resolved or veri
 
 | **ID** | **Decision to settle**                                                                                                                                                   | **Why it matters**                                                                                                |
 |--------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
-| A1     | Specify who receives this quarter's income and expenses when an asset, job, loan, or ownership share changes mid-round. Define market/dividend and cash-interest timing. | Prevents double payment, late-round capture of unearned income, and first/last-spotlight advantage.               |
-| A2     | Specify property amortization, personal-loan APRs/terms, opening business loans, rate resets, interest conventions, and rounding.                                        | Current income/surplus fixtures imply payments but do not define complete debt schedules. The fixed player-loan calculation subset is resolved as prototype in Section 17.4.1; opening debts, mortgages, business debt, bank conventions, and variable resets remain OPEN. |
-| A3     | Resolve the Property Starter's existing 77.27% LTV and 5.5% mortgage versus 75% new-loan normal underwriting and higher opening quotes.                                  | Choose explicit legacy-loan treatment or adjust the fixture; do not silently bypass underwriting.                 |
-| A4     | Define retained earnings, owner distributions, business normalization, practice labor income, and whether entity cash is included in valuation.                          | Prevents double counting cash, income, and company equity; reproduces the \$68k/\$96k/\$45k owner-income targets. |
+| A1     | Quarter-start recurring entitlement convention [PROTOTYPE]. Entitlement for Quarter N is determined by position at start of Quarter N (future cash interest uses quarter-start cash; future dividends use quarter-start holdings). Actual implementation of market dividends, cash yield, and exact annual-to-quarter conversion remains deferred. | Prevents double payment, late-round capture of unearned income, and first/last-spotlight advantage.               |
+| A2     | Opening personal debts use 8.00% fixed APR, quarterly payment = 3 × monthly fixture, fixed-payment amortization with final cleanup [PROTOTYPE subset]. Opening business debt, new bank loans, and rate resets remain OPEN. | Current income/surplus fixtures imply payments but do not define complete debt schedules. Fixed player loans (Section 17.4.1) and opening personal debts are resolved as prototype. |
+| A3     | Property Starter mortgage grandfathered [PROTOTYPE]. \$255k at 5.50% APR, \$4,335.37 quarterly payment, 77.27% LTV accepted as legacy loan without new-loan underwriting. | Choose explicit legacy-loan treatment or adjust the fixture; do not silently bypass underwriting. Resolved as grandfathered legacy loan. |
+| A4     | Section 15.1 owner-income figures are authoritative spendable income; no Quarter-1 business distributions [PROTOTYPE subset]. Retained earnings, future distributions, entity cash, normalization, and business-debt schedules remain OPEN. | Prevents double counting cash, income, and company equity; reproduces the \$68k/\$96k/\$45k owner-income targets. |
 | A5     | Specify equity issuance versus secondary sale, valuation/cost basis, fees, ownership consent, default, collateral recovery, and debt priority.                           | Contracts must have defined consequences when funds are insufficient; a promise is not funding.                   |
 | A6     | Define reservation, cancellation, inspection costs, expiry, and the atomic close of linked funding plus asset purchase.                                                  | Prevents double-spending offers or leaving the buyer with an unintended loan when an acquisition fails.           |
 

@@ -184,3 +184,121 @@ export function calculatePlayerLoanSchedule(
 
   return Object.freeze(rows);
 }
+
+export interface CalculateLegacyBankLoanPaymentInput {
+  readonly outstandingPrincipalCents: number;
+  readonly annualRateBps: number;
+  readonly scheduledQuarterlyPaymentCents: number;
+}
+
+export interface LegacyBankLoanPaymentResult {
+  readonly paymentCents: Cents;
+  readonly principalCents: Cents;
+  readonly interestCents: Cents;
+  readonly closingPrincipalCents: Cents;
+  readonly isFinalPayment: boolean;
+}
+
+/**
+ * Pure deterministic calculation for the NEXT fixed payment on a legacy bank loan.
+ *
+ * Implements approved A2/A3 prototype rules:
+ * - quarterly rate = annualRateBps / 40000
+ * - interest = round_half_up(outstandingPrincipal * quarterlyRate)
+ * - non-amortizing check: if scheduled payment <= interest, reject.
+ * - if normal principal reduction (scheduled - interest) >= outstandingPrincipal:
+ *     principal = outstandingPrincipal
+ *     payment = principal + interest
+ *     closingPrincipal = 0
+ *     isFinalPayment = true
+ * - otherwise:
+ *     principal = scheduled - interest
+ *     payment = scheduled
+ *     closingPrincipal = outstandingPrincipal - principal
+ *     isFinalPayment = false
+ */
+export function calculateLegacyBankLoanNextPayment(
+  input: CalculateLegacyBankLoanPaymentInput,
+): LegacyBankLoanPaymentResult {
+  const {
+    outstandingPrincipalCents,
+    annualRateBps,
+    scheduledQuarterlyPaymentCents,
+  } = input;
+
+  if (
+    !Number.isSafeInteger(outstandingPrincipalCents) ||
+    outstandingPrincipalCents <= 0 ||
+    outstandingPrincipalCents > Number.MAX_SAFE_INTEGER
+  ) {
+    throw new RangeError(
+      `outstandingPrincipalCents must be a positive safe integer of cents, got ${String(outstandingPrincipalCents)}`,
+    );
+  }
+
+  if (
+    !Number.isSafeInteger(annualRateBps) ||
+    annualRateBps < 0 ||
+    annualRateBps > Number.MAX_SAFE_INTEGER
+  ) {
+    throw new RangeError(
+      `annualRateBps must be a non-negative safe integer of basis points, got ${String(annualRateBps)}`,
+    );
+  }
+
+  if (
+    !Number.isSafeInteger(scheduledQuarterlyPaymentCents) ||
+    scheduledQuarterlyPaymentCents <= 0 ||
+    scheduledQuarterlyPaymentCents > Number.MAX_SAFE_INTEGER
+  ) {
+    throw new RangeError(
+      `scheduledQuarterlyPaymentCents must be a positive safe integer of cents, got ${String(scheduledQuarterlyPaymentCents)}`,
+    );
+  }
+
+  const quarterlyRate = new FinanceDecimal(annualRateBps).dividedBy(40000);
+  const interestDecimal = new FinanceDecimal(outstandingPrincipalCents).times(
+    quarterlyRate,
+  );
+  const interestComp = interestDecimal.round().toNumber();
+
+  if (!Number.isSafeInteger(interestComp)) {
+    throw new RangeError("Interest component exceeded safe integer range");
+  }
+
+  if (scheduledQuarterlyPaymentCents <= interestComp) {
+    throw new RangeError(
+      `Non-amortizing loan terms: scheduled payment (${scheduledQuarterlyPaymentCents}) <= interest (${interestComp})`,
+    );
+  }
+
+  const normalPrincipalComp = scheduledQuarterlyPaymentCents - interestComp;
+
+  if (normalPrincipalComp >= outstandingPrincipalCents) {
+    // Final payment: absorb remaining principal and cleanup residue
+    const finalPrincipal = outstandingPrincipalCents;
+    const finalPayment = finalPrincipal + interestComp;
+
+    if (!Number.isSafeInteger(finalPayment)) {
+      throw new RangeError("Final payment exceeded safe integer range");
+    }
+
+    return {
+      paymentCents: cents(finalPayment),
+      principalCents: cents(finalPrincipal),
+      interestCents: nonNegativeCents(interestComp),
+      closingPrincipalCents: cents(0),
+      isFinalPayment: true,
+    };
+  }
+
+  const closingPrincipal = outstandingPrincipalCents - normalPrincipalComp;
+
+  return {
+    paymentCents: cents(scheduledQuarterlyPaymentCents),
+    principalCents: cents(normalPrincipalComp),
+    interestCents: nonNegativeCents(interestComp),
+    closingPrincipalCents: cents(closingPrincipal),
+    isFinalPayment: false,
+  };
+}

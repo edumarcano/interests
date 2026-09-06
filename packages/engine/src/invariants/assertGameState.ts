@@ -7,8 +7,11 @@ import {
   PLAYER_LOAN_MIN_TERM_QUARTERS,
   STANDARD_V1_PLAYER_COUNT,
 } from "@finance-game/rules";
-import { calculatePlayerLoanSchedule } from "../finance/amortization";
-import { calculateDebtFreeBusinessEquity } from "../finance/business";
+import {
+  calculateLegacyBankLoanNextPayment,
+  calculatePlayerLoanSchedule,
+} from "../finance/amortization";
+import { calculateBusinessEquity } from "../finance/business";
 import { TOTAL_OWNERSHIP_PPM } from "../finance/ownership";
 import { calculatePropertyCashFlow } from "../finance/property";
 import type { GameState } from "../model/gameState";
@@ -237,6 +240,61 @@ export function assertGameState(state: GameState): void {
     }
   }
 
+  // Recurring personal finance invariants
+  if (
+    state.finance.recurringByPlayer === undefined ||
+    state.finance.recurringByPlayer === null ||
+    typeof state.finance.recurringByPlayer !== "object"
+  ) {
+    throw new Error(
+      "Game invariant failed: recurringByPlayer map is missing or invalid",
+    );
+  }
+
+  const recurringPlayerIds = Object.keys(state.finance.recurringByPlayer);
+  if (recurringPlayerIds.length !== STANDARD_V1_PLAYER_COUNT) {
+    throw new Error(
+      `Game invariant failed: recurringByPlayer must have exactly ${STANDARD_V1_PLAYER_COUNT} player records, got ${recurringPlayerIds.length}`,
+    );
+  }
+
+  for (const playerId of state.playerOrder) {
+    const recurring = state.finance.recurringByPlayer[playerId];
+    if (recurring === undefined) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} is missing a recurring finance record`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(recurring.quarterlyIncomeCents) ||
+      recurring.quarterlyIncomeCents < 0
+    ) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} quarterlyIncomeCents must be a non-negative safe integer of cents, got ${String(recurring.quarterlyIncomeCents)}`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(recurring.quarterlyLivingExpenseCents) ||
+      recurring.quarterlyLivingExpenseCents < 0
+    ) {
+      throw new Error(
+        `Game invariant failed: player ${playerId} quarterlyLivingExpenseCents must be a non-negative safe integer of cents, got ${String(recurring.quarterlyLivingExpenseCents)}`,
+      );
+    }
+  }
+
+  for (const recurringKey of recurringPlayerIds) {
+    if (
+      !state.playerOrder.includes(
+        recurringKey as (typeof state.playerOrder)[number],
+      )
+    ) {
+      throw new Error(
+        `Game invariant failed: extra unknown player ${recurringKey} in recurringByPlayer`,
+      );
+    }
+  }
+
   // Loan registry invariants
   if (
     state.finance.loansById === undefined ||
@@ -257,113 +315,205 @@ export function assertGameState(state: GameState): void {
         `Game invariant failed: loan key ${loanKey} does not match loan.id ${loan.id}`,
       );
     }
-    if (loan.kind !== "player-loan") {
-      throw new Error(
-        `Game invariant failed: loan ${loan.id} has invalid kind ${String(loan.kind)}`,
-      );
-    }
-    if (!state.playerOrder.includes(loan.lenderPlayerId)) {
-      throw new Error(
-        `Game invariant failed: loan ${loan.id} has unknown lender ${loan.lenderPlayerId}`,
-      );
-    }
-    if (!state.playerOrder.includes(loan.borrowerPlayerId)) {
-      throw new Error(
-        `Game invariant failed: loan ${loan.id} has unknown borrower ${loan.borrowerPlayerId}`,
-      );
-    }
-    if (loan.lenderPlayerId === loan.borrowerPlayerId) {
-      throw new Error(
-        `Game invariant failed: loan ${loan.id} has same lender and borrower`,
-      );
-    }
-    if (
-      !Number.isSafeInteger(loan.originalPrincipalCents) ||
-      loan.originalPrincipalCents <= 0
-    ) {
-      throw new Error(
-        `Game invariant failed: loan ${loan.id} originalPrincipalCents must be a positive safe integer`,
-      );
-    }
-    if (
-      !Number.isSafeInteger(loan.outstandingPrincipalCents) ||
-      loan.outstandingPrincipalCents < 0
-    ) {
-      throw new Error(
-        `Game invariant failed: loan ${loan.id} outstandingPrincipalCents must be a non-negative safe integer`,
-      );
-    }
-    if (loan.outstandingPrincipalCents > loan.originalPrincipalCents) {
-      throw new Error(
-        `Game invariant failed: loan ${loan.id} outstandingPrincipalCents exceeds originalPrincipalCents`,
-      );
-    }
-    if (!Number.isSafeInteger(loan.annualRateBps) || loan.annualRateBps < 0) {
-      throw new Error(
-        `Game invariant failed: loan ${loan.id} annualRateBps must be a non-negative safe integer`,
-      );
-    }
-    if (
-      !Number.isSafeInteger(loan.termQuarters) ||
-      loan.termQuarters < PLAYER_LOAN_MIN_TERM_QUARTERS ||
-      loan.termQuarters > PLAYER_LOAN_MAX_TERM_QUARTERS
-    ) {
-      throw new Error(
-        `Game invariant failed: loan ${loan.id} termQuarters must be between ${PLAYER_LOAN_MIN_TERM_QUARTERS} and ${PLAYER_LOAN_MAX_TERM_QUARTERS}`,
-      );
-    }
-    if (
-      !Number.isSafeInteger(loan.installmentsPaid) ||
-      loan.installmentsPaid < 0 ||
-      loan.installmentsPaid > loan.termQuarters
-    ) {
-      throw new Error(
-        `Game invariant failed: loan ${loan.id} installmentsPaid must be an integer between 0 and termQuarters`,
-      );
-    }
 
-    // Schedule consistency
-    let schedule: ReturnType<typeof calculatePlayerLoanSchedule>;
-    try {
-      schedule = calculatePlayerLoanSchedule({
-        principalCents: loan.originalPrincipalCents,
-        annualRateBps: loan.annualRateBps,
-        termQuarters: loan.termQuarters,
-      });
-    } catch (err) {
+    if (loan.kind === "player-loan") {
+      if (!state.playerOrder.includes(loan.lenderPlayerId)) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} has unknown lender ${loan.lenderPlayerId}`,
+        );
+      }
+      if (!state.playerOrder.includes(loan.borrowerPlayerId)) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} has unknown borrower ${loan.borrowerPlayerId}`,
+        );
+      }
+      if (loan.lenderPlayerId === loan.borrowerPlayerId) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} has same lender and borrower`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(loan.originalPrincipalCents) ||
+        loan.originalPrincipalCents <= 0
+      ) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} originalPrincipalCents must be a positive safe integer`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(loan.outstandingPrincipalCents) ||
+        loan.outstandingPrincipalCents < 0
+      ) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} outstandingPrincipalCents must be a non-negative safe integer`,
+        );
+      }
+      if (loan.outstandingPrincipalCents > loan.originalPrincipalCents) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} outstandingPrincipalCents exceeds originalPrincipalCents`,
+        );
+      }
+      if (!Number.isSafeInteger(loan.annualRateBps) || loan.annualRateBps < 0) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} annualRateBps must be a non-negative safe integer`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(loan.termQuarters) ||
+        loan.termQuarters < PLAYER_LOAN_MIN_TERM_QUARTERS ||
+        loan.termQuarters > PLAYER_LOAN_MAX_TERM_QUARTERS
+      ) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} termQuarters must be between ${PLAYER_LOAN_MIN_TERM_QUARTERS} and ${PLAYER_LOAN_MAX_TERM_QUARTERS}`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(loan.installmentsPaid) ||
+        loan.installmentsPaid < 0 ||
+        loan.installmentsPaid > loan.termQuarters
+      ) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} installmentsPaid must be an integer between 0 and termQuarters`,
+        );
+      }
+
+      // Schedule consistency
+      let schedule: ReturnType<typeof calculatePlayerLoanSchedule>;
+      try {
+        schedule = calculatePlayerLoanSchedule({
+          principalCents: loan.originalPrincipalCents,
+          annualRateBps: loan.annualRateBps,
+          termQuarters: loan.termQuarters,
+        });
+      } catch (err) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} schedule is invalid: ${String(err)}`,
+        );
+      }
+
+      const prevRow =
+        loan.installmentsPaid > 0
+          ? schedule[loan.installmentsPaid - 1]
+          : undefined;
+
+      if (loan.installmentsPaid > 0 && prevRow === undefined) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} schedule has no row for installment ${loan.installmentsPaid}`,
+        );
+      }
+
+      const expectedRemaining =
+        loan.installmentsPaid === 0
+          ? loan.originalPrincipalCents
+          : (prevRow?.closingPrincipalCents ?? -1);
+
+      if (loan.outstandingPrincipalCents !== expectedRemaining) {
+        throw new Error(
+          `Game invariant failed: loan ${loan.id} outstanding principal ${loan.outstandingPrincipalCents} does not match expected remaining principal ${expectedRemaining} for installmentsPaid ${loan.installmentsPaid}`,
+        );
+      }
+
+      if (
+        loan.installmentsPaid === loan.termQuarters &&
+        loan.outstandingPrincipalCents !== 0
+      ) {
+        throw new Error(
+          `Game invariant failed: completed loan ${loan.id} must have zero outstanding principal`,
+        );
+      }
+    } else if (loan.kind === "legacy-bank-loan") {
+      if (!state.playerOrder.includes(loan.borrowerPlayerId)) {
+        throw new Error(
+          `Game invariant failed: legacy bank loan ${loan.id} has unknown borrower ${loan.borrowerPlayerId}`,
+        );
+      }
+      if (
+        loan.purpose !== "personal-debt" &&
+        loan.purpose !== "property-mortgage"
+      ) {
+        throw new Error(
+          `Game invariant failed: legacy bank loan ${loan.id} has unsupported purpose ${String(loan.purpose)}`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(loan.originalPrincipalCents) ||
+        loan.originalPrincipalCents <= 0
+      ) {
+        throw new Error(
+          `Game invariant failed: legacy bank loan ${loan.id} originalPrincipalCents must be a positive safe integer`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(loan.outstandingPrincipalCents) ||
+        loan.outstandingPrincipalCents < 0
+      ) {
+        throw new Error(
+          `Game invariant failed: legacy bank loan ${loan.id} outstandingPrincipalCents must be a non-negative safe integer`,
+        );
+      }
+      if (loan.outstandingPrincipalCents > loan.originalPrincipalCents) {
+        throw new Error(
+          `Game invariant failed: legacy bank loan ${loan.id} outstandingPrincipalCents exceeds originalPrincipalCents`,
+        );
+      }
+      if (!Number.isSafeInteger(loan.annualRateBps) || loan.annualRateBps < 0) {
+        throw new Error(
+          `Game invariant failed: legacy bank loan ${loan.id} annualRateBps must be a non-negative safe integer`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(loan.scheduledQuarterlyPaymentCents) ||
+        loan.scheduledQuarterlyPaymentCents <= 0
+      ) {
+        throw new Error(
+          `Game invariant failed: legacy bank loan ${loan.id} scheduledQuarterlyPaymentCents must be a positive safe integer`,
+        );
+      }
+      if (
+        !Number.isSafeInteger(loan.paymentsApplied) ||
+        loan.paymentsApplied < 0
+      ) {
+        throw new Error(
+          `Game invariant failed: legacy bank loan ${loan.id} paymentsApplied must be a non-negative safe integer`,
+        );
+      }
+      if (
+        loan.purpose === "personal-debt" &&
+        loan.relatedAssetId !== undefined
+      ) {
+        throw new Error(
+          `Game invariant failed: personal-debt loan ${loan.id} must not carry a relatedAssetId`,
+        );
+      }
+      if (loan.purpose === "property-mortgage") {
+        if (loan.relatedAssetId === undefined) {
+          throw new Error(
+            `Game invariant failed: property-mortgage loan ${loan.id} must carry a relatedAssetId`,
+          );
+        }
+        const relatedAsset = state.finance.assetsById[loan.relatedAssetId];
+        if (relatedAsset === undefined || relatedAsset.kind !== "property") {
+          throw new Error(
+            `Game invariant failed: property-mortgage loan ${loan.id} refers to non-property asset ${loan.relatedAssetId}`,
+          );
+        }
+      }
+      if (loan.outstandingPrincipalCents > 0) {
+        try {
+          calculateLegacyBankLoanNextPayment({
+            outstandingPrincipalCents: loan.outstandingPrincipalCents,
+            annualRateBps: loan.annualRateBps,
+            scheduledQuarterlyPaymentCents: loan.scheduledQuarterlyPaymentCents,
+          });
+        } catch (err) {
+          throw new Error(
+            `Game invariant failed: legacy bank loan ${loan.id} next payment calculation failed: ${String(err)}`,
+          );
+        }
+      }
+    } else {
       throw new Error(
-        `Game invariant failed: loan ${loan.id} schedule is invalid: ${String(err)}`,
-      );
-    }
-
-    const prevRow =
-      loan.installmentsPaid > 0
-        ? schedule[loan.installmentsPaid - 1]
-        : undefined;
-
-    if (loan.installmentsPaid > 0 && prevRow === undefined) {
-      throw new Error(
-        `Game invariant failed: loan ${loan.id} schedule has no row for installment ${loan.installmentsPaid}`,
-      );
-    }
-
-    const expectedRemaining =
-      loan.installmentsPaid === 0
-        ? loan.originalPrincipalCents
-        : (prevRow?.closingPrincipalCents ?? -1);
-
-    if (loan.outstandingPrincipalCents !== expectedRemaining) {
-      throw new Error(
-        `Game invariant failed: loan ${loan.id} outstanding principal ${loan.outstandingPrincipalCents} does not match expected remaining principal ${expectedRemaining} for installmentsPaid ${loan.installmentsPaid}`,
-      );
-    }
-
-    if (
-      loan.installmentsPaid === loan.termQuarters &&
-      loan.outstandingPrincipalCents !== 0
-    ) {
-      throw new Error(
-        `Game invariant failed: completed loan ${loan.id} must have zero outstanding principal`,
+        `Game invariant failed: loan ${loanKey} has unsupported kind ${(loan as { kind?: unknown }).kind}`,
       );
     }
   }
@@ -514,8 +664,16 @@ export function assertGameState(state: GameState): void {
           `Game invariant failed: business ${asset.id} enterpriseValueCents must be non-negative safe integer cents`,
         );
       }
+      if (
+        !Number.isSafeInteger(asset.debtPrincipalCents) ||
+        asset.debtPrincipalCents < 0
+      ) {
+        throw new Error(
+          `Game invariant failed: business ${asset.id} debtPrincipalCents must be non-negative safe integer cents`,
+        );
+      }
       try {
-        calculateDebtFreeBusinessEquity(asset);
+        calculateBusinessEquity(asset);
       } catch (err) {
         throw new Error(
           `Game invariant failed: business ${asset.id} calculation failed: ${String(err)}`,

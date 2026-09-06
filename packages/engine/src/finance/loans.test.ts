@@ -24,6 +24,24 @@ function createInitialFinance(): FinanceState {
       [charlieId]: cents(500_000), // $5,000
       [danaId]: cents(300_000), // $3,000
     },
+    recurringByPlayer: {
+      [aliceId]: {
+        quarterlyIncomeCents: cents(25_000_00),
+        quarterlyLivingExpenseCents: cents(13_800_00),
+      },
+      [bobId]: {
+        quarterlyIncomeCents: cents(18_000_00),
+        quarterlyLivingExpenseCents: cents(10_200_00),
+      },
+      [charlieId]: {
+        quarterlyIncomeCents: cents(17_000_00),
+        quarterlyLivingExpenseCents: cents(12_000_00),
+      },
+      [danaId]: {
+        quarterlyIncomeCents: cents(11_250_00),
+        quarterlyLivingExpenseCents: cents(9_600_00),
+      },
+    },
     loansById: {},
     assetsById: {},
   };
@@ -266,6 +284,7 @@ describe("player-loan origination", () => {
         ...finance.cashByPlayer,
         [bobId]: cents(Number.MAX_SAFE_INTEGER - 10),
       },
+      recurringByPlayer: finance.recurringByPlayer,
       loansById: {},
       assetsById: {},
     };
@@ -469,10 +488,11 @@ describe("scheduled player-loan payment", () => {
     expect(payment.finance).toBe(finance);
     expect(payment.counters).toBe(counters);
     expect(payment.finance.cashByPlayer[bobId]).toBe(100);
-    expect(payment.finance.loansById[loanId]?.outstandingPrincipalCents).toBe(
-      1_000_000,
-    );
-    expect(payment.finance.loansById[loanId]?.installmentsPaid).toBe(0);
+    const loanAfter = payment.finance.loansById[loanId];
+    expect(loanAfter?.outstandingPrincipalCents).toBe(1_000_000);
+    if (loanAfter?.kind === "player-loan") {
+      expect(loanAfter.installmentsPaid).toBe(0);
+    }
   });
 
   it("rejects payment for unknown LoanId", () => {
@@ -529,10 +549,11 @@ describe("scheduled player-loan payment", () => {
     expect(payment.code).toBe("DESTINATION_OVERFLOW");
     expect(payment.finance).toBe(finance);
     expect(payment.counters).toBe(counters);
-    expect(payment.finance.loansById[loanId]?.installmentsPaid).toBe(0);
-    expect(payment.finance.loansById[loanId]?.outstandingPrincipalCents).toBe(
-      100_000,
-    );
+    const loanAfter = payment.finance.loansById[loanId];
+    if (loanAfter?.kind === "player-loan") {
+      expect(loanAfter.installmentsPaid).toBe(0);
+      expect(loanAfter.outstandingPrincipalCents).toBe(100_000);
+    }
   });
 });
 
@@ -556,7 +577,7 @@ describe("canonical single-record accounting and determinism", () => {
     expect(Object.keys(result.finance.loansById)).toEqual(["loan-1"]);
     const loan = result.finance.loansById[result.loan.id];
     expect(loan).toBeDefined();
-    if (!loan) return;
+    if (loan?.kind !== "player-loan") return;
 
     // Both parties are derived from this single record
     expect(loan.lenderPlayerId).toBe(aliceId);
@@ -607,14 +628,14 @@ describe("canonical single-record accounting and determinism", () => {
 });
 
 describe("game invariants and setup regression", () => {
-  it("initializes empty loansById on game creation and passes assertGameState", () => {
+  it("initializes opening legacy bank loans on game creation and passes assertGameState", () => {
     const game = createGame({
       gameId: "test-game-1",
       seed: "deterministic-seed-123",
       playerIds: [aliceId, bobId, charlieId, danaId],
     });
 
-    expect(game.finance.loansById).toEqual({});
+    expect(Object.keys(game.finance.loansById).length).toBeGreaterThan(0);
     expect(() => assertGameState(game)).not.toThrow();
   });
 
