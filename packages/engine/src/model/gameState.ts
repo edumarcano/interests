@@ -9,6 +9,13 @@ import type { AssetId, GameId, LoanId, PlayerId } from "@finance-game/shared";
 import type { BasisPoints, Cents } from "../finance/money";
 import type { OwnershipPpm } from "../finance/ownership";
 import type { RandomState } from "../random/prng";
+import type { ActiveTransaction } from "../transactions/model";
+
+export type {
+  ActiveTransaction,
+  CashBusinessPurchaseTransaction,
+  CashReservation,
+} from "../transactions/model";
 
 export type GamePhase = "objective-choosing" | "ready-for-first-round";
 
@@ -107,6 +114,7 @@ export interface DeterministicCounters {
   readonly opportunity: number;
   readonly journal: number;
   readonly settlement: number;
+  readonly transaction: number;
 }
 
 export interface MarketUpdateRecord {
@@ -136,4 +144,5 @@ export interface GameState {
   readonly economy: EconomyState;
   readonly random: RandomState;
   readonly counters: DeterministicCounters;
+  readonly activeTransaction: ActiveTransaction | null;
 }

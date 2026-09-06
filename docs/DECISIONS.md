@@ -152,3 +152,46 @@ Establish the headless baseline simulation protocol and reporting harness in `@f
 7. **Settlement Rejection as Measurement:** Engine settlement rejections (such as `INSUFFICIENT_FUNDS`) stop horizon progression for that individual game and are recorded by error code and quarter. Batches continue to completion without retry, state patching, or artificial bailouts.
 8. **Environment-Free Canonical Reports:** Emitted JSON reports contain only deterministic scenario, configuration, versioning, reconciliation totals, profile metrics, economy regime occupancy, Markov transition counts, and market return statistics. Wall-clock timestamps, execution durations, hostnames, process IDs, and non-deterministic diagnostics are strictly excluded.
 9. **Diagnostic Boundary:** Baseline reports measure opening position mechanics and macroeconomic drift; they do not report win rates, objective completion rates, or strategy rankings, and the simulation harness does not auto-tune game balance constants.
+
+## ARCH-026 - Atomic cash asset-sale transaction foundation
+
+**Status:** Accepted  
+**Date:** September 6, 2026
+
+Establish the initial atomic cash asset-sale transaction foundation in `@finance-game/engine` as the transaction kernel for Architecture Milestone 4:
+
+1. **Dedicated Transaction Identifier & Deterministic Counter:**
+   - Introduce branded `TransactionId` in `@finance-game/shared` and `asTransactionId()`.
+   - Extend `DeterministicCounters` with `transaction: number` and `nextDeterministicId("transaction", counters)` generating deterministic IDs (`transaction-1`, `transaction-2`, ...).
+   - Opening a transaction consumes exactly one transaction ID; rejected attempts, cancellation, and closing consume zero new transaction IDs.
+   - Transaction operations consume zero gameplay RNG.
+
+2. **One Active Major Transaction & Reservation State:**
+   - Model `activeTransaction: ActiveTransaction | null` at the top level of `GameState` initialized to `null`.
+   - PR #13 supports exactly one discriminated type: `CashBusinessPurchaseTransaction` with explicit `CashReservation` (`{ playerId: buyerPlayerId, amountCents: purchasePriceCents, purpose: "purchase-price" }`).
+   - Reservations reduce pure helper `getAvailableCashCents(state, playerId)` (`actual cash - reservations`), while actual `finance.cashByPlayer` remains unaltered until closing. No secondary editable cash balances are introduced.
+
+3. **Narrow Supported Asset Scope (Implementation Boundary):**
+   - The supported transaction is strictly a fixed-price sale of 100% (1,000,000 PPM) ownership of an existing debt-free (`debtPrincipalCents === 0`) business asset between two distinct valid players.
+   - Opening validates setup phase (`ready-for-first-round`), no other active transaction, valid distinct parties, sole 100% seller ownership, zero entity debt, positive safe-integer price, and sufficient buyer available cash.
+   - Property sales, debt-bearing businesses, co-owned assets, partial stakes, seller financing, third-party financing, and partnerships are explicitly rejected and deferred.
+
+4. **Pure Domain Foundation Boundary:**
+   - Transaction operations (`openCashBusinessPurchaseTransaction`, `cancelActiveTransaction`, `closeCashBusinessPurchaseTransaction`) are domain primitives.
+   - They are **not** wired into player-facing `applyAction()` dispatching in this milestone, avoiding prematurely inventing turn order, spotlight sequencing, or authorization before G1 is resolved.
+
+5. **Lifecycle Semantics & Full Rejection Atomicity:**
+   - **Open:** Reserves buyer cash, sets `activeTransaction`, advances revision by 1, advances transaction counter, emits zero journal entries. Rejections return the original state unchanged.
+   - **Cancel:** Revalidates active transaction ID, clears `activeTransaction`, releases reservation, advances revision by 1, moves no cash, transfers no ownership, emits zero journal entries.
+   - **Close:** Revalidates complete transaction state (parties, asset, 100% ownership, zero debt, price, buyer cash solvency, seller destination overflow). Atomically executes buyer $\to$ seller cash posting using authoritative `postCash` (`reason: "business-purchase"`), replaces business ownership with 100% sole buyer ownership via `createSoleOwnership`, clears `activeTransaction`, advances revision by 1, and advances journal counter by 1.
+
+6. **Journal Transaction & Asset Linkage:**
+   - Extend `JournalEntry` and `CashPostingRequest` with optional `relatedTransactionId?: TransactionId`.
+   - The closing cash journal entry explicitly records `relatedTransactionId` and `relatedAssetId`, enabling end-to-end ledger traceability without emitting pseudo-entries for non-cash ownership transfers.
+
+7. **Settlement Blocking Invariant:**
+   - `settleQuarter` rejects with `"ACTIVE_TRANSACTION"` whenever `state.activeTransaction !== null`, preserving state, revision, counters, RNG, and journal entries. Transactions must resolve before round settlement executes.
+
+8. **Deferred Milestone 4 Scope & OPEN Questions:**
+   - Opportunities, investigation, focus weighting, financing offers, auctions, counter-offers, transaction expiry, fees, and taxes remain deferred.
+   - This milestone does not resolve OPEN game-design questions A4 (business distributions), A5 (debt default/collateral), A6 (market fees/expiry), or G1 (spotlight sequencing).
