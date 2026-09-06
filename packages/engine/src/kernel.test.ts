@@ -6,7 +6,16 @@ import { applyAction } from "./game/actions";
 import { createGame } from "./game/createGame";
 import { nextDeterministicId } from "./game/deterministicIds";
 import type { DeterministicCounters } from "./model/gameState";
-import { createRandomState, drawBoundedInt, drawUint32 } from "./random/prng";
+import {
+  createRandomState,
+  drawBoundedInt,
+  drawUint32,
+  drawUnitInterval,
+  type RandomState,
+  RNG_ALGORITHM,
+  RNG_ALGORITHM_V1,
+  RNG_ALGORITHM_V2,
+} from "./random/prng";
 
 const players = [
   asPlayerId("p1"),
@@ -43,6 +52,7 @@ describe("deterministic kernel", () => {
     expect(() => drawBoundedInt(random, 0)).toThrow(RangeError);
     expect(() => drawBoundedInt(random, -5)).toThrow(RangeError);
     expect(() => drawBoundedInt(random, 1.5)).toThrow(RangeError);
+    expect(() => drawBoundedInt(random, 0x1_0000_0000)).toThrow(RangeError);
     expect(() => drawBoundedInt(random, 0x1_0000_0001)).toThrow(RangeError);
 
     // Test bound === 1
@@ -66,6 +76,167 @@ describe("deterministic kernel", () => {
       expect(count).toBeGreaterThan(850);
       expect(count).toBeLessThan(1150);
     }
+  });
+
+  it("matches exact raw xorshift32 regression vectors and preserves raw equivalence between v1 and v2", () => {
+    const expectedRawValues = [
+      270369, 67634689, 2647435461, 307599695, 2398689233,
+    ];
+
+    let v2State: RandomState = { algorithm: RNG_ALGORITHM_V2, state: 1 };
+    let v1State: RandomState = { algorithm: RNG_ALGORITHM_V1, state: 1 };
+
+    for (const expected of expectedRawValues) {
+      const drawV2 = drawUint32(v2State);
+      const drawV1 = drawUint32(v1State);
+
+      expect(drawV2.value).toBe(expected);
+      expect(drawV2.nextState.algorithm).toBe(RNG_ALGORITHM_V2);
+      expect(drawV1.value).toBe(expected);
+      expect(drawV1.nextState.algorithm).toBe(RNG_ALGORITHM_V1);
+
+      expect(drawV2.value).toBe(drawV1.value);
+      expect(drawV2.nextState.state).toBe(drawV1.nextState.state);
+
+      v2State = drawV2.nextState;
+      v1State = drawV1.nextState;
+    }
+  });
+
+  it("preserves intentional deterministic difference between v1 and v2 on state 1 with bound 10", () => {
+    const v1: RandomState = { algorithm: RNG_ALGORITHM_V1, state: 1 };
+    const v2: RandomState = { algorithm: RNG_ALGORITHM_V2, state: 1 };
+
+    const drawV1 = drawBoundedInt(v1, 10);
+    const drawV2 = drawBoundedInt(v2, 10);
+
+    expect(drawV1.value).toBe(9);
+    expect(drawV1.nextState.state).toBe(270369);
+    expect(drawV1.nextState.algorithm).toBe(RNG_ALGORITHM_V1);
+
+    expect(drawV2.value).toBe(8);
+    expect(drawV2.nextState.state).toBe(270369);
+    expect(drawV2.nextState.algorithm).toBe(RNG_ALGORITHM_V2);
+  });
+
+  it("exercises forced rejection path under v2 from state 8192 with bound 2147483649", () => {
+    const startState: RandomState = {
+      algorithm: RNG_ALGORITHM_V2,
+      state: 8192,
+    };
+    const bound = 2147483649; // 0x80000001
+
+    // Verify step 1 raw draw is rejected
+    const firstRaw = drawUint32(startState);
+    expect(firstRaw.value).toBe(2214879744);
+    const firstSample = firstRaw.value - 1; // 2214879743
+    const limit = 0xffffffff - (0xffffffff % bound); // 2147483649
+    expect(limit).toBe(2147483649);
+    expect(firstSample).toBeGreaterThanOrEqual(limit);
+
+    // Verify step 2 raw draw is accepted
+    const secondRaw = drawUint32(firstRaw.nextState);
+    expect(secondRaw.value).toBe(13148770);
+    const secondSample = secondRaw.value - 1; // 13148769
+    expect(secondSample).toBeLessThan(limit);
+
+    // drawBoundedInt must execute exactly this 2-draw rejection sequence
+    const result = drawBoundedInt(startState, bound);
+    expect(result.value).toBe(13148769);
+    expect(result.nextState.state).toBe(13148770);
+    expect(result.nextState.algorithm).toBe(RNG_ALGORITHM_V2);
+  });
+
+  it("verifies v2 boundary conditions for bound = 1, bound = 0xffffffff, and bound = 0x1_0000_0000", () => {
+    const state1: RandomState = { algorithm: RNG_ALGORITHM_V2, state: 1 };
+
+    // bound == 1 always returns 0 and consumes exactly one raw draw
+    const drawBound1 = drawBoundedInt(state1, 1);
+    expect(drawBound1.value).toBe(0);
+    expect(drawBound1.nextState.state).toBe(270369);
+
+    // bound == 0xffffffff (4294967295) is valid
+    const drawMax = drawBoundedInt(state1, 0xffffffff);
+    expect(drawMax.value).toBe(270368);
+    expect(drawMax.nextState.state).toBe(270369);
+
+    // bound == 0x1_0000_0000 (4294967296) must reject under v2
+    expect(() => drawBoundedInt(state1, 0x1_0000_0000)).toThrow(RangeError);
+
+    // Ordinary small bounds
+    for (const b of [2, 3, 4, 5, 10, 69]) {
+      const draw = drawBoundedInt(state1, b);
+      expect(draw.value).toBeGreaterThanOrEqual(0);
+      expect(draw.value).toBeLessThan(b);
+      expect(draw.nextState.state).toBe(270369);
+    }
+  });
+
+  it("enforces strict RandomState validation and input immutability upon rejection", () => {
+    const invalidStates = [
+      { algorithm: RNG_ALGORITHM_V2, state: 0 },
+      { algorithm: RNG_ALGORITHM_V2, state: -1 },
+      { algorithm: RNG_ALGORITHM_V2, state: 0x1_0000_0000 },
+      { algorithm: RNG_ALGORITHM_V2, state: 1.5 },
+      { algorithm: RNG_ALGORITHM_V2, state: Number.NaN },
+      { algorithm: RNG_ALGORITHM_V2, state: Number.POSITIVE_INFINITY },
+      {
+        algorithm: "xorshift32-v3" as unknown as typeof RNG_ALGORITHM_V2,
+        state: 1,
+      },
+    ];
+
+    for (const inv of invalidStates) {
+      expect(() => drawUint32(inv as RandomState)).toThrow(RangeError);
+      expect(() => drawBoundedInt(inv as RandomState, 10)).toThrow(RangeError);
+      expect(() => drawUnitInterval(inv as RandomState)).toThrow(RangeError);
+    }
+
+    // Caller state object must remain untouched on failure
+    const testState: RandomState = Object.freeze({
+      algorithm: RNG_ALGORITHM_V2,
+      state: 1,
+    });
+    expect(() => drawBoundedInt(testState, 0)).toThrow(RangeError);
+    expect(testState.state).toBe(1);
+    expect(testState.algorithm).toBe(RNG_ALGORITHM_V2);
+  });
+
+  it("validates createRandomState algorithm creation and seed hashing preservation", () => {
+    expect(() => createRandomState("")).toThrow(RangeError);
+    const defaultState = createRandomState("seed");
+    expect(defaultState.algorithm).toBe(RNG_ALGORITHM_V2);
+    expect(defaultState.algorithm).toBe(RNG_ALGORITHM);
+
+    const explicitV1 = createRandomState("seed", RNG_ALGORITHM_V1);
+    expect(explicitV1.algorithm).toBe(RNG_ALGORITHM_V1);
+
+    const explicitV2 = createRandomState("seed", RNG_ALGORITHM_V2);
+    expect(explicitV2.algorithm).toBe(RNG_ALGORITHM_V2);
+
+    expect(explicitV1.state).toBe(explicitV2.state);
+    expect(defaultState.state).toBe(explicitV2.state);
+
+    expect(() =>
+      createRandomState(
+        "seed",
+        "unsupported-algo" as unknown as typeof RNG_ALGORITHM_V2,
+      ),
+    ).toThrow(RangeError);
+  });
+
+  it("drawUnitInterval derives raw / 2^32, preserves algorithm, and consumes one draw", () => {
+    const state1V2: RandomState = { algorithm: RNG_ALGORITHM_V2, state: 1 };
+    const drawV2 = drawUnitInterval(state1V2);
+    expect(drawV2.value).toBe(270369 / 0x1_0000_0000);
+    expect(drawV2.nextState.algorithm).toBe(RNG_ALGORITHM_V2);
+    expect(drawV2.nextState.state).toBe(270369);
+
+    const state1V1: RandomState = { algorithm: RNG_ALGORITHM_V1, state: 1 };
+    const drawV1 = drawUnitInterval(state1V1);
+    expect(drawV1.value).toBe(270369 / 0x1_0000_0000);
+    expect(drawV1.nextState.algorithm).toBe(RNG_ALGORITHM_V1);
+    expect(drawV1.nextState.state).toBe(270369);
   });
 
   it("does not mutate state or random state when an action is rejected", () => {

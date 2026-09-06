@@ -19,7 +19,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { assertGameState } from "../invariants/assertGameState";
 import type { GameState } from "../model/gameState";
-import { createRandomState, drawBoundedInt } from "../random/prng";
+import {
+  createRandomState,
+  drawBoundedInt,
+  RNG_ALGORITHM_V1,
+  RNG_ALGORITHM_V2,
+} from "../random/prng";
 import { applyAction } from "./actions";
 import { createGame } from "./createGame";
 import {
@@ -738,6 +743,60 @@ describe("assertGameState Invariant Coverage", () => {
     expect(() => assertGameState(mutated as unknown as GameState)).toThrow(
       /deterministic counters must be non-negative safe integers|journal counter must be a non-negative safe integer/,
     );
+  });
+
+  it("rejects state with invalid random state values or unsupported algorithm", () => {
+    const valid = createGame({
+      gameId: "g",
+      seed: "s",
+      playerIds: players4,
+    });
+
+    const invalidRandomStates = [
+      { algorithm: RNG_ALGORITHM_V2, state: 0 },
+      { algorithm: RNG_ALGORITHM_V2, state: -1 },
+      { algorithm: RNG_ALGORITHM_V2, state: 0x1_0000_0000 },
+      { algorithm: RNG_ALGORITHM_V2, state: 1.5 },
+      {
+        algorithm: "xorshift32-v3" as unknown as typeof RNG_ALGORITHM_V2,
+        state: 1,
+      },
+    ];
+
+    for (const inv of invalidRandomStates) {
+      const mutated = {
+        ...valid,
+        random: inv,
+      };
+      expect(() => assertGameState(mutated as unknown as GameState)).toThrow(
+        /Game invariant failed: random state is invalid/,
+      );
+    }
+  });
+
+  it("accepts valid minimum and maximum nonzero uint32 random states for v1 and v2", () => {
+    const valid = createGame({
+      gameId: "g",
+      seed: "s",
+      playerIds: players4,
+    });
+
+    const validRandomStates = [
+      { algorithm: RNG_ALGORITHM_V1, state: 1 },
+      { algorithm: RNG_ALGORITHM_V1, state: 0xffffffff },
+      { algorithm: RNG_ALGORITHM_V2, state: 1 },
+      { algorithm: RNG_ALGORITHM_V2, state: 0xffffffff },
+    ];
+
+    for (const rnd of validRandomStates) {
+      const mutated = {
+        ...valid,
+        random: rnd,
+      };
+      expect(() =>
+        assertGameState(mutated as unknown as GameState),
+      ).not.toThrow();
+    }
   });
 });
 
