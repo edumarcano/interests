@@ -135,3 +135,20 @@ Establish the authoritative shared-economy cycle and deterministic public-market
    5. Commit tentative next `RandomState` and advance quarter.
 7. **Two-Phase Atomicity and RNG Rollback:** Settlement validates cash solvency, capacity, and market revaluation bounds in pure planning before any state change. Any failure (including `MARKET_VALUE_OVERFLOW`) rejects atomically and returns the original state with RNG state unchanged.
 8. **Deferred Macro Scope:** Base rate remains fixed at 450 BPS (with cash yield derived via `calculateCashYieldBps(baseRateBps)`). Market trading, transaction fees, shares/unit prices, property revaluation, business performance movement, inflation indexing, and credit-environment transitions remain explicitly deferred.
+
+## ARCH-025 - Reproducible headless baseline simulation protocol
+
+**Status:** Accepted  
+**Date:** September 6, 2026
+
+Establish the headless baseline simulation protocol and reporting harness in `@finance-game/simulation` building upon ARCH-015:
+
+1. **Same Engine Architecture:** Simulation orchestrates the authoritative `@finance-game/engine` via public APIs (`createGame`, `applyAction`, `settleQuarter`, `totalPublicMarketValueCents`). It never duplicates financial rules, recalculates expected cash flows independently, or bypasses engine validation.
+2. **Passive Baseline Setup & Policy:** Standard V1 games initialize with four deterministic branded simulation players (`simulation-player-1` .. `simulation-player-4`). In canonical `playerOrder`, each player selects their first offered objective (`offeredObjectiveIds[0]`) through real `applyAction()` calls, transitioning phase to `ready-for-first-round`. Players take zero optional gameplay actions thereafter.
+3. **Deterministic Indexed Seed Suite:** Games are seeded deterministically via pure format `<seedPrefix>:<formattedIndex>` where `gameIndex` is zero-based and padded to at least 6 digits without truncation (e.g. `baseline-v1:000000`). No simulation-owned gameplay RNG or separate PRNG is introduced.
+4. **Sequential V1 Execution:** Games execute in strictly ascending index order without worker threads, process pools, or concurrency.
+5. **Observed Financial Metrics:** Financial accumulators measure actual `JournalEntry` outputs emitted by `settleQuarter()` (cash yield, dividends, income, property distributions, living expenses, legacy debt principal and interest). Portfolio valuations observe engine `totalPublicMarketValueCents()`.
+6. **Narrow Liquid Net Position Metric:** The harness reports `liquidNetPositionCents` defined strictly as liquid capital plus player-loan receivables minus legacy debt and player-loan debt. It explicitly avoids inventing universal "net worth" by excluding property and business equity.
+7. **Settlement Rejection as Measurement:** Engine settlement rejections (such as `INSUFFICIENT_FUNDS`) stop horizon progression for that individual game and are recorded by error code and quarter. Batches continue to completion without retry, state patching, or artificial bailouts.
+8. **Environment-Free Canonical Reports:** Emitted JSON reports contain only deterministic scenario, configuration, versioning, reconciliation totals, profile metrics, economy regime occupancy, Markov transition counts, and market return statistics. Wall-clock timestamps, execution durations, hostnames, process IDs, and non-deterministic diagnostics are strictly excluded.
+9. **Diagnostic Boundary:** Baseline reports measure opening position mechanics and macroeconomic drift; they do not report win rates, objective completion rates, or strategy rankings, and the simulation harness does not auto-tune game balance constants.
