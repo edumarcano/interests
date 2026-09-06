@@ -672,11 +672,6 @@ export function assertGameState(state: GameState): void {
           `Game invariant failed: business ${asset.id} debtPrincipalCents must be non-negative safe integer cents`,
         );
       }
-      if (asset.debtPrincipalCents > asset.enterpriseValueCents) {
-        throw new Error(
-          `Game invariant failed: business ${asset.id} debtPrincipalCents (${asset.debtPrincipalCents}) cannot exceed enterpriseValueCents (${asset.enterpriseValueCents})`,
-        );
-      }
       try {
         calculateBusinessEquity(asset);
       } catch (err) {

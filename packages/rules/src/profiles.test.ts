@@ -145,4 +145,23 @@ describe("profile starting cash rule data", () => {
       ownershipPpm: 1_000_000,
     });
   });
+
+  it("ensures starting business fixtures satisfy debt <= enterprise value and non-negative equity", () => {
+    const businessProfiles = [
+      "small-business-owner",
+      "self-employed-operator",
+      "early-stage-entrepreneur",
+    ] as const;
+
+    for (const profileId of businessProfiles) {
+      const biz = PROFILES[profileId].startingFinances.businessFixture;
+      expect(biz).toBeDefined();
+      if (!biz) throw new Error("Missing business fixture");
+      expect(biz.debtPrincipalCents).toBeLessThanOrEqual(
+        biz.enterpriseValueCents,
+      );
+      const equityCents = biz.enterpriseValueCents - biz.debtPrincipalCents;
+      expect(equityCents).toBeGreaterThanOrEqual(0);
+    }
+  });
 });

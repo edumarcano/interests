@@ -350,6 +350,9 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         STARTING_FINANCES_BY_PROFILE["small-business-owner"].businessFixture;
       expect(bizFixture).toBeDefined();
       if (!bizFixture) throw new Error("Missing fixture");
+      expect(bizFixture.debtPrincipalCents).toBeLessThanOrEqual(
+        bizFixture.enterpriseValueCents,
+      );
       const equity = calculateBusinessEquity({
         annualRevenueCents: cents(bizFixture.annualRevenueCents),
         annualOperatingProfitCents: cents(
@@ -359,6 +362,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         debtPrincipalCents: cents(bizFixture.debtPrincipalCents),
       });
       expect(equity.equityValueCents).toBe(cents(26_000_000));
+      expect(equity.equityValueCents).toBeGreaterThanOrEqual(0);
     });
 
     it("reconciles Self-Employed Operator business equity: $90k - $20k = $70k", () => {
@@ -366,6 +370,9 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         STARTING_FINANCES_BY_PROFILE["self-employed-operator"].businessFixture;
       expect(bizFixture).toBeDefined();
       if (!bizFixture) throw new Error("Missing fixture");
+      expect(bizFixture.debtPrincipalCents).toBeLessThanOrEqual(
+        bizFixture.enterpriseValueCents,
+      );
       const equity = calculateBusinessEquity({
         annualRevenueCents: cents(bizFixture.annualRevenueCents),
         annualOperatingProfitCents: cents(
@@ -375,6 +382,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         debtPrincipalCents: cents(bizFixture.debtPrincipalCents),
       });
       expect(equity.equityValueCents).toBe(cents(7_000_000));
+      expect(equity.equityValueCents).toBeGreaterThanOrEqual(0);
     });
 
     it("reconciles Early-Stage Entrepreneur business equity: $230k - $60k = $170k", () => {
@@ -383,6 +391,9 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
           .businessFixture;
       expect(bizFixture).toBeDefined();
       if (!bizFixture) throw new Error("Missing fixture");
+      expect(bizFixture.debtPrincipalCents).toBeLessThanOrEqual(
+        bizFixture.enterpriseValueCents,
+      );
       const equity = calculateBusinessEquity({
         annualRevenueCents: cents(bizFixture.annualRevenueCents),
         annualOperatingProfitCents: cents(
@@ -392,6 +403,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         debtPrincipalCents: cents(bizFixture.debtPrincipalCents),
       });
       expect(equity.equityValueCents).toBe(cents(17_000_000));
+      expect(equity.equityValueCents).toBeGreaterThanOrEqual(0);
     });
 
     it("reconciles Property Starter opening property equity: $330k - $255k = $75k", () => {

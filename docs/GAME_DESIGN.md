@@ -733,7 +733,7 @@ Investigation reveals generated facts; it must not draw a new asset. Reconnectio
 
 Standard V1 starts from one neutral baseline: base rate 4.5%; moderate inflation; healthy economic activity; normal credit. The path becomes stochastic afterward. Boom/recession starts are future scenarios, not independent random advantages at standard setup.
 
-Annual cash yield = max(0.5%, base rate minus 1.5 percentage points). The opening yield is 3.0%. Living expenses rise with inflation; salary changes through career opportunities rather than automatic indexation. The cash-interest balance basis and exact annual-to-quarter conversion remain implementation decisions.
+Annual cash yield = max(0.5%, base rate minus 1.5 percentage points). The opening yield is 3.0%. Living expenses rise with inflation; salary changes through career opportunities rather than automatic indexation. Under the approved quarter-start recurring entitlement convention (A1), future cash interest uses quarter-start cash, and future dividends use quarter-start holdings; only the actual public-market and cash-yield settlement mechanics and exact annual-to-quarter conversion remain deferred.
 
 | **Transaction**                | **Prototype cost**                                           |
 |--------------------------------|--------------------------------------------------------------|
@@ -894,7 +894,7 @@ Low-sensitivity companies take approximately half the regime effect; high-sensit
 | Recession   | -4.0%                | -6.5%                 | -1.5%                    |
 | Recovery    | +3.5%                | +5.0%                 | +2.0%                    |
 
-Means are quarterly price movements, not guaranteed or total returns. Typical noise was proposed at around +/-4% for Broad, +/-6% for Growth, and +/-2.5% for Defensive. Specify whether these are bounded ranges or volatility measures before coding draws. Dividends are separate cash flows and must not also be embedded in the price-return series. No order book or dozens of individual stocks are required for V1.
+Means are quarterly price movements, not guaranteed or total returns. Typical noise was proposed at around +/-4% for Broad, +/-6% for Growth, and +/-2.5% for Defensive. Specify whether these are bounded ranges or volatility measures before coding draws. Dividends are separate cash flows and must not also be embedded in the price-return series. Under the approved quarter-start recurring entitlement convention (A1), future dividend entitlement uses quarter-start share holdings (the actual public-market trading and dividend settlement mechanics remain deferred). No order book or dozens of individual stocks are required for V1.
 
 ## 16.6 Property valuation movement [PROTOTYPE]
 
@@ -1052,7 +1052,7 @@ The core design is established, but the following rules must be resolved or veri
 
 | **ID** | **Decision to settle**                                                                                                                                                   | **Why it matters**                                                                                                |
 |--------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
-| A1     | Quarter-start recurring entitlement convention [PROTOTYPE]. Entitlement for Quarter N is determined by position at start of Quarter N. Implementation of market dividends and cash yield remains deferred. | Prevents double payment, late-round capture of unearned income, and first/last-spotlight advantage.               |
+| A1     | Quarter-start recurring entitlement convention [PROTOTYPE]. Entitlement for Quarter N is determined by position at start of Quarter N (future cash interest uses quarter-start cash; future dividends use quarter-start holdings). Actual implementation of market dividends, cash yield, and exact annual-to-quarter conversion remains deferred. | Prevents double payment, late-round capture of unearned income, and first/last-spotlight advantage.               |
 | A2     | Opening personal debts use 8.00% fixed APR, quarterly payment = 3 × monthly fixture, fixed-payment amortization with final cleanup [PROTOTYPE subset]. Opening business debt, new bank loans, and rate resets remain OPEN. | Current income/surplus fixtures imply payments but do not define complete debt schedules. Fixed player loans (Section 17.4.1) and opening personal debts are resolved as prototype. |
 | A3     | Property Starter mortgage grandfathered [PROTOTYPE]. \$255k at 5.50% APR, \$4,335.37 quarterly payment, 77.27% LTV accepted as legacy loan without new-loan underwriting. | Choose explicit legacy-loan treatment or adjust the fixture; do not silently bypass underwriting. Resolved as grandfathered legacy loan. |
 | A4     | Section 15.1 owner-income figures are authoritative spendable income; no Quarter-1 business distributions [PROTOTYPE subset]. Retained earnings, future distributions, entity cash, normalization, and business-debt schedules remain OPEN. | Prevents double counting cash, income, and company equity; reproduces the \$68k/\$96k/\$45k owner-income targets. |

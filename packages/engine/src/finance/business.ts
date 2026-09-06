@@ -1,4 +1,4 @@
-import { type Cents, cents, isNonNegativeCents } from "./money";
+import { type Cents, cents, isNonNegativeCents, subtractCents } from "./money";
 
 export interface BusinessEquityInput {
   readonly annualRevenueCents: Cents;
@@ -25,6 +25,7 @@ export interface DebtFreeBusinessEquityResult {
  * For PR #8 starting business slice, business debt is balance-sheet-only
  * (no retained earnings, no entity cash, no business-debt schedule).
  * A4 remains OPEN.
+ * Supports negative equity value for distressed businesses where debt exceeds enterprise value.
  */
 export function calculateBusinessEquity(
   business: BusinessEquityInput,
@@ -54,16 +55,10 @@ export function calculateBusinessEquity(
     );
   }
 
-  if (debtCents > business.enterpriseValueCents) {
-    throw new RangeError(
-      `debtPrincipalCents (${debtCents}) cannot exceed enterpriseValueCents (${business.enterpriseValueCents}) for supported starting business fixtures`,
-    );
-  }
-
   return {
     enterpriseValueCents: business.enterpriseValueCents,
     debtPrincipalCents: debtCents,
-    equityValueCents: cents(business.enterpriseValueCents - debtCents),
+    equityValueCents: subtractCents(business.enterpriseValueCents, debtCents),
   };
 }
 
