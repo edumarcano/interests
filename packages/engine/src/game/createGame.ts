@@ -1,6 +1,7 @@
 import {
   OPENING_PERSONAL_DEBT_APR_BPS,
   PROFILES,
+  STANDARD_V1_OPENING_PUBLIC_MARKET_INSTRUMENT_ID,
   STANDARD_V1_PLAYER_COUNT,
 } from "@finance-game/rules";
 import {
@@ -9,6 +10,7 @@ import {
   type LoanId,
   type PlayerId,
 } from "@finance-game/shared";
+import { createZeroPublicMarketPortfolio } from "../finance/markets";
 import { basisPoints, type Cents, cents } from "../finance/money";
 import { ownershipPpm } from "../finance/ownership";
 import { assertGameState } from "../invariants/assertGameState";
@@ -103,11 +105,11 @@ export function createGame(input: CreateGameInput): GameState {
       quarterlyLivingExpenseCents: cents(quarterlyLivingExpense),
     };
 
-    publicMarketsByPlayer[playerId] = {
-      "broad-market-fund": cents(finances.startingPublicInvestmentsCents),
-      "growth-fund": cents(0),
-      "income-defensive-fund": cents(0),
-    };
+    const portfolio = createZeroPublicMarketPortfolio();
+    portfolio[STANDARD_V1_OPENING_PUBLIC_MARKET_INSTRUMENT_ID] = cents(
+      finances.startingPublicInvestmentsCents,
+    );
+    publicMarketsByPlayer[playerId] = portfolio;
   }
 
   let currentCounters: DeterministicCounters = {

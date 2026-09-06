@@ -9,9 +9,21 @@ import {
   PUBLIC_MARKET_INSTRUMENTS,
   STANDARD_V1_OPENING_BASE_RATE_BPS,
   STANDARD_V1_OPENING_CASH_YIELD_BPS,
+  STANDARD_V1_OPENING_PUBLIC_MARKET_INSTRUMENT_ID,
 } from "./markets";
 
 describe("public-market rules and constants", () => {
+  it("defines canonical Standard V1 opening allocation to broad-market-fund", () => {
+    expect(STANDARD_V1_OPENING_PUBLIC_MARKET_INSTRUMENT_ID).toBe(
+      "broad-market-fund",
+    );
+    expect(
+      PUBLIC_MARKET_INSTRUMENT_IDS.includes(
+        STANDARD_V1_OPENING_PUBLIC_MARKET_INSTRUMENT_ID,
+      ),
+    ).toBe(true);
+  });
+
   it("defines exactly three Standard V1 instrument IDs in canonical order", () => {
     expect(PUBLIC_MARKET_INSTRUMENT_IDS).toEqual([
       "broad-market-fund",

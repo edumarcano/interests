@@ -720,6 +720,94 @@ describe("quarter settlement foundation", () => {
     expect(yieldEntry?.amountCents).toBe(expectedCashYield);
   });
 
+  it("preserves quarter-start entitlement basis when current public market holdings are modified mid-quarter", () => {
+    const readyGame = createReadyGame();
+    const basisPortfolio =
+      readyGame.finance.quarterStartBasis.publicMarketsByPlayer[p1];
+    expect(basisPortfolio).toBeDefined();
+    if (!basisPortfolio) return;
+    const initialBroadHolding = basisPortfolio["broad-market-fund"];
+    expect(initialBroadHolding).toBeGreaterThan(0);
+
+    // Mid-quarter, player 1 reallocates current public market holdings
+    // (broad set to 0, growth set to 50k, defensive set to 20k)
+    // while quarterStartBasis remains strictly untouched.
+    const modifiedPortfolios = {
+      ...readyGame.finance.publicMarketsByPlayer,
+      [p1]: {
+        "broad-market-fund": cents(0),
+        "growth-fund": cents(5_000_000),
+        "income-defensive-fund": cents(2_000_000),
+      },
+    };
+
+    const modifiedState: GameState = {
+      ...readyGame,
+      finance: {
+        ...readyGame.finance,
+        publicMarketsByPlayer: modifiedPortfolios,
+      },
+    };
+
+    // Verify current portfolio differs from quarterStartBasis
+    const currentP1Portfolio = modifiedState.finance.publicMarketsByPlayer[p1];
+    expect(currentP1Portfolio).toBeDefined();
+    if (!currentP1Portfolio) return;
+
+    const basisP1Portfolio =
+      modifiedState.finance.quarterStartBasis.publicMarketsByPlayer[p1];
+    expect(basisP1Portfolio).toBeDefined();
+    if (!basisP1Portfolio) return;
+
+    expect(currentP1Portfolio["broad-market-fund"]).toBe(0);
+    expect(currentP1Portfolio["growth-fund"]).toBe(5_000_000);
+    expect(basisP1Portfolio["broad-market-fund"]).toBe(initialBroadHolding);
+    expect(basisP1Portfolio["growth-fund"]).toBe(0);
+
+    // Settle quarter 1
+    const settleResult = settleQuarter(modifiedState, { quarter: 1 });
+    expect(settleResult.ok).toBe(true);
+    if (!settleResult.ok) return;
+
+    // The dividends received must reflect quarterStartBasis (broad-market-fund with initialBroadHolding),
+    // NOT the modified current portfolio (which had zero broad-market and positive growth/defensive)
+    const p1DividendEntries = settleResult.journalEntries.filter(
+      (e) =>
+        e.reason === "public-market-dividend" &&
+        e.destination.kind === "player" &&
+        e.destination.playerId === p1,
+    );
+
+    // Exactly 1 dividend entry for broad-market-fund, and 0 for growth or defensive
+    expect(p1DividendEntries).toHaveLength(1);
+    const broadEntry = p1DividendEntries[0];
+    expect(broadEntry).toBeDefined();
+    expect(broadEntry?.relatedMarketInstrumentId).toBe("broad-market-fund");
+    expect(broadEntry?.amountCents).toBe(
+      calculateQuarterlyYieldCents({
+        principalCents: initialBroadHolding,
+        annualYieldBps:
+          PUBLIC_MARKET_INSTRUMENTS["broad-market-fund"].annualDividendYieldBps,
+      }),
+    );
+
+    // Verify current portfolio was preserved and not overwritten by Q1 settlement
+    const closingP1Portfolio =
+      settleResult.state.finance.publicMarketsByPlayer[p1];
+    expect(closingP1Portfolio).toBeDefined();
+    if (!closingP1Portfolio) return;
+
+    expect(closingP1Portfolio["broad-market-fund"]).toBe(0);
+    expect(closingP1Portfolio["growth-fund"]).toBe(5_000_000);
+    expect(closingP1Portfolio["income-defensive-fund"]).toBe(2_000_000);
+
+    // Verify Quarter 2 opening basis rolls from the closing current portfolio
+    expect(settleResult.state.finance.quarterStartBasis.quarter).toBe(2);
+    expect(
+      settleResult.state.finance.quarterStartBasis.publicMarketsByPlayer[p1],
+    ).toEqual(closingP1Portfolio);
+  });
+
   it("settles growth and defensive fund dividends with correct yield calculation and journal metadata", () => {
     const base = createReadyGame();
 

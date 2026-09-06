@@ -37,6 +37,8 @@ export const STANDARD_V1_OPENING_BASE_RATE_BPS = 450 as const;
 export const CASH_YIELD_OFFSET_BPS = 150 as const;
 export const CASH_YIELD_FLOOR_BPS = 50 as const;
 export const STANDARD_V1_OPENING_CASH_YIELD_BPS = 300 as const;
+export const STANDARD_V1_OPENING_PUBLIC_MARKET_INSTRUMENT_ID: PublicMarketInstrumentId =
+  "broad-market-fund" as const;
 
 export function calculateCashYieldBps(baseRateBps: number): number {
   if (!Number.isSafeInteger(baseRateBps) || baseRateBps < 0) {
