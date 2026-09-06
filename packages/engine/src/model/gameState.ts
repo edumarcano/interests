@@ -4,12 +4,26 @@ import type {
   ProfileId,
   PublicMarketInstrumentId,
 } from "@finance-game/rules";
-import type { AssetId, GameId, LoanId, PlayerId } from "@finance-game/shared";
+import type {
+  AssetId,
+  GameId,
+  LoanId,
+  OpportunityId,
+  PlayerId,
+} from "@finance-game/shared";
 
 import type { BasisPoints, Cents } from "../finance/money";
 import type { OwnershipPpm } from "../finance/ownership";
+import type { Opportunity } from "../opportunities/model";
 import type { RandomState } from "../random/prng";
 import type { ActiveTransaction } from "../transactions/model";
+
+export type {
+  BusinessPurchaseDueDiligence,
+  Opportunity,
+  PrivateBusinessPurchaseInvestigation,
+  PrivateBusinessPurchaseOpportunity,
+} from "../opportunities/model";
 
 export type {
   ActiveTransaction,
@@ -145,4 +159,5 @@ export interface GameState {
   readonly random: RandomState;
   readonly counters: DeterministicCounters;
   readonly activeTransaction: ActiveTransaction | null;
+  readonly opportunitiesById: Readonly<Record<OpportunityId, Opportunity>>;
 }
