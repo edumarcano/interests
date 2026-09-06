@@ -6,6 +6,7 @@ export * from "./finance/economy";
 export * from "./finance/journal";
 export * from "./finance/markets";
 export * from "./finance/money";
+export * from "./finance/ownership";
 export * from "./finance/settlement";
 export * from "./game/actions";
 export * from "./game/createGame";
@@ -14,6 +15,9 @@ export * from "./game/setup";
 export * from "./invariants/assertGameState";
 export * from "./model/gameState";
 export * from "./random/prng";
+export * from "./transactions/cashBusinessPurchase";
+export * from "./transactions/model";
+export * from "./transactions/reservations";
 
 export const ENGINE_VERSION = "0.0.1";
 

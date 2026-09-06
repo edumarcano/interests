@@ -121,6 +121,7 @@ export function createGame(input: CreateGameInput): GameState {
     opportunity: 0,
     journal: 0,
     settlement: 0,
+    transaction: 0,
   };
 
   // 1. Starting Assets creation in canonical playerOrder
@@ -273,6 +274,7 @@ export function createGame(input: CreateGameInput): GameState {
     },
     random: setup.random,
     counters: currentCounters,
+    activeTransaction: null,
   };
 
   assertGameState(state);

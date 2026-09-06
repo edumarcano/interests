@@ -40,6 +40,7 @@ export interface SettleQuarterRequest {
 
 export type SettleQuarterErrorCode =
   | "WRONG_PHASE"
+  | "ACTIVE_TRANSACTION"
   | "INVALID_QUARTER"
   | "QUARTER_ALREADY_SETTLED"
   | "WRONG_QUARTER"
@@ -149,6 +150,11 @@ export function settleQuarter(
   // 1. Phase validation: must have completed setup (ready-for-first-round)
   if (state.phase !== "ready-for-first-round") {
     return reject("WRONG_PHASE");
+  }
+
+  // Active transaction validation: transactions must be resolved before quarterly settlement
+  if (state.activeTransaction !== null) {
+    return reject("ACTIVE_TRANSACTION");
   }
 
   // 2. Quarter validation

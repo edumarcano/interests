@@ -165,6 +165,14 @@ export function assertGameState(state: GameState): void {
       "Game invariant failed: settlement counter must be a non-negative safe integer",
     );
   }
+  if (
+    !Number.isSafeInteger(state.counters.transaction) ||
+    state.counters.transaction < 0
+  ) {
+    throw new Error(
+      "Game invariant failed: transaction counter must be a non-negative safe integer",
+    );
+  }
 
   // Quarter state invariants
   if (
@@ -958,6 +966,118 @@ function assertEconomyState(state: GameState): void {
           `Game invariant failed: unknown instrument ${key} in lastMarketUpdate.returnBpsByInstrument`,
         );
       }
+    }
+  }
+
+  // Active transaction invariants
+  if (state.activeTransaction !== null) {
+    const tx = state.activeTransaction;
+    if (!tx || typeof tx !== "object") {
+      throw new Error(
+        "Game invariant failed: activeTransaction must be an object or null",
+      );
+    }
+    if (typeof tx.id !== "string" || tx.id.trim() === "") {
+      throw new Error(
+        "Game invariant failed: activeTransaction.id must be a non-empty string",
+      );
+    }
+    if (tx.kind !== "cash-business-purchase") {
+      throw new Error(
+        `Game invariant failed: unrecognized activeTransaction kind ${String((tx as { kind: unknown }).kind)}`,
+      );
+    }
+    if (state.phase !== "ready-for-first-round") {
+      throw new Error(
+        `Game invariant failed: active transaction present in unsupported phase ${state.phase}`,
+      );
+    }
+    if (!state.players[tx.buyerPlayerId]) {
+      throw new Error(
+        `Game invariant failed: buyer player ${tx.buyerPlayerId} does not exist`,
+      );
+    }
+    if (!state.players[tx.sellerPlayerId]) {
+      throw new Error(
+        `Game invariant failed: seller player ${tx.sellerPlayerId} does not exist`,
+      );
+    }
+    if (tx.buyerPlayerId === tx.sellerPlayerId) {
+      throw new Error(
+        "Game invariant failed: buyer and seller must be distinct players",
+      );
+    }
+    const asset = state.finance.assetsById[tx.assetId];
+    if (!asset) {
+      throw new Error(
+        `Game invariant failed: active transaction asset ${tx.assetId} does not exist`,
+      );
+    }
+    if (asset.kind !== "business") {
+      throw new Error(
+        `Game invariant failed: active transaction asset must be a business, got ${asset.kind}`,
+      );
+    }
+    if (asset.debtPrincipalCents !== 0) {
+      throw new Error(
+        `Game invariant failed: active transaction business must be debt-free, got debt ${asset.debtPrincipalCents}`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(tx.purchasePriceCents) ||
+      tx.purchasePriceCents <= 0
+    ) {
+      throw new Error(
+        "Game invariant failed: purchasePriceCents must be a positive safe integer",
+      );
+    }
+    if (!tx.reservation || typeof tx.reservation !== "object") {
+      throw new Error("Game invariant failed: reservation must be an object");
+    }
+    if (tx.reservation.purpose !== "purchase-price") {
+      throw new Error(
+        `Game invariant failed: reservation purpose must be purchase-price, got ${String(tx.reservation.purpose)}`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(tx.reservation.amountCents) ||
+      tx.reservation.amountCents <= 0
+    ) {
+      throw new Error(
+        "Game invariant failed: reservation amountCents must be a positive safe integer",
+      );
+    }
+    if (tx.reservation.amountCents !== tx.purchasePriceCents) {
+      throw new Error(
+        `Game invariant failed: reservation amountCents (${tx.reservation.amountCents}) must equal purchasePriceCents (${tx.purchasePriceCents})`,
+      );
+    }
+    if (tx.reservation.playerId !== tx.buyerPlayerId) {
+      throw new Error(
+        `Game invariant failed: reservation playerId (${tx.reservation.playerId}) must match buyerPlayerId (${tx.buyerPlayerId})`,
+      );
+    }
+    const buyerCash = state.finance.cashByPlayer[tx.buyerPlayerId];
+    if (buyerCash === undefined || buyerCash < tx.reservation.amountCents) {
+      throw new Error(
+        `Game invariant failed: buyer actual cash (${String(buyerCash)}) must be >= reservation amount (${tx.reservation.amountCents})`,
+      );
+    }
+    const sellerOwnership = asset.ownershipByPlayerPpm[tx.sellerPlayerId];
+    if (sellerOwnership !== TOTAL_OWNERSHIP_PPM) {
+      throw new Error(
+        `Game invariant failed: seller must own exactly ${TOTAL_OWNERSHIP_PPM} PPM, got ${String(sellerOwnership)}`,
+      );
+    }
+    if (Object.keys(asset.ownershipByPlayerPpm).length !== 1) {
+      throw new Error(
+        "Game invariant failed: seller must be the sole owner of the business",
+      );
+    }
+    if (!Number.isSafeInteger(tx.createdQuarter) || tx.createdQuarter <= 0) {
+      throw new Error(
+        `Game invariant failed: createdQuarter must be a positive safe integer, got ${String(tx.createdQuarter)}`,
+      );
     }
   }
 }

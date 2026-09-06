@@ -70,6 +70,7 @@ function createInitialCounters(): DeterministicCounters {
     opportunity: 0,
     journal: 0,
     settlement: 0,
+    transaction: 0,
   };
 }
 

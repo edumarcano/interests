@@ -4,6 +4,7 @@ import {
   asLoanId,
   asOpportunityId,
   asSettlementId,
+  asTransactionId,
 } from "@finance-game/shared";
 
 import { asJournalEntryId } from "../finance/journal";
@@ -36,6 +37,10 @@ export function nextDeterministicId(
   counters: DeterministicCounters,
 ): { id: ReturnType<typeof asSettlementId>; counters: DeterministicCounters };
 export function nextDeterministicId(
+  kind: "transaction",
+  counters: DeterministicCounters,
+): { id: ReturnType<typeof asTransactionId>; counters: DeterministicCounters };
+export function nextDeterministicId(
   kind: CounterKind,
   counters: DeterministicCounters,
 ): {
@@ -45,7 +50,8 @@ export function nextDeterministicId(
     | ReturnType<typeof asLoanId>
     | ReturnType<typeof asOpportunityId>
     | ReturnType<typeof asJournalEntryId>
-    | ReturnType<typeof asSettlementId>;
+    | ReturnType<typeof asSettlementId>
+    | ReturnType<typeof asTransactionId>;
   counters: DeterministicCounters;
 };
 export function nextDeterministicId(
@@ -81,5 +87,7 @@ export function nextDeterministicId(
       return { id: asJournalEntryId(rawId), counters: nextCounters };
     case "settlement":
       return { id: asSettlementId(rawId), counters: nextCounters };
+    case "transaction":
+      return { id: asTransactionId(rawId), counters: nextCounters };
   }
 }

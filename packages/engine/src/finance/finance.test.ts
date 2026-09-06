@@ -92,6 +92,7 @@ function createInitialCounters(): DeterministicCounters {
     opportunity: 0,
     journal: 0,
     settlement: 0,
+    transaction: 0,
   };
 }
 
@@ -516,6 +517,7 @@ describe("deterministic repeatability", () => {
       opportunity: 0,
       journal: Number.MAX_SAFE_INTEGER,
       settlement: 0,
+      transaction: 0,
     };
 
     expect(() =>

@@ -308,6 +308,12 @@ describe("deterministic kernel", () => {
     expect(s1).toEqual(s2);
     expect(s1.id).toBe("settlement-1");
     expect(s1.counters.settlement).toBe(1);
+
+    const t1 = nextDeterministicId("transaction", state.counters);
+    const t2 = nextDeterministicId("transaction", state.counters);
+    expect(t1).toEqual(t2);
+    expect(t1.id).toBe("transaction-1");
+    expect(t1.counters.transaction).toBe(1);
   });
 
   it("rejects counter increment when counter is exhausted at MAX_SAFE_INTEGER", () => {
@@ -318,6 +324,7 @@ describe("deterministic kernel", () => {
       "opportunity",
       "journal",
       "settlement",
+      "transaction",
     ] as const;
     for (const kind of kinds) {
       const exhaustedCounters: DeterministicCounters = {
@@ -327,6 +334,7 @@ describe("deterministic kernel", () => {
         opportunity: 0,
         journal: 0,
         settlement: 0,
+        transaction: 0,
         [kind]: Number.MAX_SAFE_INTEGER,
       };
       expect(() => nextDeterministicId(kind, exhaustedCounters)).toThrow(
@@ -346,6 +354,7 @@ describe("deterministic kernel", () => {
       opportunity: 0,
       journal: -5,
       settlement: -2,
+      transaction: -3,
     };
     expect(() => nextDeterministicId("asset", invalidCounters)).toThrow(
       RangeError,
@@ -360,6 +369,9 @@ describe("deterministic kernel", () => {
       RangeError,
     );
     expect(() => nextDeterministicId("settlement", invalidCounters)).toThrow(
+      RangeError,
+    );
+    expect(() => nextDeterministicId("transaction", invalidCounters)).toThrow(
       RangeError,
     );
   });

@@ -32,6 +32,14 @@ export function isOwnershipPpm(value: unknown): value is OwnershipPpm {
   );
 }
 
+export function createSoleOwnership(
+  playerId: PlayerId,
+): Readonly<Record<PlayerId, OwnershipPpm>> {
+  return {
+    [playerId]: ownershipPpm(TOTAL_OWNERSHIP_PPM),
+  };
+}
+
 interface OwnerShareCalculation {
   readonly playerId: PlayerId;
   readonly flooredCents: number;
