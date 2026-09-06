@@ -439,7 +439,7 @@ describe("first private business-purchase opportunity lifecycle", () => {
       );
       expect(sellerAttempt.ok).toBe(false);
       if (!sellerAttempt.ok) {
-        expect(sellerAttempt.code).toBe("NOT_AUTHORIZED");
+        expect(sellerAttempt.code).toBe("NOT_FOUND_OR_NOT_VISIBLE");
       }
       expect(sellerAttempt.state).toBe(state); // Identical state reference
 
@@ -451,11 +451,11 @@ describe("first private business-purchase opportunity lifecycle", () => {
       );
       expect(thirdPartyAttempt.ok).toBe(false);
       if (!thirdPartyAttempt.ok) {
-        expect(thirdPartyAttempt.code).toBe("NOT_AUTHORIZED");
+        expect(thirdPartyAttempt.code).toBe("NOT_FOUND_OR_NOT_VISIBLE");
       }
       expect(thirdPartyAttempt.state).toBe(state);
 
-      // Investigation of unknown opportunity
+      // Investigation of unknown opportunity returns exact same non-disclosing error
       const unknownAttempt = investigatePrivateBusinessPurchaseOpportunity(
         state,
         asOpportunityId("opportunity-999"),
@@ -463,7 +463,7 @@ describe("first private business-purchase opportunity lifecycle", () => {
       );
       expect(unknownAttempt.ok).toBe(false);
       if (!unknownAttempt.ok) {
-        expect(unknownAttempt.code).toBe("OPPORTUNITY_NOT_FOUND");
+        expect(unknownAttempt.code).toBe("NOT_FOUND_OR_NOT_VISIBLE");
       }
       expect(unknownAttempt.state).toBe(state);
     });
@@ -489,7 +489,7 @@ describe("first private business-purchase opportunity lifecycle", () => {
       );
       expect(sellerAttempt.ok).toBe(false);
       if (!sellerAttempt.ok) {
-        expect(sellerAttempt.code).toBe("NOT_AUTHORIZED");
+        expect(sellerAttempt.code).toBe("NOT_FOUND_OR_NOT_VISIBLE");
       }
       expect(sellerAttempt.state).toBe(state);
 
@@ -500,10 +500,11 @@ describe("first private business-purchase opportunity lifecycle", () => {
       );
       expect(thirdPartyAttempt.ok).toBe(false);
       if (!thirdPartyAttempt.ok) {
-        expect(thirdPartyAttempt.code).toBe("NOT_AUTHORIZED");
+        expect(thirdPartyAttempt.code).toBe("NOT_FOUND_OR_NOT_VISIBLE");
       }
       expect(thirdPartyAttempt.state).toBe(state);
 
+      // Pursuit of unknown opportunity returns exact same non-disclosing error
       const unknownAttempt = pursuePrivateBusinessPurchaseOpportunity(
         state,
         asOpportunityId("opportunity-999"),
@@ -511,7 +512,7 @@ describe("first private business-purchase opportunity lifecycle", () => {
       );
       expect(unknownAttempt.ok).toBe(false);
       if (!unknownAttempt.ok) {
-        expect(unknownAttempt.code).toBe("OPPORTUNITY_NOT_FOUND");
+        expect(unknownAttempt.code).toBe("NOT_FOUND_OR_NOT_VISIBLE");
       }
       expect(unknownAttempt.state).toBe(state);
     });
@@ -955,23 +956,19 @@ describe("first private business-purchase opportunity lifecycle", () => {
     });
 
     it("produces deterministic, deeply equal results from identical initial state and input (Section 34)", () => {
-      const { state: initial1, businessAssetId: biz1 } =
-        createOpportunityFixture();
-      const { state: initial2, businessAssetId: biz2 } =
-        createOpportunityFixture();
+      const { state: initial, businessAssetId } = createOpportunityFixture();
+      const initialSnapshot = JSON.parse(JSON.stringify(initial));
 
       const input = {
         targetPlayerId: buyerId,
         sellerPlayerId: sellerId,
-        assetId: biz1,
+        assetId: businessAssetId,
         askingPriceCents: 6_000_000,
       };
 
-      const res1 = createPrivateBusinessPurchaseOpportunity(initial1, input);
-      const res2 = createPrivateBusinessPurchaseOpportunity(initial2, {
-        ...input,
-        assetId: biz2,
-      });
+      // Call createPrivateBusinessPurchaseOpportunity twice from the exact same initial state object
+      const res1 = createPrivateBusinessPurchaseOpportunity(initial, input);
+      const res2 = createPrivateBusinessPurchaseOpportunity(initial, input);
 
       expect(res1.ok).toBe(true);
       expect(res2.ok).toBe(true);
@@ -979,7 +976,12 @@ describe("first private business-purchase opportunity lifecycle", () => {
 
       expect(res1.opportunityId).toBe("opportunity-1");
       expect(res2.opportunityId).toBe("opportunity-1");
+      // Deep-compare complete results
+      expect(res1).toEqual(res2);
       expect(res1.state).toEqual(res2.state);
+
+      // Prove the original input state object was not mutated
+      expect(initial).toEqual(initialSnapshot);
     });
 
     it("validates all creation preconditions", () => {

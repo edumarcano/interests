@@ -68,8 +68,7 @@ export type CreateOpportunityResult =
     };
 
 export type InvestigateOpportunityErrorCode =
-  | "OPPORTUNITY_NOT_FOUND"
-  | "NOT_AUTHORIZED"
+  | "NOT_FOUND_OR_NOT_VISIBLE"
   | "OPPORTUNITY_NOT_AVAILABLE"
   | "ALREADY_INVESTIGATED";
 
@@ -86,8 +85,7 @@ export type InvestigateOpportunityResult =
     };
 
 export type PursueOpportunityErrorCode =
-  | "OPPORTUNITY_NOT_FOUND"
-  | "NOT_AUTHORIZED"
+  | "NOT_FOUND_OR_NOT_VISIBLE"
   | "OPPORTUNITY_NOT_AVAILABLE"
   | "TRANSACTION_REJECTED";
 

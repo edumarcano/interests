@@ -149,12 +149,12 @@ export function investigatePrivateBusinessPurchaseOpportunity(
   });
 
   const opportunity = state.opportunitiesById[opportunityId];
-  if (!opportunity) {
-    return reject("OPPORTUNITY_NOT_FOUND");
-  }
-
-  if (playerId !== opportunity.targetPlayerId) {
-    return reject("NOT_AUTHORIZED");
+  if (
+    !opportunity ||
+    (opportunity.access === "private" &&
+      opportunity.targetPlayerId !== playerId)
+  ) {
+    return reject("NOT_FOUND_OR_NOT_VISIBLE");
   }
 
   if (opportunity.status !== "available") {
@@ -209,12 +209,12 @@ export function pursuePrivateBusinessPurchaseOpportunity(
   });
 
   const opportunity = state.opportunitiesById[opportunityId];
-  if (!opportunity) {
-    return reject("OPPORTUNITY_NOT_FOUND");
-  }
-
-  if (playerId !== opportunity.targetPlayerId) {
-    return reject("NOT_AUTHORIZED");
+  if (
+    !opportunity ||
+    (opportunity.access === "private" &&
+      opportunity.targetPlayerId !== playerId)
+  ) {
+    return reject("NOT_FOUND_OR_NOT_VISIBLE");
   }
 
   if (opportunity.status !== "available") {
@@ -229,16 +229,22 @@ export function pursuePrivateBusinessPurchaseOpportunity(
     purchasePriceCents: opportunity.askingPriceCents,
   });
 
-  if (!txResult.ok || txResult.transactionId === undefined) {
+  if (!txResult.ok) {
     return {
       ok: false,
       state,
       code: "TRANSACTION_REJECTED",
-      transactionCode: txResult.ok ? "TRANSACTION_ID_MISMATCH" : txResult.code,
+      transactionCode: txResult.code,
     };
   }
 
   const transactionId = txResult.transactionId;
+  if (!transactionId) {
+    throw new Error(
+      "Invariant failed: openCashBusinessPurchaseTransaction reported success without returning a transactionId",
+    );
+  }
+
   const pursuedOpportunity: PrivateBusinessPurchaseOpportunity = {
     ...opportunity,
     status: "pursued",

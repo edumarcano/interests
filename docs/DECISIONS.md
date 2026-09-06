@@ -221,19 +221,19 @@ Establish the first private business-purchase opportunity lifecycle in `@finance
    - At opportunity discovery, snapshot `annualRevenueCents`, `annualOperatingProfitCents`, `enterpriseValueCents`, and `debtPrincipalCents` from the underlying business into `investigation.facts`.
    - Subsequent investigation merely discloses this stored snapshot; it never regenerates facts from the live asset or rerolls values.
 
-5. **Target-Only Private Projection (`getOpportunityView`):**
-   - Private opportunities are completely concealed from unauthorized players (seller and third parties receive typed `NOT_FOUND_OR_NOT_VISIBLE`).
+5. **Target-Only Private Projection & Existence Privacy (`getOpportunityView`):**
+   - Private opportunities are completely concealed from unauthorized players: view, investigate, and pursue operations all return typed `NOT_FOUND_OR_NOT_VISIBLE` for both non-existent and unauthorized private opportunities to prevent existence leakage.
    - Prior to investigation, the target player's view contains basic opportunity terms (seller, asset, asking price, status) while diligence facts remain `null`.
    - After investigation, the view reveals the exact stored due-diligence snapshot.
 
 6. **Optional Zero-Cost Investigation (`investigatePrivateBusinessPurchaseOpportunity`):**
-   - Target player may investigate to reveal diligence facts (`investigated: false -> true`).
+   - Target player may investigate to reveal diligence facts (`investigated: false -> true`). Unauthorized or missing opportunities return non-disclosing `NOT_FOUND_OR_NOT_VISIBLE`.
    - Investigation consumes zero cash, zero RNG, and zero IDs, advancing revision by 1.
    - Repeat attempts reject atomically with `ALREADY_INVESTIGATED`.
    - Investigation is optional: an uninvestigated opportunity may still be pursued directly.
 
 7. **Pursuit via PR #13 Transaction Kernel Delegation (`pursuePrivateBusinessPurchaseOpportunity`):**
-   - Pursuit validates opportunity availability and target player identity, then delegates legality and execution directly to `openCashBusinessPurchaseTransaction()`.
+   - Pursuit validates opportunity availability and target player identity (`NOT_FOUND_OR_NOT_VISIBLE` on mismatch or missing), then delegates legality and execution directly to `openCashBusinessPurchaseTransaction()`.
    - If the transaction kernel rejects (insufficient cash, active transaction collision, stale ownership, encumbered debt), the rejection is surfaced with `{ code: "TRANSACTION_REJECTED", transactionCode }`, and the opportunity remains `available` with zero state/counter/revision changes.
    - Upon successful transaction opening, opportunity status transitions to `"pursued"` and stores `relatedTransactionId` as a single atomic transition (revision is not incremented a second time).
    - Once pursued, the opportunity cannot be pursued again (one-shot pursuit in this slice).
