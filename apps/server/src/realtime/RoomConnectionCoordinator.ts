@@ -196,13 +196,13 @@ export class RoomConnectionCoordinator {
     // Build and send bootstrap
     const roomView = this.repository.getRoomLobbyViewByCode(normalizedCode);
     if (roomView) {
-      const presence = this.buildPresencePayload(normalizedCode);
       const match = this.matchService
         ? this.matchService.getMatchViewForMember({
             roomCode: normalizedCode,
             memberId,
           })
         : null;
+      const presence = this.buildPresencePayload(normalizedCode);
 
       const bootstrapPayload: BootstrapPayload = {
         protocolVersion: SOCKET_PROTOCOL_VERSION,

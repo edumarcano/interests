@@ -6,12 +6,14 @@ import type { CommandAckResult, MatchPlayerView } from "@finance-game/shared";
 import { type Socket as ClientSocket, io as ioClient } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createServer } from "../src/createServer.js";
+import { recoverActiveMatchesOnStartup } from "../src/match/startupRecovery.js";
 import { runMigrations } from "../src/persistence/sqlite/migrations.js";
 import { openDatabase } from "../src/persistence/sqlite/openDatabase.js";
 import { SqliteLobbyRepository } from "../src/persistence/sqlite/SqliteLobbyRepository.js";
 import { SqliteMatchRepository } from "../src/persistence/sqlite/SqliteMatchRepository.js";
 import {
   SOCKET_CLIENT_EVENTS,
+  SOCKET_ERROR_CODES,
   SOCKET_SERVER_EVENTS,
 } from "../src/realtime/socketProtocol.js";
 import type { BootstrapPayload } from "../src/realtime/types.js";
@@ -788,5 +790,160 @@ describe("MatchService and Realtime Pipeline", () => {
     const corruptedMatch = matchRepo.findMatchByRoomCode(roomCode);
     expect(corruptedMatch).toBeDefined();
     expect(corruptedMatch?.match.revision).toBe(999);
+  });
+
+  it("detects swapped/corrupted RoomMember mappings, activates SYSTEM_FAULT, and fails closed without leaking private views across startup/HTTP/bootstrap", async () => {
+    const { roomCode, cookies } = await createAndFillRoom();
+
+    for (let i = 0; i < 4; i++) {
+      const cookie = cookies[i];
+      if (!cookie) throw new Error("Cookie missing");
+      const c = await connectSocket(cookie, roomCode);
+      await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
+    }
+
+    const hostCookie = cookies[0];
+    const player2Cookie = cookies[1];
+    if (!hostCookie || !player2Cookie) throw new Error("Cookie missing");
+
+    const startRes = await server.fastify.inject({
+      method: "POST",
+      url: `/api/rooms/${roomCode}/start`,
+      cookies: { finance_game_session: hostCookie },
+    });
+    expect(startRes.statusCode).toBe(200);
+    const startBody = JSON.parse(startRes.body);
+    const matchId = startBody.match.matchId;
+
+    // Fetch members before swap
+    const membersBefore = db
+      .prepare(
+        "SELECT room_member_id, player_order, player_id FROM match_members WHERE match_id = ? ORDER BY player_order ASC",
+      )
+      .all(matchId) as Array<{
+      room_member_id: string;
+      player_order: number;
+      player_id: string;
+    }>;
+    expect(membersBefore).toHaveLength(4);
+
+    const m0 = membersBefore[0];
+    const m1 = membersBefore[1];
+    if (!m0 || !m1) throw new Error("Missing members before swap");
+
+    // Swap the player_order of member 0 and member 1
+    // (This corrupts the lobby joinOrder -> match member playerOrder mapping:
+    //  room member with join_order 0 is now mapped to player_order 1 and vice versa,
+    //  while keeping player_order 0..3 and player-1..player-4 internally intact)
+    db.prepare(
+      "UPDATE match_members SET player_order = 99 WHERE match_id = ? AND player_order = 0",
+    ).run(matchId);
+    db.prepare(
+      "UPDATE match_members SET player_order = 0 WHERE match_id = ? AND player_order = 1",
+    ).run(matchId);
+    db.prepare(
+      "UPDATE match_members SET player_order = 1 WHERE match_id = ? AND player_order = 99",
+    ).run(matchId);
+
+    // 1. Prove startup recovery fails closed: detects corruption and activates SYSTEM_FAULT
+    recoverActiveMatchesOnStartup(matchRepo, lobbyRepo);
+    const pauseReasons = lobbyRepo.getPauseReasons(roomCode);
+    expect(pauseReasons).toContain("SYSTEM_FAULT");
+
+    // 2. Prove HTTP getMatchView fails closed with safe generic error and does NOT expose swapped player's view
+    const httpRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { finance_game_session: hostCookie },
+    });
+    expect(httpRes.statusCode).toBe(500);
+    const httpBody = JSON.parse(httpRes.body);
+    expect(httpBody.error.code).toBe("SYSTEM_FAULT");
+    expect(httpBody.error.message).toBe(
+      "Match state is inconsistent or corrupted",
+    );
+    // Ensure no private objective cards or internal player details leaked in error message
+    expect(httpBody.error.message).not.toContain("player-1");
+    expect(httpBody.error.message).not.toContain("player-2");
+
+    // 3. Prove realtime bootstrap fails closed: connect new socket for player 2
+    // Bootstrap must have match: null and carry SYSTEM_FAULT in pause reasons
+    const c2 = await connectSocket(player2Cookie, roomCode);
+    expect(c2.bootstrap.match).toBeNull();
+    expect(c2.bootstrap.pause.reasons).toContain("SYSTEM_FAULT");
+    expect(c2.bootstrap.presence.pauseReasons).toContain("SYSTEM_FAULT");
+  });
+
+  it("forces a command persistence/commit failure through Socket.IO and proves safe error ack with no unhandled rejection", async () => {
+    const { roomCode, cookies } = await createAndFillRoom();
+
+    const clients: Array<{
+      socket: ClientSocket;
+      bootstrap: BootstrapPayload;
+    }> = [];
+    for (let i = 0; i < 4; i++) {
+      const cookie = cookies[i];
+      if (!cookie) throw new Error("Cookie missing");
+      const c = await connectSocket(cookie, roomCode);
+      clients.push(c);
+      await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
+    }
+
+    const hostCookie = cookies[0];
+    if (!hostCookie) throw new Error("Host cookie missing");
+
+    const startRes = await server.fastify.inject({
+      method: "POST",
+      url: `/api/rooms/${roomCode}/start`,
+      cookies: { finance_game_session: hostCookie },
+    });
+    const hostView = JSON.parse(startRes.body).match as MatchPlayerView;
+    const chosenObjective = hostView.self.offeredObjectiveIds[0];
+    if (!chosenObjective) throw new Error("Missing objective");
+
+    const p1Socket = clients[0]?.socket;
+    if (!p1Socket) throw new Error("Missing p1 socket");
+
+    // Force commitAcceptedCommand on matchRepo to throw an unexpected database failure
+    const originalCommit = matchRepo.commitAcceptedCommand.bind(matchRepo);
+    let commitCalled = false;
+    matchRepo.commitAcceptedCommand = () => {
+      commitCalled = true;
+      throw new Error(
+        "Simulated SQLite disk/write failure during commitAcceptedCommand",
+      );
+    };
+
+    try {
+      const commandId = "33333333-3333-4333-8333-333333333333";
+      const ack = await new Promise<CommandAckResult>((resolve) => {
+        p1Socket.emit(
+          SOCKET_CLIENT_EVENTS.COMMAND,
+          {
+            commandId,
+            expectedRevision: 0,
+            command: {
+              type: "CHOOSE_OBJECTIVE",
+              objectiveId: chosenObjective,
+            },
+          },
+          (res: CommandAckResult) => resolve(res),
+        );
+      });
+
+      expect(commitCalled).toBe(true);
+      expect(ack.ok).toBe(false);
+      if (ack.ok) throw new Error("Expected failure ack");
+      expect(ack.commandId).toBe(commandId);
+      expect(ack.error.code).toBe(SOCKET_ERROR_CODES.INTERNAL_ERROR);
+      expect(ack.error.message).toBe(
+        "An internal error occurred while executing command",
+      );
+      // Ensure revision did not advance
+      const match = matchRepo.findMatchByRoomCode(roomCode);
+      expect(match?.match.revision).toBe(0);
+    } finally {
+      matchRepo.commitAcceptedCommand = originalCommit;
+    }
   });
 });

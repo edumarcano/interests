@@ -44,7 +44,7 @@ export class MatchService {
   private validatePersistedMatchOrFault(
     roomCode: string,
     matchWithMembers: MatchWithMembers,
-    roomMembers?: readonly { id: RoomMemberId }[],
+    roomMembers?: readonly { id: RoomMemberId; joinOrder: number }[],
   ): GameState {
     try {
       return loadAndValidatePersistedMatch(matchWithMembers, roomMembers);
@@ -298,25 +298,26 @@ export class MatchService {
       return null;
     }
 
-    const targetPlayerId = this.matchRepository.findPlayerForRoomMember(
-      matchWithMembers.match.id,
-      params.memberId,
-    );
-    if (!targetPlayerId) {
-      return null;
-    }
-
     const roomInfo = this.matchRepository.findRoomWithMembers(params.roomCode);
-    if (!roomInfo) return null;
 
     let gameState: GameState;
     try {
       gameState = this.validatePersistedMatchOrFault(
         params.roomCode,
         matchWithMembers,
-        roomInfo.members,
+        roomInfo?.members,
       );
     } catch {
+      return null;
+    }
+
+    if (!roomInfo) return null;
+
+    const targetPlayerId = this.matchRepository.findPlayerForRoomMember(
+      matchWithMembers.match.id,
+      params.memberId,
+    );
+    if (!targetPlayerId) {
       return null;
     }
 

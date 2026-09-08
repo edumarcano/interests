@@ -119,7 +119,7 @@ export function loadAndValidateSnapshot(
  */
 export function loadAndValidatePersistedMatch(
   matchWithMembers: MatchWithMembers,
-  roomMembers?: readonly { id: RoomMemberId }[],
+  roomMembers?: readonly { id: RoomMemberId; joinOrder: number }[],
 ): GameState {
   const versions: MatchVersionMetadata = {
     engineVersion: matchWithMembers.match.engineVersion,
@@ -175,48 +175,78 @@ export function loadAndValidatePersistedMatch(
     );
   }
 
-  const sortedMembers = [...matchWithMembers.members].sort(
+  if (roomMembers?.length !== 4) {
+    throw new MatchError(
+      "INVALID_MATCH_MEMBERS",
+      `Room has ${roomMembers?.length ?? 0} members; exactly 4 required for match`,
+      500,
+    );
+  }
+
+  const sortedRoomMembers = [...roomMembers].sort(
+    (a, b) => a.joinOrder - b.joinOrder,
+  );
+  const sortedMatchMembers = [...matchWithMembers.members].sort(
     (a, b) => a.playerOrder - b.playerOrder,
   );
 
   const seenRoomMembers = new Set<string>();
-  for (let idx = 0; idx < 4; idx++) {
-    const m = sortedMembers[idx];
-    if (!m || m.playerOrder !== idx) {
-      throw new MatchError(
-        "INVALID_MATCH_MEMBERS",
-        `Invalid player order mapping at index ${idx}`,
-        500,
-      );
-    }
-    if (m.playerId !== gameState.playerOrder[idx]) {
-      throw new MatchError(
-        "INVALID_MATCH_MEMBERS",
-        `Member at order ${idx} maps to player '${m.playerId}', but snapshot playerOrder has '${gameState.playerOrder[idx]}'`,
-        500,
-      );
-    }
-    if (seenRoomMembers.has(m.roomMemberId)) {
-      throw new MatchError(
-        "INVALID_MATCH_MEMBERS",
-        `Duplicate room member '${m.roomMemberId}' in match members`,
-        500,
-      );
-    }
-    seenRoomMembers.add(m.roomMemberId);
-  }
+  const seenPlayerIds = new Set<string>();
 
-  if (roomMembers) {
-    const roomMemberSet = new Set(roomMembers.map((rm) => rm.id as string));
-    for (const m of matchWithMembers.members) {
-      if (!roomMemberSet.has(m.roomMemberId)) {
-        throw new MatchError(
-          "INVALID_MATCH_MEMBERS",
-          `Match member '${m.roomMemberId}' does not belong to the room`,
-          500,
-        );
-      }
+  for (let idx = 0; idx < 4; idx++) {
+    const rm = sortedRoomMembers[idx];
+    const mm = sortedMatchMembers[idx];
+
+    if (!rm || rm.joinOrder !== idx) {
+      throw new MatchError(
+        "INVALID_MATCH_MEMBERS",
+        `Invalid room member join order mapping at index ${idx}`,
+        500,
+      );
     }
+
+    if (!mm || mm.playerOrder !== idx) {
+      throw new MatchError(
+        "INVALID_MATCH_MEMBERS",
+        `Invalid match member player order mapping at index ${idx}`,
+        500,
+      );
+    }
+
+    // Exact one-to-one mapping: (room member joinOrder N) -> (match member playerOrder N) -> GameState.playerOrder[N]
+    if (mm.roomMemberId !== rm.id) {
+      throw new MatchError(
+        "INVALID_MATCH_MEMBERS",
+        `Room member with joinOrder ${idx} ('${rm.id}') does not match match member with playerOrder ${idx} ('${mm.roomMemberId}')`,
+        500,
+      );
+    }
+
+    if (mm.playerId !== gameState.playerOrder[idx]) {
+      throw new MatchError(
+        "INVALID_MATCH_MEMBERS",
+        `Member at order ${idx} maps to player '${mm.playerId}', but snapshot playerOrder has '${gameState.playerOrder[idx]}'`,
+        500,
+      );
+    }
+
+    if (seenRoomMembers.has(rm.id)) {
+      throw new MatchError(
+        "INVALID_MATCH_MEMBERS",
+        `Duplicate room member '${rm.id}' in room members`,
+        500,
+      );
+    }
+    seenRoomMembers.add(rm.id);
+
+    if (seenPlayerIds.has(mm.playerId)) {
+      throw new MatchError(
+        "INVALID_MATCH_MEMBERS",
+        `Duplicate player id '${mm.playerId}' in match members`,
+        500,
+      );
+    }
+    seenPlayerIds.add(mm.playerId);
   }
 
   return gameState;
