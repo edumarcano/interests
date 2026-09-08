@@ -1,10 +1,10 @@
-import { type GameState, projectPlayerGameState } from "@finance-game/engine";
+import { type GameState, projectPlayerGameState } from "@interests/engine";
 import type {
   MatchPlayerSummaryView,
   MatchPlayerView,
   PlayerId,
   RoomMemberId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 import type { MatchMemberRecord, MatchRoomMember } from "./types.js";
 
 /**

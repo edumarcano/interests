@@ -1,4 +1,4 @@
-import type { PlayerId } from "@finance-game/shared";
+import type { PlayerId } from "@interests/shared";
 
 export const EXTERNAL_ACCOUNTS = [
   "employer",

@@ -1,6 +1,6 @@
 # Simulation Harness Documentation
 
-The `@finance-game/simulation` package provides deterministic, headless measurement tools for Standard V1 gameplay. It orchestrates the authoritative `@finance-game/engine` without bypassing or re-implementing game or financial rules.
+The `@interests/simulation` package provides deterministic, headless measurement tools for Standard V1 gameplay. It orchestrates the authoritative `@interests/engine` without bypassing or re-implementing game or financial rules.
 
 ## Scenario: `passive-baseline-v1`
 
@@ -22,13 +22,13 @@ The `passive-baseline-v1` scenario measures how Standard V1 opening positions ev
 ### Standard Run (1,000 games × 20 quarters)
 
 ```powershell
-pnpm --filter @finance-game/simulation simulate -- --games 1000 --quarters 20 --seed-prefix baseline-v1
+pnpm --filter @interests/simulation simulate -- --games 1000 --quarters 20 --seed-prefix baseline-v1
 ```
 
 ### Smaller Development Run
 
 ```powershell
-pnpm --filter @finance-game/simulation simulate -- --games 25 --quarters 8 --seed-prefix dev
+pnpm --filter @interests/simulation simulate -- --games 25 --quarters 8 --seed-prefix dev
 ```
 
 ### Saving JSON Output in PowerShell
@@ -36,13 +36,13 @@ pnpm --filter @finance-game/simulation simulate -- --games 25 --quarters 8 --see
 To capture the UTF-8 JSON report to a local file in PowerShell without encoding corruption:
 
 ```powershell
-pnpm --filter @finance-game/simulation simulate -- --games 1000 --quarters 20 --seed-prefix baseline-v1 | Set-Content -Encoding utf8 baseline-report.json
+pnpm --filter @interests/simulation simulate -- --games 1000 --quarters 20 --seed-prefix baseline-v1 | Set-Content -Encoding utf8 baseline-report.json
 ```
 
 or:
 
 ```powershell
-pnpm --filter @finance-game/simulation simulate -- --games 1000 --quarters 20 --seed-prefix baseline-v1 | Out-File -Encoding utf8 baseline-report.json
+pnpm --filter @interests/simulation simulate -- --games 1000 --quarters 20 --seed-prefix baseline-v1 | Out-File -Encoding utf8 baseline-report.json
 ```
 
 ---

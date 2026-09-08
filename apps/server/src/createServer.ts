@@ -41,7 +41,7 @@ export function createServer(options: CreateServerOptions = {}): GameServer {
   const config = options.config ?? {
     host: "0.0.0.0",
     port: 3000,
-    dbPath: "./data/finance-game.sqlite",
+    dbPath: "./data/interests.sqlite",
     cookieSecure: false,
     rateLimitDisabled: false,
   };

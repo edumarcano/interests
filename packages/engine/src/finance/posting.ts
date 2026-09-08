@@ -1,5 +1,5 @@
-import type { PublicMarketInstrumentId } from "@finance-game/rules";
-import type { AssetId, LoanId, TransactionId } from "@finance-game/shared";
+import type { PublicMarketInstrumentId } from "@interests/rules";
+import type { AssetId, LoanId, TransactionId } from "@interests/shared";
 
 import { nextDeterministicId } from "../game/deterministicIds";
 import type { DeterministicCounters, FinanceState } from "../model/gameState";

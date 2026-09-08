@@ -13,8 +13,8 @@ import {
   type ProfileId,
   STANDARD_V1_OBJECTIVE_CHOICES_PER_PLAYER,
   STANDARD_V1_PLAYER_COUNT,
-} from "@finance-game/rules";
-import { asPlayerId } from "@finance-game/shared";
+} from "@interests/rules";
+import { asPlayerId } from "@interests/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import { assertGameState } from "../invariants/assertGameState";

@@ -7,7 +7,7 @@ import {
   PUBLIC_MARKET_NOISE_AMPLITUDE_BPS,
   PUBLIC_MARKET_REGIME_MEANS_BPS,
   type PublicMarketInstrumentId,
-} from "@finance-game/rules";
+} from "@interests/rules";
 
 import { drawBoundedInt, type RandomState } from "../random/prng";
 

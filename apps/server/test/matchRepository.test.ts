@@ -2,8 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createGame } from "@finance-game/engine";
-import { asMatchId, asPlayerId, type PlayerId } from "@finance-game/shared";
+import { createGame } from "@interests/engine";
+import { asMatchId, asPlayerId, type PlayerId } from "@interests/shared";
 import type Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getCurrentVersionMetadata } from "../src/match/versions.js";
@@ -29,7 +29,7 @@ describe("SqliteMatchRepository", () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "finance-game-matchrepo-test-"),
+      path.join(os.tmpdir(), "interests-matchrepo-test-"),
     );
     const dbPath = path.join(tempDir, "test.db");
     db = openDatabase({ dbPath });

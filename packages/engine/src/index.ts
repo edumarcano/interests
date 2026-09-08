@@ -1,5 +1,5 @@
-import { RULES_SHARED_VERSION, RULES_VERSION } from "@finance-game/rules";
-import { SHARED_VERSION } from "@finance-game/shared";
+import { RULES_SHARED_VERSION, RULES_VERSION } from "@interests/rules";
+import { SHARED_VERSION } from "@interests/shared";
 
 export * from "./finance/account";
 export * from "./finance/economy";

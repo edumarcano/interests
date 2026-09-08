@@ -1,4 +1,4 @@
-import type { RoomMemberId } from "@finance-game/shared";
+import type { RoomMemberId } from "@interests/shared";
 import type { Socket, Server as SocketIOServer } from "socket.io";
 import { normalizeRoomCode } from "../lobby/roomCode.js";
 import type {

@@ -3,7 +3,7 @@ import type {
   OpportunityId,
   PlayerId,
   TransactionId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 
 import type { Cents } from "../finance/money";
 import type { GameState } from "../model/gameState";

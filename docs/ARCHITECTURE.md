@@ -1,4 +1,4 @@
-# Financial Strategy Game - Technical Architecture
+# Interests - Technical Architecture
 
 > **Version:** 0.5  
 > **Date:** September 8, 2026  

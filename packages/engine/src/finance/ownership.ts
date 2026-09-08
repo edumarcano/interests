@@ -1,4 +1,4 @@
-import type { PlayerId } from "@finance-game/shared";
+import type { PlayerId } from "@interests/shared";
 
 import { FinanceDecimal } from "./decimal";
 import { type Cents, cents, isNonNegativeCents } from "./money";

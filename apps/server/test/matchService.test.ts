@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { CommandAckResult, MatchPlayerView } from "@finance-game/shared";
+import type { CommandAckResult, MatchPlayerView } from "@interests/shared";
 import { type Socket as ClientSocket, io as ioClient } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createServer } from "../src/createServer.js";
@@ -33,7 +33,7 @@ describe("MatchService and Realtime Pipeline", () => {
   beforeEach(async () => {
     tempDbPath = path.join(
       os.tmpdir(),
-      `finance-game-matchservice-test-${Date.now()}-${Math.random().toString(36).substring(2)}.sqlite`,
+      `interests-matchservice-test-${Date.now()}-${Math.random().toString(36).substring(2)}.sqlite`,
     );
     db = openDatabase({ dbPath: tempDbPath });
     runMigrations(db, migrationsDir);

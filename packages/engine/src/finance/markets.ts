@@ -1,7 +1,7 @@
 import {
   PUBLIC_MARKET_INSTRUMENT_IDS,
   type PublicMarketInstrumentId,
-} from "@finance-game/rules";
+} from "@interests/rules";
 
 import type { PublicMarketPortfolio } from "../model/gameState";
 import { FinanceDecimal } from "./decimal";

@@ -5,7 +5,7 @@ import {
   asOpportunityId,
   asSettlementId,
   asTransactionId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 
 import { asJournalEntryId } from "../finance/journal";
 import type { DeterministicCounters } from "../model/gameState";

@@ -1,8 +1,4 @@
-import type {
-  BrowserSessionId,
-  RoomId,
-  RoomMemberId,
-} from "@finance-game/shared";
+import type { BrowserSessionId, RoomId, RoomMemberId } from "@interests/shared";
 
 export interface RoomRecord {
   id: RoomId;

@@ -1,14 +1,14 @@
 import type {
   SettleQuarterErrorCode,
   WORKSPACE_COMPATIBILITY,
-} from "@finance-game/engine";
+} from "@interests/engine";
 import type {
   EconomicRegimeId,
   ObjectiveId,
   ProfileId,
   PublicMarketInstrumentId,
-} from "@finance-game/rules";
-import type { GameId, PlayerId } from "@finance-game/shared";
+} from "@interests/rules";
+import type { GameId, PlayerId } from "@interests/shared";
 
 export const BASELINE_SCENARIO_NAME = "passive-baseline-v1" as const;
 

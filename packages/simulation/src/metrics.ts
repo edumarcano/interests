@@ -5,7 +5,7 @@ import {
   type SettleQuarterErrorCode,
   totalPublicMarketValueCents,
   WORKSPACE_COMPATIBILITY,
-} from "@finance-game/engine";
+} from "@interests/engine";
 import {
   ECONOMIC_REGIME_IDS,
   type EconomicRegimeId,
@@ -14,8 +14,8 @@ import {
   PUBLIC_MARKET_INSTRUMENT_IDS,
   type PublicMarketInstrumentId,
   STANDARD_V1_PLAYER_COUNT,
-} from "@finance-game/rules";
-import type { PlayerId } from "@finance-game/shared";
+} from "@interests/rules";
+import type { PlayerId } from "@interests/shared";
 
 import {
   BASELINE_SCENARIO_NAME,

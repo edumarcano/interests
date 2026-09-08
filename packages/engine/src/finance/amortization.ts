@@ -1,7 +1,7 @@
 import {
   PLAYER_LOAN_MAX_TERM_QUARTERS,
   PLAYER_LOAN_MIN_TERM_QUARTERS,
-} from "@finance-game/rules";
+} from "@interests/rules";
 
 import { FinanceDecimal } from "./decimal";
 import { type Cents, cents, nonNegativeCents } from "./money";

@@ -12,7 +12,7 @@ describe("SQLite database initialization", () => {
   let dbsToClose: SqliteDatabase[];
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "finance-game-db-test-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "interests-db-test-"));
     dbsToClose = [];
   });
 

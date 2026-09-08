@@ -1,4 +1,4 @@
-import type { PlayerId } from "@finance-game/shared";
+import type { PlayerId } from "@interests/shared";
 
 import { type Cents, cents, subtractCents } from "../finance/money";
 import type { GameState } from "../model/gameState";

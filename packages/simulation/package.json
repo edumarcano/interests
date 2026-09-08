@@ -1,5 +1,5 @@
 {
-  "name": "@finance-game/simulation",
+  "name": "@interests/simulation",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -8,9 +8,9 @@
     "simulate": "tsx src/cli.ts"
   },
   "dependencies": {
-    "@finance-game/engine": "workspace:*",
-    "@finance-game/rules": "workspace:*",
-    "@finance-game/shared": "workspace:*"
+    "@interests/engine": "workspace:*",
+    "@interests/rules": "workspace:*",
+    "@interests/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

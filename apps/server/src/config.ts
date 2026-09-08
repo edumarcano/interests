@@ -12,7 +12,7 @@ export const ServerConfigSchema = z.object({
     .string()
     .trim()
     .min(1, "Database path cannot be empty")
-    .default("./data/finance-game.sqlite"),
+    .default("./data/interests.sqlite"),
   /**
    * Whether to send cookies with Secure attribute.
    * Default is false for the local-first LAN V1 runtime.
@@ -29,17 +29,17 @@ export function parseServerConfig(
 ): ServerConfig {
   const raw: Record<string, unknown> = {};
 
-  if (env.FINANCE_GAME_HOST !== undefined) {
-    raw.host = env.FINANCE_GAME_HOST;
+  if (env.INTERESTS_HOST !== undefined) {
+    raw.host = env.INTERESTS_HOST;
   }
-  if (env.FINANCE_GAME_PORT !== undefined) {
-    raw.port = env.FINANCE_GAME_PORT;
+  if (env.INTERESTS_PORT !== undefined) {
+    raw.port = env.INTERESTS_PORT;
   }
-  if (env.FINANCE_GAME_DB_PATH !== undefined) {
-    raw.dbPath = env.FINANCE_GAME_DB_PATH;
+  if (env.INTERESTS_DB_PATH !== undefined) {
+    raw.dbPath = env.INTERESTS_DB_PATH;
   }
-  if (env.FINANCE_GAME_COOKIE_SECURE !== undefined) {
-    const rawVal = env.FINANCE_GAME_COOKIE_SECURE.trim().toLowerCase();
+  if (env.INTERESTS_COOKIE_SECURE !== undefined) {
+    const rawVal = env.INTERESTS_COOKIE_SECURE.trim().toLowerCase();
     if (rawVal === "true") {
       raw.cookieSecure = true;
     } else if (rawVal === "false") {
@@ -50,8 +50,8 @@ export function parseServerConfig(
       );
     }
   }
-  if (env.FINANCE_GAME_RATE_LIMIT_DISABLED !== undefined) {
-    const rawVal = env.FINANCE_GAME_RATE_LIMIT_DISABLED.trim().toLowerCase();
+  if (env.INTERESTS_RATE_LIMIT_DISABLED !== undefined) {
+    const rawVal = env.INTERESTS_RATE_LIMIT_DISABLED.trim().toLowerCase();
     if (rawVal === "true") {
       raw.rateLimitDisabled = true;
     } else if (rawVal === "false") {

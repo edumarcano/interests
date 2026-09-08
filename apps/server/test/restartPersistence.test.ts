@@ -17,7 +17,7 @@ describe("Restart persistence", () => {
   beforeEach(() => {
     tempDbPath = path.join(
       os.tmpdir(),
-      `finance-game-restart-test-${Date.now()}-${Math.random().toString(36).substring(2)}.sqlite`,
+      `interests-restart-test-${Date.now()}-${Math.random().toString(36).substring(2)}.sqlite`,
     );
   });
 

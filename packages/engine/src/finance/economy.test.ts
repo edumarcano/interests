@@ -2,7 +2,7 @@ import {
   type EconomicRegimeId,
   PUBLIC_MARKET_NOISE_AMPLITUDE_BPS,
   PUBLIC_MARKET_REGIME_MEANS_BPS,
-} from "@finance-game/rules";
+} from "@interests/rules";
 import { describe, expect, it } from "vitest";
 
 import { createRandomState, drawBoundedInt } from "../random/prng";

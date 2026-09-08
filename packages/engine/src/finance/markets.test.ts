@@ -1,7 +1,7 @@
 import {
   PUBLIC_MARKET_INSTRUMENTS,
   STANDARD_V1_OPENING_CASH_YIELD_BPS,
-} from "@finance-game/rules";
+} from "@interests/rules";
 import { describe, expect, it } from "vitest";
 
 import {

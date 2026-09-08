@@ -1,4 +1,4 @@
-import type { MatchId, PlayerId, TransactionId } from "@finance-game/shared";
+import type { MatchId, PlayerId, TransactionId } from "@interests/shared";
 import type { GameState } from "../model/gameState.js";
 
 export interface PurePlayerSummary {

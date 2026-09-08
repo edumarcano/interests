@@ -1,11 +1,11 @@
 {
   "private": true,
-  "name": "finance-game",
+  "name": "interests",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev:server": "pnpm --filter @finance-game/server dev",
+    "dev:server": "pnpm --filter @interests/server dev",
     "typecheck": "pnpm -r exec tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",

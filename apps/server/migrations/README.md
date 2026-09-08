@@ -1,6 +1,6 @@
 # Database Migrations
 
-This directory contains ordered, numbered SQL migration scripts for the `@finance-game/server` SQLite database.
+This directory contains ordered, numbered SQL migration scripts for the `@interests/server` SQLite database.
 
 ## Filename Convention
 

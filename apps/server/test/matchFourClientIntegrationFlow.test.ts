@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { MatchPlayerView } from "@finance-game/shared";
+import type { MatchPlayerView } from "@interests/shared";
 import { type Socket as ClientSocket, io as ioClient } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createServer } from "../src/createServer.js";
@@ -55,7 +55,7 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
   beforeEach(() => {
     tempDbPath = path.join(
       os.tmpdir(),
-      `finance-game-lifecycle-flow-${Date.now()}-${Math.random().toString(36).substring(2)}.sqlite`,
+      `interests-lifecycle-flow-${Date.now()}-${Math.random().toString(36).substring(2)}.sqlite`,
     );
   });
 

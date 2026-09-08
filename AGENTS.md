@@ -1,6 +1,6 @@
-# Finance Game Agent Instructions
+# Interests Agent Instructions
 
-This file is the canonical repository-level instruction source for AI coding agents working on `finance-game`, including Codex, Cursor, and Antigravity. Tool-specific rule files may point here, but they must not duplicate project instructions.
+This file is the canonical repository-level instruction source for AI coding agents working on `Interests`, including Codex, Cursor, and Antigravity. Tool-specific rule files may point here, but they must not duplicate project instructions.
 
 ## Source of truth
 
@@ -40,12 +40,12 @@ Do not overwrite or revert unrelated user or agent work.
 
 The project is a TypeScript modular monolith with these intended dependency directions:
 
-- `apps/web` -> `@finance-game/shared`
-- `apps/server` -> `@finance-game/shared`, `@finance-game/engine`, `@finance-game/rules`
-- `@finance-game/simulation` -> `@finance-game/engine`, `@finance-game/rules`, `@finance-game/shared`
-- `@finance-game/engine` -> `@finance-game/rules`, `@finance-game/shared`
-- `@finance-game/rules` -> `@finance-game/shared`
-- `@finance-game/shared` -> no game-domain package
+- `apps/web` -> `@interests/shared`
+- `apps/server` -> `@interests/shared`, `@interests/engine`, `@interests/rules`
+- `@interests/simulation` -> `@interests/engine`, `@interests/rules`, `@interests/shared`
+- `@interests/engine` -> `@interests/rules`, `@interests/shared`
+- `@interests/rules` -> `@interests/shared`
+- `@interests/shared` -> no game-domain package
 
 Do not introduce reverse dependencies, browser imports of engine internals, cross-package relative imports, or a second implementation of financial/game rules in the server or UI.
 

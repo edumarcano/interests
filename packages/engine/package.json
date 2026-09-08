@@ -1,12 +1,12 @@
 {
-  "name": "@finance-game/engine",
+  "name": "@interests/engine",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
   "dependencies": {
-    "@finance-game/rules": "workspace:*",
-    "@finance-game/shared": "workspace:*",
+    "@interests/rules": "workspace:*",
+    "@interests/shared": "workspace:*",
     "decimal.js": "^10.6.0"
   }
 }

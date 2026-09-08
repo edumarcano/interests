@@ -5,13 +5,13 @@ import {
   type GameState,
   settleQuarter,
   totalPublicMarketValueCents,
-} from "@finance-game/engine";
+} from "@interests/engine";
 import {
   asGameId,
   asPlayerId,
   type GameId,
   type PlayerId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 
 import {
   aggregateBatchReport,

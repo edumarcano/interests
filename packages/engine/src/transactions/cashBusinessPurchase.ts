@@ -1,8 +1,8 @@
 import {
   PLAYER_LOAN_MAX_TERM_QUARTERS,
   PLAYER_LOAN_MIN_TERM_QUARTERS,
-} from "@finance-game/rules";
-import type { AssetId, PlayerId, TransactionId } from "@finance-game/shared";
+} from "@interests/rules";
+import type { AssetId, PlayerId, TransactionId } from "@interests/shared";
 
 import { playerCashAccount } from "../finance/account";
 import { calculatePlayerLoanSchedule } from "../finance/amortization";

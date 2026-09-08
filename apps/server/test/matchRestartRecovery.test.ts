@@ -8,8 +8,8 @@ import {
   assertGameState,
   createSoleOwnership,
   openCashBusinessPurchaseTransaction,
-} from "@finance-game/engine";
-import { asAssetId, asPlayerId, asRoomMemberId } from "@finance-game/shared";
+} from "@interests/engine";
+import { asAssetId, asPlayerId, asRoomMemberId } from "@interests/shared";
 import { type Socket as ClientSocket, io as ioClient } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createServer } from "../src/createServer.js";
@@ -61,7 +61,7 @@ describe("Match Crash and Restart Recovery", () => {
   beforeEach(() => {
     tempDbPath = path.join(
       os.tmpdir(),
-      `finance-game-restart-recov-${Date.now()}-${Math.random().toString(36).substring(2)}.sqlite`,
+      `interests-restart-recov-${Date.now()}-${Math.random().toString(36).substring(2)}.sqlite`,
     );
   });
 
