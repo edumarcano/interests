@@ -298,3 +298,84 @@ Establish the first executable domain version of Architecture Milestone 4 (one o
    - This completes the first executable domain version of Architecture Milestone 4 (opportunity discovery $\to$ optional investigation $\to$ financed pursuit $\to$ lender firm offer $\to$ buyer acceptance $\to$ atomic funded close $\to$ recurring quarterly repayment).
    - Competing offers, seller financing, bank financing, equity financing, collateral, defaults, prepayment, refinancing, transaction expiry, negotiation UI, and spotlight sequencing remain deferred.
 
+## ARCH-029 - Local-first LAN runtime and SQLite persistence
+
+**Status:** Accepted (supersedes ARCH-012)  
+**Date:** September 8, 2026
+
+Establish the local-first in-person architecture and SQLite persistence model for Standard V1:
+
+1. **Same-Room / Local-LAN Deployment Target:**
+   - Standard V1 is primarily designed for four people playing together in the same physical room.
+   - The primary deployment model is a single local Node process running on the host machine, hosting Fastify, Socket.IO, the authoritative engine, SQLite, and (later) serving the built React client over the local Wi-Fi / LAN.
+   - The server binds to `0.0.0.0` on the configured port (default `3000`) so phones and laptops on the same LAN can connect.
+   - Remote internet play and paid cloud hosting are not required for V1.
+
+2. **Single Authoritative Node Process & SQLite Persistence:**
+   - SQLite via `better-sqlite3` supersedes PostgreSQL for Milestone 5 and Standard V1.
+   - The local runtime characteristics (single Node process, single local database file, single writer process, four human participants, low transaction volume) make SQLite optimal and eliminate external container or database service dependencies.
+   - Node's experimental `node:sqlite` API, Prisma, Drizzle, and full ORMs are excluded.
+
+3. **Strict Persistence Boundary Isolation:**
+   - `better-sqlite3` and raw SQL statements are strictly encapsulated inside `apps/server/src/persistence/sqlite/`.
+   - The deterministic engine knows nothing about SQLite or persistence.
+   - Server domain and session logic interact solely with typed persistence operations, not direct database handles.
+   - No simultaneous SQLite + PostgreSQL implementation or premature multi-dialect abstraction is built for V1. Future hosted versions may implement the same operation-level repository contracts backed by PostgreSQL without altering engine logic.
+
+4. **Database Pragmas and Hygiene:**
+   - Safe operational pragmas are configured upon database opening: `PRAGMA foreign_keys = ON;`, `PRAGMA journal_mode = WAL;`, `PRAGMA busy_timeout = 5000;`, `PRAGMA synchronous = FULL;`.
+   - Local database files, WAL files, and test databases (`data/`, `*.sqlite`, `*.sqlite-wal`, `*.sqlite-shm`) are excluded from version control (`.gitignore`).
+
+5. **Numbered SQL Migration Foundation:**
+   - A lightweight custom runner executes numbered SQL migration files (e.g. `001_initial_schema.sql`) in deterministic ascending numeric order.
+   - Each migration runs inside an atomic SQLite transaction.
+   - Applied migration versions are tracked in a `schema_migrations` table.
+   - Failed migrations roll back completely and are not recorded as applied. Already applied migrations are not executed again.
+
+6. **Single Responsive Player View:**
+   - One responsive authenticated Player View replaces a dedicated Table View for the first playable version.
+   - Phones and laptops have identical capabilities and information permissions (laptop: wider multi-panel layout, phone: tabbed/pane navigation).
+   - "Everything" on screen always represents authorized public information plus that player's own private information, never another player's protected secrets.
+   - A neutral shared Table View remains a potential future enhancement.
+
+## ARCH-030 - Rotating spotlight orchestration for Standard V1
+
+**Status:** Accepted  
+**Date:** September 8, 2026
+
+Establish the software orchestration and turn-entitlement rules for the locked G1 game design (`GAME_DESIGN.md` v0.4):
+
+1. **Authority and Source of Truth:**
+   - `GAME_DESIGN.md` owns the gameplay rule and experience intent for G1. ARCH-030 records the corresponding architectural and software consequences.
+
+2. **Quarterly Round Progression:**
+   - The quarterly round structure is strictly:
+     `ROUND_START -> Spotlight 1 -> Spotlight 2 -> Spotlight 3 -> Spotlight 4 -> ROUND_CLOSE -> SETTLEMENT -> next ROUND_START`.
+   - There is no mandatory synchronous planning or ready phase.
+
+3. **Continuous Background Preparation:**
+   - Off-spotlight players may continuously perform permitted personal and preparatory actions: reviewing personal accounts/statements, reading public market prices and indicators, inspecting private opportunities, performing permitted diligence/investigation, and drafting future actions.
+   - Authorized off-spotlight preparatory actions (such as paid investigation) require explicit authoritative commands and may mutate that player's canonical and private state (e.g. cash balances and private disclosures) when rules allow, but cannot initiate a major transaction, alter shared market state, or advance the spotlight.
+
+4. **Deterministic Rotating Spotlight Policy (`rotating-seat-v1`):**
+   - Every player receives exactly one spotlight turn per quarter.
+   - The initial spotlight rotates deterministically each quarter based on player collection order:
+     For canonical `playerOrder = [A, B, C, D]`:
+     - Q1: A -> B -> C -> D
+     - Q2: B -> C -> D -> A
+     - Q3: C -> D -> A -> B
+     - Q4: D -> A -> B -> C
+     - Q5: A -> B -> C -> D
+   - The data model and state representations remain strictly collection-shaped rather than fixed seat arithmetic or four fixed fields.
+
+5. **Spotlight Initiation & Single-Transaction Concurrency Boundary:**
+   - Only the active spotlight player may initiate a new major transaction.
+   - Non-spotlight players participate in that transaction when eligible via formal reactions, financing offers, bids, partnership proposals, or consents.
+   - At most one unresolved major transaction exists in the game at any moment across all players.
+   - Participating in another player's transaction does not consume the reacting player's own quarterly spotlight.
+
+6. **Spotlight Advancement & Settlement:**
+   - A spotlight ends when its active major transaction reaches terminal resolution (closes, is cancelled, or expires) or when the spotlight player explicitly passes.
+   - Advancing past the spotlight advances immediately to the next spotlight in sequence.
+   - After the fourth spotlight finishes, the quarter immediately proceeds to `ROUND_CLOSE` and `SETTLEMENT`. No second major-action window exists after the fourth spotlight.
+

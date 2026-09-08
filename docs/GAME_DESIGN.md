@@ -4,8 +4,8 @@
 
 Agreed game systems, prototype financial rules, and implementation handoff.
 
-> **Version:** 0.3  
-> **Date:** September 5, 2026  
+> **Version:** 0.4  
+> **Date:** September 8, 2026  
 > **Status:** Pre-implementation baseline
 
 ### Purpose
@@ -78,27 +78,55 @@ The first version should use a clean dashboard-oriented interface rather than 3D
 
 > **CORE PRINCIPLE** There is an active player, but there should rarely be an inactive player. One player has the spotlight; everyone else can still inspect, plan, talk, and react when invited.
 
-## 2.1 Round rhythm
+## 2.1 Round rhythm [LOCKED for Standard V1]
 
-1.  Shared economic update: the world changes for everyone at once.
+In Standard V1, the canonical quarterly round rhythm is:
 
-2.  Position preview: show the updated economy, asset estimates, obligations, and expected quarterly cash flow. Do not pay recurring income at this point.
+```text
+ROUND_START
+    -> Spotlight 1
+    -> Spotlight 2
+    -> Spotlight 3
+    -> Spotlight 4
+    -> ROUND_CLOSE
+    -> SETTLEMENT
+    -> next ROUND_START
+```
 
-3.  Simultaneous planning: players inspect their position, select focus, prepare actions, and talk.
+There is **no mandatory simultaneous planning or Ready phase**. Instead, round progression proceeds as follows:
 
-4.  Spotlight sequence: one player at a time gets authority to initiate or resolve a meaningful opportunity or prepared action.
+1.  **ROUND_START:** The round enters and presents the shared new-quarter economy (presenting opening economic conditions in Quarter 1, and presenting the revalued market prices, new macroeconomic regime, and quarter-start entitlement basis already computed at the conclusion of the preceding quarter's settlement per ARCH-024). No second RNG roll or economy transition occurs at round start; market prices and macroeconomic indicators refresh for all players simultaneously.
 
-5.  Reaction windows: other players may formally respond when the spotlight creates a financing, sale, partnership, bid, or contract decision.
+2.  **Continuous background preparation:** Off-spotlight players may continuously review personal finances, inspect public market conditions, inspect their private opportunities, perform permitted diligence, prepare local decisions, and converse with other players at the table.
 
-6.  Transaction resolution: the active deal closes, fails, or is declined; immediate purchase, sale, and financing cash movements are recorded.
+3.  **Spotlight sequence:** Each of the four players receives exactly one active spotlight per quarter.
 
-7.  Round close: resolve shared consequences and settle the full quarter of recurring income, expenses, debt service, and contracts once. Update private objective eligibility.
+4.  **Transaction initiation and reactions:** Only the current spotlight player may initiate a new major transaction. Other players participate when eligible through formal reactions, financing offers, bids, partnership proposals, or consents. At most one unresolved major transaction exists at a time.
 
-8.  Next economic period begins. There is no separate second payout for the same quarter.
+5.  **Spotlight resolution:** A spotlight ends when its major transaction reaches terminal resolution (closes, is cancelled, or expires) or when the spotlight player explicitly passes. Upon resolution, the round immediately advances to the next spotlight.
 
-## 2.2 Spotlight pacing
+6.  **ROUND_CLOSE & SETTLEMENT:** After the fourth spotlight resolves, the round proceeds directly to close. Recurring personal salaries, property net cash flows, business owner income, debt service, player loan installments, and other contractual commitments settle deterministically once for the full quarter.
 
-Spotlights should not have a predictable cadence. Quick decisions are most common, but major decisions can occur at any time, including consecutively. Category and intensity are separate dimensions.
+7.  **Next round:** The next quarterly economic period begins with the rotated first spotlight player. There is no second major-action window after the fourth spotlight.
+
+## 2.2 Spotlight policy and rotation [LOCKED: rotating-seat-v1]
+
+Standard V1 uses the named deterministic policy `rotating-seat-v1` across the match's canonical ordered player collection (`playerOrder = [A, B, C, D]`):
+
+- Every player receives exactly one spotlight turn per quarter.
+- The first spotlight player rotates deterministically each quarter by index `(quarter - 1) % playerCount`.
+- Within the quarter, spotlights advance sequentially through the ordered seats wrapping around the collection:
+  - **Quarter 1:** A -> B -> C -> D
+  - **Quarter 2:** B -> C -> D -> A
+  - **Quarter 3:** C -> D -> A -> B
+  - **Quarter 4:** D -> A -> B -> C
+  - **Quarter 5:** A -> B -> C -> D
+
+The data model remains strictly collection-shaped (`players: Player[]`, `playerOrder: PlayerId[]`) rather than fixed `player1`/`player2`/`player3`/`player4` fields.
+
+### 2.2.1 Spotlight pacing and decision intensity
+
+While player seat order rotates deterministically, spotlight *intensity* and opportunity category vary unpredictably across turns. Quick decisions are most common, but major decisions can occur at any time, including consecutively. Category and intensity remain separate dimensions.
 
 | **Intensity** | **Typical feel**                                     | **Examples**                                                            |
 |---------------|------------------------------------------------------|-------------------------------------------------------------------------|
@@ -106,15 +134,24 @@ Spotlights should not have a predictable cadence. Quick decisions are most commo
 | **Standard**  | Requires comparison or light investigation.          | Rental deal, business expansion, financing choice.                      |
 | **Major**     | Potentially several minutes; may become multiplayer. | Acquisition, major sale, crisis, contested asset, large financing need. |
 
-> **TUNING NOTE** Exact probabilities and time ranges are not locked. The important rule is that quick spotlights dominate without creating a predictable pattern; late-game conditions may increase the weight of major opportunities.
+> **TUNING NOTE** Exact probabilities and time ranges are not locked. The important rule is that quick spotlights dominate without creating a predictable intensity pattern; late-game conditions may increase the weight of major opportunities.
 
-## 2.3 Dynamic turns
+## 2.3 Action entitlement and reaction design [LOCKED]
 
-The game should not feel like a strict Player 1 -\> Player 2 -\> Player 3 -\> Player 4 board-game loop. Other players remain engaged while one player has the spotlight; the financial simulation advances at defined state transitions, not continuously in real time. Reactions and triggered opportunities may involve others, but the active transaction stays central until it resolves.
+Spotlight turn order defines transaction initiation authority without paralyzing the rest of the table:
 
-- Reaction participation does not normally consume the reacting player's later spotlight.
+- **Off-spotlight action entitlement:** Off-spotlight players may perform permitted personal and preparatory actions at any time, including:
+  - reviewing personal cash, debt, and balance sheets;
+  - reading public market values, yields, and economic indicators;
+  - inspecting their private discovered opportunities;
+  - performing permitted diligence or investigation (which may mutate that player's canonical and private state, e.g. deducting an investigation fee from cash and storing revealed opportunity facts, without initiating a major transaction or advancing the spotlight);
+  - preparing draft parameters for upcoming decisions;
+  - responding to the active spotlight player's transaction when eligible.
 
-- The exact algorithm for selecting the next spotlight is still open.
+- **Spotlight initiation authority:** Only the player currently holding the spotlight may initiate a new major transaction (such as an asset acquisition, major sale, or new borrowing pursuit).
+- **Concurrency boundary:** At most one unresolved major transaction exists in the game at any moment.
+- **Participation without spotlight consumption:** Non-spotlight players participating as lenders, equity partners, sellers, or counter-bidders in the active transaction do not consume their own quarterly spotlight.
+- **Preservation of broader reaction design:** The resolution of G1 locks turn sequencing, but does **not** narrow the intended broader V1 reaction system to the single-lender slice implemented in PR #15. The design rules for open multi-lender financing participation, auctions, partnership formations, competing bids, scarce opportunity contention, and contract reactions remain authoritative for future expansion.
 
 # 3. Actions, reactions, and transaction timing [LOCKED]
 
@@ -692,13 +729,13 @@ The economy changes opportunity availability and asset performance. Opportunitie
 
 # 13. Reference round: behavior test case [ILLUSTRATIVE]
 
-The following condensed round is not a locked script. It is a reference test case showing how the agreed systems are expected to interact.
+The following condensed round is not a locked script. It is a reference test case showing how the agreed systems are expected to interact. Note that under the approved Standard V1 round flow, there is no mandatory synchronous planning phase; background preparation occurs continuously alongside rotating spotlights.
 
 | **Stage**                      | **Illustrative behavior**                                                                                                                                             |
 |--------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Economic update**            | Rates rise, credit tightens, commercial property softens. Everyone receives the same macro information.                                                               |
-| **Position preview**           | Updated positions and expected full-quarter cash flows are displayed. No recurring payout occurs before planning.                                                     |
-| **Planning**                   | All players inspect finances and select focus. Maya looks for real estate; Leo prepares business financing; Nina reviews markets; Owen considers refinancing.         |
+| **Position preview**           | Updated positions and expected full-quarter cash flows are displayed. No recurring payout occurs before spotlights.                                                    |
+| **Continuous preparation**     | Off-spotlight players inspect finances and prepare focus in the background. Maya looks for real estate; Leo prepares business financing; Nina reviews markets; Owen considers refinancing. |
 | **Maya spotlight**             | Maya receives a private apartment opportunity, investigates it, and learns she needs more capital.                                                                    |
 | **Open reaction**              | Maya seeks a partner. Multiple players can offer terms; Maya chooses Nina's equity offer.                                                                             |
 | **Contract**                   | Maya and Nina confirm ownership terms. The game records and enforces the partnership.                                                                                 |
@@ -1103,7 +1140,7 @@ The core design is established, but the following rules must be resolved or veri
 
 | **ID** | **Decision to settle**                                                                                                                                     | **Validation target**                                                                                        |
 |--------|------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
-| G1     | Define next-spotlight order, action entitlement, pass/decline flow, and reaction limits.                                                                   | Mostly quick spotlights, occasional consecutive major decisions, no recursive chains.                        |
+| G1     | LOCKED for Standard V1: deterministic rotating spotlight order (`rotating-seat-v1`), continuous off-spotlight background preparation without mandatory planning phase, spotlight-exclusive major transaction initiation, single unresolved transaction concurrency boundary, and quarterly settlement after the 4th spotlight. | Deterministic turn progression, no deadlock, equal spotlight entitlement, and preserved reaction capabilities. |
 | G2     | Specify capacity cutoffs, income haircuts, credit grades, partner-discovery plausibility, and closing reserves.                                            | No permanent profile powers, no private-balance leaks, no execution based on an unconfirmed promise.         |
 | G3     | Define economic transition probabilities, momentum, distributions/caps, cross-asset shocks, rents/margins, growth investment effects, and exact fee bases. | Coherent economic paths and genuine growth potential without counting one shock twice.                       |
 | G4     | Define objective lookback windows, attributable/control tests, materiality, realized gains net of fees/losses, bad-debt treatment, and finale exceptions.  | No circular-trade progress, double-counted principal, fake diversification, or instant expense manipulation. |
@@ -1174,6 +1211,7 @@ The initial extension would focus on salary rather than uncertain rent, business
 |-------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **0.1**     | September 4, 2026 | Initial canonical baseline consolidating the agreed core game, systems, V1 guardrails, and unresolved specification work.                                                                                                                                                                                                                                  |
 | **0.2**     | September 5, 2026 | Locked the eight hidden objectives and their culmination rules; locked eight random starting profiles; changed setup to two private objective choices; guaranteed unique objectives by dealing all eight once; added the S/V/T compatibility matrix and objective-dealing algorithm.                                                                       |
-| 0.3         | September 5, 2026 | Added capacity-based progression, discovery/execution eligibility, full-quarter settlement, fixed versus seeded numbers, starting financial fixtures, asset/economic calibration, lending, numeric objectives/finales, Income Acceleration deferral, and implementation handoff. Reconciled business equity and recorded outstanding validation decisions. |
+| **0.3**     | September 5, 2026 | Added capacity-based progression, discovery/execution eligibility, full-quarter settlement, fixed versus seeded numbers, starting financial fixtures, asset/economic calibration, lending, numeric objectives/finales, Income Acceleration deferral, and implementation handoff. Reconciled business equity and recorded outstanding validation decisions. |
+| **0.4**     | September 8, 2026 | Locked G1 round flow and deterministic rotating spotlight policy (`rotating-seat-v1`) for Standard V1: no mandatory synchronous planning phase, continuous off-spotlight background preparation, spotlight-exclusive major transaction initiation, single unresolved transaction concurrency boundary, and quarterly settlement after the 4th spotlight. Broader reaction mechanics preserved. |
 
-Canonical checkpoint v0.3: the core game, objectives, setup, progression, quarterly accounting, seeded randomness, and first numerical baseline are documented. The next phase is architecture, executable rules, tests, and playtesting. Prototype values may change with evidence; open decisions in section 19 are not silently treated as finalized rules.
+Canonical checkpoint v0.4: locked G1 round rhythm and rotating spotlight policy for Standard V1 alongside existing baseline objectives, setup, and accounting foundations.
