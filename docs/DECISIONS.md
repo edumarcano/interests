@@ -415,7 +415,7 @@ Establish the persistent accountless multiplayer lobby, credential architecture,
    - All security-sensitive randomness (room codes, session tokens, recovery credentials) must use `node:crypto`, never the deterministic engine PRNG or `Math.random`.
 
 7. **Cookie Security Configuration:**
-   - In the local-first LAN V1 runtime, cookies default to `Secure = false` via explicit boolean configuration (`INTERESTS_COOKIE_SECURE = false`, supporting legacy fallback `FINANCE_GAME_COOKIE_SECURE = false`).
+   - In the local-first LAN V1 runtime, cookies default to `Secure = false` via explicit boolean configuration (`INTERESTS_COOKIE_SECURE = false`).
    - Future HTTPS deployments must explicitly configure `INTERESTS_COOKIE_SECURE = true`.
 
 ## ARCH-032 - Authenticated controlling sockets and disconnect pause

@@ -29,22 +29,17 @@ export function parseServerConfig(
 ): ServerConfig {
   const raw: Record<string, unknown> = {};
 
-  const hostVal = env.INTERESTS_HOST ?? env.FINANCE_GAME_HOST;
-  if (hostVal !== undefined) {
-    raw.host = hostVal;
+  if (env.INTERESTS_HOST !== undefined) {
+    raw.host = env.INTERESTS_HOST;
   }
-  const portVal = env.INTERESTS_PORT ?? env.FINANCE_GAME_PORT;
-  if (portVal !== undefined) {
-    raw.port = portVal;
+  if (env.INTERESTS_PORT !== undefined) {
+    raw.port = env.INTERESTS_PORT;
   }
-  const dbPathVal = env.INTERESTS_DB_PATH ?? env.FINANCE_GAME_DB_PATH;
-  if (dbPathVal !== undefined) {
-    raw.dbPath = dbPathVal;
+  if (env.INTERESTS_DB_PATH !== undefined) {
+    raw.dbPath = env.INTERESTS_DB_PATH;
   }
-  const cookieSecureVal =
-    env.INTERESTS_COOKIE_SECURE ?? env.FINANCE_GAME_COOKIE_SECURE;
-  if (cookieSecureVal !== undefined) {
-    const rawVal = cookieSecureVal.trim().toLowerCase();
+  if (env.INTERESTS_COOKIE_SECURE !== undefined) {
+    const rawVal = env.INTERESTS_COOKIE_SECURE.trim().toLowerCase();
     if (rawVal === "true") {
       raw.cookieSecure = true;
     } else if (rawVal === "false") {
@@ -55,10 +50,8 @@ export function parseServerConfig(
       );
     }
   }
-  const rateLimitDisabledVal =
-    env.INTERESTS_RATE_LIMIT_DISABLED ?? env.FINANCE_GAME_RATE_LIMIT_DISABLED;
-  if (rateLimitDisabledVal !== undefined) {
-    const rawVal = rateLimitDisabledVal.trim().toLowerCase();
+  if (env.INTERESTS_RATE_LIMIT_DISABLED !== undefined) {
+    const rawVal = env.INTERESTS_RATE_LIMIT_DISABLED.trim().toLowerCase();
     if (rawVal === "true") {
       raw.rateLimitDisabled = true;
     } else if (rawVal === "false") {
