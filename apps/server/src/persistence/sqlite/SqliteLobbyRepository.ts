@@ -115,6 +115,12 @@ export class SqliteLobbyRepository implements LobbyRepository {
       return null;
     }
 
+    const nowIso = new Date().toISOString();
+    this.db
+      .prepare("UPDATE browser_sessions SET last_used_at = ? WHERE id = ?")
+      .run(nowIso, row.id);
+    row.lastUsedAt = nowIso;
+
     return row;
   }
 
@@ -535,6 +541,23 @@ export class SqliteLobbyRepository implements LobbyRepository {
       const { session, sessionToken, isNew } = this.resolveOrCreateSession(
         params.existingSessionToken,
       );
+
+      // Verify that this session does not already control another member in this room
+      const existingGrant = this.db
+        .prepare(
+          `SELECT sm.room_member_id as memberId FROM session_memberships sm
+           JOIN room_members rm ON sm.room_member_id = rm.id
+           WHERE sm.session_id = ? AND rm.room_id = ? AND sm.revoked_at IS NULL`,
+        )
+        .get(session.id, roomRow.id) as { memberId: string } | undefined;
+
+      if (existingGrant && existingGrant.memberId !== memberRow.id) {
+        throw new LobbyError(
+          "ALREADY_MEMBER",
+          "This browser session already controls another seat in this room",
+          409,
+        );
+      }
 
       const nowIso = new Date().toISOString();
 

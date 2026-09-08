@@ -88,11 +88,12 @@ export function createServer(options: CreateServerOptions = {}): GameServer {
       return;
     }
 
-    if (err.validation) {
+    const statusCode = err.statusCode ?? (err as { status?: number }).status;
+    if (err.validation || statusCode === 400) {
       reply.status(400).send({
         error: {
           code: "INVALID_INPUT",
-          message: err.message ?? "Validation failed",
+          message: "Invalid input or malformed request payload",
         },
       });
       return;

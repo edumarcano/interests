@@ -12,6 +12,14 @@ import { SqliteLobbyRepository } from "../src/persistence/sqlite/SqliteLobbyRepo
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(__dirname, "../migrations");
 
+function requireSessionToken(result: { sessionToken?: string }): string {
+  expect(result.sessionToken).toBeDefined();
+  if (!result.sessionToken) {
+    throw new Error("Expected sessionToken to be defined");
+  }
+  return result.sessionToken;
+}
+
 describe("SqliteLobbyRepository", () => {
   let db: SqliteDatabase;
   let repo: SqliteLobbyRepository;
@@ -199,14 +207,14 @@ describe("SqliteLobbyRepository", () => {
 
   it("allows a single browser session to hold membership grants in multiple rooms", () => {
     const room1 = repo.createRoomWithHost({ nickname: "Alex" });
-    const sessionToken = room1.sessionToken;
+    const sessionToken = requireSessionToken(room1);
 
     const room2 = repo.createRoomWithHost({
       nickname: "Alex",
       existingSessionToken: sessionToken,
     });
 
-    const bootstrap = repo.getSessionBootstrap(sessionToken!);
+    const bootstrap = repo.getSessionBootstrap(sessionToken);
     expect(bootstrap).toHaveLength(2);
     const codes = bootstrap.map((b) => b.roomCode);
     expect(codes).toContain(room1.room.code);
@@ -216,11 +224,12 @@ describe("SqliteLobbyRepository", () => {
   it("authorizes getRoomLobbyView for members and rejects non-members", () => {
     const room1 = repo.createRoomWithHost({ nickname: "Alex" });
     const room2 = repo.createRoomWithHost({ nickname: "Charlie" });
+    const sessionToken1 = requireSessionToken(room1);
 
     // Session 1 in room 1 can read room 1
     const view1 = repo.getRoomLobbyView({
       roomCode: room1.room.code,
-      sessionToken: room1.sessionToken!,
+      sessionToken: sessionToken1,
     });
     expect(view1.room.code).toBe(room1.room.code);
     expect(view1.self.memberId).toBe(room1.self.memberId);
@@ -229,7 +238,7 @@ describe("SqliteLobbyRepository", () => {
     expect(() =>
       repo.getRoomLobbyView({
         roomCode: room2.room.code,
-        sessionToken: room1.sessionToken!,
+        sessionToken: sessionToken1,
       }),
     ).toThrowError(
       expect.objectContaining({
@@ -249,7 +258,7 @@ describe("SqliteLobbyRepository", () => {
 
     // Test expired session
     const room = repo.createRoomWithHost({ nickname: "P1" });
-    const token = room.sessionToken!;
+    const token = requireSessionToken(room);
     db.prepare(
       "UPDATE browser_sessions SET expires_at = '2020-01-01T00:00:00.000Z'",
     ).run();
@@ -274,10 +283,50 @@ describe("SqliteLobbyRepository", () => {
     );
   });
 
+  it("updates browser_sessions.last_used_at on authenticated use without extending expires_at", () => {
+    const room = repo.createRoomWithHost({ nickname: "Host" });
+    const token = requireSessionToken(room);
+
+    // Check initial timestamps
+    const initialSession = db
+      .prepare(
+        "SELECT last_used_at, expires_at FROM browser_sessions WHERE id = (SELECT session_id FROM session_memberships LIMIT 1)",
+      )
+      .get() as { last_used_at: string; expires_at: string };
+
+    // Set last_used_at to an older timestamp to detect update
+    const pastTimestamp = "2026-09-08T00:00:00.000Z";
+    db.prepare("UPDATE browser_sessions SET last_used_at = ?").run(
+      pastTimestamp,
+    );
+
+    // Perform authenticated read
+    const view = repo.getRoomLobbyView({
+      roomCode: room.room.code,
+      sessionToken: token,
+    });
+    expect(view.room.code).toBe(room.room.code);
+
+    const updatedSession = db
+      .prepare(
+        "SELECT last_used_at, expires_at FROM browser_sessions WHERE id = (SELECT session_id FROM session_memberships LIMIT 1)",
+      )
+      .get() as { last_used_at: string; expires_at: string };
+
+    // last_used_at must be updated to a newer timestamp
+    expect(updatedSession.last_used_at).not.toBe(pastTimestamp);
+    expect(new Date(updatedSession.last_used_at).getTime()).toBeGreaterThan(
+      new Date(pastTimestamp).getTime(),
+    );
+
+    // expires_at must remain untouched
+    expect(updatedSession.expires_at).toBe(initialSession.expires_at);
+  });
+
   it("recovers membership on a new browser: reclaims exact same seat and revokes previous session authority", () => {
     const created = repo.createRoomWithHost({ nickname: "Host" });
     const roomCode = created.room.code;
-    const oldSessionToken = created.sessionToken!;
+    const oldSessionToken = requireSessionToken(created);
     const recoveryCode = created.self.recoveryCode;
     const originalMemberId = created.self.memberId;
 
@@ -292,9 +341,8 @@ describe("SqliteLobbyRepository", () => {
     expect(recovered.room.members[0]?.joinOrder).toBe(0);
     expect(recovered.room.members[0]?.isHost).toBe(true);
     expect(recovered.room.members[0]?.nickname).toBe("Host");
-    expect(recovered.sessionToken).toBeDefined();
 
-    const newSessionToken = recovered.sessionToken!;
+    const newSessionToken = requireSessionToken(recovered);
     expect(newSessionToken).not.toBe(oldSessionToken);
 
     // New session now has authority
@@ -318,10 +366,52 @@ describe("SqliteLobbyRepository", () => {
     );
   });
 
+  it("rejects recovery if the recovering session already controls a different member in the same room", () => {
+    // 1. Host creates room
+    const hostRoom = repo.createRoomWithHost({ nickname: "Host" });
+    const roomCode = hostRoom.room.code;
+    const hostRecoveryCode = hostRoom.self.recoveryCode;
+
+    // 2. Member2 joins room on their own session
+    const member2Room = repo.joinRoom({
+      roomCode,
+      nickname: "Member2",
+    });
+    const member2SessionToken = requireSessionToken(member2Room);
+
+    // 3. Member2 attempts to recover Host's seat using Host's recovery code while logged in as Member2
+    expect(() =>
+      repo.recoverMembership({
+        roomCode,
+        recoveryCode: hostRecoveryCode,
+        existingSessionToken: member2SessionToken,
+      }),
+    ).toThrowError(
+      expect.objectContaining({
+        code: "ALREADY_MEMBER",
+        statusCode: 409,
+      }),
+    );
+
+    // Verify atomicity: Member2 still controls Member2
+    const m2View = repo.getRoomLobbyView({
+      roomCode,
+      sessionToken: member2SessionToken,
+    });
+    expect(m2View.self.memberId).toBe(member2Room.self.memberId);
+
+    // Host still controls Host
+    const hostView = repo.getRoomLobbyView({
+      roomCode,
+      sessionToken: requireSessionToken(hostRoom),
+    });
+    expect(hostView.self.memberId).toBe(hostRoom.self.memberId);
+  });
+
   it("invalid recovery does not revoke the existing valid controlling grant", () => {
     const created = repo.createRoomWithHost({ nickname: "Host" });
     const roomCode = created.room.code;
-    const sessionToken = created.sessionToken!;
+    const sessionToken = requireSessionToken(created);
 
     // Attempt invalid recovery
     expect(() =>
@@ -347,7 +437,7 @@ describe("SqliteLobbyRepository", () => {
   it("rotates recovery code: old code immediately invalid, new code works", () => {
     const created = repo.createRoomWithHost({ nickname: "Host" });
     const roomCode = created.room.code;
-    const sessionToken = created.sessionToken!;
+    const sessionToken = requireSessionToken(created);
     const oldRecoveryCode = created.self.recoveryCode;
 
     const rotated = repo.rotateRecoveryCode({

@@ -12,6 +12,24 @@ import { SqliteLobbyRepository } from "../src/persistence/sqlite/SqliteLobbyRepo
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(__dirname, "../migrations");
 
+function getSessionCookie(res: {
+  cookies: Array<{
+    name: string;
+    value: string;
+    httpOnly?: boolean;
+    sameSite?: string;
+    path?: string;
+    secure?: boolean;
+  }>;
+}) {
+  const cookie = res.cookies.find((c) => c.name === "finance_game_session");
+  expect(cookie).toBeDefined();
+  if (!cookie) {
+    throw new Error("Expected finance_game_session cookie to be present");
+  }
+  return cookie;
+}
+
 describe("HTTP Lobby Routes", () => {
   let db: SqliteDatabase;
   let repo: SqliteLobbyRepository;
@@ -61,15 +79,11 @@ describe("HTTP Lobby Routes", () => {
     expect(body.self.recoveryCode).toBeDefined();
 
     // Verify session cookie
-    const cookies = res.cookies;
-    const sessionCookie = cookies.find(
-      (c) => c.name === "finance_game_session",
-    );
-    expect(sessionCookie).toBeDefined();
-    expect(sessionCookie?.httpOnly).toBe(true);
-    expect(sessionCookie?.sameSite).toBe("Strict");
-    expect(sessionCookie?.path).toBe("/");
-    expect(sessionCookie?.secure).toBeFalsy();
+    const sessionCookie = getSessionCookie(res);
+    expect(sessionCookie.httpOnly).toBe(true);
+    expect(sessionCookie.sameSite).toBe("Strict");
+    expect(sessionCookie.path).toBe("/");
+    expect(sessionCookie.secure).toBeFalsy();
   });
 
   it("POST /api/rooms respects cookieSecure config when enabled", async () => {
@@ -91,11 +105,29 @@ describe("HTTP Lobby Routes", () => {
       payload: { nickname: "SecurePlayer" },
     });
 
-    const sessionCookie = res.cookies.find(
-      (c) => c.name === "finance_game_session",
-    );
-    expect(sessionCookie?.secure).toBe(true);
+    const sessionCookie = getSessionCookie(res);
+    expect(sessionCookie.secure).toBe(true);
     await secureServer.close();
+  });
+
+  it("returns 400 INVALID_INPUT for malformed JSON body", async () => {
+    const res = await server.fastify.inject({
+      method: "POST",
+      url: "/api/rooms",
+      headers: {
+        "content-type": "application/json",
+      },
+      payload: '{"nickname": "Broken',
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.body);
+    expect(body).toEqual({
+      error: {
+        code: "INVALID_INPUT",
+        message: "Invalid input or malformed request payload",
+      },
+    });
   });
 
   it("POST /api/rooms/:roomCode/join joins room and returns private recovery code", async () => {
@@ -126,9 +158,7 @@ describe("HTTP Lobby Routes", () => {
       payload: { nickname: "Host" },
     });
     const code = JSON.parse(createRes.body).room.code;
-    const sessionCookie = createRes.cookies.find(
-      (c) => c.name === "finance_game_session",
-    )!;
+    const sessionCookie = getSessionCookie(createRes);
 
     // Unauthenticated GET (missing cookie)
     const unauthRes = await server.fastify.inject({
@@ -177,9 +207,7 @@ describe("HTTP Lobby Routes", () => {
       payload: { nickname: "Host" },
     });
     const code = JSON.parse(createRes.body).room.code;
-    const sessionCookie = createRes.cookies.find(
-      (c) => c.name === "finance_game_session",
-    )!;
+    const sessionCookie = getSessionCookie(createRes);
 
     const sessionRes = await server.fastify.inject({
       method: "GET",
@@ -204,9 +232,7 @@ describe("HTTP Lobby Routes", () => {
     const createBody = JSON.parse(createRes.body);
     const code = createBody.room.code;
     const recoveryCode = createBody.self.recoveryCode;
-    const oldCookie = createRes.cookies.find(
-      (c) => c.name === "finance_game_session",
-    )!;
+    const oldCookie = getSessionCookie(createRes);
 
     // Recover on a new client (no cookies)
     const recoverRes = await server.fastify.inject({
@@ -220,9 +246,7 @@ describe("HTTP Lobby Routes", () => {
     expect(recoverBody.self.memberId).toBe(createBody.self.memberId);
     expect(recoverBody.room.members[0].nickname).toBe("RecoverMe");
 
-    const newCookie = recoverRes.cookies.find(
-      (c) => c.name === "finance_game_session",
-    )!;
+    const newCookie = getSessionCookie(recoverRes);
     expect(newCookie.value).not.toBe(oldCookie.value);
 
     // Old cookie is revoked
@@ -235,6 +259,49 @@ describe("HTTP Lobby Routes", () => {
     expect(JSON.parse(oldRes.body).error.code).toBe("NOT_A_ROOM_MEMBER");
   });
 
+  it("rejects recovery with 409 ALREADY_MEMBER if session already controls a different seat in that room", async () => {
+    // 1. Host creates room
+    const hostRes = await server.fastify.inject({
+      method: "POST",
+      url: "/api/rooms",
+      payload: { nickname: "Host" },
+    });
+    const hostBody = JSON.parse(hostRes.body);
+    const code = hostBody.room.code;
+    const hostRecoveryCode = hostBody.self.recoveryCode;
+
+    // 2. Member2 joins room
+    const joinRes = await server.fastify.inject({
+      method: "POST",
+      url: `/api/rooms/${code}/join`,
+      payload: { nickname: "Member2" },
+    });
+    const joinBody = JSON.parse(joinRes.body);
+    const joinCookie = getSessionCookie(joinRes);
+
+    // 3. Member2 attempts to recover Host's seat using their active Member2 session
+    const recoverRes = await server.fastify.inject({
+      method: "POST",
+      url: `/api/rooms/${code}/recover`,
+      cookies: { finance_game_session: joinCookie.value },
+      payload: { recoveryCode: hostRecoveryCode },
+    });
+
+    expect(recoverRes.statusCode).toBe(409);
+    const errBody = JSON.parse(recoverRes.body);
+    expect(errBody.error.code).toBe("ALREADY_MEMBER");
+
+    // Member2 still controls Member2
+    const verifyRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${code}`,
+      cookies: { finance_game_session: joinCookie.value },
+    });
+    expect(verifyRes.statusCode).toBe(200);
+    const verifyBody = JSON.parse(verifyRes.body);
+    expect(verifyBody.self.memberId).toBe(joinBody.self.memberId);
+  });
+
   it("POST /api/rooms/:roomCode/recovery-code rotates recovery code", async () => {
     const createRes = await server.fastify.inject({
       method: "POST",
@@ -243,9 +310,7 @@ describe("HTTP Lobby Routes", () => {
     });
     const code = JSON.parse(createRes.body).room.code;
     const oldRecoveryCode = JSON.parse(createRes.body).self.recoveryCode;
-    const cookie = createRes.cookies.find(
-      (c) => c.name === "finance_game_session",
-    )!;
+    const cookie = getSessionCookie(createRes);
 
     const rotateRes = await server.fastify.inject({
       method: "POST",
