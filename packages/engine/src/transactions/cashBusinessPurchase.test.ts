@@ -1,4 +1,4 @@
-import { asAssetId, asPlayerId, asTransactionId } from "@finance-game/shared";
+import { asAssetId, asPlayerId, asTransactionId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
 
 import { basisPoints, cents } from "../finance/money";

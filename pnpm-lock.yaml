@@ -127,13 +127,13 @@ importers:
       '@fastify/rate-limit':
         specifier: ^11.2.0
         version: 11.2.0
-      '@finance-game/engine':
+      '@interests/engine':
         specifier: workspace:*
         version: link:../../packages/engine
-      '@finance-game/rules':
+      '@interests/rules':
         specifier: workspace:*
         version: link:../../packages/rules
-      '@finance-game/shared':
+      '@interests/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       better-sqlite3:
@@ -170,10 +170,10 @@ importers:
 
   packages/engine:
     dependencies:
-      '@finance-game/rules':
+      '@interests/rules':
         specifier: workspace:*
         version: link:../rules
-      '@finance-game/shared':
+      '@interests/shared':
         specifier: workspace:*
         version: link:../shared
       decimal.js:
@@ -182,7 +182,7 @@ importers:
 
   packages/rules:
     dependencies:
-      '@finance-game/shared':
+      '@interests/shared':
         specifier: workspace:*
         version: link:../shared
 
@@ -190,13 +190,13 @@ importers:
 
   packages/simulation:
     dependencies:
-      '@finance-game/engine':
+      '@interests/engine':
         specifier: workspace:*
         version: link:../engine
-      '@finance-game/rules':
+      '@interests/rules':
         specifier: workspace:*
         version: link:../rules
-      '@finance-game/shared':
+      '@interests/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:

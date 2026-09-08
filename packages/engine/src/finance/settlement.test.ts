@@ -3,8 +3,8 @@ import {
   PUBLIC_MARKET_INSTRUMENTS,
   STANDARD_V1_OPENING_BASE_RATE_BPS,
   STANDARD_V1_OPENING_CASH_YIELD_BPS,
-} from "@finance-game/rules";
-import { asAssetId, asLoanId, asPlayerId } from "@finance-game/shared";
+} from "@interests/rules";
+import { asAssetId, asLoanId, asPlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
 
 import { applyAction } from "../game/actions";

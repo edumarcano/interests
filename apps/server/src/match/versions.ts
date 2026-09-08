@@ -1,6 +1,6 @@
-import { ENGINE_VERSION } from "@finance-game/engine";
-import { RULES_VERSION } from "@finance-game/rules";
-import { SHARED_VERSION } from "@finance-game/shared";
+import { ENGINE_VERSION } from "@interests/engine";
+import { RULES_VERSION } from "@interests/rules";
+import { SHARED_VERSION } from "@interests/shared";
 
 export const PERSISTENCE_FORMAT_VERSION = "0.0.1";
 

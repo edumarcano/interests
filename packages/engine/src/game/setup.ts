@@ -6,8 +6,8 @@ import {
   type ObjectiveId,
   PROFILE_IDS,
   type ProfileId,
-} from "@finance-game/rules";
-import type { PlayerId } from "@finance-game/shared";
+} from "@interests/rules";
+import type { PlayerId } from "@interests/shared";
 import { drawBoundedInt, type RandomState } from "../random/prng";
 
 export type ProfileCombination = readonly [

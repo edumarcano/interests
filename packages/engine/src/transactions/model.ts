@@ -1,4 +1,4 @@
-import type { AssetId, PlayerId, TransactionId } from "@finance-game/shared";
+import type { AssetId, PlayerId, TransactionId } from "@interests/shared";
 
 import type { JournalEntry } from "../finance/journal";
 import type { BasisPoints, Cents } from "../finance/money";

@@ -7,7 +7,7 @@ import {
   type PlayerId,
   type RoomId,
   type RoomMemberId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 import type Database from "better-sqlite3";
 import {
   type CommandReceiptRecord,

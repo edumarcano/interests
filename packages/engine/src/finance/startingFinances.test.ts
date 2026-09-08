@@ -4,7 +4,7 @@ import {
   PROPERTY_STARTER_MORTGAGE_QUARTERLY_PAYMENT_CENTS,
   type ProfileId,
   STARTING_FINANCES_BY_PROFILE,
-} from "@finance-game/rules";
+} from "@interests/rules";
 import {
   type AssetId,
   asAssetId,
@@ -12,7 +12,7 @@ import {
   asPlayerId,
   type LoanId,
   type PlayerId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 import { describe, expect, it } from "vitest";
 
 import { applyAction } from "../game/actions";

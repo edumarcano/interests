@@ -1,8 +1,4 @@
-import type {
-  MatchPlayerView,
-  RoomId,
-  RoomMemberId,
-} from "@finance-game/shared";
+import type { MatchPlayerView, RoomId, RoomMemberId } from "@interests/shared";
 import type { Socket } from "socket.io";
 import type { PauseReason, RoomLobbyView } from "../lobby/types.js";
 

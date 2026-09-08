@@ -1,5 +1,5 @@
-import { assertGameState, type GameState } from "@finance-game/engine";
-import type { RoomMemberId } from "@finance-game/shared";
+import { assertGameState, type GameState } from "@interests/engine";
+import type { RoomMemberId } from "@interests/shared";
 import { MatchError, type MatchWithMembers } from "./types.js";
 import { isVersionCompatible, type MatchVersionMetadata } from "./versions.js";
 

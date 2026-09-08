@@ -1,4 +1,4 @@
-import type { OpportunityId, PlayerId } from "@finance-game/shared";
+import type { OpportunityId, PlayerId } from "@interests/shared";
 
 import { cents } from "../finance/money";
 import { TOTAL_OWNERSHIP_PPM } from "../finance/ownership";

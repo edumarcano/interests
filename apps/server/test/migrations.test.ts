@@ -15,7 +15,7 @@ describe("SQLite migration runner", () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "finance-game-migrations-test-"),
+      path.join(os.tmpdir(), "interests-migrations-test-"),
     );
     migrationsDir = path.join(tempDir, "migrations");
     fs.mkdirSync(migrationsDir, { recursive: true });

@@ -3,13 +3,13 @@ import {
   PUBLIC_MARKET_INSTRUMENT_IDS,
   PUBLIC_MARKET_INSTRUMENTS,
   type PublicMarketInstrumentId,
-} from "@finance-game/rules";
+} from "@interests/rules";
 import type {
   AssetId,
   LoanId,
   PlayerId,
   SettlementId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 
 import { nextDeterministicId } from "../game/deterministicIds";
 import { assertGameState } from "../invariants/assertGameState";

@@ -3,7 +3,7 @@ import {
   applyPlayerCommand,
   createGame,
   type GameState,
-} from "@finance-game/engine";
+} from "@interests/engine";
 import {
   asMatchId,
   asPlayerId,
@@ -11,7 +11,7 @@ import {
   type MatchPlayerView,
   type PlayerId,
   type RoomMemberId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 import type { Socket } from "socket.io";
 import type { LobbyRepository } from "../lobby/types.js";
 import type { RoomConnectionCoordinator } from "../realtime/RoomConnectionCoordinator.js";

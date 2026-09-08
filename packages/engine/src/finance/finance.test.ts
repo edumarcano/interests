@@ -3,7 +3,7 @@ import {
   asLoanId,
   asPlayerId,
   type PlayerId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 import { describe, expect, it } from "vitest";
 
 import type {

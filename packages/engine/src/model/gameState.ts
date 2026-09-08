@@ -3,14 +3,14 @@ import type {
   ObjectiveId,
   ProfileId,
   PublicMarketInstrumentId,
-} from "@finance-game/rules";
+} from "@interests/rules";
 import type {
   AssetId,
   GameId,
   LoanId,
   OpportunityId,
   PlayerId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 
 import type { BasisPoints, Cents } from "../finance/money";
 import type { OwnershipPpm } from "../finance/ownership";

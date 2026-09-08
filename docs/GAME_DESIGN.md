@@ -1,4 +1,4 @@
-# Financial Strategy Game
+# Interests
 
 ## Canonical Game Design Specification
 

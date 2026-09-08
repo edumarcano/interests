@@ -7,13 +7,30 @@ describe("Server configuration", () => {
     expect(config).toEqual({
       host: "0.0.0.0",
       port: 3000,
-      dbPath: "./data/finance-game.sqlite",
+      dbPath: "./data/interests.sqlite",
       cookieSecure: false,
       rateLimitDisabled: false,
     });
   });
 
-  it("parses valid custom configuration values", () => {
+  it("parses valid custom configuration values with INTERESTS_* prefix", () => {
+    const config = parseServerConfig({
+      INTERESTS_HOST: "127.0.0.1",
+      INTERESTS_PORT: "4000",
+      INTERESTS_DB_PATH: "./custom/db.sqlite",
+      INTERESTS_COOKIE_SECURE: "true",
+      INTERESTS_RATE_LIMIT_DISABLED: "true",
+    });
+    expect(config).toEqual({
+      host: "127.0.0.1",
+      port: 4000,
+      dbPath: "./custom/db.sqlite",
+      cookieSecure: true,
+      rateLimitDisabled: true,
+    });
+  });
+
+  it("falls back to legacy FINANCE_GAME_* configuration values", () => {
     const config = parseServerConfig({
       FINANCE_GAME_HOST: "127.0.0.1",
       FINANCE_GAME_PORT: "4000",

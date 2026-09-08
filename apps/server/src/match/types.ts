@@ -1,10 +1,10 @@
-import type { GameState } from "@finance-game/engine";
+import type { GameState } from "@interests/engine";
 import type {
   MatchId,
   PlayerId,
   RoomId,
   RoomMemberId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 import type { MatchVersionMetadata } from "./versions.js";
 
 export type MatchStatus = "ACTIVE" | "FINISHED" | "ABANDONED";

@@ -2,8 +2,8 @@ import {
   applyPlayerCommand,
   createGame,
   projectPlayerGameState,
-} from "@finance-game/engine";
-import { asPlayerId } from "@finance-game/shared";
+} from "@interests/engine";
+import { asPlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
 
 describe("Match Domain - Engine Command Adapter and Privacy Projection", () => {

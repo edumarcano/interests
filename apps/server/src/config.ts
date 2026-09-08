@@ -12,7 +12,7 @@ export const ServerConfigSchema = z.object({
     .string()
     .trim()
     .min(1, "Database path cannot be empty")
-    .default("./data/finance-game.sqlite"),
+    .default("./data/interests.sqlite"),
   /**
    * Whether to send cookies with Secure attribute.
    * Default is false for the local-first LAN V1 runtime.
@@ -29,17 +29,22 @@ export function parseServerConfig(
 ): ServerConfig {
   const raw: Record<string, unknown> = {};
 
-  if (env.FINANCE_GAME_HOST !== undefined) {
-    raw.host = env.FINANCE_GAME_HOST;
+  const hostVal = env.INTERESTS_HOST ?? env.FINANCE_GAME_HOST;
+  if (hostVal !== undefined) {
+    raw.host = hostVal;
   }
-  if (env.FINANCE_GAME_PORT !== undefined) {
-    raw.port = env.FINANCE_GAME_PORT;
+  const portVal = env.INTERESTS_PORT ?? env.FINANCE_GAME_PORT;
+  if (portVal !== undefined) {
+    raw.port = portVal;
   }
-  if (env.FINANCE_GAME_DB_PATH !== undefined) {
-    raw.dbPath = env.FINANCE_GAME_DB_PATH;
+  const dbPathVal = env.INTERESTS_DB_PATH ?? env.FINANCE_GAME_DB_PATH;
+  if (dbPathVal !== undefined) {
+    raw.dbPath = dbPathVal;
   }
-  if (env.FINANCE_GAME_COOKIE_SECURE !== undefined) {
-    const rawVal = env.FINANCE_GAME_COOKIE_SECURE.trim().toLowerCase();
+  const cookieSecureVal =
+    env.INTERESTS_COOKIE_SECURE ?? env.FINANCE_GAME_COOKIE_SECURE;
+  if (cookieSecureVal !== undefined) {
+    const rawVal = cookieSecureVal.trim().toLowerCase();
     if (rawVal === "true") {
       raw.cookieSecure = true;
     } else if (rawVal === "false") {
@@ -50,8 +55,10 @@ export function parseServerConfig(
       );
     }
   }
-  if (env.FINANCE_GAME_RATE_LIMIT_DISABLED !== undefined) {
-    const rawVal = env.FINANCE_GAME_RATE_LIMIT_DISABLED.trim().toLowerCase();
+  const rateLimitDisabledVal =
+    env.INTERESTS_RATE_LIMIT_DISABLED ?? env.FINANCE_GAME_RATE_LIMIT_DISABLED;
+  if (rateLimitDisabledVal !== undefined) {
+    const rawVal = rateLimitDisabledVal.trim().toLowerCase();
     if (rawVal === "true") {
       raw.rateLimitDisabled = true;
     } else if (rawVal === "false") {

@@ -4,7 +4,7 @@ import {
   asRoomId,
   asRoomMemberId,
   type RoomMemberId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 import type Database from "better-sqlite3";
 import {
   digestCredential,

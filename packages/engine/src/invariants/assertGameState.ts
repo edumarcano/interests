@@ -9,7 +9,7 @@ import {
   PUBLIC_MARKET_INSTRUMENT_IDS,
   STANDARD_V1_OPENING_BASE_RATE_BPS,
   STANDARD_V1_PLAYER_COUNT,
-} from "@finance-game/rules";
+} from "@interests/rules";
 import {
   calculateLegacyBankLoanNextPayment,
   calculatePlayerLoanSchedule,

@@ -4,13 +4,13 @@ import {
   ENGINE_VERSION,
   settleQuarter,
   totalPublicMarketValueCents,
-} from "@finance-game/engine";
+} from "@interests/engine";
 import {
   ECONOMIC_REGIME_IDS,
   PROFILE_IDS,
   PUBLIC_MARKET_INSTRUMENT_IDS,
-} from "@finance-game/rules";
-import type { PlayerId } from "@finance-game/shared";
+} from "@interests/rules";
+import type { PlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
 
 import {

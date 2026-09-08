@@ -5,18 +5,19 @@ This file records implementation decisions that refine or supersede examples in 
 ## ARCH-017 - Workspace package namespace
 
 **Status:** Accepted  
-**Date:** September 5, 2026
+**Date:** September 5, 2026 (Updated September 8, 2026)
 
-Use the `@finance-game/*` namespace for workspace packages.
+Use the `@interests/*` namespace for workspace packages.
 
 Current package names:
 
-- `@finance-game/shared`
-- `@finance-game/rules`
-- `@finance-game/engine`
-- `@finance-game/simulation`
+- `@interests/shared`
+- `@interests/rules`
+- `@interests/engine`
+- `@interests/simulation`
+- `@interests/server`
 
-Any `@game/*` names in architecture examples should be read as `@finance-game/*` until the architecture document is revised.
+Supersedes the initial temporary `@finance-game/*` workspace namespace. Any `@game/*` names in architecture examples should be read as `@interests/*`.
 
 ## ARCH-018 - Biome for initial code quality tooling
 
@@ -62,10 +63,10 @@ Do not add project skills, custom subagents, MCP configuration, or agent-specifi
 
 Implement the deterministic financial foundations required to execute Quarter 1 for all eight Standard V1 starting profiles:
 
-1. **Starting Finance Fixtures (`@finance-game/rules`):** Define typed starting finance fixtures and constants (`OPENING_PERSONAL_DEBT_APR_BPS = 800`, `PROPERTY_STARTER_MORTGAGE_APR_BPS = 550`, `PROPERTY_STARTER_MORTGAGE_QUARTERLY_PAYMENT_CENTS = 433_537`) as the single source of truth for profile starting finances.
-2. **Recurring Personal Finance State (`@finance-game/engine`):** Model `recurringByPlayer` in `FinanceState` tracking authoritative `quarterlyIncomeCents` and `quarterlyLivingExpenseCents` per player.
-3. **Canonical Loan Registry Union (`@finance-game/engine`):** Extend `loansById` to a discriminated union `Loan = PlayerLoan | LegacyBankLoan`. Legacy bank loans carry fixed APR basis points, fixed scheduled quarterly payment cents, and derived amortization (no invented contractual term). Purpose is restricted to `"personal-debt"` or `"property-mortgage"` (with optional `relatedAssetId`). Existing player loan helpers reject legacy bank loans with `WRONG_LOAN_KIND`.
-4. **Opening Business Representation (`@finance-game/engine`):** Business assets include `debtPrincipalCents` used to derive business equity (`enterpriseValue - debtPrincipal`). The generic calculator returns signed safe-integer cents, supporting negative equity for distressed businesses without imposing an artificial universal `debt <= EV` invariant. Starting fixtures guarantee non-negative equity. In Quarter 1, business debt is balance-sheet-only and does not amortize; business operating profits are not separately distributed to prevent double counting spendable owner income.
+1. **Starting Finance Fixtures (`@interests/rules`):** Define typed starting finance fixtures and constants (`OPENING_PERSONAL_DEBT_APR_BPS = 800`, `PROPERTY_STARTER_MORTGAGE_APR_BPS = 550`, `PROPERTY_STARTER_MORTGAGE_QUARTERLY_PAYMENT_CENTS = 433_537`) as the single source of truth for profile starting finances.
+2. **Recurring Personal Finance State (`@interests/engine`):** Model `recurringByPlayer` in `FinanceState` tracking authoritative `quarterlyIncomeCents` and `quarterlyLivingExpenseCents` per player.
+3. **Canonical Loan Registry Union (`@interests/engine`):** Extend `loansById` to a discriminated union `Loan = PlayerLoan | LegacyBankLoan`. Legacy bank loans carry fixed APR basis points, fixed scheduled quarterly payment cents, and derived amortization (no invented contractual term). Purpose is restricted to `"personal-debt"` or `"property-mortgage"` (with optional `relatedAssetId`). Existing player loan helpers reject legacy bank loans with `WRONG_LOAN_KIND`.
+4. **Opening Business Representation (`@interests/engine`):** Business assets include `debtPrincipalCents` used to derive business equity (`enterpriseValue - debtPrincipal`). The generic calculator returns signed safe-integer cents, supporting negative equity for distressed businesses without imposing an artificial universal `debt <= EV` invariant. Starting fixtures guarantee non-negative equity. In Quarter 1, business debt is balance-sheet-only and does not amortize; business operating profits are not separately distributed to prevent double counting spendable owner income.
 5. **Deterministic Setup (`createGame`):** Starting assets and legacy bank loans are created in deterministic `playerOrder` advancing asset and loan counters without consuming RNG, without cash movements, and without emitting journal entries.
 6. **Quarter Settlement Planning & Ordering (`settleQuarter`):** Two-phase execution: pure multi-stage planning validates solvency (`INSUFFICIENT_FUNDS` on negative projected balance) and capacity (`DESTINATION_OVERFLOW`) before any state change. Under the approved quarter-start recurring entitlement convention (A1), future cash interest uses quarter-start cash and future dividends use quarter-start holdings (market/yield execution deferred). Execution follows a strict 4-stage deterministic posting sequence:
    1. Recurring personal income by PlayerId (`personal-earned-income -> player`);
@@ -94,7 +95,7 @@ Refine ARCH-019 to correct bounded-random sampling bias before market, opportuni
 
 Establish the bounded public-market holdings and yield-settlement foundation for Standard V1:
 
-1. **Fungible Value-Balance Representation (`@finance-game/engine`):** Model public market investments as per-player mark-to-market balances in integer cents (`publicMarketsByPlayer: Record<PlayerId, PublicMarketPortfolio>`) across three fixed instruments (`broad-market-fund`, `growth-fund`, `income-defensive-fund`). Do not introduce discrete share counts, unit prices, tax lots, or discrete `AssetId` entities.
+1. **Fungible Value-Balance Representation (`@interests/engine`):** Model public market investments as per-player mark-to-market balances in integer cents (`publicMarketsByPlayer: Record<PlayerId, PublicMarketPortfolio>`) across three fixed instruments (`broad-market-fund`, `growth-fund`, `income-defensive-fund`). Do not introduce discrete share counts, unit prices, tax lots, or discrete `AssetId` entities.
 2. **Standard V1 Opening Allocation (`createGame`):** In Standard V1 setup, profile starting public investments are allocated 100% to `broad-market-fund`, with zero in `growth-fund` and `income-defensive-fund`. This reconciles exactly with profile starting balance sheets without consuming RNG, advancing ID counters, or posting journal entries.
 3. **Authoritative Quarter-Start Entitlement Basis (`quarterStartBasis`):** Store an authoritative `quarterStartBasis: QuarterStartFinanceBasis` snapshot in `FinanceState` capturing opening cash and public market portfolios for the quarter. Quarterly cash yield and public-market dividends are strictly calculated from this snapshot, ensuring mid-quarter cash transfers or spends do not retroactively alter that quarter's entitlement.
 4. **Nominal Yield Calculation & Rounding (`calculateQuarterlyYieldCents`):** Quarterly yields use nominal annual rate / 4 with `ROUND_HALF_UP` rounding to integer cents (`principalCents × annualYieldBps / 40000`) using `FinanceDecimal`. Cash yield opening rate is 300 BPS (base rate 450 BPS minus 150 BPS offset, with 50 BPS floor). Instrument annual dividend yields are 150 BPS (`broad-market-fund`), 50 BPS (`growth-fund`), and 350 BPS (`income-defensive-fund`). Zero yields emit no journal entries.
@@ -116,7 +117,7 @@ Establish the bounded public-market holdings and yield-settlement foundation for
 Establish the authoritative shared-economy cycle and deterministic public-market revaluation foundation for Standard V1:
 
 1. **Authoritative Economy State (`EconomyState`):** Model a shared authoritative `economy` in `GameState` tracking `currentRegime: EconomicRegimeId`, `baseRateBps: BasisPoints`, and `lastMarketUpdate: MarketUpdateRecord | null`. Standard V1 starts in `expansion` with `baseRateBps = 450` (4.50%). Setup consumes zero additional RNG, counters, IDs, or revision.
-2. **Canonical Regimes and Prototype Transitions (`@finance-game/rules`):** Define five economic regimes in canonical order: `expansion`, `overheating`, `slowdown`, `recession`, `recovery`. Transition probabilities are immutable rule-owned prototype constants where each row sums to 100%. Next regime is sampled via `drawBoundedInt(random, 100)` over cumulative probabilities in canonical order without floating-point comparisons.
+2. **Canonical Regimes and Prototype Transitions (`@interests/rules`):** Define five economic regimes in canonical order: `expansion`, `overheating`, `slowdown`, `recession`, `recovery`. Transition probabilities are immutable rule-owned prototype constants where each row sums to 100%. Next regime is sampled via `drawBoundedInt(random, 100)` over cumulative probabilities in canonical order without floating-point comparisons.
 3. **One Shared Market Return Per Instrument:** In each quarter, public-market price returns are determined by the regime mean plus bounded discrete uniform integer-BPS noise ($\text{returnBps} = \text{regimeMeanBps} + \text{noiseBps}$). Inclusive noise amplitudes are fixed in rules: Broad ($\pm 400$ BPS), Growth ($\pm 600$ BPS), Defensive ($\pm 250$ BPS). Every player holding an instrument shares the exact same price return.
 4. **Holdings-Independent RNG Order:** Market return generation consumes engine RNG in strict canonical order:
    1. Broad Market Fund noise
@@ -141,9 +142,9 @@ Establish the authoritative shared-economy cycle and deterministic public-market
 **Status:** Accepted  
 **Date:** September 6, 2026
 
-Establish the headless baseline simulation protocol and reporting harness in `@finance-game/simulation` building upon ARCH-015:
+Establish the headless baseline simulation protocol and reporting harness in `@interests/simulation` building upon ARCH-015:
 
-1. **Same Engine Architecture:** Simulation orchestrates the authoritative `@finance-game/engine` via public APIs (`createGame`, `applyAction`, `settleQuarter`, `totalPublicMarketValueCents`). It never duplicates financial rules, recalculates expected cash flows independently, or bypasses engine validation.
+1. **Same Engine Architecture:** Simulation orchestrates the authoritative `@interests/engine` via public APIs (`createGame`, `applyAction`, `settleQuarter`, `totalPublicMarketValueCents`). It never duplicates financial rules, recalculates expected cash flows independently, or bypasses engine validation.
 2. **Passive Baseline Setup & Policy:** Standard V1 games initialize with four deterministic branded simulation players (`simulation-player-1` .. `simulation-player-4`). In canonical `playerOrder`, each player selects their first offered objective (`offeredObjectiveIds[0]`) through real `applyAction()` calls, transitioning phase to `ready-for-first-round`. Players take zero optional gameplay actions thereafter.
 3. **Deterministic Indexed Seed Suite:** Games are seeded deterministically via pure format `<seedPrefix>:<formattedIndex>` where `gameIndex` is zero-based and padded to at least 6 digits without truncation (e.g. `baseline-v1:000000`). No simulation-owned gameplay RNG or separate PRNG is introduced.
 4. **Sequential V1 Execution:** Games execute in strictly ascending index order without worker threads, process pools, or concurrency.
@@ -158,10 +159,10 @@ Establish the headless baseline simulation protocol and reporting harness in `@f
 **Status:** Accepted  
 **Date:** September 6, 2026
 
-Establish the initial atomic cash asset-sale transaction foundation in `@finance-game/engine` as the transaction kernel for Architecture Milestone 4:
+Establish the initial atomic cash asset-sale transaction foundation in `@interests/engine` as the transaction kernel for Architecture Milestone 4:
 
 1. **Dedicated Transaction Identifier & Deterministic Counter:**
-   - Introduce branded `TransactionId` in `@finance-game/shared` and `asTransactionId()`.
+   - Introduce branded `TransactionId` in `@interests/shared` and `asTransactionId()`.
    - Extend `DeterministicCounters` with `transaction: number` and `nextDeterministicId("transaction", counters)` generating deterministic IDs (`transaction-1`, `transaction-2`, ...).
    - Opening a transaction consumes exactly one transaction ID; rejected attempts, cancellation, and closing consume zero new transaction IDs.
    - Transaction operations consume zero gameplay RNG.
@@ -201,7 +202,7 @@ Establish the initial atomic cash asset-sale transaction foundation in `@finance
 **Status:** Accepted  
 **Date:** September 6, 2026
 
-Establish the first private business-purchase opportunity lifecycle in `@finance-game/engine` as the next narrow vertical slice of Architecture Milestone 4:
+Establish the first private business-purchase opportunity lifecycle in `@interests/engine` as the next narrow vertical slice of Architecture Milestone 4:
 
 1. **Authoritative Normalized Opportunity Registry (`opportunitiesById`):**
    - Model `opportunitiesById: Record<OpportunityId, Opportunity>` at the top level of `GameState`, initialized to `{}` for new games.
@@ -251,7 +252,7 @@ Establish the first private business-purchase opportunity lifecycle in `@finance
 **Status:** Accepted  
 **Date:** September 6, 2026
 
-Establish the first executable domain version of Architecture Milestone 4 (one opportunity, investigation, financing offer, reservation, atomic close) in `@finance-game/engine`:
+Establish the first executable domain version of Architecture Milestone 4 (one opportunity, investigation, financing offer, reservation, atomic close) in `@interests/engine`:
 
 1. **Transaction-Scoped Player-Loan Financing Model (`CashBusinessPurchaseTransaction`):**
    - Extend the authoritative transaction model to optionally carry a narrow player-loan financing request (`playerLoanFinancing?: PlayerLoanFinancingRequest`).
@@ -414,8 +415,8 @@ Establish the persistent accountless multiplayer lobby, credential architecture,
    - All security-sensitive randomness (room codes, session tokens, recovery credentials) must use `node:crypto`, never the deterministic engine PRNG or `Math.random`.
 
 7. **Cookie Security Configuration:**
-   - In the local-first LAN V1 runtime, cookies default to `Secure = false` via explicit boolean configuration (`FINANCE_GAME_COOKIE_SECURE = false`).
-   - Future HTTPS deployments must explicitly configure `FINANCE_GAME_COOKIE_SECURE = true`.
+   - In the local-first LAN V1 runtime, cookies default to `Secure = false` via explicit boolean configuration (`INTERESTS_COOKIE_SECURE = false`, supporting legacy fallback `FINANCE_GAME_COOKIE_SECURE = false`).
+   - Future HTTPS deployments must explicitly configure `INTERESTS_COOKIE_SECURE = true`.
 
 ## ARCH-032 - Authenticated controlling sockets and disconnect pause
 

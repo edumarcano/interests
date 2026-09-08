@@ -5,13 +5,13 @@ import {
   STANDARD_V1_OPENING_PUBLIC_MARKET_INSTRUMENT_ID,
   STANDARD_V1_PLAYER_COUNT,
   STANDARD_V1_STARTING_REGIME,
-} from "@finance-game/rules";
+} from "@interests/rules";
 import {
   type AssetId,
   asGameId,
   type LoanId,
   type PlayerId,
-} from "@finance-game/shared";
+} from "@interests/shared";
 import { createZeroPublicMarketPortfolio } from "../finance/markets";
 import { basisPoints, type Cents, cents } from "../finance/money";
 import { ownershipPpm } from "../finance/ownership";

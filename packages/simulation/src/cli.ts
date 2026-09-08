@@ -13,7 +13,7 @@ function printHelp(): void {
 Deterministic Headless Passive Baseline Simulation CLI
 
 Usage:
-  pnpm --filter @finance-game/simulation simulate [options]
+  pnpm --filter @interests/simulation simulate [options]
 
 Options:
   --games <positive integer>        Number of games to simulate (default: ${DEFAULT_BASELINE_GAMES})

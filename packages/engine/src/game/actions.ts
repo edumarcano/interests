@@ -1,5 +1,5 @@
-import type { ObjectiveId } from "@finance-game/rules";
-import type { PlayerId } from "@finance-game/shared";
+import type { ObjectiveId } from "@interests/rules";
+import type { PlayerId } from "@interests/shared";
 import type { JournalEntry } from "../finance/journal";
 import { assertGameState } from "../invariants/assertGameState";
 import type { GamePhase, GameState, PlayerState } from "../model/gameState";
