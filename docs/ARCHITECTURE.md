@@ -1,6 +1,6 @@
 # Financial Strategy Game - Technical Architecture
 
-> **Version:** 0.3  
+> **Version:** 0.4  
 > **Date:** September 8, 2026  
 > **Status:** Architecture baseline for implementation  
 > **Companion:** [GAME_DESIGN.md](GAME_DESIGN.md), canonical game design v0.4  
@@ -1155,6 +1155,7 @@ These initial decisions can be indexed in `DECISIONS.md` without copying the ent
 | ARCH-029 | Local-first LAN runtime and SQLite persistence | Same-room LAN play; better-sqlite3 isolated in server persistence; no cloud/PostgreSQL in V1 |
 | ARCH-030 | Rotating spotlight orchestration for Standard V1 | Deterministic rotating-seat-v1 turn order, continuous background preparation, atomic single-deal concurrency boundary |
 | ARCH-031 | Accountless lobby identity and recovery credentials | 6-char room codes, 4-seat lobby, opaque HttpOnly cookie sessions, private recovery codes stored as SHA-256 digests |
+| ARCH-032 | Authenticated controlling sockets and disconnect pause | Cookie-based socket auth, one controller per seat with generation safety, bootstrap/sync, disconnect pause and host resume |
 
 ## 25. References
 
@@ -1194,6 +1195,8 @@ The game specification and subsequent agreed session requirements define this pr
 | 0.1 | September 5, 2026 | Initial architecture baseline: modular TypeScript stack, package boundaries, deterministic engine, private projections, persistent sessions, host administration, pause/reconnect, testing, CI, and implementation gates. |
 | 0.2 | September 8, 2026 | Local-first LAN architecture and SQLite persistence ([ARCH-029]); rotating-seat-v1 spotlight orchestration ([ARCH-030]); single responsive Player View; disconnect/pause simplification without automatic host succession. |
 | 0.3 | September 8, 2026 | Accountless lobby identity and recovery credentials ([ARCH-031]): 6-character room codes, 4-seat lobby capacity, opaque HttpOnly cookie sessions, private recovery credentials, and same-origin write protection. |
+| 0.4 | September 8, 2026 | Authenticated controlling sockets and disconnect pause ([ARCH-032]): single controlling socket per seat, generation-safe replacement, bootstrap and synchronization, authorized room presence, disconnect pause for armed rooms, and host-only explicit resume. |
+
 
 [R1]: https://nodejs.org/en/about/previous-releases
 [R2]: https://pnpm.io/workspaces

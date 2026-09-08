@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { ServerConfig } from "../config.js";
 import { LobbyError } from "../lobby/errors.js";
 import type { LobbyRepository } from "../lobby/types.js";
+import type { RoomConnectionCoordinator } from "../realtime/RoomConnectionCoordinator.js";
 
 const COOKIE_NAME = "finance_game_session";
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
@@ -9,6 +10,7 @@ const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 export interface LobbyRouteOptions {
   config: ServerConfig;
   repository: LobbyRepository;
+  coordinator?: RoomConnectionCoordinator;
 }
 
 function validateSameOrigin(
@@ -161,6 +163,8 @@ export async function registerLobbyRoutes(
         setSessionCookie(reply, result.sessionToken, config.cookieSecure);
       }
 
+      options.coordinator?.notifyRosterChanged(roomCode);
+
       return reply.status(201).send({
         room: result.room,
         self: result.self,
@@ -241,6 +245,11 @@ export async function registerLobbyRoutes(
       if (result.sessionToken) {
         setSessionCookie(reply, result.sessionToken, config.cookieSecure);
       }
+
+      options.coordinator?.invalidateMemberController(
+        result.self.memberId,
+        "RECOVERY",
+      );
 
       return reply.status(200).send({
         room: result.room,
