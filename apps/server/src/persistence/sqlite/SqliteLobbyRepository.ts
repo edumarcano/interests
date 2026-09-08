@@ -756,9 +756,7 @@ export class SqliteLobbyRepository implements LobbyRepository {
 
     const memberRow = this.db
       .prepare(
-        `SELECT rm.id, rm.room_id as roomId, rm.nickname, rm.nickname_key as nicknameKey,
-                rm.join_order as joinOrder, rm.recovery_credential_digest as recoveryCredentialDigest,
-                rm.created_at as createdAt
+        `SELECT rm.id, rm.nickname, rm.join_order as joinOrder
          FROM session_memberships sm
          JOIN room_members rm ON sm.room_member_id = rm.id
          WHERE sm.session_id = ? AND rm.room_id = ? AND sm.revoked_at IS NULL`,
@@ -766,12 +764,8 @@ export class SqliteLobbyRepository implements LobbyRepository {
       .get(session.id, roomRow.id) as
       | {
           id: string;
-          roomId: string;
           nickname: string;
-          nicknameKey: string;
           joinOrder: number;
-          recoveryCredentialDigest: string;
-          createdAt: string;
         }
       | undefined;
 
@@ -784,12 +778,8 @@ export class SqliteLobbyRepository implements LobbyRepository {
       roomCode: roomRow.code,
       member: {
         id: asRoomMemberId(memberRow.id),
-        roomId: asRoomId(memberRow.roomId),
         nickname: memberRow.nickname,
-        nicknameKey: memberRow.nicknameKey,
         joinOrder: memberRow.joinOrder,
-        recoveryCredentialDigest: memberRow.recoveryCredentialDigest,
-        createdAt: memberRow.createdAt,
       },
       isHost: memberRow.id === roomRow.hostMemberId,
     };
@@ -803,7 +793,7 @@ export class SqliteLobbyRepository implements LobbyRepository {
          FROM room_pause_reasons rpr
          JOIN rooms r ON rpr.room_id = r.id
          WHERE r.code = ?
-         ORDER BY rpr.created_at ASC`,
+         ORDER BY rpr.created_at ASC, rpr.reason ASC`,
       )
       .all(normalizedCode) as Array<{ reason: PauseReason }>;
 

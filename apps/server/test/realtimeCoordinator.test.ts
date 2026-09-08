@@ -36,6 +36,21 @@ interface ClientOptions {
   transports?: ("polling" | "websocket")[];
 }
 
+function at<T>(array: T[], index: number): T {
+  const value = array[index];
+  if (value === undefined) {
+    throw new Error(`Index ${index} out of bounds`);
+  }
+  return value;
+}
+
+function expectDefined<T>(val: T | undefined | null): T {
+  if (val === undefined || val === null) {
+    throw new Error("Expected value to be defined");
+  }
+  return val;
+}
+
 function connectClient(
   port: number,
   options: ClientOptions = {},
@@ -46,7 +61,8 @@ function connectClient(
 }> {
   return new Promise((resolve, reject) => {
     const hostHeader = options.host ?? `127.0.0.1:${port}`;
-    const originHeader = options.origin ?? `http://${hostHeader}`;
+    const originHeader =
+      options.origin !== undefined ? options.origin : `http://${hostHeader}`;
     const extraHeaders: Record<string, string> = {
       host: hostHeader,
     };
@@ -121,10 +137,6 @@ describe("Realtime Coordinator and Socket Authentication", () => {
   let port: number;
   const activeSockets: ClientSocket[] = [];
 
-  function connect(options: ClientOptions = {}) {
-    return connectClient(port, options, activeSockets);
-  }
-
   beforeEach(async () => {
     db = openDatabase({ dbPath: ":memory:" });
     runMigrations(db, migrationsDir);
@@ -151,7 +163,7 @@ describe("Realtime Coordinator and Socket Authentication", () => {
       s.removeAllListeners();
       try {
         s.disconnect();
-        (s.io as any)._close?.();
+        (s.io as unknown as { _close?: () => void })._close?.();
       } catch {
         // ignore
       }
@@ -184,6 +196,50 @@ describe("Realtime Coordinator and Socket Authentication", () => {
       connectClient(port, {
         roomCode: hostCreated.room.code,
         sessionToken: "invalid_token_xyz_12345",
+      }),
+    ).rejects.toThrow();
+
+    // Expired session token
+    const p1 = repo.joinRoom({
+      roomCode: hostCreated.room.code,
+      nickname: "Bob",
+    });
+    const pastIso = new Date(Date.now() - 60000).toISOString();
+    db.prepare(
+      `UPDATE browser_sessions SET expires_at = ?
+       WHERE id = (
+         SELECT sm.session_id FROM session_memberships sm
+         JOIN room_members rm ON sm.room_member_id = rm.id
+         WHERE rm.id = ?
+       )`,
+    ).run(pastIso, p1.self.memberId);
+
+    await expect(
+      connectClient(port, {
+        roomCode: hostCreated.room.code,
+        sessionToken: p1.sessionToken,
+      }),
+    ).rejects.toThrow();
+
+    // Revoked session token
+    const p2 = repo.joinRoom({
+      roomCode: hostCreated.room.code,
+      nickname: "Charlie",
+    });
+    const nowIso = new Date().toISOString();
+    db.prepare(
+      `UPDATE browser_sessions SET revoked_at = ?
+       WHERE id = (
+         SELECT sm.session_id FROM session_memberships sm
+         JOIN room_members rm ON sm.room_member_id = rm.id
+         WHERE rm.id = ?
+       )`,
+    ).run(nowIso, p2.self.memberId);
+
+    await expect(
+      connectClient(port, {
+        roomCode: hostCreated.room.code,
+        sessionToken: p2.sessionToken,
       }),
     ).rejects.toThrow();
   });
@@ -273,6 +329,17 @@ describe("Realtime Coordinator and Socket Authentication", () => {
     ).rejects.toThrow();
   });
 
+  it("8b. missing Origin header rejects", async () => {
+    const hostCreated = repo.createRoomWithHost({ nickname: "Alice" });
+    await expect(
+      connectClient(port, {
+        roomCode: hostCreated.room.code,
+        sessionToken: hostCreated.sessionToken,
+        origin: "",
+      }),
+    ).rejects.toThrow();
+  });
+
   it("9. valid localhost/LAN-style same-origin handshake succeeds", async () => {
     const hostCreated = repo.createRoomWithHost({ nickname: "Alice" });
     const { client } = await connectClient(port, {
@@ -317,11 +384,11 @@ describe("Realtime Coordinator and Socket Authentication", () => {
     track(client);
     await bootstrapPromise;
 
-    const presence = server.coordinator!.buildPresencePayload(
+    const presence = expectDefined(server.coordinator).buildPresencePayload(
       hostCreated.room.code,
     );
-    expect(presence.members[0]!.connected).toBe(true);
-    expect(presence.members[0]!.synchronized).toBe(false);
+    expect(at(presence.members, 0).connected).toBe(true);
+    expect(at(presence.members, 0).synchronized).toBe(false);
   });
 
   it("12. valid synchronization marks the seat synchronized", async () => {
@@ -344,11 +411,11 @@ describe("Realtime Coordinator and Socket Authentication", () => {
     const ack = await syncPromise;
     expect(ack.ok).toBe(true);
 
-    const presence = server.coordinator!.buildPresencePayload(
+    const presence = expectDefined(server.coordinator).buildPresencePayload(
       hostCreated.room.code,
     );
-    expect(presence.members[0]!.connected).toBe(true);
-    expect(presence.members[0]!.synchronized).toBe(true);
+    expect(at(presence.members, 0).connected).toBe(true);
+    expect(at(presence.members, 0).synchronized).toBe(true);
   });
 
   it("13. stale generation cannot synchronize", async () => {
@@ -374,10 +441,10 @@ describe("Realtime Coordinator and Socket Authentication", () => {
       expect(ack.error.code).toBe(SOCKET_ERROR_CODES.NOT_CURRENT_CONTROLLER);
     }
 
-    const presence = server.coordinator!.buildPresencePayload(
+    const presence = expectDefined(server.coordinator).buildPresencePayload(
       hostCreated.room.code,
     );
-    expect(presence.members[0]!.synchronized).toBe(false);
+    expect(at(presence.members, 0).synchronized).toBe(false);
   });
 
   it("14 & 15. second socket replaces first and old socket receives replacement notice", async () => {
@@ -442,11 +509,11 @@ describe("Realtime Coordinator and Socket Authentication", () => {
 
     // client1 now emits disconnect or triggers disconnect handler
     // In our implementation, client1 was already disconnected, but coordinator ignores stale generation
-    const presence = server.coordinator!.buildPresencePayload(
+    const presence = expectDefined(server.coordinator).buildPresencePayload(
       hostCreated.room.code,
     );
-    expect(presence.members[0]!.connected).toBe(true);
-    expect(presence.members[0]!.synchronized).toBe(true);
+    expect(at(presence.members, 0).connected).toBe(true);
+    expect(at(presence.members, 0).synchronized).toBe(true);
   });
 
   it("17. presence updates are broadcast to authorized room members", async () => {
@@ -535,7 +602,7 @@ describe("Realtime Coordinator and Socket Authentication", () => {
     });
 
     await new Promise((r) => setTimeout(r, 50));
-    expect(server.coordinator!.isRoomArmed(roomCode)).toBe(false);
+    expect(expectDefined(server.coordinator).isRoomArmed(roomCode)).toBe(false);
     expect(repo.getPauseReasons(roomCode)).toEqual([]);
 
     // Disconnect c1 before arming -> must NOT cause pause
@@ -579,7 +646,7 @@ describe("Realtime Coordinator and Socket Authentication", () => {
 
     await new Promise((r) => setTimeout(r, 60));
     // All four are connected and synchronized!
-    expect(server.coordinator!.isRoomArmed(roomCode)).toBe(true);
+    expect(expectDefined(server.coordinator).isRoomArmed(roomCode)).toBe(true);
     expect(repo.getPauseReasons(roomCode)).toEqual([]);
   });
 
@@ -612,10 +679,10 @@ describe("Realtime Coordinator and Socket Authentication", () => {
     }
 
     await new Promise((r) => setTimeout(r, 60));
-    expect(server.coordinator!.isRoomArmed(roomCode)).toBe(true);
+    expect(expectDefined(server.coordinator).isRoomArmed(roomCode)).toBe(true);
 
     // Disconnect player 3
-    clients[3]!.disconnect();
+    at(clients, 3).disconnect();
     await new Promise((r) => setTimeout(r, 60));
 
     expect(repo.getPauseReasons(roomCode)).toContain("DISCONNECTED_MEMBER");
@@ -667,7 +734,7 @@ describe("Realtime Coordinator and Socket Authentication", () => {
     await new Promise((r) => setTimeout(r, 60));
 
     // Disconnect player 1
-    clients[1]!.disconnect();
+    at(clients, 1).disconnect();
     await new Promise((r) => setTimeout(r, 60));
     expect(repo.getPauseReasons(roomCode)).toContain("DISCONNECTED_MEMBER");
 
@@ -676,7 +743,7 @@ describe("Realtime Coordinator and Socket Authentication", () => {
 
     // Host attempts to resume while player 1 is disconnected -> rejected
     const resumeAttempt1 = new Promise<AckResult<ResumeData>>((res) => {
-      clients[0]!.emit(
+      at(clients, 0).emit(
         SOCKET_CLIENT_EVENTS.RESUME,
         (ack: AckResult<ResumeData>) => res(ack),
       );
@@ -716,7 +783,7 @@ describe("Realtime Coordinator and Socket Authentication", () => {
 
     // Host resumes successfully!
     const resumeAttempt3 = new Promise<AckResult<ResumeData>>((res) => {
-      clients[0]!.emit(
+      at(clients, 0).emit(
         SOCKET_CLIENT_EVENTS.RESUME,
         (ack: AckResult<ResumeData>) => res(ack),
       );
@@ -758,7 +825,7 @@ describe("Realtime Coordinator and Socket Authentication", () => {
     }
     await new Promise((r) => setTimeout(r, 60));
 
-    const p1OldSocket = clients[1]!;
+    const p1OldSocket = at(clients, 1);
     const replacedPromise = waitForEvent<SessionReplacedPayload>(
       p1OldSocket,
       SOCKET_SERVER_EVENTS.REPLACED,
@@ -792,7 +859,7 @@ describe("Realtime Coordinator and Socket Authentication", () => {
     const { client: recoveredSocket, bootstrapPromise: recBoot } =
       await connectClient(port, {
         roomCode,
-        sessionToken: newSessionCookie!.value,
+        sessionToken: expectDefined(newSessionCookie).value,
       });
     track(recoveredSocket);
     const boot = await recBoot;
@@ -860,5 +927,85 @@ describe("Realtime Coordinator and Socket Authentication", () => {
     expect(client.connected).toBe(true);
     await server.close();
     expect(client.connected).toBe(false);
+  });
+
+  it("33. malformed Socket.IO event arguments cannot throw or crash the server", async () => {
+    const hostCreated = repo.createRoomWithHost({ nickname: "Alice" });
+    const { client } = await connectClient(port, {
+      roomCode: hostCreated.room.code,
+      sessionToken: hostCreated.sessionToken,
+    });
+    track(client);
+
+    // Send synchronize with non-function ack arguments or malformed payload shapes
+    expect(() => {
+      client.emit(
+        SOCKET_CLIENT_EVENTS.SYNCHRONIZE,
+        { connectionGeneration: 1 },
+        12345,
+      );
+      client.emit(
+        SOCKET_CLIENT_EVENTS.SYNCHRONIZE,
+        { connectionGeneration: 1 },
+        "not-a-function",
+      );
+      client.emit(
+        SOCKET_CLIENT_EVENTS.SYNCHRONIZE,
+        { connectionGeneration: 1 },
+        { arbitrary: "object" },
+      );
+      client.emit(SOCKET_CLIENT_EVENTS.SYNCHRONIZE, "invalid-payload", null);
+      client.emit(SOCKET_CLIENT_EVENTS.SYNCHRONIZE);
+    }).not.toThrow();
+
+    // Send resume with non-function argument shapes
+    expect(() => {
+      client.emit(SOCKET_CLIENT_EVENTS.RESUME, { fake: "payload" });
+      client.emit(SOCKET_CLIENT_EVENTS.RESUME, "non-function");
+      client.emit(SOCKET_CLIENT_EVENTS.RESUME, 99999);
+      client.emit(SOCKET_CLIENT_EVENTS.RESUME);
+    }).not.toThrow();
+
+    // Verify socket remains alive and server did not throw unhandled exception
+    await new Promise((r) => setTimeout(r, 60));
+    expect(client.connected).toBe(true);
+  });
+
+  it("34. graceful server shutdown of an armed four-seat room suppresses DISCONNECTED_MEMBER", async () => {
+    const host = repo.createRoomWithHost({ nickname: "Player0" });
+    const roomCode = host.room.code;
+    const p1 = repo.joinRoom({ roomCode, nickname: "Player1" });
+    const p2 = repo.joinRoom({ roomCode, nickname: "Player2" });
+    const p3 = repo.joinRoom({ roomCode, nickname: "Player3" });
+
+    // Connect & sync all four to arm room
+    const clients: ClientSocket[] = [];
+    const tokens = [
+      host.sessionToken,
+      p1.sessionToken,
+      p2.sessionToken,
+      p3.sessionToken,
+    ];
+    for (let i = 0; i < 4; i++) {
+      const { client, bootstrapPromise } = await connectClient(port, {
+        roomCode,
+        sessionToken: at(tokens, i),
+      });
+      track(client);
+      clients.push(client);
+      const b = await bootstrapPromise;
+      client.emit(SOCKET_CLIENT_EVENTS.SYNCHRONIZE, {
+        connectionGeneration: b.self.connectionGeneration,
+      });
+    }
+    await new Promise((r) => setTimeout(r, 60));
+    expect(expectDefined(server.coordinator).isRoomArmed(roomCode)).toBe(true);
+    expect(repo.getPauseReasons(roomCode)).toEqual([]);
+
+    // Graceful server shutdown
+    await server.close();
+
+    // Verify DISCONNECTED_MEMBER was suppressed during graceful shutdown
+    expect(repo.getPauseReasons(roomCode)).toEqual([]);
   });
 });

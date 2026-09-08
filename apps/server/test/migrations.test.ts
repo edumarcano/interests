@@ -175,12 +175,33 @@ describe("SQLite migration runner", () => {
     );
   });
 
-  it("applies migration 001 and 002 from actual server migrations directory successfully", () => {
+  it("applies migration 001 and 002 and enforces CHECK constraint on pause reasons", () => {
     const actualMigrationsDir = path.resolve(__dirname, "../migrations");
     const result = runMigrations(db, actualMigrationsDir);
     expect(result.applied.map((m) => m.version)).toEqual([1, 2]);
 
     const tableInfo = db.prepare("PRAGMA table_info(room_pause_reasons)").all();
     expect(tableInfo.length).toBeGreaterThan(0);
+
+    // Insert a dummy room to satisfy foreign key
+    const nowIso = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO rooms (id, code, status, host_member_id, created_at, updated_at, last_activity_at)
+       VALUES ('room_1', 'TEST01', 'OPEN', 'member_1', ?, ?, ?)`,
+    ).run(nowIso, nowIso, nowIso);
+
+    // Valid reasons succeed
+    const insertStmt = db.prepare(
+      "INSERT INTO room_pause_reasons (room_id, reason, created_at) VALUES ('room_1', ?, ?)",
+    );
+    insertStmt.run("MANUAL", nowIso);
+    insertStmt.run("DISCONNECTED_MEMBER", nowIso);
+    insertStmt.run("SERVER_RESTART", nowIso);
+    insertStmt.run("SYSTEM_FAULT", nowIso);
+
+    // Invalid reason is rejected by SQLite CHECK constraint
+    expect(() => {
+      insertStmt.run("UNSUPPORTED_REASON", nowIso);
+    }).toThrow(/CHECK constraint failed/i);
   });
 });

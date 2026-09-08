@@ -3,7 +3,7 @@
 
 CREATE TABLE room_pause_reasons (
   room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-  reason TEXT NOT NULL,
+  reason TEXT NOT NULL CHECK (reason IN ('MANUAL', 'DISCONNECTED_MEMBER', 'SERVER_RESTART', 'SYSTEM_FAULT')),
   created_at TEXT NOT NULL,
   PRIMARY KEY (room_id, reason)
 );

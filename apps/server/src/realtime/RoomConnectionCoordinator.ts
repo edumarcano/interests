@@ -26,14 +26,29 @@ interface RoomMeta {
   presenceArmed: boolean;
 }
 
+function safeAck<T>(ack: unknown, result: T): void {
+  if (typeof ack === "function") {
+    try {
+      ack(result);
+    } catch {
+      // client callback threw or socket closed; ignore safely
+    }
+  }
+}
+
 export class RoomConnectionCoordinator {
   private readonly memberStates = new Map<RoomMemberId, MemberSessionState>();
   private readonly roomMeta = new Map<string, RoomMeta>();
+  private isShuttingDown = false;
 
   constructor(
     private readonly io: SocketIOServer,
     private readonly repository: LobbyRepository,
   ) {}
+
+  prepareShutdown(): void {
+    this.isShuttingDown = true;
+  }
 
   private getOrCreateRoomMeta(roomCode: string): RoomMeta {
     const normalized = normalizeRoomCode(roomCode);
@@ -188,8 +203,8 @@ export class RoomConnectionCoordinator {
     ack?: (result: AckResult) => void,
   ): void {
     const data = socket.data as AuthenticatedSocketData | undefined;
-    if (!data || !data.memberId) {
-      ack?.({
+    if (!data?.memberId) {
+      safeAck(ack, {
         ok: false,
         error: {
           code: SOCKET_ERROR_CODES.UNAUTHENTICATED,
@@ -204,7 +219,7 @@ export class RoomConnectionCoordinator {
       typeof payload !== "object" ||
       typeof (payload as SynchronizePayload).connectionGeneration !== "number"
     ) {
-      ack?.({
+      safeAck(ack, {
         ok: false,
         error: {
           code: SOCKET_ERROR_CODES.INVALID_INPUT,
@@ -224,7 +239,7 @@ export class RoomConnectionCoordinator {
       memberState.controllingSocket !== socket ||
       connectionGeneration !== data.generation
     ) {
-      ack?.({
+      safeAck(ack, {
         ok: false,
         error: {
           code: SOCKET_ERROR_CODES.NOT_CURRENT_CONTROLLER,
@@ -251,12 +266,12 @@ export class RoomConnectionCoordinator {
     }
 
     this.broadcastPresence(data.roomCode);
-    ack?.({ ok: true });
+    safeAck(ack, { ok: true });
   }
 
   handleDisconnect(socket: Socket): void {
     const data = socket.data as AuthenticatedSocketData | undefined;
-    if (!data || !data.memberId) {
+    if (!data?.memberId) {
       return;
     }
 
@@ -274,6 +289,11 @@ export class RoomConnectionCoordinator {
     memberState.connected = false;
     memberState.synchronized = false;
     memberState.controllingSocket = null;
+
+    // Suppress synthesizing disconnect pauses during graceful server teardown
+    if (this.isShuttingDown) {
+      return;
+    }
 
     try {
       const roomMeta = this.getOrCreateRoomMeta(data.roomCode);
@@ -295,8 +315,8 @@ export class RoomConnectionCoordinator {
     ack?: (result: AckResult<ResumeData>) => void,
   ): void {
     const data = socket.data as AuthenticatedSocketData | undefined;
-    if (!data || !data.memberId) {
-      ack?.({
+    if (!data?.memberId) {
+      safeAck(ack, {
         ok: false,
         error: {
           code: SOCKET_ERROR_CODES.UNAUTHENTICATED,
@@ -312,7 +332,7 @@ export class RoomConnectionCoordinator {
       memberState.generation !== data.generation ||
       memberState.controllingSocket !== socket
     ) {
-      ack?.({
+      safeAck(ack, {
         ok: false,
         error: {
           code: SOCKET_ERROR_CODES.NOT_CURRENT_CONTROLLER,
@@ -323,7 +343,7 @@ export class RoomConnectionCoordinator {
     }
 
     if (!memberState.isHost) {
-      ack?.({
+      safeAck(ack, {
         ok: false,
         error: {
           code: SOCKET_ERROR_CODES.NOT_ROOM_HOST,
@@ -339,7 +359,7 @@ export class RoomConnectionCoordinator {
       !presence.allConnected ||
       !presence.allSynchronized
     ) {
-      ack?.({
+      safeAck(ack, {
         ok: false,
         error: {
           code: SOCKET_ERROR_CODES.ROOM_NOT_READY,
@@ -358,7 +378,7 @@ export class RoomConnectionCoordinator {
 
     const pauseReasons = this.repository.getPauseReasons(data.roomCode);
     this.broadcastPresence(data.roomCode);
-    ack?.({
+    safeAck(ack, {
       ok: true,
       data: {
         pauseReasons,
@@ -377,7 +397,7 @@ export class RoomConnectionCoordinator {
     memberState.synchronized = false;
     memberState.controllingSocket = null;
 
-    if (socket && socket.connected) {
+    if (socket?.connected) {
       const replacedPayload: SessionReplacedPayload = { reason };
       socket.emit(SOCKET_SERVER_EVENTS.REPLACED, replacedPayload);
       (socket.data as Partial<AuthenticatedSocketData>) = {};

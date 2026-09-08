@@ -136,6 +136,10 @@ export function createServer(options: CreateServerOptions = {}): GameServer {
   }
 
   fastify.addHook("onClose", async () => {
+    if (coordinator) {
+      coordinator.prepareShutdown();
+    }
+
     try {
       io.disconnectSockets(true);
     } catch {
@@ -175,6 +179,10 @@ export function createServer(options: CreateServerOptions = {}): GameServer {
     close: async () => {
       if (isClosing) return;
       isClosing = true;
+
+      if (coordinator) {
+        coordinator.prepareShutdown();
+      }
 
       try {
         io.disconnectSockets(true);

@@ -87,10 +87,16 @@ export type PauseReason =
   | "SERVER_RESTART"
   | "SYSTEM_FAULT";
 
+export interface AuthenticatedMemberSummary {
+  id: RoomMemberId;
+  nickname: string;
+  joinOrder: number;
+}
+
 export interface AuthenticatedMemberResult {
   roomId: RoomId;
   roomCode: string;
-  member: RoomMemberRecord;
+  member: AuthenticatedMemberSummary;
   isHost: boolean;
 }
 

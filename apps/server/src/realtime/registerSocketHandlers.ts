@@ -29,37 +29,44 @@ export function registerSocketHandlers(
 ): void {
   // Handshake authentication and validation middleware
   io.use((socket: Socket, next: (err?: Error) => void) => {
-    // 1. Same-Origin check
+    // 1. Same-Origin check: require valid Origin for all supported V1 socket clients
     const origin = socket.handshake.headers.origin;
-    if (origin) {
-      const host = socket.handshake.headers.host;
-      if (!host) {
-        return next(
-          createMiddlewareError(
-            SOCKET_ERROR_CODES.FORBIDDEN,
-            "Missing Host header for Origin validation",
-          ),
-        );
-      }
+    if (!origin || typeof origin !== "string") {
+      return next(
+        createMiddlewareError(
+          SOCKET_ERROR_CODES.FORBIDDEN,
+          "Origin header is required for socket connection",
+        ),
+      );
+    }
 
-      try {
-        const originUrl = new URL(origin);
-        if (originUrl.host !== host) {
-          return next(
-            createMiddlewareError(
-              SOCKET_ERROR_CODES.FORBIDDEN,
-              "Cross-origin socket connection rejected: Origin does not match Host",
-            ),
-          );
-        }
-      } catch {
+    const host = socket.handshake.headers.host;
+    if (!host || typeof host !== "string") {
+      return next(
+        createMiddlewareError(
+          SOCKET_ERROR_CODES.FORBIDDEN,
+          "Missing Host header for Origin validation",
+        ),
+      );
+    }
+
+    try {
+      const originUrl = new URL(origin);
+      if (originUrl.host !== host) {
         return next(
           createMiddlewareError(
             SOCKET_ERROR_CODES.FORBIDDEN,
-            "Invalid Origin header",
+            "Cross-origin socket connection rejected: Origin does not match Host",
           ),
         );
       }
+    } catch {
+      return next(
+        createMiddlewareError(
+          SOCKET_ERROR_CODES.FORBIDDEN,
+          "Invalid Origin header",
+        ),
+      );
     }
 
     // 2. Protocol version & handshake auth payload validation
@@ -189,11 +196,22 @@ export function registerSocketHandlers(
     // Register with connection coordinator
     coordinator.registerConnection(socket, authResult);
 
-    socket.on(SOCKET_CLIENT_EVENTS.SYNCHRONIZE, (payload, ack) => {
+    socket.on(SOCKET_CLIENT_EVENTS.SYNCHRONIZE, (...args: unknown[]) => {
+      const payload = args[0];
+      const ackCandidate = args[1];
+      const ack =
+        typeof ackCandidate === "function"
+          ? (ackCandidate as (result: unknown) => void)
+          : undefined;
       coordinator.handleSynchronized(socket, payload, ack);
     });
 
-    socket.on(SOCKET_CLIENT_EVENTS.RESUME, (ack) => {
+    socket.on(SOCKET_CLIENT_EVENTS.RESUME, (...args: unknown[]) => {
+      const ackCandidate = args.find((arg) => typeof arg === "function");
+      const ack =
+        typeof ackCandidate === "function"
+          ? (ackCandidate as (result: unknown) => void)
+          : undefined;
       coordinator.handleResume(socket, ack);
     });
 
