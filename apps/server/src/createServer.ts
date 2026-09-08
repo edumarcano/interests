@@ -11,6 +11,8 @@ import {
 import type { ServerConfig } from "./config.js";
 import { LobbyError } from "./lobby/errors.js";
 import type { LobbyRepository } from "./lobby/types.js";
+import { RoomConnectionCoordinator } from "./realtime/RoomConnectionCoordinator.js";
+import { registerSocketHandlers } from "./realtime/registerSocketHandlers.js";
 import { registerLobbyRoutes } from "./routes/lobbyRoutes.js";
 
 export interface CreateServerOptions {
@@ -24,6 +26,7 @@ export interface CreateServerOptions {
 export interface GameServer {
   fastify: FastifyInstance;
   io: SocketIOServer;
+  coordinator?: RoomConnectionCoordinator;
   close: () => Promise<void>;
 }
 
@@ -41,7 +44,15 @@ export function createServer(options: CreateServerOptions = {}): GameServer {
     ...options.fastifyOptions,
   });
 
-  const io = new SocketIOServer(fastify.server, options.socketIoOptions);
+  const defaultSocketIoOptions: Partial<SocketIOServerOptions> = {
+    maxHttpBufferSize: 64 * 1024,
+    perMessageDeflate: false,
+  };
+
+  const io = new SocketIOServer(fastify.server, {
+    ...defaultSocketIoOptions,
+    ...options.socketIoOptions,
+  });
 
   fastify.register(fastifyCookie);
 
@@ -111,29 +122,74 @@ export function createServer(options: CreateServerOptions = {}): GameServer {
     return { status: "ok" };
   });
 
-  if (options.repository) {
+  const coordinator = options.repository
+    ? new RoomConnectionCoordinator(io, options.repository)
+    : undefined;
+
+  if (options.repository && coordinator) {
+    registerSocketHandlers(io, options.repository, coordinator);
     fastify.register(registerLobbyRoutes, {
       config,
       repository: options.repository,
+      coordinator,
     });
   }
 
   fastify.addHook("onClose", async () => {
+    try {
+      io.disconnectSockets(true);
+    } catch {
+      // ignore
+    }
+
     await new Promise<void>((resolve) => {
-      io.close(() => {
-        resolve();
-      });
+      let resolved = false;
+      const done = () => {
+        if (!resolved) {
+          resolved = true;
+          resolve();
+        }
+      };
+      io.close(() => done());
+      setTimeout(done, 150);
     });
+
+    try {
+      if (typeof fastify.server.closeAllConnections === "function") {
+        fastify.server.closeAllConnections();
+      }
+    } catch {
+      // ignore
+    }
 
     if (options.onClose) {
       await options.onClose();
     }
   });
 
+  let isClosing = false;
   return {
     fastify,
     io,
+    coordinator,
     close: async () => {
+      if (isClosing) return;
+      isClosing = true;
+
+      try {
+        io.disconnectSockets(true);
+      } catch {
+        // ignore
+      }
+
+      try {
+        if (typeof fastify.server.closeAllConnections === "function") {
+          fastify.server.closeAllConnections();
+        }
+      } catch {
+        // ignore
+      }
+
       await fastify.close();
     },
   };

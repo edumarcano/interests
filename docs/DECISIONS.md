@@ -417,3 +417,43 @@ Establish the persistent accountless multiplayer lobby, credential architecture,
    - In the local-first LAN V1 runtime, cookies default to `Secure = false` via explicit boolean configuration (`FINANCE_GAME_COOKIE_SECURE = false`).
    - Future HTTPS deployments must explicitly configure `FINANCE_GAME_COOKIE_SECURE = true`.
 
+## ARCH-032 - Authenticated controlling sockets and disconnect pause
+
+**Status:** Accepted  
+**Date:** September 8, 2026
+
+Establish the authenticated Socket.IO session layer, controlling socket lifecycle, presence tracking, and disconnect pause architecture for Standard V1:
+
+1. **Cookie-Based Socket Authentication:**
+   - Socket.IO authenticates exclusively through the existing opaque browser-session cookie (`finance_game_session`).
+   - A public room code in handshake authentication selects the target room but never authenticates or authorizes a player seat.
+   - The client handshake payload must not transmit `memberId`, `playerId`, session credentials, or recovery codes; actor identity is derived strictly from the validated browser session grant in SQLite.
+   - Browser connections validate that Origin authority matches Host authority before connection acceptance; non-browser clients must provide valid Host/Origin headers.
+
+2. **Single Controlling Socket per Seat & Generation Safety:**
+   - Each `RoomMember` may have exactly one controlling socket at any time.
+   - The newest authenticated connection for a member replaces the prior controller, notifies the previous socket (`session:replaced`), revokes its authority, and disconnects it cleanly.
+   - Monotonically increasing process-local connection generations prevent delayed disconnect events from superseded sockets from marking a replacement controller offline.
+   - `socket.id` is ephemeral transport metadata, never durable player identity.
+
+3. **Bootstrap and Explicit Synchronization:**
+   - Newly connected controllers receive an authorized `session:bootstrap` payload containing room lobby details, member identity, connection generation, presence summary, and active pause reasons.
+   - The client must explicitly send `session:synchronized` acknowledging its connection generation before the seat is considered synchronized. Stale or replaced generations cannot synchronize.
+   - Presence is runtime and session state managed in-memory by the server connection coordinator; it is never part of deterministic `GameState`.
+
+4. **Presence Arming and Disconnect Pause:**
+   - A four-seat room becomes presence-armed (`presenceArmed = true`) only after all four occupied seats simultaneously achieve connected and synchronized status at least once in the session.
+   - Prior to presence arming, absent sockets represent waiting lobby members and do not create a pause.
+   - After presence arming, the loss or replacement of a synchronized controller (or revocation via HTTP recovery) atomically persists an independent `DISCONNECTED_MEMBER` pause reason in SQLite (`room_pause_reasons`).
+   - Reconnecting the disconnected member restores their controlling socket and synchronizes state, but does NOT automatically resume gameplay.
+
+5. **Host-Only Explicit Resume:**
+   - Only the controlling socket of the room host may invoke `room:resume`.
+   - Resumption is permitted only when all four seats are actively connected and synchronized.
+   - Resumption clears only `DISCONNECTED_MEMBER`, leaving other independent pause reasons (`MANUAL`, `SERVER_RESTART`, `SYSTEM_FAULT`) intact.
+   - There are no offline player actions, automated bots, gameplay decision timers, automatic passes, or forfeits.
+
+6. **Process Restart and Crash Boundaries:**
+   - In-memory presence, generations, and socket references are discarded upon process restart; every member starts offline and unsynchronized.
+   - Persisted pause reasons remain stored in SQLite. Automatic `SERVER_RESTART` pause for an active match belongs to the upcoming match/GameState persistence slice, as no match record exists yet.
+

@@ -81,6 +81,19 @@ export interface RecoverMembershipResult {
   sessionToken?: string;
 }
 
+export type PauseReason =
+  | "MANUAL"
+  | "DISCONNECTED_MEMBER"
+  | "SERVER_RESTART"
+  | "SYSTEM_FAULT";
+
+export interface AuthenticatedMemberResult {
+  roomId: RoomId;
+  roomCode: string;
+  member: RoomMemberRecord;
+  isHost: boolean;
+}
+
 export interface LobbyRepository {
   createRoomWithHost(params: {
     nickname: string;
@@ -98,6 +111,8 @@ export interface LobbyRepository {
     self: { memberId: RoomMemberId };
   };
 
+  getRoomLobbyViewByCode(roomCode: string): RoomLobbyView | null;
+
   getSessionBootstrap(sessionToken: string): SessionBootstrapMembership[];
 
   recoverMembership(params: {
@@ -111,4 +126,15 @@ export interface LobbyRepository {
   };
 
   touchSession(sessionToken: string): void;
+
+  authenticateMemberForRoom(params: {
+    roomCode: string;
+    sessionToken: string;
+  }): AuthenticatedMemberResult | null;
+
+  getPauseReasons(roomCode: string): PauseReason[];
+
+  addPauseReason(params: { roomCode: string; reason: PauseReason }): void;
+
+  removePauseReason(params: { roomCode: string; reason: PauseReason }): void;
 }

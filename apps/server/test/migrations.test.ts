@@ -174,4 +174,13 @@ describe("SQLite migration runner", () => {
       /Migration name mismatch for version 1: recorded as 'initial_schema', but file '001_renamed_schema\.sql' specifies 'renamed_schema'/i,
     );
   });
+
+  it("applies migration 001 and 002 from actual server migrations directory successfully", () => {
+    const actualMigrationsDir = path.resolve(__dirname, "../migrations");
+    const result = runMigrations(db, actualMigrationsDir);
+    expect(result.applied.map((m) => m.version)).toEqual([1, 2]);
+
+    const tableInfo = db.prepare("PRAGMA table_info(room_pause_reasons)").all();
+    expect(tableInfo.length).toBeGreaterThan(0);
+  });
 });

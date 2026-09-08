@@ -14,10 +14,12 @@ import { LobbyError } from "../../lobby/errors.js";
 import { normalizeAndValidateNickname } from "../../lobby/nickname.js";
 import { generateRoomCode, normalizeRoomCode } from "../../lobby/roomCode.js";
 import type {
+  AuthenticatedMemberResult,
   BrowserSessionRecord,
   CreateRoomResult,
   JoinRoomResult,
   LobbyRepository,
+  PauseReason,
   RecoverMembershipResult,
   RoomLobbyView,
   RoomMemberView,
@@ -454,6 +456,48 @@ export class SqliteLobbyRepository implements LobbyRepository {
     };
   }
 
+  getRoomLobbyViewByCode(roomCode: string): RoomLobbyView | null {
+    const normalizedCode = normalizeRoomCode(roomCode);
+
+    const roomRow = this.db
+      .prepare(
+        "SELECT id, code, status, host_member_id as hostMemberId FROM rooms WHERE code = ?",
+      )
+      .get(normalizedCode) as
+      | { id: string; code: string; status: string; hostMemberId: string }
+      | undefined;
+
+    if (!roomRow) {
+      return null;
+    }
+
+    const membersRows = this.db
+      .prepare(
+        `SELECT id, nickname, join_order as joinOrder
+         FROM room_members WHERE room_id = ? ORDER BY join_order ASC`,
+      )
+      .all(roomRow.id) as Array<{
+      id: string;
+      nickname: string;
+      joinOrder: number;
+    }>;
+
+    const members: RoomMemberView[] = membersRows.map((m) => ({
+      memberId: asRoomMemberId(m.id),
+      nickname: m.nickname,
+      joinOrder: m.joinOrder,
+      isHost: m.id === roomRow.hostMemberId,
+    }));
+
+    return {
+      code: roomRow.code,
+      status: roomRow.status,
+      capacity: 4,
+      memberCount: members.length,
+      members,
+    };
+  }
+
   getSessionBootstrap(sessionToken: string): SessionBootstrapMembership[] {
     const session = this.resolveSession(sessionToken);
     if (!session) {
@@ -686,5 +730,134 @@ export class SqliteLobbyRepository implements LobbyRepository {
         "UPDATE browser_sessions SET last_used_at = ? WHERE credential_digest = ? AND revoked_at IS NULL",
       )
       .run(nowIso, digest);
+  }
+
+  authenticateMemberForRoom(params: {
+    roomCode: string;
+    sessionToken: string;
+  }): AuthenticatedMemberResult | null {
+    const session = this.resolveSession(params.sessionToken);
+    if (!session) {
+      return null;
+    }
+
+    const normalizedCode = normalizeRoomCode(params.roomCode);
+    const roomRow = this.db
+      .prepare(
+        "SELECT id, code, status, host_member_id as hostMemberId FROM rooms WHERE code = ?",
+      )
+      .get(normalizedCode) as
+      | { id: string; code: string; status: string; hostMemberId: string }
+      | undefined;
+
+    if (!roomRow) {
+      return null;
+    }
+
+    const memberRow = this.db
+      .prepare(
+        `SELECT rm.id, rm.room_id as roomId, rm.nickname, rm.nickname_key as nicknameKey,
+                rm.join_order as joinOrder, rm.recovery_credential_digest as recoveryCredentialDigest,
+                rm.created_at as createdAt
+         FROM session_memberships sm
+         JOIN room_members rm ON sm.room_member_id = rm.id
+         WHERE sm.session_id = ? AND rm.room_id = ? AND sm.revoked_at IS NULL`,
+      )
+      .get(session.id, roomRow.id) as
+      | {
+          id: string;
+          roomId: string;
+          nickname: string;
+          nicknameKey: string;
+          joinOrder: number;
+          recoveryCredentialDigest: string;
+          createdAt: string;
+        }
+      | undefined;
+
+    if (!memberRow) {
+      return null;
+    }
+
+    return {
+      roomId: asRoomId(roomRow.id),
+      roomCode: roomRow.code,
+      member: {
+        id: asRoomMemberId(memberRow.id),
+        roomId: asRoomId(memberRow.roomId),
+        nickname: memberRow.nickname,
+        nicknameKey: memberRow.nicknameKey,
+        joinOrder: memberRow.joinOrder,
+        recoveryCredentialDigest: memberRow.recoveryCredentialDigest,
+        createdAt: memberRow.createdAt,
+      },
+      isHost: memberRow.id === roomRow.hostMemberId,
+    };
+  }
+
+  getPauseReasons(roomCode: string): PauseReason[] {
+    const normalizedCode = normalizeRoomCode(roomCode);
+    const rows = this.db
+      .prepare(
+        `SELECT rpr.reason
+         FROM room_pause_reasons rpr
+         JOIN rooms r ON rpr.room_id = r.id
+         WHERE r.code = ?
+         ORDER BY rpr.created_at ASC`,
+      )
+      .all(normalizedCode) as Array<{ reason: PauseReason }>;
+
+    return rows.map((r) => r.reason);
+  }
+
+  addPauseReason(params: { roomCode: string; reason: PauseReason }): void {
+    const normalizedCode = normalizeRoomCode(params.roomCode);
+
+    this.db.transaction(() => {
+      const roomRow = this.db
+        .prepare("SELECT id FROM rooms WHERE code = ?")
+        .get(normalizedCode) as { id: string } | undefined;
+
+      if (!roomRow) {
+        throw new LobbyError("ROOM_NOT_FOUND", "Room not found", 404);
+      }
+
+      const nowIso = new Date().toISOString();
+      this.db
+        .prepare(
+          `INSERT OR IGNORE INTO room_pause_reasons (room_id, reason, created_at)
+           VALUES (?, ?, ?)`,
+        )
+        .run(roomRow.id, params.reason, nowIso);
+
+      this.db
+        .prepare("UPDATE rooms SET last_activity_at = ? WHERE id = ?")
+        .run(nowIso, roomRow.id);
+    })();
+  }
+
+  removePauseReason(params: { roomCode: string; reason: PauseReason }): void {
+    const normalizedCode = normalizeRoomCode(params.roomCode);
+
+    this.db.transaction(() => {
+      const roomRow = this.db
+        .prepare("SELECT id FROM rooms WHERE code = ?")
+        .get(normalizedCode) as { id: string } | undefined;
+
+      if (!roomRow) {
+        throw new LobbyError("ROOM_NOT_FOUND", "Room not found", 404);
+      }
+
+      const nowIso = new Date().toISOString();
+      this.db
+        .prepare(
+          "DELETE FROM room_pause_reasons WHERE room_id = ? AND reason = ?",
+        )
+        .run(roomRow.id, params.reason);
+
+      this.db
+        .prepare("UPDATE rooms SET last_activity_at = ? WHERE id = ?")
+        .run(nowIso, roomRow.id);
+    })();
   }
 }
