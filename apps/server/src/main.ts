@@ -4,6 +4,7 @@ import { parseServerConfig } from "./config.js";
 import { createServer } from "./createServer.js";
 import { runMigrations } from "./persistence/sqlite/migrations.js";
 import { openDatabase } from "./persistence/sqlite/openDatabase.js";
+import { SqliteLobbyRepository } from "./persistence/sqlite/SqliteLobbyRepository.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -14,8 +15,11 @@ async function main(): Promise<void> {
   const migrationsDir = path.resolve(__dirname, "../migrations");
   runMigrations(db, migrationsDir);
 
+  const repository = new SqliteLobbyRepository(db);
+
   const server = createServer({
     config,
+    repository,
     onClose: () => {
       db.close();
     },

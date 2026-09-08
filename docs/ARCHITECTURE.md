@@ -1,6 +1,6 @@
 # Financial Strategy Game - Technical Architecture
 
-> **Version:** 0.2  
+> **Version:** 0.3  
 > **Date:** September 8, 2026  
 > **Status:** Architecture baseline for implementation  
 > **Companion:** [GAME_DESIGN.md](GAME_DESIGN.md), canonical game design v0.4  
@@ -1154,10 +1154,12 @@ These initial decisions can be indexed in `DECISIONS.md` without copying the ent
 | ARCH-016 | Small tested slices and GitHub Actions | AI-assisted development stays reviewable |
 | ARCH-029 | Local-first LAN runtime and SQLite persistence | Same-room LAN play; better-sqlite3 isolated in server persistence; no cloud/PostgreSQL in V1 |
 | ARCH-030 | Rotating spotlight orchestration for Standard V1 | Deterministic rotating-seat-v1 turn order, continuous background preparation, atomic single-deal concurrency boundary |
+| ARCH-031 | Accountless lobby identity and recovery credentials | 6-char room codes, 4-seat lobby, opaque HttpOnly cookie sessions, private recovery codes stored as SHA-256 digests |
 
 ## 25. References
 
 The game specification and subsequent agreed session requirements define this project's behavior. The references below support library capabilities and engineering constraints; they do not claim the game has been implemented or balanced. Documentation reviewed September 8, 2026.
+
 
 - **R1 - Node.js release lifecycle:** <https://nodejs.org/en/about/previous-releases>
 - **R2 - pnpm workspaces and workspace protocol:** <https://pnpm.io/workspaces>
@@ -1191,6 +1193,7 @@ The game specification and subsequent agreed session requirements define this pr
 | --- | --- | --- |
 | 0.1 | September 5, 2026 | Initial architecture baseline: modular TypeScript stack, package boundaries, deterministic engine, private projections, persistent sessions, host administration, pause/reconnect, testing, CI, and implementation gates. |
 | 0.2 | September 8, 2026 | Local-first LAN architecture and SQLite persistence ([ARCH-029]); rotating-seat-v1 spotlight orchestration ([ARCH-030]); single responsive Player View; disconnect/pause simplification without automatic host succession. |
+| 0.3 | September 8, 2026 | Accountless lobby identity and recovery credentials ([ARCH-031]): 6-character room codes, 4-seat lobby capacity, opaque HttpOnly cookie sessions, private recovery credentials, and same-origin write protection. |
 
 [R1]: https://nodejs.org/en/about/previous-releases
 [R2]: https://pnpm.io/workspaces

@@ -379,3 +379,41 @@ Establish the software orchestration and turn-entitlement rules for the locked G
    - Advancing past the spotlight advances immediately to the next spotlight in sequence.
    - After the fourth spotlight finishes, the quarter immediately proceeds to `ROUND_CLOSE` and `SETTLEMENT`. No second major-action window exists after the fourth spotlight.
 
+## ARCH-031 - Accountless lobby identity and recovery credentials
+
+**Status:** Accepted  
+**Date:** September 8, 2026
+
+Establish the persistent accountless multiplayer lobby, credential architecture, and seat recovery model for Standard V1:
+
+1. **Public Room Codes:**
+   - Six-character uppercase, case-insensitive codes generated from an unambiguous 32-character alphabet (`ABCDEFGHJKLMNPQRSTUVWXYZ23456789`) excluding `I`, `O`, `0`, and `1`.
+   - Room codes are public locator information and never authenticate or authorize a player seat.
+
+2. **Four-Seat Lobby Capacity:**
+   - Rooms accommodate exactly four human members with deterministic join orders (0 to 3).
+   - The creator occupies join order 0 and becomes the initial room host.
+   - A fifth join attempt is rejected atomically (`ROOM_FULL`).
+
+3. **Opaque Browser Sessions:**
+   - Browser authentication uses high-entropy 32-byte cryptographically secure random bearer tokens (`generateBearerToken`) transmitted via an `HttpOnly`, `SameSite=Strict`, `Path=/` cookie (`finance_game_session`).
+   - Sessions are stored only as SHA-256 cryptographic digests in SQLite (`browser_sessions`), with a 30-day lifetime.
+   - A single browser session may hold authorized membership grants for multiple rooms (`session_memberships`).
+
+4. **Private Recovery Credentials:**
+   - Each room membership receives a separate high-entropy 32-byte recovery code upon creation.
+   - Recovery codes are stored only as SHA-256 digests in SQLite (`room_members`). Plaintext recovery codes are returned to the user exactly once upon creation or rotation and are never logged or exposed in room snapshots.
+
+5. **Seat Recovery and Authority Revocation:**
+   - Entering the public room code and private recovery code reclaims the caller's existing member seat (`RoomMemberId`, nickname, join order, host status) without creating an additional seat.
+   - Successful recovery atomically revokes the previous browser's active session grant for that member and authorizes the recovering browser session.
+   - An authenticated member may rotate their recovery code; the previous recovery code is invalidated immediately.
+
+6. **State Boundary & Cryptographic Source of Truth:**
+   - Session, room membership, and authorization state belong strictly to the server infrastructure and persistence layer; they are never part of the deterministic engine `GameState`.
+   - All security-sensitive randomness (room codes, session tokens, recovery credentials) must use `node:crypto`, never the deterministic engine PRNG or `Math.random`.
+
+7. **Cookie Security Configuration:**
+   - In the local-first LAN V1 runtime, cookies default to `Secure = false` via explicit boolean configuration (`FINANCE_GAME_COOKIE_SECURE = false`).
+   - Future HTTPS deployments must explicitly configure `FINANCE_GAME_COOKIE_SECURE = true`.
+
