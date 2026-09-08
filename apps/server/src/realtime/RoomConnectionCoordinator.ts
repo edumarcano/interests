@@ -6,7 +6,7 @@ import type {
   LobbyRepository,
 } from "../lobby/types.js";
 import type { MatchService } from "../match/MatchService.js";
-import { loadAndValidateSnapshot } from "../match/snapshotLoader.js";
+import { loadAndValidatePersistedMatch } from "../match/snapshotLoader.js";
 import type { MatchRepository } from "../match/types.js";
 import {
   SOCKET_ERROR_CODES,
@@ -412,13 +412,10 @@ export class RoomConnectionCoordinator {
     );
     if (matchWithMembers) {
       try {
-        loadAndValidateSnapshot(matchWithMembers.match.snapshotJson, {
-          engineVersion: matchWithMembers.match.engineVersion,
-          rulesVersion: matchWithMembers.match.rulesVersion,
-          sharedVersion: matchWithMembers.match.sharedVersion,
-          persistenceFormatVersion:
-            matchWithMembers.match.persistenceFormatVersion,
-        });
+        const roomInfo = this.matchRepository?.findRoomWithMembers(
+          data.roomCode,
+        );
+        loadAndValidatePersistedMatch(matchWithMembers, roomInfo?.members);
       } catch {
         this.repository.addPauseReason({
           roomCode: data.roomCode,
@@ -435,14 +432,10 @@ export class RoomConnectionCoordinator {
         return;
       }
 
-      // Atomically clear DISCONNECTED_MEMBER and SERVER_RESTART
-      this.repository.removePauseReason({
+      // Atomically clear DISCONNECTED_MEMBER and SERVER_RESTART in a single SQLite transaction
+      this.repository.removePauseReasons({
         roomCode: data.roomCode,
-        reason: "DISCONNECTED_MEMBER",
-      });
-      this.repository.removePauseReason({
-        roomCode: data.roomCode,
-        reason: "SERVER_RESTART",
+        reasons: ["DISCONNECTED_MEMBER", "SERVER_RESTART"],
       });
     } else {
       // Lobby without an active match

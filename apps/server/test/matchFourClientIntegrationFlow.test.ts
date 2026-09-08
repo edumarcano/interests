@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +20,33 @@ import type { BootstrapPayload } from "../src/realtime/types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(__dirname, "../migrations");
+
+interface SyncResponse {
+  ok: boolean;
+  error?: { message?: string };
+}
+
+interface CommandAckResponse {
+  ok: boolean;
+  outcome?: string;
+  revision?: number;
+  reason?: string;
+  error?: { message?: string };
+}
+
+interface ResumeResponse {
+  ok: boolean;
+  data?: { pauseReasons?: string[] };
+  error?: { message?: string };
+}
+
+function getPort(server: ReturnType<typeof createServer>): number {
+  const address = server.fastify.server.address() as AddressInfo | null;
+  if (!address || typeof address === "string") {
+    throw new Error("Expected AddressInfo from fastify server");
+  }
+  return address.port;
+}
 
 describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification)", () => {
   let tempDbPath: string;
@@ -90,7 +118,7 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
       socket.emit(
         SOCKET_CLIENT_EVENTS.SYNCHRONIZE,
         { connectionGeneration: generation },
-        (res: any) => {
+        (res: SyncResponse) => {
           if (res?.ok) resolve();
           else reject(new Error(res?.error?.message ?? "Sync failed"));
         },
@@ -119,7 +147,7 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
       matchRepository: matchRepo1,
     });
     await server1.fastify.listen({ host: "127.0.0.1", port: 0 });
-    const port1 = (server1.fastify.server.address() as any).port;
+    const port1 = getPort(server1);
 
     // Step 1: Create room
     const hostRes = await server1.fastify.inject({
@@ -128,10 +156,12 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
       payload: { nickname: "Host" },
     });
     expect(hostRes.statusCode).toBe(201);
+    const hostCookie = hostRes.cookies.find(
+      (c) => c.name === "finance_game_session",
+    )?.value;
+    if (!hostCookie) throw new Error("Missing host session cookie");
     const roomCode = JSON.parse(hostRes.body).room.code;
-    const cookies = [
-      hostRes.cookies.find((c) => c.name === "finance_game_session")!.value,
-    ];
+    const cookies: string[] = [hostCookie];
 
     // Step 2: Three more members join
     for (let i = 2; i <= 4; i++) {
@@ -141,9 +171,13 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
         payload: { nickname: `Player${i}` },
       });
       expect(joinRes.statusCode).toBe(201);
-      cookies.push(
-        joinRes.cookies.find((c) => c.name === "finance_game_session")!.value,
-      );
+      const memberCookie = joinRes.cookies.find(
+        (c) => c.name === "finance_game_session",
+      )?.value;
+      if (!memberCookie) {
+        throw new Error(`Missing session cookie for member ${i}`);
+      }
+      cookies.push(memberCookie);
     }
     expect(cookies).toHaveLength(4);
 
@@ -152,8 +186,8 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
       socket: ClientSocket;
       bootstrap: BootstrapPayload;
     }> = [];
-    for (let i = 0; i < 4; i++) {
-      const c = await connectSocket(port1, cookies[i]!, roomCode);
+    for (const cookie of cookies) {
+      const c = await connectSocket(port1, cookie, roomCode);
       clients1.push(c);
       await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
     }
@@ -172,7 +206,7 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
     const startRes = await server1.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0]! },
+      cookies: { finance_game_session: cookies[0] ?? "" },
     });
     expect(startRes.statusCode).toBe(200);
     const startBody = JSON.parse(startRes.body);
@@ -184,13 +218,16 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
     expect(initialViews).toHaveLength(4);
 
     for (let i = 0; i < 4; i++) {
-      const view = initialViews[i]!;
+      const view = initialViews[i];
+      if (!view) throw new Error(`Missing initial view for index ${i}`);
       expect(view.self.offeredObjectiveIds).toHaveLength(2);
       expect(view.self.selectedObjectiveId).toBeNull();
       // Verify other players' secret offers are not in this view
       for (let j = 0; j < 4; j++) {
         if (i !== j) {
-          const otherOffers = initialViews[j]!.self.offeredObjectiveIds;
+          const otherView = initialViews[j];
+          if (!otherView) throw new Error(`Missing other view for index ${j}`);
+          const otherOffers = otherView.self.offeredObjectiveIds;
           const viewStr = JSON.stringify(view);
           expect(viewStr).not.toContain(otherOffers[0]);
           expect(viewStr).not.toContain(otherOffers[1]);
@@ -199,18 +236,24 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
     }
 
     // Step 6: One player submits CHOOSE_OBJECTIVE
-    const chosenObjective = initialViews[0]!.self.offeredObjectiveIds[0]!;
+    const p1View = initialViews[0];
+    if (!p1View) throw new Error("Missing initial view for player 1");
+    const chosenObjective = p1View.self.offeredObjectiveIds[0];
+    if (!chosenObjective) throw new Error("Missing objective offer 0");
     const commandId = "99999999-9999-4999-8999-999999999999";
 
+    const p1Client = clients1[0];
+    if (!p1Client) throw new Error("Missing client 0");
+
     const p1UpdatedViewPromise = new Promise<MatchPlayerView>((resolve) => {
-      clients1[0]!.socket.once(
+      p1Client.socket.once(
         SOCKET_SERVER_EVENTS.MATCH_VIEW,
         (v: MatchPlayerView) => resolve(v),
       );
     });
 
-    const ack1 = await new Promise<any>((resolve) => {
-      clients1[0]!.socket.emit(
+    const ack1 = await new Promise<CommandAckResponse>((resolve) => {
+      p1Client.socket.emit(
         SOCKET_CLIENT_EVENTS.COMMAND,
         {
           commandId,
@@ -220,7 +263,7 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
             objectiveId: chosenObjective,
           },
         },
-        (res: any) => resolve(res),
+        (res: CommandAckResponse) => resolve(res),
       );
     });
 
@@ -234,8 +277,8 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
     expect(updatedView.self.selectedObjectiveId).toBe(chosenObjective);
 
     // Step 8: Retry same commandId
-    const ackRetry = await new Promise<any>((resolve) => {
-      clients1[0]!.socket.emit(
+    const ackRetry = await new Promise<CommandAckResponse>((resolve) => {
+      p1Client.socket.emit(
         SOCKET_CLIENT_EVENTS.COMMAND,
         {
           commandId,
@@ -245,7 +288,7 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
             objectiveId: chosenObjective,
           },
         },
-        (res: any) => resolve(res),
+        (res: CommandAckResponse) => resolve(res),
       );
     });
 
@@ -254,7 +297,8 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
     expect(ackRetry.outcome).toBe("ACCEPTED");
     expect(ackRetry.revision).toBe(1);
 
-    const matchBeforeRestart = matchRepo1.findMatchById(matchId)!;
+    const matchBeforeRestart = matchRepo1.findMatchById(matchId);
+    if (!matchBeforeRestart) throw new Error("Match not found before restart");
     expect(matchBeforeRestart.match.revision).toBe(1);
 
     // Step 10: Stop server
@@ -290,7 +334,7 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
       matchRepository: matchRepo2,
     });
     await server2.fastify.listen({ host: "127.0.0.1", port: 0 });
-    const port2 = (server2.fastify.server.address() as any).port;
+    const port2 = getPort(server2);
 
     // Step 13: Reconnect four original browser identities & Step 14: Bootstrap same match/player
     const clients2: Array<{
@@ -298,7 +342,9 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
       bootstrap: BootstrapPayload;
     }> = [];
     for (let i = 0; i < 4; i++) {
-      const c = await connectSocket(port2, cookies[i]!, roomCode);
+      const cookie = cookies[i];
+      if (!cookie) throw new Error(`Missing cookie for reconnect index ${i}`);
+      const c = await connectSocket(port2, cookie, roomCode);
       clients2.push(c);
       expect(c.bootstrap.match).toBeDefined();
       expect(c.bootstrap.match?.matchId).toBe(matchId);
@@ -313,16 +359,20 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
     }
 
     // Step 16: Host resume
-    const resumeRes = await new Promise<any>((resolve) => {
-      clients2[0]!.socket.emit(SOCKET_CLIENT_EVENTS.RESUME, (res: any) =>
-        resolve(res),
+    const hostClient2 = clients2[0];
+    if (!hostClient2) throw new Error("Missing host client on restart");
+    const resumeRes = await new Promise<ResumeResponse>((resolve) => {
+      hostClient2.socket.emit(
+        SOCKET_CLIENT_EVENTS.RESUME,
+        (res: ResumeResponse) => resolve(res),
       );
     });
     expect(resumeRes.ok).toBe(true);
-    expect(resumeRes.data.pauseReasons).not.toContain("SERVER_RESTART");
+    expect(resumeRes.data?.pauseReasons).not.toContain("SERVER_RESTART");
 
     // Step 17: Match continues at exact saved revision
-    const matchAfterResume = matchRepo2.findMatchById(matchId)!;
+    const matchAfterResume = matchRepo2.findMatchById(matchId);
+    if (!matchAfterResume) throw new Error("Match not found after resume");
     expect(matchAfterResume.match.revision).toBe(1);
 
     for (const c of clients2) c.socket.disconnect();

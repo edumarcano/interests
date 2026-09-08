@@ -1,5 +1,6 @@
 import { assertGameState, type GameState } from "@finance-game/engine";
-import { MatchError } from "./types.js";
+import type { RoomMemberId } from "@finance-game/shared";
+import { MatchError, type MatchWithMembers } from "./types.js";
 import { isVersionCompatible, type MatchVersionMetadata } from "./versions.js";
 
 /**
@@ -103,6 +104,119 @@ export function loadAndValidateSnapshot(
       `GameState invariant assertion failed: ${err instanceof Error ? err.message : String(err)}`,
       500,
     );
+  }
+
+  return gameState;
+}
+
+/**
+ * Validates a persisted match envelope in full:
+ * 1. Version metadata compatibility;
+ * 2. Snapshot JSON parse, structural checks, and assertGameState;
+ * 3. Cross-record envelope invariants (snapshot.gameId === match.id, snapshot.modeId === match.modeId, snapshot.revision === match.revision);
+ * 4. match_members invariants: exactly 4 members, mapped to snapshot.playerOrder by playerOrder 0..3, unique member IDs,
+ *    and matching room members if provided.
+ */
+export function loadAndValidatePersistedMatch(
+  matchWithMembers: MatchWithMembers,
+  roomMembers?: readonly { id: RoomMemberId }[],
+): GameState {
+  const versions: MatchVersionMetadata = {
+    engineVersion: matchWithMembers.match.engineVersion,
+    rulesVersion: matchWithMembers.match.rulesVersion,
+    sharedVersion: matchWithMembers.match.sharedVersion,
+    persistenceFormatVersion: matchWithMembers.match.persistenceFormatVersion,
+  };
+
+  const gameState = loadAndValidateSnapshot(
+    matchWithMembers.match.snapshotJson,
+    versions,
+  );
+
+  // Cross-record invariants
+  if ((gameState.gameId as string) !== (matchWithMembers.match.id as string)) {
+    throw new MatchError(
+      "INVALID_MATCH_ENVELOPE",
+      `Snapshot gameId '${gameState.gameId}' does not match match record id '${matchWithMembers.match.id}'`,
+      500,
+    );
+  }
+
+  if (gameState.modeId !== matchWithMembers.match.modeId) {
+    throw new MatchError(
+      "INVALID_MATCH_ENVELOPE",
+      `Snapshot modeId '${gameState.modeId}' does not match match record modeId '${matchWithMembers.match.modeId}'`,
+      500,
+    );
+  }
+
+  if (gameState.revision !== matchWithMembers.match.revision) {
+    throw new MatchError(
+      "INVALID_MATCH_ENVELOPE",
+      `Snapshot revision ${gameState.revision} does not match match record revision ${matchWithMembers.match.revision}`,
+      500,
+    );
+  }
+
+  // match_members invariants
+  if (matchWithMembers.members.length !== 4) {
+    throw new MatchError(
+      "INVALID_MATCH_MEMBERS",
+      `Persisted match has ${matchWithMembers.members.length} members; exactly 4 required`,
+      500,
+    );
+  }
+
+  if (gameState.playerOrder.length !== 4) {
+    throw new MatchError(
+      "INVALID_MATCH_MEMBERS",
+      `Snapshot playerOrder has ${gameState.playerOrder.length} players; exactly 4 required`,
+      500,
+    );
+  }
+
+  const sortedMembers = [...matchWithMembers.members].sort(
+    (a, b) => a.playerOrder - b.playerOrder,
+  );
+
+  const seenRoomMembers = new Set<string>();
+  for (let idx = 0; idx < 4; idx++) {
+    const m = sortedMembers[idx];
+    if (!m || m.playerOrder !== idx) {
+      throw new MatchError(
+        "INVALID_MATCH_MEMBERS",
+        `Invalid player order mapping at index ${idx}`,
+        500,
+      );
+    }
+    if (m.playerId !== gameState.playerOrder[idx]) {
+      throw new MatchError(
+        "INVALID_MATCH_MEMBERS",
+        `Member at order ${idx} maps to player '${m.playerId}', but snapshot playerOrder has '${gameState.playerOrder[idx]}'`,
+        500,
+      );
+    }
+    if (seenRoomMembers.has(m.roomMemberId)) {
+      throw new MatchError(
+        "INVALID_MATCH_MEMBERS",
+        `Duplicate room member '${m.roomMemberId}' in match members`,
+        500,
+      );
+    }
+    seenRoomMembers.add(m.roomMemberId);
+  }
+
+  if (roomMembers) {
+    const roomMemberSet = new Set(roomMembers.map((rm) => rm.id as string));
+    for (const m of matchWithMembers.members) {
+      if (!roomMemberSet.has(m.roomMemberId)) {
+        throw new MatchError(
+          "INVALID_MATCH_MEMBERS",
+          `Match member '${m.roomMemberId}' does not belong to the room`,
+          500,
+        );
+      }
+    }
   }
 
   return gameState;

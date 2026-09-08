@@ -1,25 +1,19 @@
 import fs from "node:fs";
+import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   applyAction,
   assertGameState,
-  createGame,
   createSoleOwnership,
   openCashBusinessPurchaseTransaction,
 } from "@finance-game/engine";
-import {
-  asAssetId,
-  asMatchId,
-  asPlayerId,
-  type MatchPlayerView,
-} from "@finance-game/shared";
+import { asAssetId, asPlayerId, asRoomMemberId } from "@finance-game/shared";
 import { type Socket as ClientSocket, io as ioClient } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createServer } from "../src/createServer.js";
 import { recoverActiveMatchesOnStartup } from "../src/match/startupRecovery.js";
-import { getCurrentVersionMetadata } from "../src/match/versions.js";
 import { runMigrations } from "../src/persistence/sqlite/migrations.js";
 import { openDatabase } from "../src/persistence/sqlite/openDatabase.js";
 import { SqliteLobbyRepository } from "../src/persistence/sqlite/SqliteLobbyRepository.js";
@@ -32,6 +26,33 @@ import type { BootstrapPayload } from "../src/realtime/types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(__dirname, "../migrations");
+
+interface SyncResponse {
+  ok: boolean;
+  error?: { message?: string };
+}
+
+interface CommandAckResponse {
+  ok: boolean;
+  outcome?: string;
+  revision?: number;
+  reason?: string;
+  error?: { message?: string };
+}
+
+interface ResumeResponse {
+  ok: boolean;
+  data?: { pauseReasons?: string[] };
+  error?: { message?: string };
+}
+
+function getPort(server: ReturnType<typeof createServer>): number {
+  const address = server.fastify.server.address() as AddressInfo | null;
+  if (!address || typeof address === "string") {
+    throw new Error("Expected AddressInfo from fastify server");
+  }
+  return address.port;
+}
 
 describe("Match Crash and Restart Recovery", () => {
   let tempDbPath: string;
@@ -103,7 +124,7 @@ describe("Match Crash and Restart Recovery", () => {
       socket.emit(
         SOCKET_CLIENT_EVENTS.SYNCHRONIZE,
         { connectionGeneration: generation },
-        (res: any) => {
+        (res: SyncResponse) => {
           if (res?.ok) resolve();
           else reject(new Error(res?.error?.message ?? "Sync failed"));
         },
@@ -130,7 +151,7 @@ describe("Match Crash and Restart Recovery", () => {
       matchRepository: matchRepo1,
     });
     await server1.fastify.listen({ host: "127.0.0.1", port: 0 });
-    const port1 = (server1.fastify.server.address() as any).port;
+    const port1 = getPort(server1);
 
     // Create 4 members
     const hostRes = await server1.fastify.inject({
@@ -139,9 +160,11 @@ describe("Match Crash and Restart Recovery", () => {
       payload: { nickname: "Host" },
     });
     const roomCode = JSON.parse(hostRes.body).room.code;
-    const cookies: string[] = [
-      hostRes.cookies.find((c) => c.name === "finance_game_session")!.value,
-    ];
+    const hostCookie = hostRes.cookies.find(
+      (c) => c.name === "finance_game_session",
+    )?.value;
+    if (!hostCookie) throw new Error("Missing host cookie");
+    const cookies: string[] = [hostCookie];
 
     for (let i = 2; i <= 4; i++) {
       const joinRes = await server1.fastify.inject({
@@ -149,9 +172,11 @@ describe("Match Crash and Restart Recovery", () => {
         url: `/api/rooms/${roomCode}/join`,
         payload: { nickname: `Player${i}` },
       });
-      cookies.push(
-        joinRes.cookies.find((c) => c.name === "finance_game_session")!.value,
-      );
+      const joinCookie = joinRes.cookies.find(
+        (c) => c.name === "finance_game_session",
+      )?.value;
+      if (!joinCookie) throw new Error(`Missing cookie for Player${i}`);
+      cookies.push(joinCookie);
     }
 
     // Connect & synchronize all 4
@@ -159,8 +184,8 @@ describe("Match Crash and Restart Recovery", () => {
       socket: ClientSocket;
       bootstrap: BootstrapPayload;
     }> = [];
-    for (let i = 0; i < 4; i++) {
-      const c = await connectSocket(port1, cookies[i]!, roomCode);
+    for (const cookie of cookies) {
+      const c = await connectSocket(port1, cookie, roomCode);
       clients1.push(c);
       await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
     }
@@ -169,7 +194,7 @@ describe("Match Crash and Restart Recovery", () => {
     const startRes = await server1.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0]! },
+      cookies: { finance_game_session: cookies[0] ?? "" },
     });
     expect(startRes.statusCode).toBe(200);
     const startBody = JSON.parse(startRes.body);
@@ -177,8 +202,11 @@ describe("Match Crash and Restart Recovery", () => {
 
     // Player 1 chooses an objective
     const chosenObjective = startBody.match.self.offeredObjectiveIds[0];
-    const ack1 = await new Promise<any>((resolve) => {
-      clients1[0]!.socket.emit(
+    const hostClient1 = clients1[0];
+    if (!hostClient1) throw new Error("Missing host client");
+
+    const ack1 = await new Promise<CommandAckResponse>((resolve) => {
+      hostClient1.socket.emit(
         SOCKET_CLIENT_EVENTS.COMMAND,
         {
           commandId: "11111111-1111-4111-8111-111111111111",
@@ -188,14 +216,15 @@ describe("Match Crash and Restart Recovery", () => {
             objectiveId: chosenObjective,
           },
         },
-        (res: any) => resolve(res),
+        (res: CommandAckResponse) => resolve(res),
       );
     });
     expect(ack1.ok).toBe(true);
     expect(ack1.revision).toBe(1);
 
     // Capture pre-restart match record
-    const preRestartMatch = matchRepo1.findMatchById(matchId)!;
+    const preRestartMatch = matchRepo1.findMatchById(matchId);
+    if (!preRestartMatch) throw new Error("Pre-restart match not found");
     const preRestartSnapshot = JSON.parse(preRestartMatch.match.snapshotJson);
     const preRestartMembers = matchRepo1.listMatchMembers(matchId);
 
@@ -232,10 +261,11 @@ describe("Match Crash and Restart Recovery", () => {
       matchRepository: matchRepo2,
     });
     await server2.fastify.listen({ host: "127.0.0.1", port: 0 });
-    const port2 = (server2.fastify.server.address() as any).port;
+    const port2 = getPort(server2);
 
     // Verify snapshot in DB is byte-identical
-    const postRestartMatch = matchRepo2.findMatchById(matchId)!;
+    const postRestartMatch = matchRepo2.findMatchById(matchId);
+    if (!postRestartMatch) throw new Error("Post-restart match not found");
     expect(postRestartMatch.match.snapshotJson).toBe(
       preRestartMatch.match.snapshotJson,
     );
@@ -247,29 +277,35 @@ describe("Match Crash and Restart Recovery", () => {
       bootstrap: BootstrapPayload;
     }> = [];
     for (let i = 0; i < 4; i++) {
-      const c = await connectSocket(port2, cookies[i]!, roomCode);
+      const cookie = cookies[i];
+      if (!cookie) throw new Error(`Missing cookie for index ${i}`);
+      const c = await connectSocket(port2, cookie, roomCode);
       clients2.push(c);
       // Verify bootstrap includes the same match ID and player ID
       expect(c.bootstrap.match).toBeDefined();
       expect(c.bootstrap.match?.matchId).toBe(matchId);
-      expect(c.bootstrap.match?.self.playerId).toBe(
-        preRestartMembers[i]!.playerId,
-      );
+      const expectedMember = preRestartMembers[i];
+      if (!expectedMember) throw new Error(`Missing preRestartMember ${i}`);
+      expect(c.bootstrap.match?.self.playerId).toBe(expectedMember.playerId);
       expect(c.bootstrap.pause.reasons).toContain("SERVER_RESTART");
       await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
     }
 
     // Host calls room:resume
-    const resumeRes = await new Promise<any>((resolve) => {
-      clients2[0]!.socket.emit(SOCKET_CLIENT_EVENTS.RESUME, (res: any) =>
-        resolve(res),
+    const hostClient2 = clients2[0];
+    if (!hostClient2) throw new Error("Missing host client 2");
+    const resumeRes = await new Promise<ResumeResponse>((resolve) => {
+      hostClient2.socket.emit(
+        SOCKET_CLIENT_EVENTS.RESUME,
+        (res: ResumeResponse) => resolve(res),
       );
     });
     expect(resumeRes.ok).toBe(true);
-    expect(resumeRes.data.pauseReasons).not.toContain("SERVER_RESTART");
+    expect(resumeRes.data?.pauseReasons).not.toContain("SERVER_RESTART");
 
     // Verify GameState is still intact and revision is still 1
-    const postResumeMatch = matchRepo2.findMatchById(matchId)!;
+    const postResumeMatch = matchRepo2.findMatchById(matchId);
+    if (!postResumeMatch) throw new Error("Post-resume match not found");
     const postResumeSnapshot = JSON.parse(postResumeMatch.match.snapshotJson);
     expect(postResumeSnapshot).toEqual(preRestartSnapshot);
 
@@ -301,7 +337,7 @@ describe("Match Crash and Restart Recovery", () => {
       matchRepository: matchRepo1,
     });
     await server1.fastify.listen({ host: "127.0.0.1", port: 0 });
-    const port1 = (server1.fastify.server.address() as any).port;
+    const port1 = getPort(server1);
 
     // Create 4 members in room
     const hostRes = await server1.fastify.inject({
@@ -310,18 +346,22 @@ describe("Match Crash and Restart Recovery", () => {
       payload: { nickname: "BuyerHost" },
     });
     const roomCode = JSON.parse(hostRes.body).room.code;
-    const cookies = [
-      hostRes.cookies.find((c) => c.name === "finance_game_session")!.value,
-    ];
+    const hostCookie = hostRes.cookies.find(
+      (c) => c.name === "finance_game_session",
+    )?.value;
+    if (!hostCookie) throw new Error("Missing buyer host cookie");
+    const cookies: string[] = [hostCookie];
     for (let i = 2; i <= 4; i++) {
       const joinRes = await server1.fastify.inject({
         method: "POST",
         url: `/api/rooms/${roomCode}/join`,
         payload: { nickname: `Member${i}` },
       });
-      cookies.push(
-        joinRes.cookies.find((c) => c.name === "finance_game_session")!.value,
-      );
+      const joinCookie = joinRes.cookies.find(
+        (c) => c.name === "finance_game_session",
+      )?.value;
+      if (!joinCookie) throw new Error(`Missing cookie for Member${i}`);
+      cookies.push(joinCookie);
     }
 
     // Connect & sync all 4
@@ -329,8 +369,8 @@ describe("Match Crash and Restart Recovery", () => {
       socket: ClientSocket;
       bootstrap: BootstrapPayload;
     }> = [];
-    for (let i = 0; i < 4; i++) {
-      const c = await connectSocket(port1, cookies[i]!, roomCode);
+    for (const cookie of cookies) {
+      const c = await connectSocket(port1, cookie, roomCode);
       clients1.push(c);
       await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
     }
@@ -339,27 +379,44 @@ describe("Match Crash and Restart Recovery", () => {
     await server1.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0]! },
+      cookies: { finance_game_session: cookies[0] ?? "" },
     });
 
-    const matchWithMembers = matchRepo1.findMatchByRoomCode(roomCode)!;
+    const matchWithMembers = matchRepo1.findMatchByRoomCode(roomCode);
+    if (!matchWithMembers) throw new Error("Match with members not found");
     const matchId = matchWithMembers.match.id;
 
-    // Advance all 4 players through objective selection to reach "ready-for-first-round"
+    // Advance all 4 players through objective selection with atomic repository commits (revisions 0->1, 1->2, 2->3, 3->4)
     let state = JSON.parse(matchWithMembers.match.snapshotJson);
-    for (const pId of state.playerOrder) {
+    for (let i = 0; i < state.playerOrder.length; i++) {
+      const pId = state.playerOrder[i];
       const objectiveId = state.players[pId].offeredObjectiveIds[0];
+      const prevRev = state.revision;
       const res = applyAction(state, {
         type: "CHOOSE_OBJECTIVE",
         playerId: pId,
         objectiveId,
       });
       expect(res.ok).toBe(true);
+      if (!res.ok) throw new Error("Action failed");
       state = res.state;
+
+      matchRepo1.commitAcceptedCommand({
+        matchId,
+        expectedPreviousRevision: prevRev,
+        nextRevision: state.revision,
+        nextState: state,
+        actorPlayerId: pId,
+        commandId: `choose-objective-cmd-${i + 1}`,
+        commandType: "CHOOSE_OBJECTIVE",
+        payloadJson: JSON.stringify({ type: "CHOOSE_OBJECTIVE", objectiveId }),
+        payloadHash: `obj-hash-${i + 1}`,
+      });
     }
     expect(state.phase).toBe("ready-for-first-round");
+    expect(state.revision).toBe(4);
 
-    // Add a valid business asset to seller (player-2) and adequate cash to buyer (player-1)
+    // Add a valid business asset to seller (player-2) and adequate cash to buyer (player-1) on revision 4 state
     const p1 = asPlayerId("player-1");
     const p2 = asPlayerId("player-2");
     const businessAssetId = asAssetId("asset-fixture-biz-1");
@@ -390,6 +447,7 @@ describe("Match Crash and Restart Recovery", () => {
     assertGameState(state);
 
     // Open an unresolved active business-purchase transaction using pure engine domain function
+    // (advances state revision 4 -> 5)
     const openTxResult = openCashBusinessPurchaseTransaction(state, {
       buyerPlayerId: p1,
       sellerPlayerId: p2,
@@ -400,19 +458,23 @@ describe("Match Crash and Restart Recovery", () => {
     if (!openTxResult.ok) throw new Error("open transaction failed");
 
     const stateWithActiveTx = openTxResult.state;
+    expect(stateWithActiveTx.revision).toBe(5);
     expect(stateWithActiveTx.activeTransaction).not.toBeNull();
     assertGameState(stateWithActiveTx);
 
-    // Persist this valid state containing the active transaction via matchRepository
+    // Persist this valid state advancing exactly one revision (4 -> 5) with descriptive commandType
     matchRepo1.commitAcceptedCommand({
       matchId,
-      expectedPreviousRevision: matchWithMembers.match.revision,
-      nextRevision: stateWithActiveTx.revision,
+      expectedPreviousRevision: 4,
+      nextRevision: 5,
       nextState: stateWithActiveTx,
       actorPlayerId: p1,
       commandId: "open-tx-cmd-1",
-      commandType: "CHOOSE_OBJECTIVE", // storage envelope accepts any string type
-      payloadJson: JSON.stringify({ note: "open active tx fixture" }),
+      commandType: "OPEN_BUSINESS_PURCHASE",
+      payloadJson: JSON.stringify({
+        assetId: businessAssetId,
+        purchasePriceCents: 6_000_000,
+      }),
       payloadHash: "tx-fixture-hash",
     });
 
@@ -459,10 +521,11 @@ describe("Match Crash and Restart Recovery", () => {
       matchRepository: matchRepo2,
     });
     await server2.fastify.listen({ host: "127.0.0.1", port: 0 });
-    const port2 = (server2.fastify.server.address() as any).port;
+    const port2 = getPort(server2);
 
     // Load persisted snapshot directly and verify ALL captured fields are unchanged
-    const reloadedMatch = matchRepo2.findMatchById(matchId)!;
+    const reloadedMatch = matchRepo2.findMatchById(matchId);
+    if (!reloadedMatch) throw new Error("Reloaded match not found");
     const reloadedState = JSON.parse(reloadedMatch.match.snapshotJson);
 
     expect(reloadedState.activeTransaction).not.toBeNull();
@@ -478,7 +541,9 @@ describe("Match Crash and Restart Recovery", () => {
       bootstrap: BootstrapPayload;
     }> = [];
     for (let i = 0; i < 4; i++) {
-      const c = await connectSocket(port2, cookies[i]!, roomCode);
+      const cookie = cookies[i];
+      if (!cookie) throw new Error(`Missing cookie for reconnect index ${i}`);
+      const c = await connectSocket(port2, cookie, roomCode);
       clients2.push(c);
       // Safe active transaction summary is present in player view
       expect(c.bootstrap.match?.activeTransaction).toEqual({
@@ -489,15 +554,19 @@ describe("Match Crash and Restart Recovery", () => {
     }
 
     // Host resumes
-    const resumeRes = await new Promise<any>((resolve) => {
-      clients2[0]!.socket.emit(SOCKET_CLIENT_EVENTS.RESUME, (res: any) =>
-        resolve(res),
+    const hostClient2 = clients2[0];
+    if (!hostClient2) throw new Error("Missing host client 2 on restart");
+    const resumeRes = await new Promise<ResumeResponse>((resolve) => {
+      hostClient2.socket.emit(
+        SOCKET_CLIENT_EVENTS.RESUME,
+        (res: ResumeResponse) => resolve(res),
       );
     });
     expect(resumeRes.ok).toBe(true);
 
     // Confirm active transaction is STILL present and unchanged after host resume
-    const postResumeMatch = matchRepo2.findMatchById(matchId)!;
+    const postResumeMatch = matchRepo2.findMatchById(matchId);
+    if (!postResumeMatch) throw new Error("Post-resume match not found");
     const postResumeState = JSON.parse(postResumeMatch.match.snapshotJson);
 
     expect(postResumeState.activeTransaction).toEqual(capturedTx);
@@ -529,7 +598,7 @@ describe("Match Crash and Restart Recovery", () => {
       matchRepository: matchRepo,
     });
     await server.fastify.listen({ host: "127.0.0.1", port: 0 });
-    const port = (server.fastify.server.address() as any).port;
+    const port = getPort(server);
 
     // Create room with host
     const hostRes = await server.fastify.inject({
@@ -538,10 +607,11 @@ describe("Match Crash and Restart Recovery", () => {
       payload: { nickname: "Host" },
     });
     const roomCode = JSON.parse(hostRes.body).room.code;
-    const hostMemberId = JSON.parse(hostRes.body).self.memberId;
-    const cookies = [
-      hostRes.cookies.find((c) => c.name === "finance_game_session")!.value,
-    ];
+    const hostCookie = hostRes.cookies.find(
+      (c) => c.name === "finance_game_session",
+    )?.value;
+    if (!hostCookie) throw new Error("Missing host session cookie");
+    const cookies = [hostCookie];
 
     // Join 3 players; capture player 2's recovery code
     let player2RecoveryCode = "";
@@ -557,14 +627,20 @@ describe("Match Crash and Restart Recovery", () => {
         player2RecoveryCode = joinBody.self.recoveryCode;
         player2MemberId = joinBody.self.memberId;
       }
-      cookies.push(
-        joinRes.cookies.find((c) => c.name === "finance_game_session")!.value,
-      );
+      const memberCookie = joinRes.cookies.find(
+        (c) => c.name === "finance_game_session",
+      )?.value;
+      if (!memberCookie) {
+        throw new Error(`Missing cookie for player ${i}`);
+      }
+      cookies.push(memberCookie);
     }
 
     // Connect & sync all 4
     for (let i = 0; i < 4; i++) {
-      const c = await connectSocket(port, cookies[i]!, roomCode);
+      const cookie = cookies[i];
+      if (!cookie) throw new Error(`Missing cookie for index ${i}`);
+      const c = await connectSocket(port, cookie, roomCode);
       await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
     }
 
@@ -572,14 +648,16 @@ describe("Match Crash and Restart Recovery", () => {
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0]! },
+      cookies: { finance_game_session: cookies[0] ?? "" },
     });
     expect(startRes.statusCode).toBe(200);
 
-    const match = matchRepo.findMatchByRoomCode(roomCode)!;
+    const match = matchRepo.findMatchByRoomCode(roomCode);
+    if (!match) throw new Error("Match not found");
+    const member2Id = asRoomMemberId(player2MemberId);
     const p2IdBeforeRecovery = matchRepo.findPlayerForRoomMember(
       match.match.id,
-      player2MemberId as any,
+      member2Id,
     );
     expect(p2IdBeforeRecovery).toBe(asPlayerId("player-2"));
 
@@ -595,8 +673,10 @@ describe("Match Crash and Restart Recovery", () => {
 
     const newPlayer2Cookie = recoverRes.cookies.find(
       (c) => c.name === "finance_game_session",
-    )!.value;
-    expect(newPlayer2Cookie).toBeDefined();
+    )?.value;
+    if (!newPlayer2Cookie) {
+      throw new Error("Missing recovered cookie");
+    }
 
     // Reconnect socket with new session cookie
     const recoveredSocket = await connectSocket(
@@ -612,7 +692,7 @@ describe("Match Crash and Restart Recovery", () => {
     // Verify mapping in SQLite remains unchanged
     const p2IdAfterRecovery = matchRepo.findPlayerForRoomMember(
       match.match.id,
-      player2MemberId as any,
+      member2Id,
     );
     expect(p2IdAfterRecovery).toBe(p2IdBeforeRecovery);
 

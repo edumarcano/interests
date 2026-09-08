@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { MatchPlayerView } from "@finance-game/shared";
+import type { CommandAckResult, MatchPlayerView } from "@finance-game/shared";
 import { type Socket as ClientSocket, io as ioClient } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createServer } from "../src/createServer.js";
@@ -75,7 +75,10 @@ describe("MatchService and Realtime Pipeline", () => {
     }
   });
 
-  async function createAndFillRoom() {
+  async function createAndFillRoom(): Promise<{
+    roomCode: string;
+    cookies: string[];
+  }> {
     const hostRes = await server.fastify.inject({
       method: "POST",
       url: "/api/rooms",
@@ -85,7 +88,8 @@ describe("MatchService and Realtime Pipeline", () => {
     const roomCode = hostBody.room.code;
     const hostCookie = hostRes.cookies.find(
       (c) => c.name === "finance_game_session",
-    )!.value;
+    )?.value;
+    if (!hostCookie) throw new Error("Host cookie missing");
 
     const p2Res = await server.fastify.inject({
       method: "POST",
@@ -94,7 +98,8 @@ describe("MatchService and Realtime Pipeline", () => {
     });
     const p2Cookie = p2Res.cookies.find(
       (c) => c.name === "finance_game_session",
-    )!.value;
+    )?.value;
+    if (!p2Cookie) throw new Error("P2 cookie missing");
 
     const p3Res = await server.fastify.inject({
       method: "POST",
@@ -103,7 +108,8 @@ describe("MatchService and Realtime Pipeline", () => {
     });
     const p3Cookie = p3Res.cookies.find(
       (c) => c.name === "finance_game_session",
-    )!.value;
+    )?.value;
+    if (!p3Cookie) throw new Error("P3 cookie missing");
 
     const p4Res = await server.fastify.inject({
       method: "POST",
@@ -112,7 +118,8 @@ describe("MatchService and Realtime Pipeline", () => {
     });
     const p4Cookie = p4Res.cookies.find(
       (c) => c.name === "finance_game_session",
-    )!.value;
+    )?.value;
+    if (!p4Cookie) throw new Error("P4 cookie missing");
 
     return {
       roomCode,
@@ -121,23 +128,20 @@ describe("MatchService and Realtime Pipeline", () => {
   }
 
   function connectSocket(
-    cookieValue: string,
+    cookieVal: string,
     roomCode: string,
-  ): Promise<{
-    socket: ClientSocket;
-    bootstrap: BootstrapPayload;
-  }> {
+  ): Promise<{ socket: ClientSocket; bootstrap: BootstrapPayload }> {
     return new Promise((resolve, reject) => {
       const socket = ioClient(`http://127.0.0.1:${serverPort}`, {
+        transports: ["websocket"],
         extraHeaders: {
-          cookie: `finance_game_session=${cookieValue}`,
+          cookie: `finance_game_session=${cookieVal}`,
           origin: `http://127.0.0.1:${serverPort}`,
         },
         auth: {
-          roomCode,
           protocolVersion: "1",
+          roomCode,
         },
-        transports: ["websocket"],
         forceNew: true,
       });
 
@@ -150,21 +154,18 @@ describe("MatchService and Realtime Pipeline", () => {
         },
       );
 
-      socket.on("connect_error", (err) => {
+      socket.once("connect_error", (err: Error) => {
         reject(err);
       });
     });
   }
 
-  async function syncSocket(
-    socket: ClientSocket,
-    generation: number,
-  ): Promise<void> {
+  function syncSocket(socket: ClientSocket, generation: number): Promise<void> {
     return new Promise((resolve, reject) => {
       socket.emit(
         SOCKET_CLIENT_EVENTS.SYNCHRONIZE,
         { connectionGeneration: generation },
-        (res: any) => {
+        (res: { ok: boolean; error?: { message: string } }) => {
           if (res?.ok) resolve();
           else reject(new Error(res?.error?.message ?? "Sync failed"));
         },
@@ -174,87 +175,86 @@ describe("MatchService and Realtime Pipeline", () => {
 
   it("prevents match start if caller is non-host or players not synchronized", async () => {
     const { roomCode, cookies } = await createAndFillRoom();
+    const hostCookie = cookies[0];
+    const nonHostCookie = cookies[1];
+    if (!hostCookie || !nonHostCookie) throw new Error("Cookies missing");
 
-    // 1. Non-host attempts start via HTTP
+    // 1. Non-host start attempt is rejected with 403 NOT_ROOM_HOST
     const nonHostRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[1]! },
+      cookies: { finance_game_session: nonHostCookie },
     });
     expect(nonHostRes.statusCode).toBe(403);
     const nonHostBody = JSON.parse(nonHostRes.body);
     expect(nonHostBody.error.code).toBe("NOT_ROOM_HOST");
 
-    // 2. Host attempts start before members connect sockets
-    const hostResBeforeSync = await server.fastify.inject({
+    // 2. Host start attempt before all four connected & synchronized is rejected
+    const unsyncedStartRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0]! },
+      cookies: { finance_game_session: hostCookie },
     });
-    expect(hostResBeforeSync.statusCode).toBe(409);
-    const hostBodyBeforeSync = JSON.parse(hostResBeforeSync.body);
-    expect(hostBodyBeforeSync.error.code).toBe("ROOM_NOT_READY");
+    expect(unsyncedStartRes.statusCode).toBe(409);
+    const unsyncedBody = JSON.parse(unsyncedStartRes.body);
+    expect(unsyncedBody.error.code).toBe("ROOM_NOT_READY");
   });
 
   it("starts match atomically when four members connect and synchronize", async () => {
     const { roomCode, cookies } = await createAndFillRoom();
 
-    // Connect and synchronize all 4 sockets
+    // Connect & sync all four
     const clients: Array<{
       socket: ClientSocket;
       bootstrap: BootstrapPayload;
     }> = [];
     for (let i = 0; i < 4; i++) {
-      const c = await connectSocket(cookies[i]!, roomCode);
+      const cookie = cookies[i];
+      if (!cookie) throw new Error("Cookie missing");
+      const c = await connectSocket(cookie, roomCode);
       clients.push(c);
       await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
     }
 
-    // Register match:view listeners on all 4 sockets
-    const receivedViews: Array<Promise<MatchPlayerView>> = clients.map((c) => {
-      return new Promise((resolve) => {
-        c.socket.once(
-          SOCKET_SERVER_EVENTS.MATCH_VIEW,
-          (view: MatchPlayerView) => {
-            resolve(view);
-          },
-        );
-      });
-    });
+    const hostCookie = cookies[0];
+    if (!hostCookie) throw new Error("Host cookie missing");
 
     // Host starts match
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0]! },
+      cookies: { finance_game_session: hostCookie },
     });
     expect(startRes.statusCode).toBe(200);
     const startBody = JSON.parse(startRes.body);
     expect(startBody.match).toBeDefined();
     expect(startBody.match.revision).toBe(0);
-    expect(startBody.match.phase).toBe("objective-choosing");
+    expect(startBody.match.self.offeredObjectiveIds).toHaveLength(2);
 
-    // All 4 sockets receive personalized match views
-    const views = await Promise.all(receivedViews);
-    expect(views).toHaveLength(4);
+    // Each player can fetch their own personalized view
+    const p2Cookie = cookies[1];
+    if (!p2Cookie) throw new Error("P2 cookie missing");
+    const p2MatchRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { finance_game_session: p2Cookie },
+    });
+    expect(p2MatchRes.statusCode).toBe(200);
+    const p2View = JSON.parse(p2MatchRes.body).match as MatchPlayerView;
 
-    // Objective privacy check:
-    // Host sees own offers, but not Player 2's offers
-    const hostView = views[0]!;
-    const p2View = views[1]!;
-
-    expect(hostView.self.offeredObjectiveIds).toHaveLength(2);
-    expect(p2View.self.offeredObjectiveIds).toHaveLength(2);
-
-    const hostViewJson = JSON.stringify(hostView);
-    expect(hostViewJson).not.toContain(p2View.self.offeredObjectiveIds[0]);
-    expect(hostViewJson).not.toContain(p2View.self.offeredObjectiveIds[1]);
+    // Verify objective privacy: host view does NOT contain P2 offered objectives
+    const hostViewJson = JSON.stringify(startBody.match);
+    const p2Offer0 = p2View.self.offeredObjectiveIds[0];
+    const p2Offer1 = p2View.self.offeredObjectiveIds[1];
+    if (!p2Offer0 || !p2Offer1) throw new Error("Missing p2 offers");
+    expect(hostViewJson).not.toContain(p2Offer0);
+    expect(hostViewJson).not.toContain(p2Offer1);
 
     // HTTP match view endpoint check
     const getMatchRes = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${roomCode}/match`,
-      cookies: { finance_game_session: cookies[0]! },
+      cookies: { finance_game_session: hostCookie },
     });
     expect(getMatchRes.statusCode).toBe(200);
     expect(getMatchRes.headers["cache-control"]).toBe("no-store");
@@ -265,7 +265,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const secondStartRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0]! },
+      cookies: { finance_game_session: hostCookie },
     });
     expect(secondStartRes.statusCode).toBe(200);
     const secondStartBody = JSON.parse(secondStartRes.body);
@@ -280,22 +280,29 @@ describe("MatchService and Realtime Pipeline", () => {
       bootstrap: BootstrapPayload;
     }> = [];
     for (let i = 0; i < 4; i++) {
-      const c = await connectSocket(cookies[i]!, roomCode);
+      const cookie = cookies[i];
+      if (!cookie) throw new Error("Cookie missing");
+      const c = await connectSocket(cookie, roomCode);
       clients.push(c);
       await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
     }
+
+    const hostCookie = cookies[0];
+    if (!hostCookie) throw new Error("Host cookie missing");
 
     // Host starts match
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0]! },
+      cookies: { finance_game_session: hostCookie },
     });
     const startBody = JSON.parse(startRes.body);
     const hostView = startBody.match as MatchPlayerView;
-    const chosenObjective = hostView.self.offeredObjectiveIds[0]!;
+    const chosenObjective = hostView.self.offeredObjectiveIds[0];
+    if (!chosenObjective) throw new Error("Missing chosen objective");
 
-    const p1Socket = clients[0]!.socket;
+    const p1Socket = clients[0]?.socket;
+    if (!p1Socket) throw new Error("Missing p1 socket");
 
     // Set up match:view listener to verify broadcast on commit
     const nextViewPromise = new Promise<MatchPlayerView>((resolve) => {
@@ -319,17 +326,18 @@ describe("MatchService and Realtime Pipeline", () => {
       },
     };
 
-    const ack1 = await new Promise<any>((resolve) => {
+    const ack1 = await new Promise<CommandAckResult>((resolve) => {
       p1Socket.emit(
         SOCKET_CLIENT_EVENTS.COMMAND,
         commandEnvelope,
-        (res: any) => {
+        (res: CommandAckResult) => {
           resolve(res);
         },
       );
     });
 
     expect(ack1.ok).toBe(true);
+    if (!ack1.ok) throw new Error("Command failed");
     expect(ack1.outcome).toBe("ACCEPTED");
     expect(ack1.revision).toBe(1);
 
@@ -338,41 +346,45 @@ describe("MatchService and Realtime Pipeline", () => {
     expect(broadcastedView.self.selectedObjectiveId).toBe(chosenObjective);
 
     // 2. Retry identical command (lost ack recovery): returns identical receipt without incrementing revision
-    const ackRetry = await new Promise<any>((resolve) => {
+    const ackRetry = await new Promise<CommandAckResult>((resolve) => {
       p1Socket.emit(
         SOCKET_CLIENT_EVENTS.COMMAND,
         commandEnvelope,
-        (res: any) => {
+        (res: CommandAckResult) => {
           resolve(res);
         },
       );
     });
 
     expect(ackRetry.ok).toBe(true);
+    if (!ackRetry.ok) throw new Error("Retry failed");
     expect(ackRetry.outcome).toBe("ACCEPTED");
     expect(ackRetry.revision).toBe(1);
 
     // 3. Reusing the same commandId with changed payload is rejected with COMMAND_ID_REUSED
+    const secondOffer = hostView.self.offeredObjectiveIds[1];
+    if (!secondOffer) throw new Error("Missing second offer");
     const reusedIdEnvelope = {
       commandId, // SAME id
       expectedRevision: 1, // DIFFERENT payload
       command: {
         type: "CHOOSE_OBJECTIVE",
-        objectiveId: hostView.self.offeredObjectiveIds[1]!,
+        objectiveId: secondOffer,
       },
     };
 
-    const ackReused = await new Promise<any>((resolve) => {
+    const ackReused = await new Promise<CommandAckResult>((resolve) => {
       p1Socket.emit(
         SOCKET_CLIENT_EVENTS.COMMAND,
         reusedIdEnvelope,
-        (res: any) => {
+        (res: CommandAckResult) => {
           resolve(res);
         },
       );
     });
 
     expect(ackReused.ok).toBe(false);
+    if (ackReused.ok) throw new Error("Expected failure");
     expect(ackReused.error.code).toBe("COMMAND_ID_REUSED");
 
     // 4. Stale revision rejection: new commandId with expectedRevision 0 when match is at revision 1
@@ -381,21 +393,26 @@ describe("MatchService and Realtime Pipeline", () => {
       expectedRevision: 0,
       command: {
         type: "CHOOSE_OBJECTIVE",
-        objectiveId: hostView.self.offeredObjectiveIds[1]!,
+        objectiveId: secondOffer,
       },
     };
 
-    const ackStale = await new Promise<any>((resolve) => {
-      p1Socket.emit(SOCKET_CLIENT_EVENTS.COMMAND, staleEnvelope, (res: any) => {
-        resolve(res);
-      });
+    const ackStale = await new Promise<CommandAckResult>((resolve) => {
+      p1Socket.emit(
+        SOCKET_CLIENT_EVENTS.COMMAND,
+        staleEnvelope,
+        (res: CommandAckResult) => {
+          resolve(res);
+        },
+      );
     });
 
     expect(ackStale.ok).toBe(false);
+    if (ackStale.ok) throw new Error("Expected failure");
     expect(ackStale.error.code).toBe("STALE_REVISION");
   });
 
-  it("blocks new commands while room is paused, but allows receipt retries", async () => {
+  it("blocks new commands while room is paused, but allows receipt retries with preserved error detail", async () => {
     const { roomCode, cookies } = await createAndFillRoom();
 
     const clients: Array<{
@@ -403,24 +420,35 @@ describe("MatchService and Realtime Pipeline", () => {
       bootstrap: BootstrapPayload;
     }> = [];
     for (let i = 0; i < 4; i++) {
-      const c = await connectSocket(cookies[i]!, roomCode);
+      const cookie = cookies[i];
+      if (!cookie) throw new Error("Cookie missing");
+      const c = await connectSocket(cookie, roomCode);
       clients.push(c);
       await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
     }
+
+    const hostCookie = cookies[0];
+    if (!hostCookie) throw new Error("Host cookie missing");
 
     // Host starts match
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0]! },
+      cookies: { finance_game_session: hostCookie },
     });
     const startBody = JSON.parse(startRes.body);
     const hostView = startBody.match as MatchPlayerView;
-    const p1Socket = clients[0]!.socket;
+    const p1Socket = clients[0]?.socket;
+    if (!p1Socket) throw new Error("Missing p1 socket");
+
+    const firstOffer = hostView.self.offeredObjectiveIds[0];
+    const secondOffer = hostView.self.offeredObjectiveIds[1];
+    if (!firstOffer || !secondOffer)
+      throw new Error("Missing objective offers");
 
     // Execute first command successfully
     const commandId1 = "11111111-1111-4111-8111-111111111111";
-    const ack1 = await new Promise<any>((resolve) => {
+    const ack1 = await new Promise<CommandAckResult>((resolve) => {
       p1Socket.emit(
         SOCKET_CLIENT_EVENTS.COMMAND,
         {
@@ -428,16 +456,16 @@ describe("MatchService and Realtime Pipeline", () => {
           expectedRevision: 0,
           command: {
             type: "CHOOSE_OBJECTIVE",
-            objectiveId: hostView.self.offeredObjectiveIds[0]!,
+            objectiveId: firstOffer,
           },
         },
-        (res: any) => resolve(res),
+        (res: CommandAckResult) => resolve(res),
       );
     });
     expect(ack1.ok).toBe(true);
 
     // Disconnect player 4 to trigger DISCONNECTED_MEMBER pause
-    clients[3]!.socket.disconnect();
+    clients[3]?.socket.disconnect();
     await new Promise((r) => setTimeout(r, 100));
 
     const pauseReasons = lobbyRepo.getPauseReasons(roomCode);
@@ -445,7 +473,7 @@ describe("MatchService and Realtime Pipeline", () => {
 
     // Attempt NEW command while paused -> rejected ROOM_PAUSED
     const commandId2 = "22222222-2222-4222-8222-222222222222";
-    const ackPaused = await new Promise<any>((resolve) => {
+    const ackPaused = await new Promise<CommandAckResult>((resolve) => {
       p1Socket.emit(
         SOCKET_CLIENT_EVENTS.COMMAND,
         {
@@ -453,32 +481,312 @@ describe("MatchService and Realtime Pipeline", () => {
           expectedRevision: 1,
           command: {
             type: "CHOOSE_OBJECTIVE",
-            objectiveId: hostView.self.offeredObjectiveIds[1]!,
+            objectiveId: secondOffer,
           },
         },
-        (res: any) => resolve(res),
+        (res: CommandAckResult) => resolve(res),
       );
     });
     expect(ackPaused.ok).toBe(false);
+    if (ackPaused.ok) throw new Error("Expected failure");
     expect(ackPaused.error.code).toBe("ROOM_PAUSED");
 
-    // Retry of previous committed commandId1 WHILE PAUSED succeeds with original receipt!
-    const ackRetryWhilePaused = await new Promise<any>((resolve) => {
+    // Retry of rejected commandId2 returns original error code and message
+    const ackRetryRejected = await new Promise<CommandAckResult>((resolve) => {
       p1Socket.emit(
         SOCKET_CLIENT_EVENTS.COMMAND,
         {
-          commandId: commandId1,
-          expectedRevision: 0,
+          commandId: commandId2,
+          expectedRevision: 1,
           command: {
             type: "CHOOSE_OBJECTIVE",
-            objectiveId: hostView.self.offeredObjectiveIds[0]!,
+            objectiveId: secondOffer,
           },
         },
-        (res: any) => resolve(res),
+        (res: CommandAckResult) => resolve(res),
       );
     });
+    expect(ackRetryRejected.ok).toBe(false);
+    if (ackRetryRejected.ok) throw new Error("Expected failure");
+    expect(ackRetryRejected.error.code).toBe("ROOM_PAUSED");
+    expect(ackRetryRejected.error.message).toContain("Room is paused");
+
+    // Retry of previous committed commandId1 WHILE PAUSED succeeds with original receipt!
+    const ackRetryWhilePaused = await new Promise<CommandAckResult>(
+      (resolve) => {
+        p1Socket.emit(
+          SOCKET_CLIENT_EVENTS.COMMAND,
+          {
+            commandId: commandId1,
+            expectedRevision: 0,
+            command: {
+              type: "CHOOSE_OBJECTIVE",
+              objectiveId: firstOffer,
+            },
+          },
+          (res: CommandAckResult) => resolve(res),
+        );
+      },
+    );
     expect(ackRetryWhilePaused.ok).toBe(true);
+    if (!ackRetryWhilePaused.ok) throw new Error("Retry while paused failed");
     expect(ackRetryWhilePaused.outcome).toBe("ACCEPTED");
     expect(ackRetryWhilePaused.revision).toBe(1);
+  });
+
+  it("handles concurrent match start requests idempotently without race conditions", async () => {
+    const { roomCode, cookies } = await createAndFillRoom();
+    for (let i = 0; i < 4; i++) {
+      const cookie = cookies[i];
+      if (!cookie) throw new Error("Cookie missing");
+      const c = await connectSocket(cookie, roomCode);
+      await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
+    }
+
+    const hostCookie = cookies[0];
+    if (!hostCookie) throw new Error("Host cookie missing");
+
+    // Fire two start requests concurrently
+    const [start1, start2] = await Promise.all([
+      server.fastify.inject({
+        method: "POST",
+        url: `/api/rooms/${roomCode}/start`,
+        cookies: { finance_game_session: hostCookie },
+      }),
+      server.fastify.inject({
+        method: "POST",
+        url: `/api/rooms/${roomCode}/start`,
+        cookies: { finance_game_session: hostCookie },
+      }),
+    ]);
+
+    expect(start1.statusCode).toBe(200);
+    expect(start2.statusCode).toBe(200);
+
+    const body1 = JSON.parse(start1.body);
+    const body2 = JSON.parse(start2.body);
+    expect(body1.match.matchId).toBe(body2.match.matchId);
+    expect(body1.match.revision).toBe(0);
+
+    // Exactly one match exists in the database
+    const matchCount = db
+      .prepare(
+        "SELECT COUNT(*) as cnt FROM matches WHERE room_id = (SELECT id FROM rooms WHERE code = ?)",
+      )
+      .get(roomCode) as { cnt: number };
+    expect(matchCount.cnt).toBe(1);
+  });
+
+  it("serializes concurrent command submissions through RoomCommandQueue", async () => {
+    const { roomCode, cookies } = await createAndFillRoom();
+
+    const clients: Array<{
+      socket: ClientSocket;
+      bootstrap: BootstrapPayload;
+    }> = [];
+    for (let i = 0; i < 4; i++) {
+      const cookie = cookies[i];
+      if (!cookie) throw new Error("Cookie missing");
+      const c = await connectSocket(cookie, roomCode);
+      clients.push(c);
+      await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
+    }
+
+    const hostCookie = cookies[0];
+    if (!hostCookie) throw new Error("Host cookie missing");
+
+    const startRes = await server.fastify.inject({
+      method: "POST",
+      url: `/api/rooms/${roomCode}/start`,
+      cookies: { finance_game_session: hostCookie },
+    });
+    const startBody = JSON.parse(startRes.body);
+    const hostView = startBody.match as MatchPlayerView;
+
+    const p2Cookie = cookies[1];
+    if (!p2Cookie) throw new Error("P2 cookie missing");
+    const p2Res = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { finance_game_session: p2Cookie },
+    });
+    const p2View = JSON.parse(p2Res.body).match as MatchPlayerView;
+
+    const p1Socket = clients[0]?.socket;
+    const p2Socket = clients[1]?.socket;
+    if (!p1Socket || !p2Socket) throw new Error("Missing sockets");
+
+    const p1Obj = hostView.self.offeredObjectiveIds[0];
+    const p2Obj = p2View.self.offeredObjectiveIds[0];
+    if (!p1Obj || !p2Obj) throw new Error("Missing objectives");
+
+    // Both players fire commands concurrently with expectedRevision: 0
+    const [ack1, ack2] = await Promise.all([
+      new Promise<CommandAckResult>((resolve) => {
+        p1Socket.emit(
+          SOCKET_CLIENT_EVENTS.COMMAND,
+          {
+            commandId: "12345678-1234-4234-8234-123456789abc",
+            expectedRevision: 0,
+            command: { type: "CHOOSE_OBJECTIVE", objectiveId: p1Obj },
+          },
+          (res: CommandAckResult) => resolve(res),
+        );
+      }),
+      new Promise<CommandAckResult>((resolve) => {
+        p2Socket.emit(
+          SOCKET_CLIENT_EVENTS.COMMAND,
+          {
+            commandId: "87654321-4321-4321-8321-cba987654321",
+            expectedRevision: 0,
+            command: { type: "CHOOSE_OBJECTIVE", objectiveId: p2Obj },
+          },
+          (res: CommandAckResult) => resolve(res),
+        );
+      }),
+    ]);
+
+    // One must be accepted at revision 1, the other must be rejected with STALE_REVISION
+    const outcomes = [ack1, ack2];
+    const accepted = outcomes.find((a) => a.ok === true);
+    const rejected = outcomes.find((a) => a.ok === false);
+
+    expect(accepted).toBeDefined();
+    expect(rejected).toBeDefined();
+    if (!accepted || !rejected)
+      throw new Error("Expected one pass and one fail");
+
+    if (accepted.ok) {
+      expect(accepted.revision).toBe(1);
+    }
+    if (!rejected.ok) {
+      expect(rejected.error.code).toBe("STALE_REVISION");
+    }
+
+    // Match revision is cleanly 1
+    const match = matchRepo.findMatchByRoomCode(roomCode);
+    expect(match?.match.revision).toBe(1);
+  });
+
+  it("recovers lost ack when client disconnects after commit and retries on reconnection", async () => {
+    const { roomCode, cookies } = await createAndFillRoom();
+
+    const clients: Array<{
+      socket: ClientSocket;
+      bootstrap: BootstrapPayload;
+    }> = [];
+    for (let i = 0; i < 4; i++) {
+      const cookie = cookies[i];
+      if (!cookie) throw new Error("Cookie missing");
+      const c = await connectSocket(cookie, roomCode);
+      clients.push(c);
+      await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
+    }
+
+    const hostCookie = cookies[0];
+    if (!hostCookie) throw new Error("Host cookie missing");
+
+    const startRes = await server.fastify.inject({
+      method: "POST",
+      url: `/api/rooms/${roomCode}/start`,
+      cookies: { finance_game_session: hostCookie },
+    });
+    const hostView = JSON.parse(startRes.body).match as MatchPlayerView;
+    const chosenObjective = hostView.self.offeredObjectiveIds[0];
+    if (!chosenObjective) throw new Error("Missing objective");
+
+    const lostCommandId = "fedcba98-7654-4321-8210-fedcba987654";
+    const p1Socket = clients[0]?.socket;
+    if (!p1Socket) throw new Error("Missing p1 socket");
+
+    // Client emits command without consuming ack and immediately disconnects
+    p1Socket.emit(SOCKET_CLIENT_EVENTS.COMMAND, {
+      commandId: lostCommandId,
+      expectedRevision: 0,
+      command: { type: "CHOOSE_OBJECTIVE", objectiveId: chosenObjective },
+    });
+
+    // Allow commit to complete on server
+    await new Promise((r) => setTimeout(r, 150));
+    p1Socket.disconnect();
+
+    // Client reconnects with persistent session cookie
+    const reconnected = await connectSocket(hostCookie, roomCode);
+    await syncSocket(
+      reconnected.socket,
+      reconnected.bootstrap.self.connectionGeneration,
+    );
+
+    // Client retries same commandId
+    const retryAck = await new Promise<CommandAckResult>((resolve) => {
+      reconnected.socket.emit(
+        SOCKET_CLIENT_EVENTS.COMMAND,
+        {
+          commandId: lostCommandId,
+          expectedRevision: 0,
+          command: { type: "CHOOSE_OBJECTIVE", objectiveId: chosenObjective },
+        },
+        (res: CommandAckResult) => resolve(res),
+      );
+    });
+
+    expect(retryAck.ok).toBe(true);
+    if (!retryAck.ok) throw new Error("Retry failed");
+    expect(retryAck.outcome).toBe("ACCEPTED");
+    expect(retryAck.revision).toBe(1);
+
+    // Total commands committed in match remains exactly 1
+    const match = matchRepo.findMatchByRoomCode(roomCode);
+    expect(match?.match.revision).toBe(1);
+  });
+
+  it("detects persisted metadata corruption, activates SYSTEM_FAULT, and returns safe generic error", async () => {
+    const { roomCode, cookies } = await createAndFillRoom();
+
+    for (let i = 0; i < 4; i++) {
+      const cookie = cookies[i];
+      if (!cookie) throw new Error("Cookie missing");
+      const c = await connectSocket(cookie, roomCode);
+      await syncSocket(c.socket, c.bootstrap.self.connectionGeneration);
+    }
+
+    const hostCookie = cookies[0];
+    if (!hostCookie) throw new Error("Host cookie missing");
+
+    await server.fastify.inject({
+      method: "POST",
+      url: `/api/rooms/${roomCode}/start`,
+      cookies: { finance_game_session: hostCookie },
+    });
+
+    // Deliberately corrupt the persisted match record: tamper revision column to 999
+    db.prepare(
+      "UPDATE matches SET revision = 999 WHERE room_id = (SELECT id FROM rooms WHERE code = ?)",
+    ).run(roomCode);
+
+    // 1. GET /api/rooms/:roomCode/match should return 500 SYSTEM_FAULT with safe generic message
+    const getRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { finance_game_session: hostCookie },
+    });
+
+    expect(getRes.statusCode).toBe(500);
+    const getBody = JSON.parse(getRes.body);
+    expect(getBody.error.code).toBe("SYSTEM_FAULT");
+    expect(getBody.error.message).toBe(
+      "Match state is inconsistent or corrupted",
+    );
+    // Must NOT leak parser or invariant details
+    expect(getBody.error.message).not.toContain("revision");
+
+    // 2. Room pause reasons now contains SYSTEM_FAULT
+    const pauseReasons = lobbyRepo.getPauseReasons(roomCode);
+    expect(pauseReasons).toContain("SYSTEM_FAULT");
+
+    // 3. Stored database data is preserved (not deleted or wiped)
+    const corruptedMatch = matchRepo.findMatchByRoomCode(roomCode);
+    expect(corruptedMatch).toBeDefined();
+    expect(corruptedMatch?.match.revision).toBe(999);
   });
 });

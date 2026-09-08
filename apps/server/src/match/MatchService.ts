@@ -19,11 +19,12 @@ import { computeCommandPayloadHash } from "./payloadHash.js";
 import { buildMatchPlayerView } from "./projection.js";
 import { RoomCommandQueue } from "./RoomCommandQueue.js";
 import { PlayerCommandEnvelopeSchema } from "./schema.js";
-import { loadAndValidateSnapshot } from "./snapshotLoader.js";
+import { loadAndValidatePersistedMatch } from "./snapshotLoader.js";
 import {
   MatchError,
   type MatchInitializationManifest,
   type MatchRepository,
+  type MatchWithMembers,
 } from "./types.js";
 import { getCurrentVersionMetadata } from "./versions.js";
 
@@ -40,137 +41,190 @@ export class MatchService {
     this.coordinator = coordinator;
   }
 
+  private validatePersistedMatchOrFault(
+    roomCode: string,
+    matchWithMembers: MatchWithMembers,
+    roomMembers?: readonly { id: RoomMemberId }[],
+  ): GameState {
+    try {
+      return loadAndValidatePersistedMatch(matchWithMembers, roomMembers);
+    } catch {
+      this.lobbyRepository.addPauseReason({
+        roomCode,
+        reason: "SYSTEM_FAULT",
+      });
+      throw new MatchError(
+        "SYSTEM_FAULT",
+        "Match state is inconsistent or corrupted",
+        500,
+      );
+    }
+  }
+
   async startMatch(params: {
     roomCode: string;
     sessionToken: string;
   }): Promise<MatchPlayerView> {
-    const auth = this.lobbyRepository.authenticateMemberForRoom({
-      roomCode: params.roomCode,
-      sessionToken: params.sessionToken,
-    });
-    if (!auth) {
-      throw new MatchError(
-        "NOT_A_ROOM_MEMBER",
-        "You are not an authorized member of this room",
-        403,
-      );
-    }
-    if (!auth.isHost) {
-      throw new MatchError(
-        "NOT_ROOM_HOST",
-        "Only the room host can start the match",
-        403,
-      );
-    }
+    return this.commandQueue.enqueue(params.roomCode, async () => {
+      const auth = this.lobbyRepository.authenticateMemberForRoom({
+        roomCode: params.roomCode,
+        sessionToken: params.sessionToken,
+      });
+      if (!auth) {
+        throw new MatchError(
+          "NOT_A_ROOM_MEMBER",
+          "You are not an authorized member of this room",
+          403,
+        );
+      }
+      if (!auth.isHost) {
+        throw new MatchError(
+          "NOT_ROOM_HOST",
+          "Only the room host can start the match",
+          403,
+        );
+      }
 
-    // Idempotency check: if match already exists for this room, return existing view
-    const existingMatch = this.matchRepository.findMatchByRoomCode(
-      params.roomCode,
-    );
-    if (existingMatch) {
+      // Idempotency check: if match already exists for this room, return existing view
+      const existingMatch = this.matchRepository.findMatchByRoomCode(
+        params.roomCode,
+      );
+      if (existingMatch) {
+        return this.getMatchView({
+          roomCode: params.roomCode,
+          sessionToken: params.sessionToken,
+        });
+      }
+
+      const roomInfo = this.matchRepository.findRoomWithMembers(
+        params.roomCode,
+      );
+      if (!roomInfo) {
+        throw new MatchError("ROOM_NOT_FOUND", "Room not found", 404);
+      }
+      if (roomInfo.room.status !== "OPEN") {
+        throw new MatchError(
+          "ROOM_NOT_OPEN",
+          "Room is not in OPEN status for match start",
+          409,
+        );
+      }
+      if (roomInfo.members.length !== 4) {
+        throw new MatchError(
+          "ROOM_NOT_READY",
+          "Match requires exactly four room members",
+          409,
+        );
+      }
+
+      // Check that all four members have current controlling sockets and are synchronized
+      if (this.coordinator) {
+        const presence = this.coordinator.buildPresencePayload(params.roomCode);
+        if (
+          presence.members.length !== 4 ||
+          !presence.allConnected ||
+          !presence.allSynchronized
+        ) {
+          throw new MatchError(
+            "ROOM_NOT_READY",
+            "All four members must be connected and synchronized to start",
+            409,
+          );
+        }
+      }
+
+      // Check no active pause reasons
+      const pauseReasons = this.lobbyRepository.getPauseReasons(
+        params.roomCode,
+      );
+      if (pauseReasons.length > 0) {
+        throw new MatchError(
+          "ROOM_PAUSED",
+          "Cannot start match while room has active pause reasons",
+          409,
+        );
+      }
+
+      // Stable PlayerId policy: player-1 .. player-4 derived from join order 0..3
+      const playerIds: PlayerId[] = [
+        asPlayerId("player-1"),
+        asPlayerId("player-2"),
+        asPlayerId("player-3"),
+        asPlayerId("player-4"),
+      ];
+
+      const matchId = asMatchId(crypto.randomBytes(16).toString("base64url"));
+      const seed = crypto.randomBytes(32).toString("base64url");
+
+      // Pure engine setup
+      const initialGameState = createGame({
+        gameId: matchId,
+        seed,
+        playerIds,
+      });
+
+      const initializationManifest: MatchInitializationManifest = {
+        gameId: matchId,
+        modeId: "standard-v1",
+        seed,
+        orderedPlayerIds: playerIds,
+      };
+
+      const memberMappings = roomInfo.members.map((m, idx) => {
+        const pId = playerIds[idx];
+        if (!pId) {
+          throw new MatchError(
+            "ROOM_NOT_READY",
+            "Missing player id mapping",
+            500,
+          );
+        }
+        return {
+          roomMemberId: m.id,
+          playerId: pId,
+          playerOrder: idx,
+        };
+      });
+
+      const versions = getCurrentVersionMetadata();
+
+      // Atomic SQLite commit with collision fallback
+      try {
+        this.matchRepository.createMatch({
+          matchId,
+          roomId: roomInfo.room.id,
+          modeId: "standard-v1",
+          initializationManifest,
+          initialSnapshot: initialGameState,
+          memberMappings,
+          versions,
+        });
+      } catch (err) {
+        const recheck = this.matchRepository.findMatchByRoomCode(
+          params.roomCode,
+        );
+        if (recheck) {
+          return this.getMatchView({
+            roomCode: params.roomCode,
+            sessionToken: params.sessionToken,
+          });
+        }
+        throw err;
+      }
+
+      // Notify coordinator to broadcast personalized views
+      if (this.coordinator) {
+        try {
+          this.coordinator.broadcastMatchView(params.roomCode);
+        } catch {
+          // Suppress broadcast errors
+        }
+      }
+
       return this.getMatchView({
         roomCode: params.roomCode,
         sessionToken: params.sessionToken,
       });
-    }
-
-    const roomInfo = this.matchRepository.findRoomWithMembers(params.roomCode);
-    if (!roomInfo) {
-      throw new MatchError("ROOM_NOT_FOUND", "Room not found", 404);
-    }
-    if (roomInfo.room.status !== "OPEN") {
-      throw new MatchError(
-        "ROOM_NOT_OPEN",
-        "Room is not in OPEN status for match start",
-        409,
-      );
-    }
-    if (roomInfo.members.length !== 4) {
-      throw new MatchError(
-        "ROOM_NOT_READY",
-        "Match requires exactly four room members",
-        409,
-      );
-    }
-
-    // Check that all four members have current controlling sockets and are synchronized
-    if (this.coordinator) {
-      const presence = this.coordinator.buildPresencePayload(params.roomCode);
-      if (
-        presence.members.length !== 4 ||
-        !presence.allConnected ||
-        !presence.allSynchronized
-      ) {
-        throw new MatchError(
-          "ROOM_NOT_READY",
-          "All four members must be connected and synchronized to start",
-          409,
-        );
-      }
-    }
-
-    // Check no active pause reasons
-    const pauseReasons = this.lobbyRepository.getPauseReasons(params.roomCode);
-    if (pauseReasons.length > 0) {
-      throw new MatchError(
-        "ROOM_PAUSED",
-        "Cannot start match while room has active pause reasons",
-        409,
-      );
-    }
-
-    // Stable PlayerId policy: player-1 .. player-4 derived from join order 0..3
-    const playerIds: PlayerId[] = [
-      asPlayerId("player-1"),
-      asPlayerId("player-2"),
-      asPlayerId("player-3"),
-      asPlayerId("player-4"),
-    ];
-
-    const matchId = asMatchId(crypto.randomBytes(16).toString("base64url"));
-    const seed = crypto.randomBytes(32).toString("base64url");
-
-    // Pure engine setup
-    const initialGameState = createGame({
-      gameId: matchId,
-      seed,
-      playerIds,
-    });
-
-    const initializationManifest: MatchInitializationManifest = {
-      gameId: matchId,
-      modeId: "standard-v1",
-      seed,
-      orderedPlayerIds: playerIds,
-    };
-
-    const memberMappings = roomInfo.members.map((m, idx) => ({
-      roomMemberId: m.id,
-      playerId: playerIds[idx]!,
-      playerOrder: idx,
-    }));
-
-    const versions = getCurrentVersionMetadata();
-
-    // Atomic SQLite commit
-    this.matchRepository.createMatch({
-      matchId,
-      roomId: roomInfo.room.id,
-      modeId: "standard-v1",
-      initializationManifest,
-      initialSnapshot: initialGameState,
-      memberMappings,
-      versions,
-    });
-
-    // Notify coordinator to broadcast personalized views
-    if (this.coordinator) {
-      this.coordinator.broadcastMatchView(params.roomCode);
-    }
-
-    return this.getMatchView({
-      roomCode: params.roomCode,
-      sessionToken: params.sessionToken,
     });
   }
 
@@ -213,22 +267,16 @@ export class MatchService {
       );
     }
 
-    const versions = {
-      engineVersion: matchWithMembers.match.engineVersion,
-      rulesVersion: matchWithMembers.match.rulesVersion,
-      sharedVersion: matchWithMembers.match.sharedVersion,
-      persistenceFormatVersion: matchWithMembers.match.persistenceFormatVersion,
-    };
-
-    const gameState = loadAndValidateSnapshot(
-      matchWithMembers.match.snapshotJson,
-      versions,
-    );
-
     const roomInfo = this.matchRepository.findRoomWithMembers(params.roomCode);
     if (!roomInfo) {
       throw new MatchError("ROOM_NOT_FOUND", "Room not found", 404);
     }
+
+    const gameState = this.validatePersistedMatchOrFault(
+      params.roomCode,
+      matchWithMembers,
+      roomInfo.members,
+    );
 
     return buildMatchPlayerView({
       gameState,
@@ -258,25 +306,19 @@ export class MatchService {
       return null;
     }
 
-    const versions = {
-      engineVersion: matchWithMembers.match.engineVersion,
-      rulesVersion: matchWithMembers.match.rulesVersion,
-      sharedVersion: matchWithMembers.match.sharedVersion,
-      persistenceFormatVersion: matchWithMembers.match.persistenceFormatVersion,
-    };
+    const roomInfo = this.matchRepository.findRoomWithMembers(params.roomCode);
+    if (!roomInfo) return null;
 
     let gameState: GameState;
     try {
-      gameState = loadAndValidateSnapshot(
-        matchWithMembers.match.snapshotJson,
-        versions,
+      gameState = this.validatePersistedMatchOrFault(
+        params.roomCode,
+        matchWithMembers,
+        roomInfo.members,
       );
     } catch {
       return null;
     }
-
-    const roomInfo = this.matchRepository.findRoomWithMembers(params.roomCode);
-    if (!roomInfo) return null;
 
     return buildMatchPlayerView({
       gameState,
@@ -300,7 +342,8 @@ export class MatchService {
     };
 
     const roomCode = socketData.roomCode;
-    if (!roomCode || !socketData.memberId) {
+    const memberId = socketData.memberId;
+    if (!roomCode || !memberId) {
       return {
         ok: false,
         commandId: "unknown",
@@ -314,12 +357,9 @@ export class MatchService {
 
     return this.commandQueue.enqueue(roomCode, async () => {
       // 1. Current-controller check when job runs
-      const memberState = this.coordinator?.getMemberState(
-        socketData.memberId!,
-      );
+      const memberState = this.coordinator?.getMemberState(memberId);
       if (
-        !memberState ||
-        !memberState.connected ||
+        !memberState?.connected ||
         memberState.generation !== socketData.generation ||
         memberState.controllingSocket !== params.socket
       ) {
@@ -352,14 +392,14 @@ export class MatchService {
       // 3. Locate actor PlayerId
       const actorPlayerId = this.matchRepository.findPlayerForRoomMember(
         matchWithMembers.match.id,
-        socketData.memberId!,
+        memberId,
       );
       if (!actorPlayerId) {
         return {
           ok: false,
           commandId: "unknown",
           error: {
-            code: "NOT_CURRENT_CONTROLLER",
+            code: "NOT_A_MATCH_PLAYER",
             message: "Member is not mapped to a player in this match",
           },
           revision: matchWithMembers.match.revision,
@@ -413,30 +453,28 @@ export class MatchService {
               outcome: "ACCEPTED",
               revision: existingReceipt.resultingRevision,
             };
-          } else {
-            return {
-              ok: false,
-              commandId: validEnvelope.commandId,
-              error: {
-                code: existingReceipt.errorCode ?? "REJECTED",
-                message: "Command previously rejected",
-              },
-              revision: existingReceipt.resultingRevision,
-            };
           }
-        } else {
-          // Reused command ID with modified payload
           return {
             ok: false,
             commandId: validEnvelope.commandId,
             error: {
-              code: "COMMAND_ID_REUSED",
+              code: existingReceipt.errorCode ?? "REJECTED",
               message:
-                "Command ID was already used with a different payload or revision",
+                existingReceipt.errorMessage ?? "Command previously rejected",
             },
-            revision: matchWithMembers.match.revision,
+            revision: existingReceipt.resultingRevision,
           };
         }
+        // Reused command ID with modified payload
+        return {
+          ok: false,
+          commandId: validEnvelope.commandId,
+          error: {
+            code: "COMMAND_ID_REUSED",
+            message: "Command ID already used with a different payload",
+          },
+          revision: matchWithMembers.match.revision,
+        };
       }
 
       // 7. No receipt exists yet: load latest match state
@@ -455,29 +493,22 @@ export class MatchService {
         };
       }
 
+      const roomInfo = this.matchRepository.findRoomWithMembers(roomCode);
+
       let currentState: GameState;
       try {
-        currentState = loadAndValidateSnapshot(
-          currentMatch.match.snapshotJson,
-          {
-            engineVersion: currentMatch.match.engineVersion,
-            rulesVersion: currentMatch.match.rulesVersion,
-            sharedVersion: currentMatch.match.sharedVersion,
-            persistenceFormatVersion:
-              currentMatch.match.persistenceFormatVersion,
-          },
+        currentState = this.validatePersistedMatchOrFault(
+          roomCode,
+          currentMatch,
+          roomInfo?.members,
         );
       } catch {
-        this.lobbyRepository.addPauseReason({
-          roomCode,
-          reason: "SYSTEM_FAULT",
-        });
         return {
           ok: false,
           commandId: validEnvelope.commandId,
           error: {
-            code: "MATCH_INCOMPATIBLE",
-            message: "Match snapshot corrupted or version incompatible",
+            code: "SYSTEM_FAULT",
+            message: "Match state is inconsistent or corrupted",
           },
           revision: currentMatch.match.revision,
         };
@@ -492,6 +523,7 @@ export class MatchService {
           commandId: validEnvelope.commandId,
           payloadHash,
           errorCode: "ROOM_PAUSED",
+          errorMessage: "Room is paused; new commands cannot be executed",
           resultingRevision: currentMatch.match.revision,
         });
         return {
@@ -513,6 +545,7 @@ export class MatchService {
           commandId: validEnvelope.commandId,
           payloadHash,
           errorCode: "STALE_REVISION",
+          errorMessage: `Expected revision ${validEnvelope.expectedRevision} but current revision is ${currentMatch.match.revision}`,
           resultingRevision: currentMatch.match.revision,
         });
         return {
@@ -540,6 +573,7 @@ export class MatchService {
           commandId: validEnvelope.commandId,
           payloadHash,
           errorCode: "GAMEPLAY_REJECTED",
+          errorMessage: actionResult.code,
           resultingRevision: currentMatch.match.revision,
         });
         return {
@@ -568,7 +602,11 @@ export class MatchService {
 
       // 12. Personalized post-commit broadcast
       if (this.coordinator) {
-        this.coordinator.broadcastMatchView(roomCode);
+        try {
+          this.coordinator.broadcastMatchView(roomCode);
+        } catch {
+          // Suppress post-commit broadcast error; command was committed
+        }
       }
 
       // 13. Acknowledge socket only after commit

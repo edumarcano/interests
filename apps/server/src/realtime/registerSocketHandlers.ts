@@ -5,6 +5,7 @@ import type {
   LobbyRepository,
 } from "../lobby/types.js";
 import type { MatchService } from "../match/MatchService.js";
+import { MatchError } from "../match/types.js";
 import type { RoomConnectionCoordinator } from "./RoomConnectionCoordinator.js";
 import {
   SESSION_COOKIE_NAME,
@@ -240,13 +241,41 @@ export function registerSocketHandlers(
         return;
       }
 
-      const result = await matchService.executeCommand({
-        socket,
-        envelope: payload,
-      });
+      try {
+        const result = await matchService.executeCommand({
+          socket,
+          envelope: payload,
+        });
 
-      if (ack) {
-        ack(result);
+        if (ack) {
+          ack(result);
+        }
+      } catch (err) {
+        if (ack) {
+          const rawCommandId =
+            payload &&
+            typeof payload === "object" &&
+            "commandId" in payload &&
+            typeof (payload as { commandId?: unknown }).commandId === "string"
+              ? (payload as { commandId: string }).commandId
+              : "unknown";
+
+          ack({
+            ok: false,
+            commandId: rawCommandId,
+            error: {
+              code:
+                err instanceof MatchError
+                  ? err.code
+                  : SOCKET_ERROR_CODES.INTERNAL_ERROR,
+              message:
+                err instanceof MatchError
+                  ? err.message
+                  : "An internal error occurred while executing command",
+            },
+            revision: 0,
+          });
+        }
       }
     });
 

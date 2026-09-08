@@ -38,7 +38,7 @@ CREATE TABLE match_commands (
   payload_json TEXT NOT NULL,
   payload_hash TEXT NOT NULL,
   previous_revision INTEGER NOT NULL,
-  resulting_revision INTEGER NOT NULL,
+  resulting_revision INTEGER NOT NULL CHECK (resulting_revision = previous_revision + 1),
   accepted_at TEXT NOT NULL,
   PRIMARY KEY (match_id, sequence),
   UNIQUE (match_id, actor_player_id, command_id)
@@ -51,6 +51,7 @@ CREATE TABLE command_receipts (
   payload_hash TEXT NOT NULL,
   outcome TEXT NOT NULL CHECK (outcome IN ('ACCEPTED', 'REJECTED')),
   error_code TEXT,
+  error_message TEXT,
   resulting_revision INTEGER NOT NULL,
   accepted_sequence INTEGER,
   created_at TEXT NOT NULL,

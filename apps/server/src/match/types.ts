@@ -49,6 +49,7 @@ export interface CommandReceiptRecord {
   readonly payloadHash: string;
   readonly outcome: CommandOutcome;
   readonly errorCode: string | null;
+  readonly errorMessage: string | null;
   readonly resultingRevision: number;
   readonly acceptedSequence: number | null;
   readonly createdAt: string;
@@ -108,7 +109,17 @@ export interface RecordRejectedReceiptInput {
   readonly commandId: string;
   readonly payloadHash: string;
   readonly errorCode: string;
+  readonly errorMessage?: string;
   readonly resultingRevision: number;
+}
+
+export interface MatchRoomMember {
+  readonly id: RoomMemberId;
+  readonly roomId: RoomId;
+  readonly nickname: string;
+  readonly nicknameKey: string;
+  readonly joinOrder: number;
+  readonly createdAt: string;
 }
 
 export interface MatchRepository {
@@ -143,15 +154,7 @@ export interface MatchRepository {
       readonly status: string;
       readonly hostMemberId: RoomMemberId;
     };
-    readonly members: readonly {
-      readonly id: RoomMemberId;
-      readonly roomId: RoomId;
-      readonly nickname: string;
-      readonly nicknameKey: string;
-      readonly joinOrder: number;
-      readonly recoveryCredentialDigest: string;
-      readonly createdAt: string;
-    }[];
+    readonly members: readonly MatchRoomMember[];
   } | null;
 }
 

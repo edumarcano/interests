@@ -17,6 +17,7 @@ import {
   type MatchMemberRecord,
   type MatchRecord,
   type MatchRepository,
+  type MatchRoomMember,
   type MatchWithMembers,
   type RecordRejectedReceiptInput,
 } from "../../match/types.js";
@@ -52,6 +53,7 @@ interface DbCommandReceiptRow {
   payload_hash: string;
   outcome: "ACCEPTED" | "REJECTED";
   error_code: string | null;
+  error_message: string | null;
   resulting_revision: number;
   accepted_sequence: number | null;
   created_at: string;
@@ -93,6 +95,7 @@ function mapReceiptRow(row: DbCommandReceiptRow): CommandReceiptRecord {
     payloadHash: row.payload_hash,
     outcome: row.outcome,
     errorCode: row.error_code,
+    errorMessage: row.error_message,
     resultingRevision: row.resulting_revision,
     acceptedSequence: row.accepted_sequence,
     createdAt: row.created_at,
@@ -288,13 +291,14 @@ export class SqliteMatchRepository implements MatchRepository {
     input: RecordRejectedReceiptInput,
   ): CommandReceiptRecord {
     const nowIso = new Date().toISOString();
+    const errorMessage = input.errorMessage ?? null;
 
     this.db
       .prepare(
         `INSERT INTO command_receipts (
           match_id, actor_player_id, command_id, payload_hash,
-          outcome, error_code, resulting_revision, accepted_sequence, created_at
-        ) VALUES (?, ?, ?, ?, 'REJECTED', ?, ?, NULL, ?)`,
+          outcome, error_code, error_message, resulting_revision, accepted_sequence, created_at
+        ) VALUES (?, ?, ?, ?, 'REJECTED', ?, ?, ?, NULL, ?)`,
       )
       .run(
         input.matchId,
@@ -302,6 +306,7 @@ export class SqliteMatchRepository implements MatchRepository {
         input.commandId,
         input.payloadHash,
         input.errorCode,
+        errorMessage,
         input.resultingRevision,
         nowIso,
       );
@@ -313,6 +318,7 @@ export class SqliteMatchRepository implements MatchRepository {
       payloadHash: input.payloadHash,
       outcome: "REJECTED",
       errorCode: input.errorCode,
+      errorMessage,
       resultingRevision: input.resultingRevision,
       acceptedSequence: null,
       createdAt: nowIso,
@@ -325,6 +331,22 @@ export class SqliteMatchRepository implements MatchRepository {
   } {
     const nowIso = new Date().toISOString();
     const nextSnapshotJson = JSON.stringify(input.nextState);
+
+    if (input.nextRevision !== input.expectedPreviousRevision + 1) {
+      throw new MatchError(
+        "INVALID_REVISION_TRANSITION",
+        `Accepted command must increment revision by exactly 1 (expected ${input.expectedPreviousRevision + 1}, got ${input.nextRevision})`,
+        500,
+      );
+    }
+
+    if (input.nextState.revision !== input.nextRevision) {
+      throw new MatchError(
+        "INVALID_REVISION_TRANSITION",
+        `Snapshot state revision must match nextRevision (state has ${input.nextState.revision}, expected ${input.nextRevision})`,
+        500,
+      );
+    }
 
     return this.db.transaction(() => {
       // 1. Verify revision still equals expected previous revision
@@ -396,8 +418,8 @@ export class SqliteMatchRepository implements MatchRepository {
         .prepare(
           `INSERT INTO command_receipts (
             match_id, actor_player_id, command_id, payload_hash,
-            outcome, error_code, resulting_revision, accepted_sequence, created_at
-          ) VALUES (?, ?, ?, ?, 'ACCEPTED', NULL, ?, ?, ?)`,
+            outcome, error_code, error_message, resulting_revision, accepted_sequence, created_at
+          ) VALUES (?, ?, ?, ?, 'ACCEPTED', NULL, NULL, ?, ?, ?)`,
         )
         .run(
           input.matchId,
@@ -439,6 +461,7 @@ export class SqliteMatchRepository implements MatchRepository {
         payloadHash: input.payloadHash,
         outcome: "ACCEPTED",
         errorCode: null,
+        errorMessage: null,
         resultingRevision: input.nextRevision,
         acceptedSequence: sequence,
         createdAt: nowIso,
@@ -474,15 +497,7 @@ export class SqliteMatchRepository implements MatchRepository {
       readonly status: string;
       readonly hostMemberId: RoomMemberId;
     };
-    readonly members: readonly {
-      readonly id: RoomMemberId;
-      readonly roomId: RoomId;
-      readonly nickname: string;
-      readonly nicknameKey: string;
-      readonly joinOrder: number;
-      readonly recoveryCredentialDigest: string;
-      readonly createdAt: string;
-    }[];
+    readonly members: readonly MatchRoomMember[];
   } | null {
     const normalizedCode = roomCode.trim().toUpperCase();
     const roomRow = this.db
@@ -498,8 +513,7 @@ export class SqliteMatchRepository implements MatchRepository {
     const memberRows = this.db
       .prepare(
         `SELECT id, room_id as roomId, nickname, nickname_key as nicknameKey,
-                join_order as joinOrder, recovery_credential_digest as recoveryCredentialDigest,
-                created_at as createdAt
+                join_order as joinOrder, created_at as createdAt
          FROM room_members WHERE room_id = ? ORDER BY join_order ASC`,
       )
       .all(roomRow.id) as Array<{
@@ -508,7 +522,6 @@ export class SqliteMatchRepository implements MatchRepository {
       nickname: string;
       nicknameKey: string;
       joinOrder: number;
-      recoveryCredentialDigest: string;
       createdAt: string;
     }>;
 
@@ -525,7 +538,6 @@ export class SqliteMatchRepository implements MatchRepository {
         nickname: m.nickname,
         nicknameKey: m.nicknameKey,
         joinOrder: m.joinOrder,
-        recoveryCredentialDigest: m.recoveryCredentialDigest,
         createdAt: m.createdAt,
       })),
     };

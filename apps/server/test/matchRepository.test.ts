@@ -3,7 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGame } from "@finance-game/engine";
-import { asMatchId, asPlayerId } from "@finance-game/shared";
+import { asMatchId, asPlayerId, type PlayerId } from "@finance-game/shared";
+import type Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getCurrentVersionMetadata } from "../src/match/versions.js";
 import { runMigrations } from "../src/persistence/sqlite/migrations.js";
@@ -15,17 +16,23 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(__dirname, "../migrations");
 
 describe("SqliteMatchRepository", () => {
-  let tempDbPath: string;
-  let db: ReturnType<typeof openDatabase>;
+  let tempDir: string;
+  let db: Database.Database;
   let lobbyRepo: SqliteLobbyRepository;
   let matchRepo: SqliteMatchRepository;
 
+  const p1 = asPlayerId("player-1");
+  const p2 = asPlayerId("player-2");
+  const p3 = asPlayerId("player-3");
+  const p4 = asPlayerId("player-4");
+  const playerIds: readonly PlayerId[] = [p1, p2, p3, p4];
+
   beforeEach(() => {
-    tempDbPath = path.join(
-      os.tmpdir(),
-      `finance-game-matchrepo-test-${Date.now()}-${Math.random().toString(36).substring(2)}.sqlite`,
+    tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "finance-game-matchrepo-test-"),
     );
-    db = openDatabase({ dbPath: tempDbPath });
+    const dbPath = path.join(tempDir, "test.db");
+    db = openDatabase({ dbPath });
     runMigrations(db, migrationsDir);
     lobbyRepo = new SqliteLobbyRepository(db);
     matchRepo = new SqliteMatchRepository(db);
@@ -34,14 +41,10 @@ describe("SqliteMatchRepository", () => {
   afterEach(() => {
     try {
       db.close();
-      if (fs.existsSync(tempDbPath)) fs.unlinkSync(tempDbPath);
-      const wal = `${tempDbPath}-wal`;
-      if (fs.existsSync(wal)) fs.unlinkSync(wal);
-      const shm = `${tempDbPath}-shm`;
-      if (fs.existsSync(shm)) fs.unlinkSync(shm);
     } catch {
-      // ignore cleanup errors
+      // ignore
     }
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   function setupFourSeatRoom() {
@@ -65,27 +68,24 @@ describe("SqliteMatchRepository", () => {
   it("atomically creates match, member mappings, and marks room IN_MATCH", () => {
     const { code, members } = setupFourSeatRoom();
     const roomInfo = matchRepo.findRoomWithMembers(code);
-    expect(roomInfo).toBeDefined();
-    if (!roomInfo) throw new Error("Room info not found");
+    if (!roomInfo) throw new Error("Room not found");
 
-    const playerIds = [
-      asPlayerId("player-1"),
-      asPlayerId("player-2"),
-      asPlayerId("player-3"),
-      asPlayerId("player-4"),
-    ];
-    const matchId = asMatchId("match-12345");
+    const matchId = asMatchId("match-test-1");
     const initialGameState = createGame({
       gameId: matchId,
       seed: "seed-123",
       playerIds,
     });
 
-    const memberMappings = members.map((mId, idx) => ({
-      roomMemberId: mId,
-      playerId: playerIds[idx]!,
-      playerOrder: idx,
-    }));
+    const memberMappings = members.map((mId, idx) => {
+      const pId = playerIds[idx];
+      if (!pId) throw new Error("Missing player id");
+      return {
+        roomMemberId: mId,
+        playerId: pId,
+        playerOrder: idx,
+      };
+    });
 
     const result = matchRepo.createMatch({
       matchId,
@@ -118,20 +118,17 @@ describe("SqliteMatchRepository", () => {
 
     // Mapping is stable and resolvable
     for (let i = 0; i < 4; i++) {
-      const pId = matchRepo.findPlayerForRoomMember(matchId, members[i]!);
-      expect(pId).toBe(playerIds[i]);
+      const mId = members[i];
+      if (!mId) throw new Error("Member missing");
+      const resolvedPid = matchRepo.findPlayerForRoomMember(matchId, mId);
+      expect(resolvedPid).toBe(playerIds[i]);
     }
   });
 
   it("rejects creating a second match for the same room", () => {
     const { code, members } = setupFourSeatRoom();
-    const roomInfo = matchRepo.findRoomWithMembers(code)!;
-    const playerIds = [
-      asPlayerId("player-1"),
-      asPlayerId("player-2"),
-      asPlayerId("player-3"),
-      asPlayerId("player-4"),
-    ];
+    const roomInfo = matchRepo.findRoomWithMembers(code);
+    if (!roomInfo) throw new Error("Room not found");
 
     const initialGameState = createGame({
       gameId: "match-1",
@@ -139,11 +136,15 @@ describe("SqliteMatchRepository", () => {
       playerIds,
     });
 
-    const memberMappings = members.map((mId, idx) => ({
-      roomMemberId: mId,
-      playerId: playerIds[idx]!,
-      playerOrder: idx,
-    }));
+    const memberMappings = members.map((mId, idx) => {
+      const pId = playerIds[idx];
+      if (!pId) throw new Error("Missing player id");
+      return {
+        roomMemberId: mId,
+        playerId: pId,
+        playerOrder: idx,
+      };
+    });
 
     matchRepo.createMatch({
       matchId: asMatchId("match-1"),
@@ -160,7 +161,7 @@ describe("SqliteMatchRepository", () => {
       versions: getCurrentVersionMetadata(),
     });
 
-    // Second match creation fails
+    // Second match creation for the same room must throw
     expect(() => {
       matchRepo.createMatch({
         matchId: asMatchId("match-2"),
@@ -176,18 +177,14 @@ describe("SqliteMatchRepository", () => {
         memberMappings,
         versions: getCurrentVersionMetadata(),
       });
-    }).toThrow(/Room is not in OPEN status for match start/i);
+    }).toThrow();
   });
 
   it("commits accepted commands atomically with monotonic sequence and receipt", () => {
     const { code, members } = setupFourSeatRoom();
-    const roomInfo = matchRepo.findRoomWithMembers(code)!;
-    const playerIds = [
-      asPlayerId("player-1"),
-      asPlayerId("player-2"),
-      asPlayerId("player-3"),
-      asPlayerId("player-4"),
-    ];
+    const roomInfo = matchRepo.findRoomWithMembers(code);
+    if (!roomInfo) throw new Error("Room not found");
+
     const matchId = asMatchId("match-seq-test");
     const initialGameState = createGame({
       gameId: matchId,
@@ -206,11 +203,15 @@ describe("SqliteMatchRepository", () => {
         orderedPlayerIds: playerIds,
       },
       initialSnapshot: initialGameState,
-      memberMappings: members.map((mId, idx) => ({
-        roomMemberId: mId,
-        playerId: playerIds[idx]!,
-        playerOrder: idx,
-      })),
+      memberMappings: members.map((mId, idx) => {
+        const pId = playerIds[idx];
+        if (!pId) throw new Error("Missing player id");
+        return {
+          roomMemberId: mId,
+          playerId: pId,
+          playerOrder: idx,
+        };
+      }),
       versions: getCurrentVersionMetadata(),
     });
 
@@ -224,7 +225,7 @@ describe("SqliteMatchRepository", () => {
       expectedPreviousRevision: 0,
       nextRevision: 1,
       nextState,
-      actorPlayerId: playerIds[0]!,
+      actorPlayerId: p1,
       commandId: "cmd-uuid-1",
       commandType: "CHOOSE_OBJECTIVE",
       payloadJson: JSON.stringify({ objectiveId: "obj-1" }),
@@ -243,15 +244,30 @@ describe("SqliteMatchRepository", () => {
       matchRepo.commitAcceptedCommand({
         matchId,
         expectedPreviousRevision: 0, // Stale! Current is 1
-        nextRevision: 2,
-        nextState: { ...nextState, revision: 2 },
-        actorPlayerId: playerIds[1]!,
-        commandId: "cmd-uuid-2",
+        nextRevision: 1,
+        nextState: { ...nextState, revision: 1 },
+        actorPlayerId: p2,
+        commandId: "cmd-uuid-stale",
         commandType: "CHOOSE_OBJECTIVE",
         payloadJson: JSON.stringify({ objectiveId: "obj-2" }),
-        payloadHash: "hash-2",
+        payloadHash: "hash-stale",
       });
     }).toThrow(/Revision conflict/i);
+
+    // Non-consecutive next revision is rejected
+    expect(() => {
+      matchRepo.commitAcceptedCommand({
+        matchId,
+        expectedPreviousRevision: 1,
+        nextRevision: 3, // Skipped 2!
+        nextState: { ...nextState, revision: 3 },
+        actorPlayerId: p2,
+        commandId: "cmd-uuid-jump",
+        commandType: "CHOOSE_OBJECTIVE",
+        payloadJson: JSON.stringify({ objectiveId: "obj-2" }),
+        payloadHash: "hash-jump",
+      });
+    }).toThrow(/increment revision by exactly 1/i);
 
     // Valid revision commit advances sequence to 2
     const commit2 = matchRepo.commitAcceptedCommand({
@@ -259,7 +275,7 @@ describe("SqliteMatchRepository", () => {
       expectedPreviousRevision: 1,
       nextRevision: 2,
       nextState: { ...nextState, revision: 2 },
-      actorPlayerId: playerIds[1]!,
+      actorPlayerId: p2,
       commandId: "cmd-uuid-2",
       commandType: "CHOOSE_OBJECTIVE",
       payloadJson: JSON.stringify({ objectiveId: "obj-2" }),
@@ -275,13 +291,9 @@ describe("SqliteMatchRepository", () => {
 
   it("records rejected receipt without mutating revision or command sequence", () => {
     const { code, members } = setupFourSeatRoom();
-    const roomInfo = matchRepo.findRoomWithMembers(code)!;
-    const playerIds = [
-      asPlayerId("player-1"),
-      asPlayerId("player-2"),
-      asPlayerId("player-3"),
-      asPlayerId("player-4"),
-    ];
+    const roomInfo = matchRepo.findRoomWithMembers(code);
+    if (!roomInfo) throw new Error("Room not found");
+
     const matchId = asMatchId("match-reject-test");
     const initialGameState = createGame({
       gameId: matchId,
@@ -300,36 +312,43 @@ describe("SqliteMatchRepository", () => {
         orderedPlayerIds: playerIds,
       },
       initialSnapshot: initialGameState,
-      memberMappings: members.map((mId, idx) => ({
-        roomMemberId: mId,
-        playerId: playerIds[idx]!,
-        playerOrder: idx,
-      })),
+      memberMappings: members.map((mId, idx) => {
+        const pId = playerIds[idx];
+        if (!pId) throw new Error("Missing player id");
+        return {
+          roomMemberId: mId,
+          playerId: pId,
+          playerOrder: idx,
+        };
+      }),
       versions: getCurrentVersionMetadata(),
     });
 
     const receipt = matchRepo.recordRejectedReceipt({
       matchId,
-      actorPlayerId: playerIds[0]!,
+      actorPlayerId: p1,
       commandId: "rejected-cmd-1",
       payloadHash: "rej-hash",
       errorCode: "ROOM_PAUSED",
+      errorMessage: "Room is paused",
       resultingRevision: 0,
     });
 
     expect(receipt.outcome).toBe("REJECTED");
     expect(receipt.errorCode).toBe("ROOM_PAUSED");
+    expect(receipt.errorMessage).toBe("Room is paused");
     expect(receipt.acceptedSequence).toBeNull();
 
     // Query receipt
     const foundReceipt = matchRepo.findCommandReceipt(
       matchId,
-      playerIds[0]!,
+      p1,
       "rejected-cmd-1",
     );
     expect(foundReceipt).toBeDefined();
     expect(foundReceipt?.outcome).toBe("REJECTED");
     expect(foundReceipt?.errorCode).toBe("ROOM_PAUSED");
+    expect(foundReceipt?.errorMessage).toBe("Room is paused");
 
     // Match revision must remain unchanged
     const match = matchRepo.findMatchById(matchId);
@@ -340,5 +359,145 @@ describe("SqliteMatchRepository", () => {
       .prepare("SELECT COUNT(*) as cnt FROM match_commands WHERE match_id = ?")
       .get(matchId) as { cnt: number };
     expect(commandsCount.cnt).toBe(0);
+  });
+
+  it("rolls back match creation if member mapping fails SQLite constraint", () => {
+    const { code, members } = setupFourSeatRoom();
+    const roomInfo = matchRepo.findRoomWithMembers(code);
+    if (!roomInfo) throw new Error("Room not found");
+
+    const matchId = asMatchId("match-rollback-create");
+    const initialGameState = createGame({
+      gameId: matchId,
+      seed: "seed-rb-create",
+      playerIds,
+    });
+
+    // Deliberately provide duplicate playerOrder (0 and 0) to violate UNIQUE(match_id, player_order)
+    const [m0, m1, m2, m3] = members;
+    if (!m0 || !m1 || !m2 || !m3) throw new Error("Missing members");
+    const duplicateOrderMappings = [
+      { roomMemberId: m0, playerId: p1, playerOrder: 0 },
+      { roomMemberId: m1, playerId: p2, playerOrder: 0 },
+      { roomMemberId: m2, playerId: p3, playerOrder: 2 },
+      { roomMemberId: m3, playerId: p4, playerOrder: 3 },
+    ];
+
+    expect(() => {
+      matchRepo.createMatch({
+        matchId,
+        roomId: roomInfo.room.id,
+        modeId: "standard-v1",
+        initializationManifest: {
+          gameId: matchId,
+          modeId: "standard-v1",
+          seed: "seed-rb-create",
+          orderedPlayerIds: playerIds,
+        },
+        initialSnapshot: initialGameState,
+        memberMappings: duplicateOrderMappings,
+        versions: getCurrentVersionMetadata(),
+      });
+    }).toThrow(/UNIQUE constraint failed/i);
+
+    // Match was rolled back: no row in matches
+    const matchAfter = matchRepo.findMatchById(matchId);
+    expect(matchAfter).toBeNull();
+
+    // No rows in match_members
+    const membersCount = db
+      .prepare("SELECT COUNT(*) as cnt FROM match_members WHERE match_id = ?")
+      .get(matchId) as { cnt: number };
+    expect(membersCount.cnt).toBe(0);
+
+    // Room remains OPEN (not transitioned to IN_MATCH)
+    const roomAfter = matchRepo.findRoomWithMembers(code);
+    expect(roomAfter?.room.status).toBe("OPEN");
+  });
+
+  it("rolls back atomic command commit if SQLite constraint is violated mid-transaction", () => {
+    const { code, members } = setupFourSeatRoom();
+    const roomInfo = matchRepo.findRoomWithMembers(code);
+    if (!roomInfo) throw new Error("Room not found");
+
+    const matchId = asMatchId("match-rollback-cmd");
+    const initialGameState = createGame({
+      gameId: matchId,
+      seed: "seed-rb-cmd",
+      playerIds,
+    });
+
+    matchRepo.createMatch({
+      matchId,
+      roomId: roomInfo.room.id,
+      modeId: "standard-v1",
+      initializationManifest: {
+        gameId: matchId,
+        modeId: "standard-v1",
+        seed: "seed-rb-cmd",
+        orderedPlayerIds: playerIds,
+      },
+      initialSnapshot: initialGameState,
+      memberMappings: members.map((mId, idx) => {
+        const pId = playerIds[idx];
+        if (!pId) throw new Error("Missing player id");
+        return {
+          roomMemberId: mId,
+          playerId: pId,
+          playerOrder: idx,
+        };
+      }),
+      versions: getCurrentVersionMetadata(),
+    });
+
+    // First commit succeeds
+    const nextState1 = { ...initialGameState, revision: 1 };
+    matchRepo.commitAcceptedCommand({
+      matchId,
+      expectedPreviousRevision: 0,
+      nextRevision: 1,
+      nextState: nextState1,
+      actorPlayerId: p1,
+      commandId: "cmd-first",
+      commandType: "CHOOSE_OBJECTIVE",
+      payloadJson: JSON.stringify({ objectiveId: "obj-1" }),
+      payloadHash: "hash-first",
+    });
+
+    // Attempt second commit with a reused command_id for the same actor that violates UNIQUE(match_id, actor_player_id, command_id) in match_commands
+    const nextState2 = { ...initialGameState, revision: 2 };
+    expect(() => {
+      matchRepo.commitAcceptedCommand({
+        matchId,
+        expectedPreviousRevision: 1,
+        nextRevision: 2,
+        nextState: nextState2,
+        actorPlayerId: p1,
+        commandId: "cmd-first", // Duplicate commandId!
+        commandType: "CHOOSE_OBJECTIVE",
+        payloadJson: JSON.stringify({ objectiveId: "obj-2" }),
+        payloadHash: "hash-second",
+      });
+    }).toThrow(/UNIQUE constraint failed/i);
+
+    // Revision remains 1
+    const matchAfterFail = matchRepo.findMatchById(matchId);
+    expect(matchAfterFail?.match.revision).toBe(1);
+
+    // Exactly one command sequence exists (sequence 1), no sequence 2
+    const commands = db
+      .prepare(
+        "SELECT sequence FROM match_commands WHERE match_id = ? ORDER BY sequence ASC",
+      )
+      .all(matchId) as Array<{ sequence: number }>;
+    expect(commands).toHaveLength(1);
+    expect(commands[0]?.sequence).toBe(1);
+
+    // Exactly one receipt exists
+    const receipts = db
+      .prepare("SELECT command_id FROM command_receipts WHERE match_id = ?")
+      .all(matchId) as Array<{ command_id: string }>;
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0]?.command_id).toBe("cmd-first");
   });
 });

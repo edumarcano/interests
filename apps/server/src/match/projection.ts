@@ -5,8 +5,7 @@ import type {
   PlayerId,
   RoomMemberId,
 } from "@finance-game/shared";
-import type { RoomMemberRecord } from "../lobby/types.js";
-import type { MatchMemberRecord } from "./types.js";
+import type { MatchMemberRecord, MatchRoomMember } from "./types.js";
 
 /**
  * Combines pure engine GameState projection with lobby member metadata
@@ -15,7 +14,7 @@ import type { MatchMemberRecord } from "./types.js";
 export function buildMatchPlayerView(params: {
   gameState: GameState;
   targetPlayerId: PlayerId;
-  roomMembers: readonly RoomMemberRecord[];
+  roomMembers: readonly MatchRoomMember[];
   matchMembers: readonly MatchMemberRecord[];
   hostMemberId: RoomMemberId;
 }): MatchPlayerView {
@@ -29,7 +28,7 @@ export function buildMatchPlayerView(params: {
     memberByPlayerId.set(mm.playerId, mm);
   }
 
-  const roomMemberById = new Map<RoomMemberId, RoomMemberRecord>();
+  const roomMemberById = new Map<RoomMemberId, MatchRoomMember>();
   for (const rm of params.roomMembers) {
     roomMemberById.set(rm.id, rm);
   }

@@ -1,12 +1,12 @@
 import type { LobbyRepository } from "../lobby/types.js";
-import { loadAndValidateSnapshot } from "./snapshotLoader.js";
+import { loadAndValidatePersistedMatch } from "./snapshotLoader.js";
 import type { MatchRepository } from "./types.js";
 
 /**
  * Validates and recovers persisted ACTIVE matches on server process startup.
  *
  * For each active match:
- * - If the snapshot and versions validate against current runtime constants,
+ * - If the match envelope and snapshot validate against current runtime constants,
  *   sets the operational SERVER_RESTART pause reason.
  * - If validation fails or versions are incompatible, sets the SYSTEM_FAULT
  *   pause reason, preserving stored data and blocking gameplay.
@@ -22,12 +22,12 @@ export function recoverActiveMatchesOnStartup(
   for (const item of activeMatches) {
     const { match, roomCode } = item;
     try {
-      loadAndValidateSnapshot(match.snapshotJson, {
-        engineVersion: match.engineVersion,
-        rulesVersion: match.rulesVersion,
-        sharedVersion: match.sharedVersion,
-        persistenceFormatVersion: match.persistenceFormatVersion,
-      });
+      const matchWithMembers = matchRepository.findMatchById(match.id);
+      if (!matchWithMembers) {
+        throw new Error("Match not found");
+      }
+      const roomInfo = matchRepository.findRoomWithMembers(roomCode);
+      loadAndValidatePersistedMatch(matchWithMembers, roomInfo?.members);
 
       lobbyRepository.addPauseReason({
         roomCode,

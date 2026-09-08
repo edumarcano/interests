@@ -1,3 +1,4 @@
+import type { ObjectiveId } from "@finance-game/rules";
 import type { PlayerId } from "@finance-game/shared";
 import type { GameState } from "../model/gameState.js";
 import { type ActionResult, applyAction } from "./actions.js";
@@ -40,6 +41,6 @@ export function applyPlayerCommand(
   return applyAction(state, {
     type: "CHOOSE_OBJECTIVE",
     playerId: actorPlayerId,
-    objectiveId: wireCommand.objectiveId as any,
+    objectiveId: wireCommand.objectiveId as ObjectiveId,
   });
 }
