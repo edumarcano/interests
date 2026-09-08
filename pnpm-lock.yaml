@@ -127,6 +127,12 @@ importers:
       '@fastify/rate-limit':
         specifier: ^11.2.0
         version: 11.2.0
+      '@finance-game/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@finance-game/rules':
+        specifier: workspace:*
+        version: link:../../packages/rules
       '@finance-game/shared':
         specifier: workspace:*
         version: link:../../packages/shared

@@ -11,9 +11,13 @@ import {
 import type { ServerConfig } from "./config.js";
 import { LobbyError } from "./lobby/errors.js";
 import type { LobbyRepository } from "./lobby/types.js";
+import { MatchService } from "./match/MatchService.js";
+import type { MatchRepository } from "./match/types.js";
+import { MatchError } from "./match/types.js";
 import { RoomConnectionCoordinator } from "./realtime/RoomConnectionCoordinator.js";
 import { registerSocketHandlers } from "./realtime/registerSocketHandlers.js";
 import { registerLobbyRoutes } from "./routes/lobbyRoutes.js";
+import { registerMatchRoutes } from "./routes/matchRoutes.js";
 
 export interface CreateServerOptions {
   config?: ServerConfig;
@@ -21,12 +25,15 @@ export interface CreateServerOptions {
   socketIoOptions?: Partial<SocketIOServerOptions>;
   onClose?: () => Promise<void> | void;
   repository?: LobbyRepository;
+  matchRepository?: MatchRepository;
+  matchService?: MatchService;
 }
 
 export interface GameServer {
   fastify: FastifyInstance;
   io: SocketIOServer;
   coordinator?: RoomConnectionCoordinator;
+  matchService?: MatchService;
   close: () => Promise<void>;
 }
 
@@ -67,7 +74,7 @@ export function createServer(options: CreateServerOptions = {}): GameServer {
   });
 
   fastify.setErrorHandler((error: unknown, _request, reply) => {
-    if (error instanceof LobbyError) {
+    if (error instanceof LobbyError || error instanceof MatchError) {
       reply.status(error.statusCode).send({
         error: {
           code: error.code,
@@ -123,16 +130,41 @@ export function createServer(options: CreateServerOptions = {}): GameServer {
   });
 
   const coordinator = options.repository
-    ? new RoomConnectionCoordinator(io, options.repository)
+    ? new RoomConnectionCoordinator(
+        io,
+        options.repository,
+        options.matchRepository,
+      )
     : undefined;
 
+  const matchService =
+    options.matchService ??
+    (options.repository && options.matchRepository && coordinator
+      ? new MatchService(
+          options.matchRepository,
+          options.repository,
+          coordinator,
+        )
+      : undefined);
+
+  if (coordinator && matchService) {
+    coordinator.setMatchService(matchService);
+  }
+
   if (options.repository && coordinator) {
-    registerSocketHandlers(io, options.repository, coordinator);
+    registerSocketHandlers(io, options.repository, coordinator, matchService);
     fastify.register(registerLobbyRoutes, {
       config,
       repository: options.repository,
       coordinator,
     });
+
+    if (matchService) {
+      fastify.register(registerMatchRoutes, {
+        config,
+        matchService,
+      });
+    }
   }
 
   fastify.addHook("onClose", async () => {

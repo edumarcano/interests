@@ -850,4 +850,34 @@ export class SqliteLobbyRepository implements LobbyRepository {
         .run(nowIso, roomRow.id);
     })();
   }
+
+  removePauseReasons(params: {
+    roomCode: string;
+    reasons: readonly PauseReason[];
+  }): void {
+    if (params.reasons.length === 0) return;
+    const normalizedCode = normalizeRoomCode(params.roomCode);
+
+    this.db.transaction(() => {
+      const roomRow = this.db
+        .prepare("SELECT id FROM rooms WHERE code = ?")
+        .get(normalizedCode) as { id: string } | undefined;
+
+      if (!roomRow) {
+        throw new LobbyError("ROOM_NOT_FOUND", "Room not found", 404);
+      }
+
+      const placeholders = params.reasons.map(() => "?").join(", ");
+      this.db
+        .prepare(
+          `DELETE FROM room_pause_reasons WHERE room_id = ? AND reason IN (${placeholders})`,
+        )
+        .run(roomRow.id, ...params.reasons);
+
+      const nowIso = new Date().toISOString();
+      this.db
+        .prepare("UPDATE rooms SET last_activity_at = ? WHERE id = ?")
+        .run(nowIso, roomRow.id);
+    })();
+  }
 }

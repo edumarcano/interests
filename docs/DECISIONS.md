@@ -457,3 +457,60 @@ Establish the authenticated Socket.IO session layer, controlling socket lifecycl
    - In-memory presence, generations, and socket references are discarded upon process restart; every member starts offline and unsynchronized.
    - Persisted pause reasons remain stored in SQLite. Automatic `SERVER_RESTART` pause for an active match belongs to the upcoming match/GameState persistence slice, as no match record exists yet.
 
+## ARCH-033 - Durable match snapshots and idempotent command commits
+
+**Status:** Accepted  
+**Date:** September 8, 2026
+
+Establish the durable match boundary, GameState persistence, idempotent command processing, and restart recovery architecture for Standard V1:
+
+1. **One Authoritative Match per Room:**
+   - Each started room has exactly one persisted match (`UNIQUE(room_id)`).
+   - Starting a match transitions the room lifecycle from `OPEN` to `IN_MATCH` atomically. Once `IN_MATCH`, no new members can join, the four `RoomMember` seats remain durable, and seat recovery reclaims the same member seat.
+   - Second match start attempts are treated idempotently, returning the existing match view.
+
+2. **Durable RoomMember-to-PlayerId Mapping:**
+   - `RoomMember` identity is mapped to engine `PlayerId` (`player-1` .. `player-4`) strictly at match start based on deterministic lobby join order (0 to 3).
+   - The mapping is persisted in `match_members` (`PRIMARY KEY(match_id, room_member_id)`, `UNIQUE(match_id, player_id)`, `UNIQUE(match_id, player_order)`) and remains immutable across refresh, credential recovery, and server restart.
+
+3. **Complete Canonical GameState Snapshots & Initialization Manifest:**
+   - Authoritative `GameState` is persisted as a complete JSON document (`snapshot_json`), which is the sole source of truth upon restart.
+   - The private initialization manifest (`gameId`, `modeId`, `seed`, `orderedPlayerIds`) is persisted separately in `initialization_json` for replay reproducibility. The random seed is generated using CSPRNG (`node:crypto`, 32 bytes base64url) and is strictly server-private.
+   - Version metadata (`engine_version`, `rules_version`, `shared_version`, `persistence_format_version`) is stored explicitly in dedicated columns and verified against runtime constants on load.
+
+4. **Snapshot Trust Boundary & Validation:**
+   - Persisted JSON is a trust boundary. Snapshots are loaded through an explicit validator that performs structural checks and executes engine `assertGameState`.
+   - Corrupt snapshots or incompatible version metadata must never be silently repaired or replaced with new games; they activate `SYSTEM_FAULT`, preserve stored data, and prevent gameplay execution.
+
+5. **Serialized Command Execution & Atomic Commit Pipeline:**
+   - Economic commands are serialized strictly per room via an in-memory FIFO queue.
+   - Transition pipeline:
+     1. Authenticate and verify socket remains current controller with matching connection generation;
+     2. Validate command envelope schema;
+     3. Compute canonical SHA-256 payload hash over deterministic serialization of `(expectedRevision, command.type, payload)`;
+     4. Look up existing receipt by `(match_id, actor_player_id, command_id)`:
+        - If matching receipt exists: return original terminal outcome immediately without rerunning engine;
+        - If same command ID exists with different payload hash: reject with `COMMAND_ID_REUSED`;
+     5. If no receipt exists: load and validate latest snapshot, verify room is not paused, and check `expectedRevision === matches.revision`;
+     6. Execute pure engine transition (`applyPlayerCommand`);
+     7. Commit atomically in SQLite: verify previous revision, allocate next monotonically increasing command sequence in `match_commands`, insert terminal receipt in `command_receipts`, insert emitted events into `match_events` if any, and update `matches.snapshot_json` and `matches.revision`;
+     8. Acknowledge socket only after SQLite commit succeeds;
+     9. Broadcast personalized allowlisted match views to current controlling sockets.
+
+6. **Durable Receipts and Rejection Semantics:**
+   - Rejected well-formed authenticated commands (due to `ROOM_PAUSED`, `STALE_REVISION`, or engine `GAMEPLAY_REJECTED`) persist durable receipts with outcome `REJECTED` and an error code, without mutating `GameState`, consuming RNG, advancing counters, or adding `match_commands` rows.
+   - Malformed or unauthenticated traffic creates no receipts.
+
+7. **Process Restart and Crash Recovery:**
+   - Operational presence, connection generations, and queues are discarded on restart; `GameState` is never mutated to reflect transport or pause changes.
+   - On server startup, all persisted `ACTIVE` matches are validated. Valid matches receive an automatic `SERVER_RESTART` pause reason in `room_pause_reasons`; invalid matches receive `SYSTEM_FAULT`.
+   - Host-only resume after restart requires all four seats to be connected and synchronized, the match to be valid, and `SYSTEM_FAULT` to be absent. Successful resume atomically clears `DISCONNECTED_MEMBER` and `SERVER_RESTART` without altering `GameState`, RNG, counters, or cash.
+   - Unresolved active transactions, reservations, and domain state survive crash/restart exactly.
+
+8. **Player Match View Projections:**
+   - Sockets and HTTP bootstrap receive allowlisted, player-specific projections (`MatchPlayerView`).
+   - Projections contain self profile, offered objectives, and selection status, but only public summaries of other players.
+   - Seeds, raw RNG state, deterministic counters, other players' objective offers or selections, cash, and complete snapshots are strictly excluded from network DTOs.
+   - In PR #19, `CHOOSE_OBJECTIVE` is the only exposed player command; post-objective major transactions await the G1 rotating spotlight orchestration in Milestone 6.
+
+

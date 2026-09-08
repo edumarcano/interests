@@ -175,13 +175,16 @@ describe("SQLite migration runner", () => {
     );
   });
 
-  it("applies migration 001 and 002 and enforces CHECK constraint on pause reasons", () => {
+  it("applies migrations 001, 002, and 003 and enforces constraints", () => {
     const actualMigrationsDir = path.resolve(__dirname, "../migrations");
     const result = runMigrations(db, actualMigrationsDir);
-    expect(result.applied.map((m) => m.version)).toEqual([1, 2]);
+    expect(result.applied.map((m) => m.version)).toEqual([1, 2, 3]);
 
     const tableInfo = db.prepare("PRAGMA table_info(room_pause_reasons)").all();
     expect(tableInfo.length).toBeGreaterThan(0);
+
+    const matchesTableInfo = db.prepare("PRAGMA table_info(matches)").all();
+    expect(matchesTableInfo.length).toBeGreaterThan(0);
 
     // Insert a dummy room to satisfy foreign key
     const nowIso = new Date().toISOString();

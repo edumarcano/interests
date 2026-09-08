@@ -143,4 +143,9 @@ export interface LobbyRepository {
   addPauseReason(params: { roomCode: string; reason: PauseReason }): void;
 
   removePauseReason(params: { roomCode: string; reason: PauseReason }): void;
+
+  removePauseReasons(params: {
+    roomCode: string;
+    reasons: readonly PauseReason[];
+  }): void;
 }

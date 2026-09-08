@@ -4,12 +4,14 @@ export const SESSION_COOKIE_NAME = "finance_game_session";
 export const SOCKET_CLIENT_EVENTS = {
   SYNCHRONIZE: "session:synchronized",
   RESUME: "room:resume",
+  COMMAND: "match:command",
 } as const;
 
 export const SOCKET_SERVER_EVENTS = {
   BOOTSTRAP: "session:bootstrap",
   REPLACED: "session:replaced",
   PRESENCE: "room:presence",
+  MATCH_VIEW: "match:view",
 } as const;
 
 export const SOCKET_ERROR_CODES = {
@@ -22,6 +24,12 @@ export const SOCKET_ERROR_CODES = {
   ROOM_NOT_READY: "ROOM_NOT_READY",
   FORBIDDEN: "FORBIDDEN",
   INTERNAL_ERROR: "INTERNAL_ERROR",
+  NO_ACTIVE_MATCH: "NO_ACTIVE_MATCH",
+  ROOM_PAUSED: "ROOM_PAUSED",
+  STALE_REVISION: "STALE_REVISION",
+  COMMAND_ID_REUSED: "COMMAND_ID_REUSED",
+  GAMEPLAY_REJECTED: "GAMEPLAY_REJECTED",
+  MATCH_INCOMPATIBLE: "MATCH_INCOMPATIBLE",
 } as const;
 
 export type SocketErrorCode =

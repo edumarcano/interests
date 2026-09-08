@@ -5,6 +5,9 @@ import type {
   AuthenticatedMemberResult,
   LobbyRepository,
 } from "../lobby/types.js";
+import type { MatchService } from "../match/MatchService.js";
+import { loadAndValidatePersistedMatch } from "../match/snapshotLoader.js";
+import type { MatchRepository } from "../match/types.js";
 import {
   SOCKET_ERROR_CODES,
   SOCKET_PROTOCOL_VERSION,
@@ -40,11 +43,26 @@ export class RoomConnectionCoordinator {
   private readonly memberStates = new Map<RoomMemberId, MemberSessionState>();
   private readonly roomMeta = new Map<string, RoomMeta>();
   private isShuttingDown = false;
+  private matchRepository?: MatchRepository;
+  private matchService?: MatchService;
 
   constructor(
     private readonly io: SocketIOServer,
     private readonly repository: LobbyRepository,
-  ) {}
+    matchRepository?: MatchRepository,
+    matchService?: MatchService,
+  ) {
+    this.matchRepository = matchRepository;
+    this.matchService = matchService;
+  }
+
+  setMatchRepository(repo: MatchRepository): void {
+    this.matchRepository = repo;
+  }
+
+  setMatchService(service: MatchService): void {
+    this.matchService = service;
+  }
 
   prepareShutdown(): void {
     this.isShuttingDown = true;
@@ -178,7 +196,14 @@ export class RoomConnectionCoordinator {
     // Build and send bootstrap
     const roomView = this.repository.getRoomLobbyViewByCode(normalizedCode);
     if (roomView) {
+      const match = this.matchService
+        ? this.matchService.getMatchViewForMember({
+            roomCode: normalizedCode,
+            memberId,
+          })
+        : null;
       const presence = this.buildPresencePayload(normalizedCode);
+
       const bootstrapPayload: BootstrapPayload = {
         protocolVersion: SOCKET_PROTOCOL_VERSION,
         room: roomView,
@@ -190,6 +215,7 @@ export class RoomConnectionCoordinator {
         pause: {
           reasons: presence.pauseReasons,
         },
+        match,
       };
       socket.emit(SOCKET_SERVER_EVENTS.BOOTSTRAP, bootstrapPayload);
     }
@@ -370,11 +396,54 @@ export class RoomConnectionCoordinator {
       return;
     }
 
-    // Idempotently clear DISCONNECTED_MEMBER; leaves other pause reasons untouched
-    this.repository.removePauseReason({
-      roomCode: data.roomCode,
-      reason: "DISCONNECTED_MEMBER",
-    });
+    if (presence.pauseReasons.includes("SYSTEM_FAULT")) {
+      safeAck(ack, {
+        ok: false,
+        error: {
+          code: SOCKET_ERROR_CODES.ROOM_NOT_READY,
+          message: "Room is in SYSTEM_FAULT state and cannot be resumed.",
+        },
+      });
+      return;
+    }
+
+    const matchWithMembers = this.matchRepository?.findMatchByRoomCode(
+      data.roomCode,
+    );
+    if (matchWithMembers) {
+      try {
+        const roomInfo = this.matchRepository?.findRoomWithMembers(
+          data.roomCode,
+        );
+        loadAndValidatePersistedMatch(matchWithMembers, roomInfo?.members);
+      } catch {
+        this.repository.addPauseReason({
+          roomCode: data.roomCode,
+          reason: "SYSTEM_FAULT",
+        });
+        this.broadcastPresence(data.roomCode);
+        safeAck(ack, {
+          ok: false,
+          error: {
+            code: SOCKET_ERROR_CODES.ROOM_NOT_READY,
+            message: "Match snapshot is corrupted or incompatible.",
+          },
+        });
+        return;
+      }
+
+      // Atomically clear DISCONNECTED_MEMBER and SERVER_RESTART in a single SQLite transaction
+      this.repository.removePauseReasons({
+        roomCode: data.roomCode,
+        reasons: ["DISCONNECTED_MEMBER", "SERVER_RESTART"],
+      });
+    } else {
+      // Lobby without an active match
+      this.repository.removePauseReason({
+        roomCode: data.roomCode,
+        reason: "DISCONNECTED_MEMBER",
+      });
+    }
 
     const pauseReasons = this.repository.getPauseReasons(data.roomCode);
     this.broadcastPresence(data.roomCode);
@@ -384,6 +453,26 @@ export class RoomConnectionCoordinator {
         pauseReasons,
       },
     });
+  }
+
+  broadcastMatchView(roomCode: string): void {
+    if (!this.matchService) return;
+    const normalized = normalizeRoomCode(roomCode);
+    const roomView = this.repository.getRoomLobbyViewByCode(normalized);
+    if (!roomView) return;
+
+    for (const member of roomView.members) {
+      const state = this.memberStates.get(member.memberId);
+      if (state?.connected && state.controllingSocket) {
+        const view = this.matchService.getMatchViewForMember({
+          roomCode: normalized,
+          memberId: member.memberId,
+        });
+        if (view) {
+          state.controllingSocket.emit(SOCKET_SERVER_EVENTS.MATCH_VIEW, view);
+        }
+      }
+    }
   }
 
   invalidateMemberController(memberId: RoomMemberId, reason: "RECOVERY"): void {
