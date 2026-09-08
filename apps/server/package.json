@@ -11,6 +11,8 @@
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
     "@fastify/rate-limit": "^11.2.0",
+    "@finance-game/engine": "workspace:*",
+    "@finance-game/rules": "workspace:*",
     "@finance-game/shared": "workspace:*",
     "better-sqlite3": "12.11.1",
     "cookie": "^1.0.2",

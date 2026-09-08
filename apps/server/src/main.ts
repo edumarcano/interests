@@ -2,9 +2,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseServerConfig } from "./config.js";
 import { createServer } from "./createServer.js";
+import { recoverActiveMatchesOnStartup } from "./match/startupRecovery.js";
 import { runMigrations } from "./persistence/sqlite/migrations.js";
 import { openDatabase } from "./persistence/sqlite/openDatabase.js";
 import { SqliteLobbyRepository } from "./persistence/sqlite/SqliteLobbyRepository.js";
+import { SqliteMatchRepository } from "./persistence/sqlite/SqliteMatchRepository.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -16,10 +18,14 @@ async function main(): Promise<void> {
   runMigrations(db, migrationsDir);
 
   const repository = new SqliteLobbyRepository(db);
+  const matchRepository = new SqliteMatchRepository(db);
+
+  recoverActiveMatchesOnStartup(matchRepository, repository);
 
   const server = createServer({
     config,
     repository,
+    matchRepository,
     onClose: () => {
       db.close();
     },

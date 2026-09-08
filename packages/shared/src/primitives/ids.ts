@@ -15,6 +15,8 @@ export type TransactionId = BrandedId<"TransactionId">;
 export type RoomId = BrandedId<"RoomId">;
 export type RoomMemberId = BrandedId<"RoomMemberId">;
 export type BrowserSessionId = BrandedId<"BrowserSessionId">;
+export type MatchId = BrandedId<"MatchId">;
+export type CommandId = BrandedId<"CommandId">;
 
 export function asGameId(value: string): GameId {
   return value as GameId;
@@ -58,4 +60,12 @@ export function asRoomMemberId(value: string): RoomMemberId {
 
 export function asBrowserSessionId(value: string): BrowserSessionId {
   return value as BrowserSessionId;
+}
+
+export function asMatchId(value: string): MatchId {
+  return value as MatchId;
+}
+
+export function asCommandId(value: string): CommandId {
+  return value as CommandId;
 }

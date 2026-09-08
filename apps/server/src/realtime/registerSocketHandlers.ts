@@ -4,6 +4,7 @@ import type {
   AuthenticatedMemberResult,
   LobbyRepository,
 } from "../lobby/types.js";
+import type { MatchService } from "../match/MatchService.js";
 import type { RoomConnectionCoordinator } from "./RoomConnectionCoordinator.js";
 import {
   SESSION_COOKIE_NAME,
@@ -26,6 +27,7 @@ export function registerSocketHandlers(
   io: SocketIOServer,
   repository: LobbyRepository,
   coordinator: RoomConnectionCoordinator,
+  matchService?: MatchService,
 ): void {
   // Handshake authentication and validation middleware
   io.use((socket: Socket, next: (err?: Error) => void) => {
@@ -213,6 +215,39 @@ export function registerSocketHandlers(
           ? (ackCandidate as (result: unknown) => void)
           : undefined;
       coordinator.handleResume(socket, ack);
+    });
+
+    socket.on(SOCKET_CLIENT_EVENTS.COMMAND, async (...args: unknown[]) => {
+      const payload = args[0];
+      const ackCandidate = args.find((arg) => typeof arg === "function");
+      const ack =
+        typeof ackCandidate === "function"
+          ? (ackCandidate as (result: unknown) => void)
+          : undefined;
+
+      if (!matchService) {
+        if (ack) {
+          ack({
+            ok: false,
+            commandId: "unknown",
+            error: {
+              code: SOCKET_ERROR_CODES.INTERNAL_ERROR,
+              message: "Match service is unavailable",
+            },
+            revision: 0,
+          });
+        }
+        return;
+      }
+
+      const result = await matchService.executeCommand({
+        socket,
+        envelope: payload,
+      });
+
+      if (ack) {
+        ack(result);
+      }
     });
 
     socket.on("disconnect", () => {
