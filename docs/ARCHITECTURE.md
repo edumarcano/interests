@@ -1,9 +1,9 @@
 # Financial Strategy Game - Technical Architecture
 
-> **Version:** 0.1  
-> **Date:** September 5, 2026  
+> **Version:** 0.2  
+> **Date:** September 8, 2026  
 > **Status:** Architecture baseline for implementation  
-> **Companion:** [GAME_DESIGN.md](GAME_DESIGN.md), canonical game design v0.3  
+> **Companion:** [GAME_DESIGN.md](GAME_DESIGN.md), canonical game design v0.4  
 > **Intended location:** `docs/ARCHITECTURE.md`
 
 ## Purpose and authority
@@ -39,10 +39,10 @@ The decisions here are the implementation defaults. Change them deliberately, re
 19. [Testing and simulations](#19-testing-and-simulations)
 20. [Tooling, CI, and deployment](#20-tooling-ci-and-deployment)
 21. [Implementation sequence](#21-implementation-sequence)
-22. [Open gameplay dependencies](#22-open-gameplay-dependencies)
-23. [AI-assisted development rules](#23-ai-assisted-development-rules)
-24. [Decision register](#24-decision-register)
-25. [References](#25-references)
+22: 22. [Open gameplay dependencies](#22-open-gameplay-dependencies)
+23: 23. [AI-assisted development rules](#23-ai-assisted-development-rules)
+24: 24. [Decision register](#24-decision-register)
+25: 25. [References](#25-references)
 
 ## 1. Decision summary
 
@@ -64,17 +64,17 @@ The decisions here are the implementation defaults. Change them deliberately, re
 | Engine updates | Immutable public API; Immer internally | Concise draft updates without modifying caller-owned state. [R9] |
 | Financial calculations | Integer-cent state; `decimal.js` for intermediate arithmetic | Centralize precision and rounding rather than using scattered floating-point dollar calculations. [R10] |
 | Gameplay randomness | `seedrandom` behind an engine-owned adapter | Explicit seeds and serializable generator state. Never use it for credentials. [R11] |
-| Persistence | PostgreSQL 18 + `pg`, parameterized SQL | Durable snapshots, action records, and atomic writes. No ORM initially. [R12], [R13] |
+| Persistence | SQLite via `better-sqlite3`, parameterized SQL | Durable snapshots, action records, and atomic writes. Isolated inside the server persistence layer. No ORM. [R12], [R13] |
 | Tests | Vitest, fast-check, React Testing Library, Playwright | Financial examples, invariants, generated cases, components, and real browser flows. [R14], [R15], [R16], [R23] |
-| Code quality | ESLint + typescript-eslint + Prettier | Typed checks, dependency restrictions, and consistent formatting. [R17] |
+| Code quality | Biome | Unified fast formatting and linting across the workspace. |
 | CI | GitHub Actions | Run the same reproducible checks locally and on pull requests. [R18] |
-| Initial deployment | One long-lived Node server plus PostgreSQL | No distributed room ownership, Redis, microservices, or serverless WebSocket design. |
+| Initial deployment | Local-first Node server on host machine (Fastify + Socket.IO + SQLite) | Local-first LAN play for players physically together. Binds to local network; no paid cloud, external database container, or internet connection required for V1. [ARCH-029] |
 
 Choose compatible stable package releases when scaffolding and commit exact direct-dependency versions. Do not install pre-releases just because they are newer. Record the exact Node patch in `.nvmrc` and the pnpm version in `package.json#packageManager`.
 
 ### 1.2 Important refinements to earlier proposals
 
-- The first headless engine needs no database. The first **reconnectable multiplayer build does**: PostgreSQL is part of that milestone, not an optional final polish task.
+- The first headless engine needs no database. The first **reconnectable multiplayer build does**: SQLite via `better-sqlite3` is part of that milestone, not an optional final polish task.
 - The web app imports neither the server nor the authoritative engine. It receives a deliberately limited view.
 - A seed is not sufficient for exact match replay. Initialization, ordered accepted commands, rule/content versions, and compatible engine/RNG code are also required.
 - A disconnected player's quarter is not simulated in real time. The match pauses; no bot makes financial decisions for them.
@@ -114,9 +114,9 @@ No team mode, in-game chat, voice infrastructure, 3D, mandatory TV display, AI o
 Phone / laptop browser
   React interface + player-specific view
                 |
-                | HTTPS + Socket.IO
+                | HTTPS + Socket.IO (Local LAN / Wi-Fi)
                 v
-Single Node.js / Fastify application
+Single Node.js / Fastify application (Host PC / Laptop)
   Authentication -> room controller -> command queue
                                       |
                                       v
@@ -124,11 +124,11 @@ Single Node.js / Fastify application
                                       |
                          candidate next state + effects
                                       |
-                PostgreSQL atomic persistence
+                    SQLite atomic persistence (better-sqlite3)
                                       |
-                    Authorized player projections
+                     Authorized player projections
                                       |
-                          Individual browser updates
+                           Individual browser updates
 
 Simulation CLI -> the same engine + the same rules
               -> no browser, sockets, or database required
@@ -136,7 +136,7 @@ Simulation CLI -> the same engine + the same rules
 
 Fastify owns one underlying HTTP server. Attach Socket.IO to that server; do not create a second independent listening server or also install a competing WebSocket transport. Socket.IO clients must use `socket.io-client`, not a raw browser `WebSocket` connection. [R5], [R19]
 
-The browser expresses intent. The engine determines legality and financial consequences. The server authenticates, orders, persists, and distributes the result. PostgreSQL stores durable state. The host is a player with limited administrative permissions, not the authority for calculations.
+The browser expresses intent. The engine determines legality and financial consequences. The server authenticates, orders, persists, and distributes the result. SQLite stores durable state. The host is a player with limited administrative permissions, not the authority for calculations.
 
 No part of gameplay requires a live AI service. AI-assisted development does not imply AI-generated financial rules or opportunities at runtime.
 
@@ -222,13 +222,11 @@ This is the target structure. Create modules when implementing their first respo
   .env.example
   .gitignore
   .nvmrc
-  compose.yaml                # Local PostgreSQL, when multiplayer begins
+  biome.json
   pnpm-workspace.yaml
   pnpm-lock.yaml
   package.json
   tsconfig.base.json
-  eslint.config.mjs
-  .prettierrc.json
   README.md
 ```
 
@@ -387,14 +385,14 @@ A long human negotiation never holds a database transaction open. Each offer, ac
 
 Every submitted command carries a unique `commandId`. Store its payload hash and durable result under `(matchId, memberId, commandId)`. A retry of the same command returns the recorded result; reuse with a different payload is rejected.
 
-Use an overall state revision for synchronization, and **context/terms versions** for decisions. Do not reject every parallel planning response merely because another player submitted first. Instead:
+Use an overall state revision for synchronization, and **context/terms versions** for decisions. Do not reject every parallel background response merely because another player submitted first. Instead:
 
 - commands bind to the expected phase or interaction ID;
 - financial acceptances bind to the exact offer/terms revision;
 - current affordability is checked again inside the queue;
 - changed relevant terms cause `STALE_CONTEXT` and a refreshed preview.
 
-A harmless update elsewhere does not invalidate another player's focus selection. A price or ownership change does invalidate an acceptance based on old terms. There is no automatic resubmission with a newly invented command ID.
+A harmless update elsewhere does not invalidate another player's preparatory actions. A price or ownership change does invalidate an acceptance based on old terms. There is no automatic resubmission with a newly invented command ID.
 
 ## 8. Round and transaction state machines
 
@@ -402,30 +400,60 @@ A harmless update elsewhere does not invalidate another player's focus selection
 
 Represent phases with discriminated unions so impossible combinations are difficult to construct.
 
+Standard V1 uses the locked G1 flow without a mandatory synchronous planning or ready phase:
+
 ```text
 OBJECTIVE_SELECTION
         |
         v
-ROUND_PREVIEW -> PLANNING -> SPOTLIGHT
-                                |
-                        [REACTION_WINDOW]
-                                |
-                     close / cancel / pass
-                                |
-                   next spotlight or settlement
-                                |
-                         ROUND_SUMMARY
-                                |
-                       next ROUND_PREVIEW
+   ROUND_START
+        |
+        +-> SPOTLIGHT 1
+        |       |
+        |   [REACTION_WINDOW]
+        |       |
+        |   close / cancel / pass
+        |
+        +-> SPOTLIGHT 2
+        |       |
+        |   [REACTION_WINDOW]
+        |       |
+        |   close / cancel / pass
+        |
+        +-> SPOTLIGHT 3
+        |       |
+        |   [REACTION_WINDOW]
+        |       |
+        |   close / cancel / pass
+        |
+        +-> SPOTLIGHT 4
+        |       |
+        |   [REACTION_WINDOW]
+        |       |
+        |   close / cancel / pass
+        |
+        v
+   ROUND_CLOSE
+        |
+        v
+   SETTLEMENT
+        |
+        v
+  next ROUND_START
 
 A valid culminating transaction can enter FINISHED.
 ```
 
-Quarter preparation and settlement are atomic engine operations, not screens that accept competing financial actions. The round summary is a read/acknowledge phase. Explicit ready/continue commands allow the server to advance once the rules' requirements are met; the host does not manually issue income payments.
+Quarter preparation and settlement are atomic engine operations, not screens that accept competing financial actions. Recurring salaries, distributions, expenses, debt service, and contracts settle deterministically once for the full quarter after the fourth spotlight.
 
-Background activity means viewing data and preparing drafts. Paid investigation and financial commitments require an authorized command. A background calculation preview is not a paid investigation and cannot reveal facts the viewer has not purchased or been shown.
+Continuous background activity means viewing data, reading public market indicators, inspecting private opportunities, and preparing drafts. Only the current spotlight player may initiate a new major transaction. Non-spotlight players may participate through reactions when invited or eligible.
 
-The exact next-spotlight selection policy remains game-design item G1. Implement it as a small named policy, not as hardcoded `(seat + 1) % 4`. Test fixtures may use a declared seeded ordering, but that fixture is not an unannounced change to the approved game rules.
+The spotlight order follows the named Standard V1 policy `rotating-seat-v1` [ARCH-030]:
+- Each of the four players receives exactly one spotlight per quarter.
+- The starting seat rotates deterministically each quarter (`Q1: A->B->C->D`, `Q2: B->C->D->A`, `Q3: C->D->A->B`, `Q4: D->A->B->C`, etc.).
+- State structures remain strictly collection-shaped (`playerOrder = [A, B, C, D]`) rather than fixed seat arithmetic or four fixed fields.
+- A spotlight advances immediately upon terminal resolution (closed, cancelled, expired) of its active transaction, or when the spotlight player explicitly passes.
+- At most one unresolved major transaction exists at a time across the entire match.
 
 ### 8.2 Offers and closing
 
@@ -746,13 +774,20 @@ The host may resume only when required connections are healthy, views are synchr
 
 No strict decision timer is required in V1. Operational timeouts do not advance the economy. Future timed modes must persist their own remaining decision time and freeze it while paused.
 
-### 15.4 Host disconnect and succession
+### 15.4 Disconnect handling and host administration
 
-Host loss must not strand administration. After 30 seconds of detected host absence, transfer host administration to the connected member with the earliest lobby join order. This timeout is an operational default, not simulated game time.
+For the local-first in-person V1 release:
+- no gameplay timers;
+- no automatic financial decisions;
+- no AI bots;
+- no automatic pass;
+- no automatic forfeiture.
 
-The game remains paused while any seat is absent. The acting host cannot resume over a missing player. If the original host returns, they reclaim their own seat, not host status automatically; host duties can be transferred back explicitly.
+If a required player disconnects, gameplay waits in a paused state until they reconnect.
 
-If nobody is connected, retain the match. On return, the same succession policy provides a connected host. No person gains access to another player's secrets through succession.
+Automatic time-based host succession is removed as a V1 requirement. The host machine is the physical server running the match for the room; host loss is normally resolved by the host returning or reconnecting. Explicit host transfer while connected may remain an administrative feature in future session milestones, but automatic timers do not reassign host status.
+
+Under no circumstances does the host gain access to another player's private objectives, exact finances, or unrevealed opportunities.
 
 ### 15.5 Lobby, restart, and abandonment behavior
 
@@ -772,13 +807,20 @@ Do not silently delete an actively played game. Initial operational retention de
 
 ### 16.1 Development stages
 
-The engine and simulation tools run entirely in memory. Server tests use an in-memory repository implementation for fast cases and PostgreSQL integration tests for transactional behavior.
+The engine and simulation tools run entirely in memory. Server tests use in-memory databases or temporary filesystem databases for fast and transactional integration testing.
 
-Before claiming the multiplayer prototype supports reconnection and restart recovery, implement the PostgreSQL repository. There is no SQLite migration detour and no unsafe production JSON-file save loop.
+SQLite via `better-sqlite3` is the authoritative persistence implementation for Milestone 5 and Standard V1 [ARCH-029]. It is appropriate because the local V1 runtime has:
+- one authoritative Node process;
+- one local database file;
+- one process performing writes;
+- four human players;
+- extremely low transaction volume.
+
+Persistence is strictly isolated behind the `apps/server/src/persistence/` boundary. The deterministic engine knows nothing about SQLite. Server domain/session logic interacts with typed persistence operations, while `persistence/sqlite/` encapsulates `better-sqlite3` and raw SQL statements. Do not build simultaneous PostgreSQL support or generic multi-dialect abstractions in V1.
 
 ### 16.2 Initial storage model
 
-Use a few explicit relational records plus a JSONB snapshot; do not create a relational table for every property field.
+Use explicit relational records plus JSON snapshots; do not create a relational table for every internal property field.
 
 | Record | Purpose |
 | --- | --- |
@@ -791,15 +833,15 @@ Use a few explicit relational records plus a JSONB snapshot; do not create a rel
 | `match_events` | Domain events and journal entries, private until projected |
 | `schema_migrations` | Applied database migrations |
 
-Schema details belong in migrations. Name uniqueness, foreign keys, and uniqueness of `(matchId, actorId, commandId)` are database constraints, not just JavaScript checks.
+Schema details belong in numbered migrations. Foreign keys and uniqueness constraints (`(matchId, actorId, commandId)`) are enforced by the database (`PRAGMA foreign_keys = ON`).
 
 The complete active snapshot remains the recovery source. Command and journal history support replay and diagnosis. This is not a general event-sourcing framework and does not require rebuilding the world from events on every request.
 
 ### 16.3 Atomic persistence
 
-A repository commit writes the next snapshot, revision, accepted command, receipt, and emitted entries in one PostgreSQL transaction. Use one checked-out `pg` client for that entire transaction, as required by the driver. [R13]
+A repository commit writes the next snapshot, revision, accepted command, receipt, and emitted entries in one atomic SQLite transaction (`db.transaction(...)`).
 
-Use an expected revision check or row lock in addition to the room queue. If the stored revision differs, abort rather than overwrite a newer snapshot. PostgreSQL transactions provide the all-or-nothing database boundary. [R12]
+Use an expected revision check in addition to the room queue. If the stored revision differs, abort rather than overwrite a newer snapshot. SQLite transactions provide the all-or-nothing database boundary [R12].
 
 Do not acknowledge success before database commit. On uncertain commit outcome, reload the receipt/snapshot before accepting another command. A crashed process may be missing its cache; it must not be missing an acknowledged purchase.
 
@@ -818,13 +860,13 @@ Rejected well-formed authenticated commands can have durable receipts without ad
 
 On startup, treat persisted presence as offline until reauthenticated. Restore ongoing matches into a recoverable paused session. Engine state remains at its last committed phase.
 
-### 16.5 Deployment and data durability
+### 16.5 Deployment, pragmas, and data durability
 
-Run one authoritative application instance initially. All live rooms belong to it; do not deploy two independent instances against the same tables and assume a shared database solves room ownership. Horizontal scaling would require explicit routing/ownership and coordination work.
+Run one authoritative application instance. SQLite uses WAL mode (`PRAGMA journal_mode = WAL;`), foreign keys enabled (`PRAGMA foreign_keys = ON;`), and a reasonable busy timeout (`PRAGMA busy_timeout = 5000;`).
 
-PostgreSQL needs durable storage and regular backups. Test restoring a backup. Encryption, access controls, and backups must protect hidden game data and credentials. A reconnect token cannot recover a database that was deleted without backup.
+Database files and sidecars (`data/`, `*.sqlite`, `*.sqlite-wal`, `*.sqlite-shm`) are excluded from Git. Local game saves and development test databases must not be committed to the repository.
 
-Use numbered SQL migrations with `node-pg-migrate` (a pinned stable release, not an alpha); no automatic schema synchronization at application boot. Pin the migration tool with other dependencies and test migrations on a fresh database and an upgrade fixture. [R24]
+Use small numbered SQL migrations executed by a minimal server migration runner; no heavy third-party migration framework is required. Migrations are executed in ascending numeric order inside individual transactions, recording applied versions in `schema_migrations`.
 
 ## 17. Frontend architecture
 
@@ -851,9 +893,19 @@ Keep them in separate reducers/contexts so editing a form cannot alter the finan
 
 No optimistic financial commits. A form can show a pending indicator; balances and ownership change only after the server confirms. Disable finance confirmation while disconnected or unsure whether a previous submission succeeded.
 
-### 17.3 Responsive behavior
+### 17.3 Responsive behavior and Player View
 
-Phones and laptops have the same capabilities, not different permission levels. Phones use navigation between personal finances, current spotlight, table overview, and actions. Laptops can show those panels side by side.
+There is one responsive authenticated Player View across all devices. Phone and laptop have the exact same information permissions and gameplay capabilities:
+- **Laptop:** Displays a wider multi-panel layout showing personal finances, the active spotlight transaction, public market indicators, and action controls side by side.
+- **Phone:** Displays the same authorized information distributed across clean navigation tabs and panels.
+
+Do **not** define a separate spectator or dedicated Table View application for the first playable version. A neutral shared table display remains a possible future enhancement, but is not part of Standard V1.
+
+On any player's screen, "everything" always strictly means:
+```text
+authorized public information + that player's own private information
+```
+It never displays another player's protected private objectives, exact finances, or unrevealed opportunities.
 
 Prioritize readable figures, clear units, touch-sized controls, keyboard access, visible focus, reduced-motion support, and text labels alongside color. Use standard HTML controls where possible. Add a small accessible component primitive library only when a concrete component requires it, not a full design system in the initial scaffold.
 
@@ -992,7 +1044,7 @@ On pull requests and main-branch pushes, run:
 2. Formatting, typed lint, import-boundary, and rules-bundle checks.
 3. Typecheck and production build.
 4. Unit, engine integration, and deterministic replay tests.
-5. PostgreSQL integration tests once persistence exists.
+5. SQLite integration tests once persistence exists.
 6. A small four-player browser smoke suite once the UI exists.
 
 GitHub documents Node setup and build/test workflows; the project workflow should use its own pinned versions and package scripts. [R18]
@@ -1001,13 +1053,18 @@ Run larger multi-seed simulations and broader browser suites on a schedule or ma
 
 Use least-privilege workflow permissions, pin third-party actions to reviewed commit SHAs, and do not expose deployment secrets to untrusted pull-request code. Protect `main` with required checks. Dependency updates are reviewed pull requests, not untested automatic major upgrades.
 
-### 20.4 Hosting defaults
+### 20.4 Hosting defaults and local-first deployment
 
-Deploy one Node application serving the built React assets, `/api` routes, and `/socket.io` on the same origin behind HTTPS. Use a long-lived process that supports the transport's connections. PostgreSQL is external durable storage, not an ephemeral file inside the app container.
+Standard V1 is designed primarily for four people physically together in the same room [ARCH-029].
 
-Development can run Node/Vite on the host and PostgreSQL through Docker Compose. Production host/provider selection is an operations choice; this architecture does not require a particular vendor.
+The first playable deployment model is:
+- A host laptop or PC runs one local Node process hosting Fastify, Socket.IO, the authoritative engine, SQLite, and (later) the built React application.
+- The server binds to `0.0.0.0` on the configured port (default `3000`) so phones and laptops on the same local Wi-Fi / LAN can connect.
+- Remote internet play is not a current product requirement.
+- There is no paid cloud hosting or external database container requirement for V1.
+- Future hosted cloud deployment remains possible behind the existing package boundaries, but must not complicate the local architecture today.
 
-Include liveness and readiness endpoints. Readiness checks database connectivity and supported rule manifests without exposing secrets. Graceful shutdown stops accepting new transitions, drains short in-flight commits, and lets clients reconnect to the last durable state. If interrupted, restart recovery still works from committed records.
+Include liveness and readiness endpoints (`/api/health`). Graceful shutdown stops accepting new transitions, drains short in-flight commits, closes Socket.IO and SQLite database handles, and allows clients to reconnect to the last durable state upon restart.
 
 Do not run production games on `vite preview`, autoscaled independent room servers, or an ephemeral database volume. No continuous-deployment workflow is necessary until the playable slice and recovery tests pass.
 
@@ -1022,7 +1079,7 @@ Implement narrow, tested slices rather than asking an AI agent to generate the c
 | 2. Deterministic kernel | IDs, money, RNG adapter, state schema, createGame, commands | Repeatable initialization; invalid actions do not mutate state/RNG. |
 | 3. Executable finance slice | Approved accounting rules, loans, one property, one business, journal | End-to-end numeric fixtures reconcile; settlement is idempotent. |
 | 4. Transaction slice | One opportunity, investigation, financing offer, reservation, atomic close | No double spending, partial funding, or hidden-data exposure. |
-| 5. Persistent session slice | Fastify, Socket.IO, credentials, four seats, PostgreSQL, pause/recovery | Create, join, reconnect, restart, and recover an unfinished transaction. |
+| 5. Persistent session slice | Fastify, Socket.IO, credentials, four seats, SQLite, pause/recovery | Create, join, reconnect, restart, and recover an unfinished transaction. |
 | 6. Browser vertical slice | Real phone/laptop views and forms against that server | Four people complete a quarter and recover after interruption. |
 | 7. Full rules and content | Eight profiles/objectives, economy, remaining supported effects | All required open gameplay policies resolved and regression-tested. |
 | 8. Balance and playtests | Multiple simulation policies plus real family sessions | Documented findings; numbers revised through rules versions. |
@@ -1042,7 +1099,7 @@ The software architecture is selected. Several *game rules* in `GAME_DESIGN.md` 
 | A4 | Business distributions, retained cash, normalization, labor-dependent income | Business/settlement rules; net-worth reconciliation |
 | A5 | Issuance versus secondary sales, default, recovery, collateral priority, consent | Contract and distress policies; required before exposed player lending |
 | A6 | Reservation/closing/expiry/inspection semantics | Architectural reservation and atomic-close rules selected here; game-specific fees and expiry windows still need definitions |
-| G1 | Spotlight order, action entitlement, pass behavior, reaction limits | Named phase policy; no hardcoded four-seat rotation |
+| G1 | LOCKED for Standard V1: rotating spotlight order (`rotating-seat-v1`), continuous background preparation, spotlight major transaction initiation, single unresolved transaction concurrency boundary | Resolved in GAME_DESIGN v0.4 and ARCH-030 |
 | G2 | Capacity cutoffs and credit grades; financing discovery | Eligibility/credit rules; discovery must not leak private balances |
 | G3 | Economic distributions, growth/margin updates, rate sensitivities, fees | Versioned economic/asset parameters |
 | G4 | Objective lookbacks, materiality, attribution, gains and bad debt | Objective measurement functions and history summaries |
@@ -1090,15 +1147,17 @@ These initial decisions can be indexed in `DECISIONS.md` without copying the ent
 | ARCH-009 | Room code + nickname + private credentials | Accountless entry with durable seat recovery |
 | ARCH-010 | Pause on disconnect; host resumes after recovery | No offline economic simulation or fabricated consent |
 | ARCH-011 | Host is session administrator only | No privileged financial control or hidden information |
-| ARCH-012 | PostgreSQL from persistent multiplayer milestone | Restart recovery is a core requirement, not late polish |
+| ARCH-012 | PostgreSQL from persistent multiplayer milestone | Superseded by ARCH-029 (SQLite persistence for local V1) |
 | ARCH-013 | Four-player mode with generic collections | Expansion requires validated new rules/content |
 | ARCH-014 | Rules/content as versioned typed data | Balance changes do not require scattered code edits |
 | ARCH-015 | Same engine for live games and simulation | Balance tools cannot disagree with actual accounting |
 | ARCH-016 | Small tested slices and GitHub Actions | AI-assisted development stays reviewable |
+| ARCH-029 | Local-first LAN runtime and SQLite persistence | Same-room LAN play; better-sqlite3 isolated in server persistence; no cloud/PostgreSQL in V1 |
+| ARCH-030 | Rotating spotlight orchestration for Standard V1 | Deterministic rotating-seat-v1 turn order, continuous background preparation, atomic single-deal concurrency boundary |
 
 ## 25. References
 
-The game specification and subsequent agreed session requirements define this project's behavior. The references below support library capabilities and engineering constraints; they do not claim the game has been implemented or balanced. Documentation reviewed September 5, 2026.
+The game specification and subsequent agreed session requirements define this project's behavior. The references below support library capabilities and engineering constraints; they do not claim the game has been implemented or balanced. Documentation reviewed September 8, 2026.
 
 - **R1 - Node.js release lifecycle:** <https://nodejs.org/en/about/previous-releases>
 - **R2 - pnpm workspaces and workspace protocol:** <https://pnpm.io/workspaces>
@@ -1111,8 +1170,8 @@ The game specification and subsequent agreed session requirements define this pr
 - **R9 - Immer produce and immutable state updates:** <https://immerjs.github.io/immer/produce/>
 - **R10 - decimal.js arithmetic and rounding configuration:** <https://mikemcl.github.io/decimal.js/>
 - **R11 - seedrandom explicit seeds and state restoration:** <https://github.com/davidbau/seedrandom>
-- **R12 - PostgreSQL transactions:** <https://www.postgresql.org/docs/18/tutorial-transactions.html>
-- **R13 - node-postgres transaction client requirements:** <https://node-postgres.com/features/transactions>
+- **R12 - SQLite WAL mode and transactions:** <https://www.sqlite.org/wal.html>
+- **R13 - better-sqlite3 API and transactions:** <https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md>
 - **R14 - Vitest guide:** <https://vitest.dev/guide/>
 - **R15 - fast-check introduction:** <https://fast-check.dev/docs/introduction/>
 - **R16 - Playwright test projects and device configurations:** <https://playwright.dev/docs/test-projects>
@@ -1123,7 +1182,7 @@ The game specification and subsequent agreed session requirements define this pr
 - **R21 - OWASP session management:** <https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html>
 - **R22 - OWASP WebSocket security:** <https://cheatsheetseries.owasp.org/cheatsheets/WebSocket_Security_Cheat_Sheet.html>
 - **R23 - React Testing Library:** <https://testing-library.com/docs/react-testing-library/intro/>
-- **R24 - node-pg-migrate:** <https://salsita.github.io/node-pg-migrate/>
+- **R24 - SQLite SQL syntax and schema constraints:** <https://www.sqlite.org/lang.html>
 - **R25 - TypeScript strict compiler option:** <https://www.typescriptlang.org/tsconfig/strict.html>
 
 ## Change log
@@ -1131,6 +1190,7 @@ The game specification and subsequent agreed session requirements define this pr
 | Version | Date | Change |
 | --- | --- | --- |
 | 0.1 | September 5, 2026 | Initial architecture baseline: modular TypeScript stack, package boundaries, deterministic engine, private projections, persistent sessions, host administration, pause/reconnect, testing, CI, and implementation gates. |
+| 0.2 | September 8, 2026 | Local-first LAN architecture and SQLite persistence ([ARCH-029]); rotating-seat-v1 spotlight orchestration ([ARCH-030]); single responsive Player View; disconnect/pause simplification without automatic host succession. |
 
 [R1]: https://nodejs.org/en/about/previous-releases
 [R2]: https://pnpm.io/workspaces
@@ -1143,8 +1203,8 @@ The game specification and subsequent agreed session requirements define this pr
 [R9]: https://immerjs.github.io/immer/produce/
 [R10]: https://mikemcl.github.io/decimal.js/
 [R11]: https://github.com/davidbau/seedrandom
-[R12]: https://www.postgresql.org/docs/18/tutorial-transactions.html
-[R13]: https://node-postgres.com/features/transactions
+[R12]: https://www.sqlite.org/wal.html
+[R13]: https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md
 [R14]: https://vitest.dev/guide/
 [R15]: https://fast-check.dev/docs/introduction/
 [R16]: https://playwright.dev/docs/test-projects
@@ -1155,5 +1215,5 @@ The game specification and subsequent agreed session requirements define this pr
 [R21]: https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html
 [R22]: https://cheatsheetseries.owasp.org/cheatsheets/WebSocket_Security_Cheat_Sheet.html
 [R23]: https://testing-library.com/docs/react-testing-library/intro/
-[R24]: https://salsita.github.io/node-pg-migrate/
+[R24]: https://www.sqlite.org/lang.html
 [R25]: https://www.typescriptlang.org/tsconfig/strict.html
