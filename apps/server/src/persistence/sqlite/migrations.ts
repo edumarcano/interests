@@ -108,16 +108,36 @@ export function runMigrations(
 
   const migrationFiles = loadMigrationFiles(migrationsDir);
   const appliedRows = getAppliedMigrations(db);
-  const appliedVersionSet = new Set(appliedRows.map((r) => r.version));
+  const appliedMap = new Map(appliedRows.map((r) => [r.version, r.name]));
+  let maxAppliedVersion = appliedRows.reduce(
+    (max, r) => Math.max(max, r.version),
+    0,
+  );
+
+  // Validate that on-disk migration names match previously recorded migration names
+  for (const migration of migrationFiles) {
+    const recordedName = appliedMap.get(migration.version);
+    if (recordedName !== undefined && recordedName !== migration.name) {
+      throw new Error(
+        `Migration name mismatch for version ${migration.version}: recorded as '${recordedName}', but file '${migration.filename}' specifies '${migration.name}'. Migrations are immutable once applied.`,
+      );
+    }
+  }
 
   const result: MigrationResult = {
     applied: [],
-    alreadyApplied: Array.from(appliedVersionSet).sort((a, b) => a - b),
+    alreadyApplied: Array.from(appliedMap.keys()).sort((a, b) => a - b),
   };
 
   for (const migration of migrationFiles) {
-    if (appliedVersionSet.has(migration.version)) {
+    if (appliedMap.has(migration.version)) {
       continue;
+    }
+
+    if (migration.version <= maxAppliedVersion) {
+      throw new Error(
+        `Cannot apply out-of-order migration '${migration.filename}' with version ${migration.version} because a higher version (${maxAppliedVersion}) has already been applied. Migrations must be append-only.`,
+      );
     }
 
     const sqlContent = fs.readFileSync(migration.filepath, "utf-8");
@@ -132,7 +152,8 @@ export function runMigrations(
 
       executeTransaction();
       result.applied.push(migration);
-      appliedVersionSet.add(migration.version);
+      appliedMap.set(migration.version, migration.name);
+      maxAppliedVersion = Math.max(maxAppliedVersion, migration.version);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       throw new Error(

@@ -132,4 +132,46 @@ describe("SQLite migration runner", () => {
       runMigrations(db, migrationsDir);
     }).toThrow(/Invalid migration filename 'invalid_filename\.sql'/i);
   });
+
+  it("rejects an unapplied migration whose version is less than or equal to the highest applied version", () => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        version INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        applied_at TEXT NOT NULL
+      );
+      INSERT INTO schema_migrations (version, name, applied_at) VALUES (2, 'create_items', '2026-09-08T00:00:00.000Z');
+    `);
+
+    fs.writeFileSync(
+      path.join(migrationsDir, "001_create_users.sql"),
+      `CREATE TABLE users (id INTEGER PRIMARY KEY);`,
+    );
+
+    expect(() => {
+      runMigrations(db, migrationsDir);
+    }).toThrow(
+      /Cannot apply out-of-order migration '001_create_users\.sql' with version 1 because a higher version \(2\) has already been applied/i,
+    );
+  });
+
+  it("rejects a recorded migration when its disk filename name has changed", () => {
+    fs.writeFileSync(
+      path.join(migrationsDir, "001_initial_schema.sql"),
+      `CREATE TABLE users (id INTEGER PRIMARY KEY);`,
+    );
+    runMigrations(db, migrationsDir);
+
+    fs.unlinkSync(path.join(migrationsDir, "001_initial_schema.sql"));
+    fs.writeFileSync(
+      path.join(migrationsDir, "001_renamed_schema.sql"),
+      `CREATE TABLE users (id INTEGER PRIMARY KEY);`,
+    );
+
+    expect(() => {
+      runMigrations(db, migrationsDir);
+    }).toThrow(
+      /Migration name mismatch for version 1: recorded as 'initial_schema', but file '001_renamed_schema\.sql' specifies 'renamed_schema'/i,
+    );
+  });
 });

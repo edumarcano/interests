@@ -95,7 +95,7 @@ ROUND_START
 
 There is **no mandatory simultaneous planning or Ready phase**. Instead, round progression proceeds as follows:
 
-1.  **ROUND_START:** The shared economic update occurs; market prices and macroeconomic indicators refresh for all players simultaneously.
+1.  **ROUND_START:** The round enters and presents the shared new-quarter economy (presenting opening economic conditions in Quarter 1, and presenting the revalued market prices, new macroeconomic regime, and quarter-start entitlement basis already computed at the conclusion of the preceding quarter's settlement per ARCH-024). No second RNG roll or economy transition occurs at round start; market prices and macroeconomic indicators refresh for all players simultaneously.
 
 2.  **Continuous background preparation:** Off-spotlight players may continuously review personal finances, inspect public market conditions, inspect their private opportunities, perform permitted diligence, prepare local decisions, and converse with other players at the table.
 
@@ -124,6 +124,18 @@ Standard V1 uses the named deterministic policy `rotating-seat-v1` across the ma
 
 The data model remains strictly collection-shaped (`players: Player[]`, `playerOrder: PlayerId[]`) rather than fixed `player1`/`player2`/`player3`/`player4` fields.
 
+### 2.2.1 Spotlight pacing and decision intensity
+
+While player seat order rotates deterministically, spotlight *intensity* and opportunity category vary unpredictably across turns. Quick decisions are most common, but major decisions can occur at any time, including consecutively. Category and intensity remain separate dimensions.
+
+| **Intensity** | **Typical feel**                                     | **Examples**                                                            |
+|---------------|------------------------------------------------------|-------------------------------------------------------------------------|
+| **Quick**     | Often 15-45 seconds; one clear decision.             | Small investment, simple career choice, basic refinancing offer.        |
+| **Standard**  | Requires comparison or light investigation.          | Rental deal, business expansion, financing choice.                      |
+| **Major**     | Potentially several minutes; may become multiplayer. | Acquisition, major sale, crisis, contested asset, large financing need. |
+
+> **TUNING NOTE** Exact probabilities and time ranges are not locked. The important rule is that quick spotlights dominate without creating a predictable intensity pattern; late-game conditions may increase the weight of major opportunities.
+
 ## 2.3 Action entitlement and reaction design [LOCKED]
 
 Spotlight turn order defines transaction initiation authority without paralyzing the rest of the table:
@@ -132,7 +144,7 @@ Spotlight turn order defines transaction initiation authority without paralyzing
   - reviewing personal cash, debt, and balance sheets;
   - reading public market values, yields, and economic indicators;
   - inspecting their private discovered opportunities;
-  - performing permitted diligence or investigation;
+  - performing permitted diligence or investigation (which may mutate that player's canonical and private state, e.g. deducting an investigation fee from cash and storing revealed opportunity facts, without initiating a major transaction or advancing the spotlight);
   - preparing draft parameters for upcoming decisions;
   - responding to the active spotlight player's transaction when eligible.
 

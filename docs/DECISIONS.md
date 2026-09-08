@@ -323,7 +323,7 @@ Establish the local-first in-person architecture and SQLite persistence model fo
    - No simultaneous SQLite + PostgreSQL implementation or premature multi-dialect abstraction is built for V1. Future hosted versions may implement the same operation-level repository contracts backed by PostgreSQL without altering engine logic.
 
 4. **Database Pragmas and Hygiene:**
-   - Safe operational pragmas are configured upon database opening: `PRAGMA foreign_keys = ON;`, `PRAGMA journal_mode = WAL;`, `PRAGMA busy_timeout = 5000;`, `PRAGMA synchronous = NORMAL;`.
+   - Safe operational pragmas are configured upon database opening: `PRAGMA foreign_keys = ON;`, `PRAGMA journal_mode = WAL;`, `PRAGMA busy_timeout = 5000;`, `PRAGMA synchronous = FULL;`.
    - Local database files, WAL files, and test databases (`data/`, `*.sqlite`, `*.sqlite-wal`, `*.sqlite-shm`) are excluded from version control (`.gitignore`).
 
 5. **Numbered SQL Migration Foundation:**
@@ -354,8 +354,8 @@ Establish the software orchestration and turn-entitlement rules for the locked G
    - There is no mandatory synchronous planning or ready phase.
 
 3. **Continuous Background Preparation:**
-   - Off-spotlight players may continuously perform permitted personal and preparatory actions: reviewing personal accounts/statements, reading public market prices and indicators, inspecting private opportunities, performing permitted diligence, and drafting future actions.
-   - Off-spotlight preparation does not mutate shared game state or advance turns.
+   - Off-spotlight players may continuously perform permitted personal and preparatory actions: reviewing personal accounts/statements, reading public market prices and indicators, inspecting private opportunities, performing permitted diligence/investigation, and drafting future actions.
+   - Authorized off-spotlight preparatory actions (such as paid investigation) require explicit authoritative commands and may mutate that player's canonical and private state (e.g. cash balances and private disclosures) when rules allow, but cannot initiate a major transaction, alter shared market state, or advance the spotlight.
 
 4. **Deterministic Rotating Spotlight Policy (`rotating-seat-v1`):**
    - Every player receives exactly one spotlight turn per quarter.

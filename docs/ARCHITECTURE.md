@@ -39,10 +39,10 @@ The decisions here are the implementation defaults. Change them deliberately, re
 19. [Testing and simulations](#19-testing-and-simulations)
 20. [Tooling, CI, and deployment](#20-tooling-ci-and-deployment)
 21. [Implementation sequence](#21-implementation-sequence)
-22: 22. [Open gameplay dependencies](#22-open-gameplay-dependencies)
-23: 23. [AI-assisted development rules](#23-ai-assisted-development-rules)
-24: 24. [Decision register](#24-decision-register)
-25: 25. [References](#25-references)
+22. [Open gameplay dependencies](#22-open-gameplay-dependencies)
+23. [AI-assisted development rules](#23-ai-assisted-development-rules)
+24. [Decision register](#24-decision-register)
+25. [References](#25-references)
 
 ## 1. Decision summary
 
@@ -114,7 +114,7 @@ No team mode, in-game chat, voice infrastructure, 3D, mandatory TV display, AI o
 Phone / laptop browser
   React interface + player-specific view
                 |
-                | HTTPS + Socket.IO (Local LAN / Wi-Fi)
+                | HTTP + Socket.IO (Local LAN / Wi-Fi; HTTPS for future deployed play)
                 v
 Single Node.js / Fastify application (Host PC / Laptop)
   Authentication -> room controller -> command queue
@@ -444,9 +444,9 @@ OBJECTIVE_SELECTION
 A valid culminating transaction can enter FINISHED.
 ```
 
-Quarter preparation and settlement are atomic engine operations, not screens that accept competing financial actions. Recurring salaries, distributions, expenses, debt service, and contracts settle deterministically once for the full quarter after the fourth spotlight.
+ROUND_START enters and presents the shared new-quarter economy (presenting opening conditions in Quarter 1, and presenting the revalued market state, new regime, and entitlement basis already computed at the conclusion of the preceding quarter's settlement per ARCH-024 without rolling a second economy transition). Quarter preparation and settlement are atomic engine operations, not screens that accept competing financial actions. Recurring salaries, distributions, expenses, debt service, and contracts settle deterministically once for the full quarter after the fourth spotlight.
 
-Continuous background activity means viewing data, reading public market indicators, inspecting private opportunities, and preparing drafts. Only the current spotlight player may initiate a new major transaction. Non-spotlight players may participate through reactions when invited or eligible.
+Continuous background activity includes reviewing data, reading public market indicators, inspecting private opportunities, and preparing drafts. Authorized off-spotlight preparatory actions (such as permitted diligence/investigation) are command-authorized transitions that may mutate that player's canonical and private state (e.g. paying an investigation fee from cash and recording revealed facts) without initiating a new major transaction, altering shared turn progress, or advancing the spotlight. Only the current spotlight player may initiate a new major transaction. Non-spotlight players may participate through reactions when invited or eligible.
 
 The spotlight order follows the named Standard V1 policy `rotating-seat-v1` [ARCH-030]:
 - Each of the four players receives exactly one spotlight per quarter.
@@ -785,7 +785,7 @@ For the local-first in-person V1 release:
 
 If a required player disconnects, gameplay waits in a paused state until they reconnect.
 
-Automatic time-based host succession is removed as a V1 requirement. The host machine is the physical server running the match for the room; host loss is normally resolved by the host returning or reconnecting. Explicit host transfer while connected may remain an administrative feature in future session milestones, but automatic timers do not reassign host status.
+Automatic time-based host succession is removed as a V1 requirement. The **server host machine** is the physical device running the authoritative Node process and SQLite database. Distinctly, the **room host player** is the session administrator (initially the room creator). If the room host player temporarily disconnects from their browser, the server pauses gameplay until they return and reconnect; running the local Node process and holding room-host player authority remain separate concepts. Explicit room host transfer while connected may remain an administrative feature in future session milestones, but automatic timers do not reassign host status.
 
 Under no circumstances does the host gain access to another player's private objectives, exact finances, or unrevealed opportunities.
 
@@ -1059,7 +1059,7 @@ Standard V1 is designed primarily for four people physically together in the sam
 
 The first playable deployment model is:
 - A host laptop or PC runs one local Node process hosting Fastify, Socket.IO, the authoritative engine, SQLite, and (later) the built React application.
-- The server binds to `0.0.0.0` on the configured port (default `3000`) so phones and laptops on the same local Wi-Fi / LAN can connect.
+- The server binds to `0.0.0.0` on the configured port (default `3000`) so phones and laptops on the same local Wi-Fi / LAN can connect via plain HTTP (with HTTPS reserved for future hosted cloud deployment).
 - Remote internet play is not a current product requirement.
 - There is no paid cloud hosting or external database container requirement for V1.
 - Future hosted cloud deployment remains possible behind the existing package boundaries, but must not complicate the local architecture today.

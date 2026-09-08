@@ -27,13 +27,7 @@ export function createServer(options: CreateServerOptions = {}): GameServer {
     ...options.fastifyOptions,
   });
 
-  const io = new SocketIOServer(fastify.server, {
-    cors: {
-      origin: "*",
-      methods: ["GET", "POST"],
-    },
-    ...options.socketIoOptions,
-  });
+  const io = new SocketIOServer(fastify.server, options.socketIoOptions);
 
   fastify.get("/api/health", async (_request, _reply) => {
     return { status: "ok" };

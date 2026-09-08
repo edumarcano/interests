@@ -31,7 +31,7 @@ export function openDatabase(options: OpenDatabaseOptions): SqliteDatabase {
   // If file-backed, enable WAL mode and safe synchronous mode
   if (!isMemory) {
     db.pragma("journal_mode = WAL;");
-    db.pragma("synchronous = NORMAL;");
+    db.pragma("synchronous = FULL;");
   }
 
   return db;

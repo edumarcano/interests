@@ -60,13 +60,16 @@ describe("SQLite database initialization", () => {
     }).toThrow(/FOREIGN KEY constraint failed/i);
   });
 
-  it("configures WAL journal mode and busy timeout for file-backed databases", () => {
+  it("configures WAL journal mode, synchronous FULL, and busy timeout for file-backed databases", () => {
     const dbPath = path.join(tempDir, "wal_mode.sqlite");
     const db = openDatabase({ dbPath });
     dbsToClose.push(db);
 
     const journalMode = db.pragma("journal_mode", { simple: true });
     expect(journalMode).toBe("wal");
+
+    const synchronous = db.pragma("synchronous", { simple: true });
+    expect(synchronous).toBe(2);
 
     const busyTimeout = db.pragma("busy_timeout", { simple: true });
     expect(busyTimeout).toBe(5000);
