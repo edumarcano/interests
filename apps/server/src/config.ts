@@ -13,6 +13,13 @@ export const ServerConfigSchema = z.object({
     .trim()
     .min(1, "Database path cannot be empty")
     .default("./data/finance-game.sqlite"),
+  /**
+   * Whether to send cookies with Secure attribute.
+   * Default is false for the local-first LAN V1 runtime.
+   * A future HTTPS deployment must enable Secure cookies.
+   */
+  cookieSecure: z.boolean().default(false),
+  rateLimitDisabled: z.boolean().default(false),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -30,6 +37,30 @@ export function parseServerConfig(
   }
   if (env.FINANCE_GAME_DB_PATH !== undefined) {
     raw.dbPath = env.FINANCE_GAME_DB_PATH;
+  }
+  if (env.FINANCE_GAME_COOKIE_SECURE !== undefined) {
+    const rawVal = env.FINANCE_GAME_COOKIE_SECURE.trim().toLowerCase();
+    if (rawVal === "true") {
+      raw.cookieSecure = true;
+    } else if (rawVal === "false") {
+      raw.cookieSecure = false;
+    } else {
+      throw new Error(
+        "Invalid server configuration: cookieSecure must be 'true' or 'false'",
+      );
+    }
+  }
+  if (env.FINANCE_GAME_RATE_LIMIT_DISABLED !== undefined) {
+    const rawVal = env.FINANCE_GAME_RATE_LIMIT_DISABLED.trim().toLowerCase();
+    if (rawVal === "true") {
+      raw.rateLimitDisabled = true;
+    } else if (rawVal === "false") {
+      raw.rateLimitDisabled = false;
+    } else {
+      throw new Error(
+        "Invalid server configuration: rateLimitDisabled must be 'true' or 'false'",
+      );
+    }
   }
 
   const result = ServerConfigSchema.safeParse(raw);

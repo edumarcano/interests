@@ -8,6 +8,8 @@ describe("Server configuration", () => {
       host: "0.0.0.0",
       port: 3000,
       dbPath: "./data/finance-game.sqlite",
+      cookieSecure: false,
+      rateLimitDisabled: false,
     });
   });
 
@@ -16,12 +18,42 @@ describe("Server configuration", () => {
       FINANCE_GAME_HOST: "127.0.0.1",
       FINANCE_GAME_PORT: "4000",
       FINANCE_GAME_DB_PATH: "./custom/db.sqlite",
+      FINANCE_GAME_COOKIE_SECURE: "true",
+      FINANCE_GAME_RATE_LIMIT_DISABLED: "true",
     });
     expect(config).toEqual({
       host: "127.0.0.1",
       port: 4000,
       dbPath: "./custom/db.sqlite",
+      cookieSecure: true,
+      rateLimitDisabled: true,
     });
+  });
+
+  it("strictly parses FINANCE_GAME_COOKIE_SECURE as boolean", () => {
+    expect(
+      parseServerConfig({ FINANCE_GAME_COOKIE_SECURE: "true" }).cookieSecure,
+    ).toBe(true);
+    expect(
+      parseServerConfig({ FINANCE_GAME_COOKIE_SECURE: "false" }).cookieSecure,
+    ).toBe(false);
+    expect(
+      parseServerConfig({ FINANCE_GAME_COOKIE_SECURE: "TRUE" }).cookieSecure,
+    ).toBe(true);
+    expect(
+      parseServerConfig({ FINANCE_GAME_COOKIE_SECURE: "FALSE" }).cookieSecure,
+    ).toBe(false);
+
+    // Naive boolean coercion would turn these into true; our parser must reject them
+    expect(() =>
+      parseServerConfig({ FINANCE_GAME_COOKIE_SECURE: "1" }),
+    ).toThrow(/Invalid server configuration: cookieSecure/);
+    expect(() =>
+      parseServerConfig({ FINANCE_GAME_COOKIE_SECURE: "0" }),
+    ).toThrow(/Invalid server configuration: cookieSecure/);
+    expect(() =>
+      parseServerConfig({ FINANCE_GAME_COOKIE_SECURE: "yes" }),
+    ).toThrow(/Invalid server configuration: cookieSecure/);
   });
 
   it("rejects invalid port values", () => {
