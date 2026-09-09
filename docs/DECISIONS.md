@@ -636,6 +636,7 @@ Establish the first playable financial-strategy loop (Milestone 6) across the en
      - Target buyer: player with highest initial cash strictly less than `5_000_000` cents, tie-broken by canonical `playerOrder`.
      - Seller: next player in canonical `playerOrder` after buyer, wrapping cyclically.
      - Lender: not preselected; any eligible non-buyer/non-seller player may offer financing.
+     - Feasibility resolution: Across all 69 feasible profile combinations in `@interests/rules`, the buyer is guaranteed to have `buyerCash < 5_000_000` (cannot buy with cash alone) and `buyerCash >= 2_000_000`. In 64 setups (92.8%), buyer cash is >= `3_000_000` cents, supporting the canonical manual demonstration fixture ($30k contribution / $20k loan). In the remaining 5 setups (7.2%), buyer cash is $25k or $28k, and the remaining financing gap is unconditionally fundable by an off-spotlight lender with >= $50k starting cash. In all 69 setups, at least one eligible lender has enough cash to fund the full financing gap (`5_000_000 - buyerCash`).
    - Leaves initial `GameState.revision === 0` and consumes zero gameplay RNG draws.
 
 2. **Diligence and Privacy Boundaries:**

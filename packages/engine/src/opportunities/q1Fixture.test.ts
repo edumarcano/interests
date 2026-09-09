@@ -162,8 +162,10 @@ describe("Section 14: Q1 Business Opportunity Fixture", () => {
     }
   });
 
-  it("8. All 69 feasible setup combinations retain a financing-feasible path where buyer has highest cash < 5M and distinct seller", () => {
-    // Check all 69 feasible profile combinations from rules
+  it("8. All 69 feasible setup combinations retain an unconditionally financing-feasible path", () => {
+    let countSupportingCanonicalThreeMillion = 0;
+    let countRequiringLesserContribution = 0;
+
     for (const combo of FEASIBLE_PROFILE_COMBINATIONS) {
       // Create mock cash mapping for the 4 profiles
       const cashMap: Record<PlayerId, any> = {
@@ -174,22 +176,47 @@ describe("Section 14: Q1 Business Opportunity Fixture", () => {
       };
 
       const roles = selectQ1FixtureRoles(playerIds, cashMap);
-      const buyerCash = cashMap[roles.targetBuyerPlayerId];
+      const buyerCash = cashMap[roles.targetBuyerPlayerId]!;
 
-      // Strictly under 5M asking price, ensuring buyer cannot purchase in full without financing
+      // 1. Unconditional: buyer cannot purchase in full with starting cash alone
       expect(buyerCash).toBeLessThan(5_000_000);
-      expect(buyerCash).toBeGreaterThan(0);
 
-      // Distinct buyer and seller
+      // 2. Unconditional: every feasible buyer has at least 2,000,000 cents ($20,000)
+      expect(buyerCash).toBeGreaterThanOrEqual(2_000_000);
+
+      // 3. Unconditional: buyer and seller are distinct players
       expect(roles.targetBuyerPlayerId).not.toBe(roles.sellerPlayerId);
 
-      // Where the selected buyer has at least 3M starting cash, the canonical 3M contribution is supported
-      const hasThreeMillionEligible = Object.values(cashMap).some(
-        (c: number) => c >= 3_000_000 && c < 5_000_000,
+      // 4. Unconditional: seller is the next seat in playerOrder
+      const buyerIndex = playerIds.indexOf(roles.targetBuyerPlayerId);
+      const expectedSellerId = playerIds[(buyerIndex + 1) % playerIds.length];
+      expect(roles.sellerPlayerId).toBe(expectedSellerId);
+
+      // 5. Unconditional: at least one eligible third-party lender has sufficient cash to fund the remaining financing gap
+      const financingGap = 5_000_000 - buyerCash;
+      const eligibleLenderPlayerIds = playerIds.filter(
+        (id) => id !== roles.targetBuyerPlayerId && id !== roles.sellerPlayerId,
       );
-      if (hasThreeMillionEligible) {
-        expect(buyerCash).toBeGreaterThanOrEqual(3_000_000);
+      const maxLenderCash = Math.max(
+        ...eligibleLenderPlayerIds.map((id) => cashMap[id]!),
+      );
+      expect(maxLenderCash).toBeGreaterThanOrEqual(financingGap);
+
+      // 6. Partition assertion across the 69 combinations:
+      // Exactly 64 combinations (92.8%) include a profile with cash in [3M, 5M) and support the $30k contribution fixture.
+      // Exactly 5 combinations (7.2%) have buyer cash in [2.5M, 2.8M) with a lender having >= 5M cash.
+      if (buyerCash >= 3_000_000) {
+        countSupportingCanonicalThreeMillion++;
+      } else {
+        countRequiringLesserContribution++;
+        expect(buyerCash).toBeGreaterThanOrEqual(2_500_000);
+        expect(maxLenderCash).toBeGreaterThanOrEqual(5_000_000);
       }
     }
+
+    // Unconditional distribution guarantees
+    expect(countSupportingCanonicalThreeMillion).toBe(64);
+    expect(countRequiringLesserContribution).toBe(5);
+    expect(FEASIBLE_PROFILE_COMBINATIONS.length).toBe(69);
   });
 });

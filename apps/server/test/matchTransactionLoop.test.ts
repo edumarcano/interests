@@ -229,6 +229,7 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
     // Identify target buyer and track playerIds
     let targetBuyerIndex = -1;
     let opp: PrivateOpportunityView | undefined;
+    let buyerAvailableCash = 3_000_000;
     const clientPlayerIds: PlayerId[] = [];
     for (let i = 0; i < 4; i++) {
       const getMatchRes = await server.fastify.inject({
@@ -241,6 +242,7 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
       if (pView.self.opportunity) {
         targetBuyerIndex = i;
         opp = pView.self.opportunity;
+        buyerAvailableCash = pView.self.availableCashCents;
       }
     }
     expect(targetBuyerIndex).toBeGreaterThanOrEqual(0);
@@ -254,6 +256,7 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
       targetBuyerIndex,
       opp: opp!,
       clientPlayerIds,
+      buyerAvailableCash,
     };
   }
 
@@ -376,8 +379,12 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
       roomCode,
       cookies,
       clientPlayerIds,
+      buyerAvailableCash,
     } = await setupMatchAtRoundStart();
     const buyerSocket = clients[targetBuyerIndex]!.socket;
+
+    const contribution = Math.min(3_000_000, buyerAvailableCash);
+    const principal = 5_000_000 - contribution;
 
     // Investigate opportunity
     let rev = 4;
@@ -434,8 +441,8 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
       command: {
         type: "PURSUE_BUSINESS_WITH_PLAYER_LOAN",
         opportunityId: opp.id,
-        buyerCashContributionCents: 3_000_000,
-        requestedPrincipalCents: 2_000_000,
+        buyerCashContributionCents: contribution,
+        requestedPrincipalCents: principal,
       },
     });
     expect(pursueAck.ok).toBe(true);
@@ -453,15 +460,28 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
     expect(tx.financingStatus).toBe("waiting-for-offer");
     expect(tx.role).toBe("buyer");
 
-    // Find eligible lender client
-    const eligibleLenderIdx = clients.findIndex((c, idx) => {
-      const pId = clientPlayerIds[idx];
-      return (
-        idx !== targetBuyerIndex &&
-        pId !== tx.sellerPlayerId &&
-        pId !== tx.buyerPlayerId
-      );
-    });
+    // Find eligible lender client with sufficient available cash
+    let eligibleLenderIdx = -1;
+    for (let i = 0; i < 4; i++) {
+      const pId = clientPlayerIds[i]!;
+      if (
+        i === targetBuyerIndex ||
+        pId === tx.sellerPlayerId ||
+        pId === tx.buyerPlayerId
+      ) {
+        continue;
+      }
+      const lenderRes = await server.fastify.inject({
+        method: "GET",
+        url: `/api/rooms/${roomCode}/match`,
+        cookies: { interests_session: cookies[i]! },
+      });
+      const lenderView = JSON.parse(lenderRes.body).match as MatchPlayerView;
+      if (lenderView.self.availableCashCents >= tx.requestedPrincipalCents) {
+        eligibleLenderIdx = i;
+        break;
+      }
+    }
     expect(eligibleLenderIdx).toBeGreaterThanOrEqual(0);
     const lenderSocket = clients[eligibleLenderIdx]!.socket;
 
@@ -614,8 +634,12 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
       roomCode,
       cookies,
       clientPlayerIds,
+      buyerAvailableCash,
     } = await setupMatchAtRoundStart();
     const buyerSocket = clients[targetBuyerIndex]!.socket;
+
+    const contribution = Math.min(3_000_000, buyerAvailableCash);
+    const principal = 5_000_000 - contribution;
 
     let rev = 4;
     // Investigate
@@ -658,15 +682,15 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
       });
     }
 
-    // Buyer pursues with financing (3M contribution, 2M requested principal)
+    // Buyer pursues with financing
     const pursueAck = await sendCommand(buyerSocket, {
       commandId: "88888888-8888-4888-8888-000000000020",
       expectedRevision: rev++,
       command: {
         type: "PURSUE_BUSINESS_WITH_PLAYER_LOAN",
         opportunityId: opp.id,
-        buyerCashContributionCents: 3_000_000,
-        requestedPrincipalCents: 2_000_000,
+        buyerCashContributionCents: contribution,
+        requestedPrincipalCents: principal,
       },
     });
     expect(pursueAck.ok).toBe(true);
@@ -681,19 +705,27 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
     const tx = buyerView.activeTransaction!;
     expect(tx).toBeDefined();
 
-    // Identify eligible lender (not buyer, not seller)
+    // Identify eligible lender with sufficient available cash
     const sellerPlayerId = opp.sellerPlayerId;
     let lenderIndex = -1;
     for (let i = 0; i < 4; i++) {
       if (i !== targetBuyerIndex && clientPlayerIds[i] !== sellerPlayerId) {
-        lenderIndex = i;
-        break;
+        const lenderRes = await server.fastify.inject({
+          method: "GET",
+          url: `/api/rooms/${roomCode}/match`,
+          cookies: { interests_session: cookies[i]! },
+        });
+        const lView = JSON.parse(lenderRes.body).match as MatchPlayerView;
+        if (lView.self.availableCashCents >= principal) {
+          lenderIndex = i;
+          break;
+        }
       }
     }
     expect(lenderIndex).toBeGreaterThanOrEqual(0);
     const lenderSocket = clients[lenderIndex]!.socket;
 
-    // Lender submits offer (2M principal, 1000 bps APR, 3 quarters)
+    // Lender submits offer (principal, 1000 bps APR, 3 quarters)
     const offerAck = await sendCommand(lenderSocket, {
       commandId: "88888888-8888-4888-8888-000000000030",
       expectedRevision: rev++,
@@ -769,7 +801,7 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
     expect(postRestartBuyerView.activeTransaction?.offer?.termsRevision).toBe(
       1,
     );
-    expect(postRestartBuyerView.self.reservedCashCents).toBe(3_000_000);
+    expect(postRestartBuyerView.self.reservedCashCents).toBe(contribution);
 
     // Verify lender match view after restart
     const postRestartLenderRes = await server.fastify.inject({
@@ -779,7 +811,7 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
     });
     const postRestartLenderView = JSON.parse(postRestartLenderRes.body)
       .match as MatchPlayerView;
-    expect(postRestartLenderView.self.reservedCashCents).toBe(2_000_000);
+    expect(postRestartLenderView.self.reservedCashCents).toBe(principal);
   });
 
   it("15. Server restart after terminal close preserves loan, ownership, cash, and round state", async () => {
@@ -790,8 +822,12 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
       roomCode,
       cookies,
       clientPlayerIds,
+      buyerAvailableCash,
     } = await setupMatchAtRoundStart();
     const buyerSocket = clients[targetBuyerIndex]!.socket;
+
+    const contribution = Math.min(3_000_000, buyerAvailableCash);
+    const principal = 5_000_000 - contribution;
 
     let rev = 4;
     // Investigate
@@ -841,8 +877,8 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
       command: {
         type: "PURSUE_BUSINESS_WITH_PLAYER_LOAN",
         opportunityId: opp.id,
-        buyerCashContributionCents: 3_000_000,
-        requestedPrincipalCents: 2_000_000,
+        buyerCashContributionCents: contribution,
+        requestedPrincipalCents: principal,
       },
     });
 
@@ -858,10 +894,19 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
     let lenderIndex = -1;
     for (let i = 0; i < 4; i++) {
       if (i !== targetBuyerIndex && clientPlayerIds[i] !== sellerPlayerId) {
-        lenderIndex = i;
-        break;
+        const lenderRes = await server.fastify.inject({
+          method: "GET",
+          url: `/api/rooms/${roomCode}/match`,
+          cookies: { interests_session: cookies[i]! },
+        });
+        const lView = JSON.parse(lenderRes.body).match as MatchPlayerView;
+        if (lView.self.availableCashCents >= principal) {
+          lenderIndex = i;
+          break;
+        }
       }
     }
+    expect(lenderIndex).toBeGreaterThanOrEqual(0);
     const lenderSocket = clients[lenderIndex]!.socket;
 
     // Lender submits offer
@@ -941,7 +986,7 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
         (l) =>
           l.kind === "player-loan" &&
           l.role === "borrower" &&
-          l.outstandingPrincipalCents === 2_000_000,
+          l.outstandingPrincipalCents === principal,
       ),
     ).toBe(true);
   });
@@ -954,7 +999,11 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
       roomCode,
       cookies,
       clientPlayerIds,
+      buyerAvailableCash,
     } = await setupMatchAtRoundStart();
+
+    const contribution = Math.min(3_000_000, buyerAvailableCash);
+    const principal = 5_000_000 - contribution;
 
     // Advance to buyer spotlight and submit financing request
     const buyerSocket = clients[targetBuyerIndex]!.socket;
@@ -1001,8 +1050,8 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
       command: {
         type: "PURSUE_BUSINESS_WITH_PLAYER_LOAN",
         opportunityId: opp.id,
-        buyerCashContributionCents: 3_000_000,
-        requestedPrincipalCents: 2_000_000,
+        buyerCashContributionCents: contribution,
+        requestedPrincipalCents: principal,
       },
     });
 
@@ -1020,7 +1069,13 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
     let neutralIndex = -1;
     for (let i = 0; i < 4; i++) {
       if (i !== targetBuyerIndex && i !== sellerIndex) {
-        if (lenderIndex === -1) {
+        const lenderRes = await server.fastify.inject({
+          method: "GET",
+          url: `/api/rooms/${roomCode}/match`,
+          cookies: { interests_session: cookies[i]! },
+        });
+        const lView = JSON.parse(lenderRes.body).match as MatchPlayerView;
+        if (lenderIndex === -1 && lView.self.availableCashCents >= principal) {
           lenderIndex = i;
         } else {
           neutralIndex = i;
@@ -1118,8 +1173,12 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
       roomCode,
       cookies,
       clientPlayerIds,
+      buyerAvailableCash,
     } = await setupMatchAtRoundStart();
     const buyerSocket = clients[targetBuyerIndex]!.socket;
+
+    const contribution = Math.min(3_000_000, buyerAvailableCash);
+    const principal = 5_000_000 - contribution;
 
     let rev = 4;
     // Investigate
@@ -1169,8 +1228,8 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
       command: {
         type: "PURSUE_BUSINESS_WITH_PLAYER_LOAN",
         opportunityId: opp.id,
-        buyerCashContributionCents: 3_000_000,
-        requestedPrincipalCents: 2_000_000,
+        buyerCashContributionCents: contribution,
+        requestedPrincipalCents: principal,
       },
     });
 

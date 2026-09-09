@@ -25,8 +25,11 @@ export const TransactionPanel: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Financed pursuit form state (buyer)
-  const defaultContribution = 3_000_000;
   const askingPrice = opportunity?.askingPriceCents ?? 5_000_000;
+  const defaultContribution = Math.min(
+    3_000_000,
+    Math.max(1, match.self.availableCashCents),
+  );
   const [buyerContributionCents, setBuyerContributionCents] =
     useState<number>(defaultContribution);
   const [showFinancingForm, setShowFinancingForm] = useState(false);
