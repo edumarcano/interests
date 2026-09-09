@@ -894,18 +894,20 @@ Changing the URL grants no authority. Bootstrap every protected screen through t
 ### 17.2 Three independent UI concerns
 
 - **Authoritative view:** replaceable server-projected state; read-only in the browser.
-- **Connection state:** connecting, synchronized, submitting, uncertain, paused, or recovering.
+- **Connection state:** connecting, synchronizing, synchronized, submitting, uncertain, paused, recovering, or replaced. Progression requires explicit handshake acknowledgment (`session:synchronized`) before controller state is considered synchronized.
 - **Local UI state:** open tabs, display depth, form drafts, accessibility preferences.
 
 Keep them in separate reducers/contexts so editing a form cannot alter the financial snapshot. Derived display selectors may sort and format authorized data, but they cannot award money or reconstruct another player's private statement.
 
 No optimistic financial commits. A form can show a pending indicator; balances and ownership change only after the server confirms. Disable finance confirmation while disconnected or unsure whether a previous submission succeeded.
 
+Command submission preserves the exact command envelope `(commandId, expectedRevision, command)` across uncertain delivery or timeouts. Retrying an action reuses the existing envelope rather than generating new identifiers, ensuring that server-committed but unacknowledged actions are idempotently resolved via command receipts rather than executed as duplicate commands.
+
 ### 17.3 Responsive behavior and Player View
 
-There is one responsive authenticated Player View across all devices. Phone and laptop have the exact same information permissions and gameplay capabilities:
+There is one responsive authenticated Player View across all devices (`apps/web`). Phone and laptop have the exact same information permissions and gameplay capabilities:
 - **Laptop:** Displays a wider multi-panel layout showing personal finances, the active spotlight transaction, public market indicators, and action controls side by side.
-- **Phone:** Displays the same authorized information distributed across clean navigation tabs and panels.
+- **Phone:** Displays the same authorized information distributed across clean navigation tabs and panels with 44px+ touch targets.
 
 Do **not** define a separate spectator or dedicated Table View application for the first playable version. A neutral shared table display remains a possible future enhancement, but is not part of Standard V1.
 
@@ -917,7 +919,7 @@ It never displays another player's protected private objectives, exact finances,
 
 Prioritize readable figures, clear units, touch-sized controls, keyboard access, visible focus, reduced-motion support, and text labels alongside color. Use standard HTML controls where possible. Add a small accessible component primitive library only when a concrete component requires it, not a full design system in the initial scaffold.
 
-Connection and pause status stays prominent. A person returning from a locked phone should see the saved interaction and pending-command status, not a misleading fresh lobby.
+Connection and pause status stays prominent. A person returning from a locked phone should see the saved interaction and pending-command status, not a misleading fresh lobby. Host resume controls require all four players to be connected AND synchronized (`allConnected && allSynchronized`), and manual resume is blocked when a `SYSTEM_FAULT` pause reason is present.
 
 All confirmed offers remain visible after reconnect because they are server state. Unsent form drafts may be lost on refresh in V1; disclose that distinction.
 
@@ -925,7 +927,7 @@ All confirmed offers remain visible after reconnect because they are server stat
 
 After core engine tests, build the first browser slice against the real server protocol, not a second React-only game model. Test create/join, a private view, one transaction, disconnect, and recovery before expanding the visual surface.
 
-The game should work when a phone connects to the developer's machine on the local network. Frontend requests use relative/same-origin paths, not a hardcoded `localhost` address pointing at the phone itself. Vite's development proxy routes API and Socket.IO traffic to the server.
+The game should work when a phone connects to the developer's machine on the local network. Frontend requests use relative/same-origin paths, not a hardcoded `localhost` address pointing at the phone itself. Vite's development proxy routes API and Socket.IO traffic to the server, and binds to `0.0.0.0` so mobile devices on the LAN can reach the application. Client UUID generation uses `crypto.getRandomValues()` so that plain-HTTP LAN access without HTTPS restrictions can successfully generate valid command envelopes. Standardized session cookies use `interests_session`.
 
 ## 18. Security, logging, and errors
 

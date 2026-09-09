@@ -4,10 +4,56 @@ import type {
   PlayerCommandEnvelope,
 } from "@interests/shared";
 
+/**
+ * Generates a cryptographically strong UUIDv4 that works in both secure contexts (HTTPS, localhost)
+ * and insecure plain-HTTP LAN contexts (e.g. mobile browser connecting to LAN IP http://192.168.x.x:5173).
+ * crypto.randomUUID() is restricted to secure contexts, whereas crypto.getRandomValues() is available across all contexts.
+ */
+export function generateUUID(): string {
+  if (typeof crypto !== "undefined") {
+    if (typeof crypto.randomUUID === "function") {
+      try {
+        return crypto.randomUUID();
+      } catch {
+        // Fall back if restricted by environment/context
+      }
+    }
+    if (typeof crypto.getRandomValues === "function") {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      // Set version 4: bits 12-15 of time_hi_and_version to 0100
+      bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+      // Set variant RFC4122: bits 6-7 of clock_seq_hi_and_reserved to 10
+      bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+      const hex: string[] = [];
+      for (let i = 0; i < 16; i++) {
+        hex.push(bytes[i]!.toString(16).padStart(2, "0"));
+      }
+      return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
+    }
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+export function isSameLogicalCommand(
+  a: PlayerCommand,
+  b: PlayerCommand,
+): boolean {
+  if (a.type !== b.type) return false;
+  if (a.type === "CHOOSE_OBJECTIVE" && b.type === "CHOOSE_OBJECTIVE") {
+    return a.objectiveId === b.objectiveId;
+  }
+  return true;
+}
+
 export function createCommandEnvelope(
   command: PlayerCommand,
   expectedRevision: number,
-  commandId: string = crypto.randomUUID(),
+  commandId: string = generateUUID(),
 ): PlayerCommandEnvelope {
   return {
     commandId,
@@ -25,7 +71,7 @@ export interface PendingCommandState {
 export function createPendingCommand(
   command: PlayerCommand,
   expectedRevision: number,
-  commandId: string = crypto.randomUUID(),
+  commandId: string = generateUUID(),
 ): PendingCommandState {
   return {
     envelope: createCommandEnvelope(command, expectedRevision, commandId),

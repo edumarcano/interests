@@ -19,7 +19,10 @@ import {
   SOCKET_SERVER_EVENTS,
 } from "@interests/shared";
 import { io, type Socket } from "socket.io-client";
-import { createCommandEnvelope } from "../command/commandHelper.js";
+import {
+  createCommandEnvelope,
+  isSameLogicalCommand,
+} from "../command/commandHelper.js";
 
 export type ConnectionStatus =
   | "connecting"
@@ -68,6 +71,16 @@ export class RealtimeManager {
     return this.pendingCommand;
   }
 
+  setMatch(match: MatchPlayerView): void {
+    if (
+      this.pendingCommand &&
+      match.revision > this.pendingCommand.expectedRevision
+    ) {
+      this.pendingCommand = null;
+    }
+    this.updateState({ match });
+  }
+
   subscribe(listener: RealtimeListener): () => void {
     this.listeners.add(listener);
     listener(this.state);
@@ -111,7 +124,16 @@ export class RealtimeManager {
     this.socket = socket;
 
     socket.on("connect", () => {
-      // Waiting for bootstrap
+      // Waiting for session:bootstrap and session:synchronized ack
+    });
+
+    socket.on("disconnect", (reason) => {
+      if (this.state.status !== "replaced") {
+        this.updateState({
+          status: "disconnected",
+          error: `Disconnected: ${reason}`,
+        });
+      }
     });
 
     socket.on("connect_error", (err) => {
@@ -121,40 +143,23 @@ export class RealtimeManager {
       });
     });
 
-    socket.on("disconnect", (reason) => {
-      if (this.state.status !== "replaced") {
-        this.updateState({
-          status:
-            reason === "io client disconnect" ? "disconnected" : "reconnecting",
-        });
-      }
-    });
-
     socket.on(
       SOCKET_SERVER_EVENTS.BOOTSTRAP,
       (payload: SocketBootstrapPayload) => {
-        if (payload.protocolVersion !== SOCKET_PROTOCOL_VERSION) {
-          this.updateState({
-            status: "disconnected",
-            error: "Protocol version mismatch",
-          });
-          socket.disconnect();
-          return;
-        }
-
         const currentGen = payload.self.connectionGeneration;
+
         this.updateState({
           status: "synchronizing",
           room: payload.room,
-          selfMemberId: payload.self.memberId,
-          connectionGeneration: currentGen,
           presence: payload.presence,
           pauseReasons: payload.pause.reasons,
           match: payload.match ?? null,
+          selfMemberId: payload.self.memberId,
+          connectionGeneration: currentGen,
           error: null,
         });
 
-        // Explicitly synchronize connection generation
+        // Acknowledge session synchronization to arm controller presence
         socket.emit(
           SOCKET_CLIENT_EVENTS.SYNCHRONIZE,
           { connectionGeneration: currentGen },
@@ -186,6 +191,12 @@ export class RealtimeManager {
     });
 
     socket.on(SOCKET_SERVER_EVENTS.MATCH_VIEW, (payload: MatchPlayerView) => {
+      if (
+        this.pendingCommand &&
+        payload.revision > this.pendingCommand.expectedRevision
+      ) {
+        this.pendingCommand = null;
+      }
       this.updateState({
         match: payload,
       });
@@ -208,14 +219,24 @@ export class RealtimeManager {
     timeoutMs = 10000,
   ): Promise<CommandAckResult> {
     let envelope: PlayerCommandEnvelope;
+    const currentRevision = this.state.match?.revision ?? 0;
     if (
       "commandId" in commandOrEnvelope &&
       "expectedRevision" in commandOrEnvelope
     ) {
       envelope = commandOrEnvelope;
     } else {
-      const expectedRevision = this.state.match?.revision ?? 0;
-      envelope = createCommandEnvelope(commandOrEnvelope, expectedRevision);
+      // If we already have a pending command for the exact same logical action at this revision,
+      // reuse the existing envelope across uncertain delivery / timeout retry!
+      if (
+        this.pendingCommand &&
+        isSameLogicalCommand(this.pendingCommand.command, commandOrEnvelope) &&
+        this.pendingCommand.expectedRevision === currentRevision
+      ) {
+        envelope = this.pendingCommand;
+      } else {
+        envelope = createCommandEnvelope(commandOrEnvelope, currentRevision);
+      }
     }
 
     this.pendingCommand = envelope;
@@ -229,7 +250,7 @@ export class RealtimeManager {
             code: SOCKET_ERROR_CODES.INTERNAL_ERROR,
             message: "Socket is not connected",
           },
-          revision: this.state.match?.revision ?? 0,
+          revision: currentRevision,
         });
       }
 
@@ -241,9 +262,9 @@ export class RealtimeManager {
           error: {
             code: "TIMEOUT",
             message:
-              "Command acknowledgement timed out; retry may reuse this envelope",
+              "Command acknowledgement timed out; retry will reuse this envelope",
           },
-          revision: this.state.match?.revision ?? 0,
+          revision: currentRevision,
         });
       }, timeoutMs);
 
@@ -255,7 +276,12 @@ export class RealtimeManager {
             clearTimeout(timer);
             timer = null;
           }
-          if (ack?.ok) {
+          // Clear pendingCommand on terminal acknowledgements (both accepted and rejected),
+          // but only if it matches this envelope (preventing late acks from clearing newer commands).
+          if (
+            this.pendingCommand &&
+            this.pendingCommand.commandId === envelope.commandId
+          ) {
             this.pendingCommand = null;
           }
           resolve(ack);

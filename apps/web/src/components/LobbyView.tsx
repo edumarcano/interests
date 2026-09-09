@@ -1,10 +1,12 @@
 import type {
+  MatchPlayerView,
   PauseReason,
   RoomLobbyView,
   RoomMemberId,
   RoomPresencePayload,
 } from "@interests/shared";
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
 import { rotateRecoveryCode, startMatch } from "../api/client.js";
 
 interface Props {
@@ -14,6 +16,7 @@ interface Props {
   pauseReasons: readonly PauseReason[];
   onRecoveryCodeRotated: (newCode: string) => void;
   onLeave: () => void;
+  onMatchStarted?: (match: MatchPlayerView) => void;
 }
 
 export const LobbyView: React.FC<Props> = ({
@@ -23,6 +26,7 @@ export const LobbyView: React.FC<Props> = ({
   pauseReasons,
   onRecoveryCodeRotated,
   onLeave,
+  onMatchStarted,
 }) => {
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -52,8 +56,10 @@ export const LobbyView: React.FC<Props> = ({
     try {
       setStarting(true);
       setError(null);
-      await startMatch(room.code);
-      // match:view will arrive over socket
+      const res = await startMatch(room.code);
+      if (res?.match) {
+        onMatchStarted?.(res.match);
+      }
     } catch (err: any) {
       setError(err?.message || "Failed to start match");
       setStarting(false);

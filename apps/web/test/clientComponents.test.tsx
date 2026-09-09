@@ -842,12 +842,100 @@ describe("TASK Section 30: Client Verification Checklist", () => {
   });
 
   // Helper tests
-  it("creates durable command envelope with crypto.randomUUID() and expected revision", () => {
-    const envelope = createCommandEnvelope({ type: "PASS_SPOTLIGHT" }, 42);
-    expect(envelope.expectedRevision).toBe(42);
-    expect(envelope.command.type).toBe("PASS_SPOTLIGHT");
-    expect(envelope.commandId).toBeTruthy();
-    expect(typeof envelope.commandId).toBe("string");
+  it("creates durable command envelope with LAN HTTP-safe UUID when crypto.randomUUID is unavailable", () => {
+    const originalRandomUUID = crypto.randomUUID;
+    try {
+      // Simulate insecure context on LAN HTTP where crypto.randomUUID is undefined
+      // @ts-expect-error test override
+      delete crypto.randomUUID;
+
+      const envelope = createCommandEnvelope({ type: "PASS_SPOTLIGHT" }, 42);
+      expect(envelope.expectedRevision).toBe(42);
+      expect(envelope.command.type).toBe("PASS_SPOTLIGHT");
+      expect(typeof envelope.commandId).toBe("string");
+      // Valid UUIDv4 format: 8-4-4-4-12 hex with version 4
+      const uuidv4Regex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      expect(envelope.commandId).toMatch(uuidv4Regex);
+    } finally {
+      crypto.randomUUID = originalRandomUUID;
+    }
+  });
+
+  it("LobbyView invokes onMatchStarted with returned match on Start Game success", async () => {
+    vi.spyOn(apiClient, "startMatch").mockResolvedValueOnce({
+      match: mockRoundStartMatch,
+    });
+    const handleMatchStarted = vi.fn();
+
+    render(
+      <LobbyView
+        room={mockRoom}
+        presence={mockPresenceAllSync}
+        selfMemberId={"m1" as RoomMemberId}
+        pauseReasons={[]}
+        onRecoveryCodeRotated={() => {}}
+        onLeave={() => {}}
+        onMatchStarted={handleMatchStarted}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("start-game-btn"));
+    await waitFor(() => {
+      expect(handleMatchStarted).toHaveBeenCalledWith(mockRoundStartMatch);
+    });
+  });
+
+  it("displays retry button text when action fails", async () => {
+    const failingCmd = vi.fn().mockResolvedValue({
+      ok: false,
+      commandId: "c1",
+      error: { code: "TIMEOUT", message: "Timed out" },
+      revision: 4,
+    });
+
+    // Objective selection retry text
+    const { rerender } = render(
+      <ObjectiveSelection match={mockSetupMatch} onSendCommand={failingCmd} />,
+    );
+    fireEvent.click(screen.getByTestId("objective-card-founder"));
+    fireEvent.click(screen.getByTestId("confirm-objective-btn"));
+    await waitFor(() => {
+      expect(screen.getByTestId("confirm-objective-btn").textContent).toContain(
+        "Retry Lock In",
+      );
+    });
+
+    // Round start retry text
+    rerender(
+      <RoundStartView
+        match={mockRoundStartMatch}
+        isHost={true}
+        isPaused={false}
+        onSendCommand={failingCmd}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("begin-round-btn"));
+    await waitFor(() => {
+      expect(screen.getByTestId("begin-round-btn").textContent).toContain(
+        "Retry Begin Round",
+      );
+    });
+
+    // Spotlight retry text
+    rerender(
+      <SpotlightView
+        match={mockSpotlightMatch}
+        isPaused={false}
+        onSendCommand={failingCmd}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("pass-spotlight-btn"));
+    await waitFor(() => {
+      expect(screen.getByTestId("pass-spotlight-btn").textContent).toContain(
+        "Retry Pass Spotlight",
+      );
+    });
   });
 
   it("renders connection status badge with appropriate label and style", () => {

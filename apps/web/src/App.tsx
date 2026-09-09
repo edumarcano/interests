@@ -131,6 +131,7 @@ export const App: React.FC = () => {
             pauseReasons={realtimeState.pauseReasons}
             onRecoveryCodeRotated={(newCode) => setRecoveryCodeToShow(newCode)}
             onLeave={handleLeave}
+            onMatchStarted={(m) => realtime.setMatch(m)}
           />
         ) : (
           <div

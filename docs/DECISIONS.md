@@ -588,8 +588,9 @@ Establish the responsive web browser player application, wire contract boundarie
    - Defined as a constant `SESSION_COOKIE_NAME = "interests_session"` in `@interests/shared/src/transportProtocol.ts`.
    - Replaces all legacy names across server HTTP routes, Socket.IO handshake auth, and test fixtures without backwards-compatibility fallbacks.
 
-3. **Same-Origin Vite Proxy Semantics:**
+3. **Same-Origin Vite Proxy Semantics & LAN Reachability:**
    - The local Vite development server configures proxies for `/api` and `/socket.io` with `changeOrigin: false` and `ws: true`.
+   - Binds to `host: "0.0.0.0"` in `vite.config.ts` so phones and other devices on home Wi-Fi/LAN can reach `http://<LAN-IP>:5173`.
    - Preserves browser Host and Origin headers so Fastify's `validateSameOrigin` security hook verifies matching origin without modifying server security boundaries.
 
 4. **Shared Wire Contracts & Shared Version Bump:**
@@ -602,12 +603,24 @@ Establish the responsive web browser player application, wire contract boundarie
 
 6. **Client State Machine & Lifecycle Flows:**
    - `EntryScreen`: Create Room, Join Room, Recover Seat with immediate private recovery code modal presentation.
-   - `LobbyView`: 4-seat lobby layout showing join order, host crown, connection status, synchronization status, rotate recovery code action, and host-only "Start Game" button enabled only when 4 members are connected and synchronized.
-   - `ObjectiveSelection`: Card deck presentation of profile and 2 secret objectives with durable `CHOOSE_OBJECTIVE` submission.
-   - `RoundStartView`: Quarter overview, rotating spotlight order, and host-only `BEGIN_ROUND` control.
-   - `SpotlightView`: Active player highlight, completed spotlight counter, and active-player-only "Pass Spotlight" action advancing through Quarter 2 round-start upon 4 passes.
-   - `PauseBanner`: Clear formatted pause reasons with host-only resume button enabled when all seats are connected.
+   - `LobbyView`: 4-seat lobby layout showing join order (mapping durable `joinOrder: 0..3` to display seats 1..4), host crown, connection status, synchronization status, rotate recovery code action, and host-only "Start Game" button enabled only when 4 members are connected and synchronized. Immediate optimistic transition using returned personalized match view from `POST /start` response while continuing to receive socket replacements.
+   - `ObjectiveSelection`: Card deck presentation of profile and 2 secret objectives with durable `CHOOSE_OBJECTIVE` submission, routed when `match.phase === "objective-choosing" || match.round === null`.
+   - `RoundStartView`: Quarter overview, rotating spotlight order, and host-only `BEGIN_ROUND` control, routed when `match.round?.stage === "round-start"`.
+   - `SpotlightView`: Active player highlight, completed spotlight counter, and active-player-only "Pass Spotlight" action advancing through Quarter 2 round-start upon 4 passes, routed when `match.round?.stage === "spotlight"`.
+   - `PauseBanner`: Formatted pause reasons with host resume button enabled only when all 4 seats are connected AND synchronized (`presence.allConnected && presence.allSynchronized`) and blocked when `SYSTEM_FAULT` is present.
    - `ReplacedScreen`: Clean disconnect screen when superseded by another tab or recovered by a new session.
+
+7. **Socket Synchronization Lifecycle & Controller Arming:**
+   - Explicit three-state connection progression: `connecting` -> `synchronizing` -> `synchronized`.
+   - On `session:bootstrap`, status enters `synchronizing`. The transition to `synchronized` occurs only after the server acknowledges `session:synchronized` with `{ ok: true }`.
+   - Synchronization failure immediately disconnects the socket and surfaces the error, preventing misleading "connected" indicators for un-synchronized controllers.
+
+8. **Command Envelope Preservation & Idempotent Retry:**
+   - `RealtimeManager` and client action boundaries preserve the exact `(commandId, expectedRevision, command)` envelope across uncertain delivery or timeouts.
+   - Submitting the same logical action after a timeout reuses the existing envelope rather than generating new identifiers.
+   - Terminal acknowledgements (both accepted and rejected) matching the pending envelope clear pending command tracking; late acknowledgements for prior commands cannot clear newer pending envelopes. Advancing match revisions also clears pending commands.
+   - Cryptographically strong UUIDv4 generation uses RFC4122 byte formatting via `crypto.getRandomValues()`, ensuring compatibility with plain-HTTP LAN access where `crypto.randomUUID()` is restricted by browsers.
+
 
 
 

@@ -171,7 +171,6 @@ describe("RealtimeManager unit tests", () => {
     const pending = manager.getPendingCommand();
     expect(pending).not.toBeNull();
     const originalCommandId = pending?.commandId;
-    const originalRevision = pending?.expectedRevision;
 
     // Hook to acknowledge retry
     fakeSocket.on(
@@ -191,6 +190,182 @@ describe("RealtimeManager unit tests", () => {
     const retryResult = await manager.retryPendingCommand();
     expect(retryResult.ok).toBe(true);
     expect(retryResult.commandId).toBe(originalCommandId);
+    expect(manager.getPendingCommand()).toBeNull();
+  });
+
+  it("calling sendCommand with the same command after timeout reuses the exact same envelope and commandId", async () => {
+    const manager = new RealtimeManager();
+    manager.connect("ROOM1");
+
+    // First attempt times out
+    const timeoutResult = await manager.sendCommand(
+      { type: "CHOOSE_OBJECTIVE", objectiveId: "founder" },
+      10,
+    );
+    expect(timeoutResult.ok).toBe(false);
+    expect(timeoutResult.error.code).toBe("TIMEOUT");
+
+    const pending = manager.getPendingCommand();
+    expect(pending).not.toBeNull();
+    const firstCommandId = pending?.commandId;
+
+    // Second attempt via standard sendCommand (as normal UI component does on retry)
+    let secondSentEnvelope: any = null;
+    fakeSocket.on(
+      SOCKET_CLIENT_EVENTS.COMMAND,
+      (envelope: any, ack?: Function) => {
+        secondSentEnvelope = envelope;
+        if (ack) {
+          ack({
+            ok: true,
+            commandId: envelope.commandId,
+            outcome: "ACCEPTED",
+            revision: 1,
+          });
+        }
+      },
+    );
+
+    const secondResult = await manager.sendCommand({
+      type: "CHOOSE_OBJECTIVE",
+      objectiveId: "founder",
+    });
+    expect(secondResult.ok).toBe(true);
+    expect(secondResult.commandId).toBe(firstCommandId);
+    expect(secondSentEnvelope.commandId).toBe(firstCommandId);
+    expect(manager.getPendingCommand()).toBeNull();
+  });
+
+  it("calling sendCommand with a different command after timeout generates a new envelope", async () => {
+    const manager = new RealtimeManager();
+    manager.connect("ROOM1");
+
+    // First attempt times out
+    await manager.sendCommand(
+      { type: "CHOOSE_OBJECTIVE", objectiveId: "founder" },
+      10,
+    );
+    const firstCommandId = manager.getPendingCommand()?.commandId;
+
+    fakeSocket.on(
+      SOCKET_CLIENT_EVENTS.COMMAND,
+      (envelope: any, ack?: Function) => {
+        if (ack) {
+          ack({
+            ok: true,
+            commandId: envelope.commandId,
+            outcome: "ACCEPTED",
+            revision: 1,
+          });
+        }
+      },
+    );
+
+    // User changed selection to a different objective
+    const secondResult = await manager.sendCommand({
+      type: "CHOOSE_OBJECTIVE",
+      objectiveId: "property-magnate",
+    });
+    expect(secondResult.ok).toBe(true);
+    expect(secondResult.commandId).not.toBe(firstCommandId);
+  });
+
+  it("terminal rejected ack clears pending command", async () => {
+    const manager = new RealtimeManager();
+    manager.connect("ROOM1");
+
+    fakeSocket.on(
+      SOCKET_CLIENT_EVENTS.COMMAND,
+      (envelope: any, ack?: Function) => {
+        if (ack) {
+          ack({
+            ok: false,
+            commandId: envelope.commandId,
+            error: { code: "STALE_REVISION", message: "Stale revision" },
+            revision: 2,
+          });
+        }
+      },
+    );
+
+    const res = await manager.sendCommand({ type: "BEGIN_ROUND" });
+    expect(res.ok).toBe(false);
+    expect(manager.getPendingCommand()).toBeNull();
+  });
+
+  it("late ack for older command does not clear newer pending command", async () => {
+    const manager = new RealtimeManager();
+    manager.connect("ROOM1");
+
+    let firstAckFn: Function | null = null;
+    fakeSocket.once(
+      SOCKET_CLIENT_EVENTS.COMMAND,
+      (envelope: any, ack?: Function) => {
+        firstAckFn = ack ?? null;
+      },
+    );
+
+    // First command times out
+    await manager.sendCommand({ type: "PASS_SPOTLIGHT" }, 10);
+    const firstCommandId = manager.getPendingCommand()?.commandId;
+
+    // User submits a genuinely new command (e.g. choose objective)
+    fakeSocket.once(
+      SOCKET_CLIENT_EVENTS.COMMAND,
+      (_envelope: any, _ack?: Function) => {
+        // don't ack immediately
+      },
+    );
+    manager.sendCommand(
+      { type: "CHOOSE_OBJECTIVE", objectiveId: "founder" },
+      1000,
+    );
+
+    const secondCommandId = manager.getPendingCommand()?.commandId;
+    expect(secondCommandId).not.toBe(firstCommandId);
+
+    // Now late ack for first command arrives
+    firstAckFn?.({
+      ok: true,
+      commandId: firstCommandId,
+      outcome: "ACCEPTED",
+      revision: 1,
+    });
+
+    // Pending command should NOT be cleared because it belongs to the second command
+    expect(manager.getPendingCommand()?.commandId).toBe(secondCommandId);
+  });
+
+  it("setMatch updates match and clears pending command if revision advanced", async () => {
+    const manager = new RealtimeManager();
+    manager.connect("ROOM1");
+
+    await manager.sendCommand({ type: "BEGIN_ROUND" }, 10);
+    expect(manager.getPendingCommand()).not.toBeNull();
+
+    manager.setMatch({
+      matchId: "m1" as any,
+      modeId: "standard",
+      revision: 5,
+      phase: "ready-for-first-round",
+      currentQuarter: 1,
+      round: {
+        stage: "round-start",
+        spotlightOrder: [],
+        activeSpotlightPlayerId: null,
+        spotlightsCompleted: 0,
+      },
+      players: [],
+      self: {
+        playerId: "p1" as any,
+        profileId: "prof",
+        offeredObjectiveIds: ["a", "b"],
+        selectedObjectiveId: null,
+      },
+      activeTransaction: null,
+    });
+
+    expect(manager.getState().match?.revision).toBe(5);
     expect(manager.getPendingCommand()).toBeNull();
   });
 });

@@ -223,7 +223,11 @@ export const SpotlightView: React.FC<Props> = ({
               id="pass-spotlight-btn"
               data-testid="pass-spotlight-btn"
             >
-              {submitting ? "Passing..." : "Pass Spotlight"}
+              {submitting
+                ? "Passing..."
+                : error
+                  ? "Retry Pass Spotlight"
+                  : "Pass Spotlight"}
             </button>
           </div>
         ) : (

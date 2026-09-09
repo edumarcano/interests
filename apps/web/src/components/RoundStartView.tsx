@@ -156,7 +156,11 @@ export const RoundStartView: React.FC<Props> = ({
             id="begin-round-btn"
             data-testid="begin-round-btn"
           >
-            {submitting ? "Starting..." : "Begin Round"}
+            {submitting
+              ? "Starting..."
+              : error
+                ? "Retry Begin Round"
+                : "Begin Round"}
           </button>
         ) : (
           <p

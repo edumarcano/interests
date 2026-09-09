@@ -239,7 +239,11 @@ export const ObjectiveSelection: React.FC<Props> = ({
             id="confirm-objective-btn"
             data-testid="confirm-objective-btn"
           >
-            {submitting ? "Locking Selection..." : "Lock In Objective"}
+            {submitting
+              ? "Locking Selection..."
+              : error
+                ? "Retry Lock In"
+                : "Lock In Objective"}
           </button>
         </div>
       )}
