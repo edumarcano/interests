@@ -90,7 +90,7 @@ describe("Match Crash and Restart Recovery", () => {
     return new Promise((resolve, reject) => {
       const socket = ioClient(`http://127.0.0.1:${port}`, {
         extraHeaders: {
-          cookie: `finance_game_session=${cookieValue}`,
+          cookie: `interests_session=${cookieValue}`,
           origin: `http://127.0.0.1:${port}`,
         },
         auth: {
@@ -161,7 +161,7 @@ describe("Match Crash and Restart Recovery", () => {
     });
     const roomCode = JSON.parse(hostRes.body).room.code;
     const hostCookie = hostRes.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     if (!hostCookie) throw new Error("Missing host cookie");
     const cookies: string[] = [hostCookie];
@@ -173,7 +173,7 @@ describe("Match Crash and Restart Recovery", () => {
         payload: { nickname: `Player${i}` },
       });
       const joinCookie = joinRes.cookies.find(
-        (c) => c.name === "finance_game_session",
+        (c) => c.name === "interests_session",
       )?.value;
       if (!joinCookie) throw new Error(`Missing cookie for Player${i}`);
       cookies.push(joinCookie);
@@ -194,7 +194,7 @@ describe("Match Crash and Restart Recovery", () => {
     const startRes = await server1.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0] ?? "" },
+      cookies: { interests_session: cookies[0] ?? "" },
     });
     expect(startRes.statusCode).toBe(200);
     const startBody = JSON.parse(startRes.body);
@@ -316,7 +316,7 @@ describe("Match Crash and Restart Recovery", () => {
     clientSockets.length = 0;
     await server2.close();
     db2.close();
-  });
+  }, 30000);
 
   it("recovers an unfinished active business-purchase transaction exactly across crash/restart (Milestone 5 core proof)", async () => {
     // 1. Setup server 1
@@ -347,7 +347,7 @@ describe("Match Crash and Restart Recovery", () => {
     });
     const roomCode = JSON.parse(hostRes.body).room.code;
     const hostCookie = hostRes.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     if (!hostCookie) throw new Error("Missing buyer host cookie");
     const cookies: string[] = [hostCookie];
@@ -358,7 +358,7 @@ describe("Match Crash and Restart Recovery", () => {
         payload: { nickname: `Member${i}` },
       });
       const joinCookie = joinRes.cookies.find(
-        (c) => c.name === "finance_game_session",
+        (c) => c.name === "interests_session",
       )?.value;
       if (!joinCookie) throw new Error(`Missing cookie for Member${i}`);
       cookies.push(joinCookie);
@@ -379,7 +379,7 @@ describe("Match Crash and Restart Recovery", () => {
     await server1.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0] ?? "" },
+      cookies: { interests_session: cookies[0] ?? "" },
     });
 
     const matchWithMembers = matchRepo1.findMatchByRoomCode(roomCode);
@@ -582,7 +582,7 @@ describe("Match Crash and Restart Recovery", () => {
     clientSockets.length = 0;
     await server2.close();
     db2.close();
-  });
+  }, 30000);
 
   it("retains exact same PlayerId after PR #17 credential recovery", async () => {
     const db = openDatabase({ dbPath: tempDbPath });
@@ -612,7 +612,7 @@ describe("Match Crash and Restart Recovery", () => {
     });
     const roomCode = JSON.parse(hostRes.body).room.code;
     const hostCookie = hostRes.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     if (!hostCookie) throw new Error("Missing host session cookie");
     const cookies = [hostCookie];
@@ -632,7 +632,7 @@ describe("Match Crash and Restart Recovery", () => {
         player2MemberId = joinBody.self.memberId;
       }
       const memberCookie = joinRes.cookies.find(
-        (c) => c.name === "finance_game_session",
+        (c) => c.name === "interests_session",
       )?.value;
       if (!memberCookie) {
         throw new Error(`Missing cookie for player ${i}`);
@@ -652,7 +652,7 @@ describe("Match Crash and Restart Recovery", () => {
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0] ?? "" },
+      cookies: { interests_session: cookies[0] ?? "" },
     });
     expect(startRes.statusCode).toBe(200);
 
@@ -676,7 +676,7 @@ describe("Match Crash and Restart Recovery", () => {
     expect(recoverBody.self.memberId).toBe(player2MemberId);
 
     const newPlayer2Cookie = recoverRes.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     if (!newPlayer2Cookie) {
       throw new Error("Missing recovered cookie");

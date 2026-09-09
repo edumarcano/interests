@@ -397,7 +397,7 @@ Establish the persistent accountless multiplayer lobby, credential architecture,
    - A fifth join attempt is rejected atomically (`ROOM_FULL`).
 
 3. **Opaque Browser Sessions:**
-   - Browser authentication uses high-entropy 32-byte cryptographically secure random bearer tokens (`generateBearerToken`) transmitted via an `HttpOnly`, `SameSite=Strict`, `Path=/` cookie (`finance_game_session`).
+   - Browser authentication uses high-entropy 32-byte cryptographically secure random bearer tokens (`generateBearerToken`) transmitted via an `HttpOnly`, `SameSite=Strict`, `Path=/` cookie (`interests_session`).
    - Sessions are stored only as SHA-256 cryptographic digests in SQLite (`browser_sessions`), with a 30-day lifetime.
    - A single browser session may hold authorized membership grants for multiple rooms (`session_memberships`).
 
@@ -426,7 +426,7 @@ Establish the persistent accountless multiplayer lobby, credential architecture,
 Establish the authenticated Socket.IO session layer, controlling socket lifecycle, presence tracking, and disconnect pause architecture for Standard V1:
 
 1. **Cookie-Based Socket Authentication:**
-   - Socket.IO authenticates exclusively through the existing opaque browser-session cookie (`finance_game_session`).
+   - Socket.IO authenticates exclusively through the existing opaque browser-session cookie (`interests_session`).
    - A public room code in handshake authentication selects the target room but never authenticates or authorizes a player seat.
    - The client handshake payload must not transmit `memberId`, `playerId`, session credentials, or recovery codes; actor identity is derived strictly from the validated browser session grant in SQLite.
    - Browser connections validate that Origin authority matches Host authority before connection acceptance; non-browser clients must provide valid Host/Origin headers.
@@ -570,6 +570,45 @@ Establish the authoritative quarterly round progression, canonical round state, 
 8. **Durability and Restart Recovery:**
    - Canonical `round` state survives JSON serialization, SQLite persistence, and process restart exactly.
    - Server restart during an active spotlight or at `round-start` preserves exact quarter, stage, spotlight count, and RNG. Host resume clears operational pauses without altering `GameState`.
+
+## ARCH-035 - Responsive browser player view and session cookie standardization
+
+**Status:** Accepted  
+**Date:** September 8, 2026
+
+Establish the responsive web browser player application, wire contract boundaries, and session cookie standardization for Standard V1:
+
+1. **Browser Application Architecture (`apps/web`):**
+   - Built with React 19, TypeScript, Vite, and custom responsive CSS. No heavyweight state libraries (Redux, Zustand) or CSS utility frameworks (Tailwind) are used.
+   - Strictly depends on `@interests/shared`, `react`, `react-dom`, and `socket.io-client`. Never directly imports `@interests/engine`, `@interests/rules`, or `@interests/server`.
+   - Single responsive player view serves mobile phones, tablets, and desktop browsers with 44px+ touch targets and fluid card-based layouts.
+
+2. **Session Cookie Standardization (`interests_session`):**
+   - The session cookie name is standardized repository-wide as `interests_session` (formerly prototype `finance_game_session`).
+   - Defined as a constant `SESSION_COOKIE_NAME = "interests_session"` in `@interests/shared/src/transportProtocol.ts`.
+   - Replaces all legacy names across server HTTP routes, Socket.IO handshake auth, and test fixtures without backwards-compatibility fallbacks.
+
+3. **Same-Origin Vite Proxy Semantics:**
+   - The local Vite development server configures proxies for `/api` and `/socket.io` with `changeOrigin: false` and `ws: true`.
+   - Preserves browser Host and Origin headers so Fastify's `validateSameOrigin` security hook verifies matching origin without modifying server security boundaries.
+
+4. **Shared Wire Contracts & Shared Version Bump:**
+   - Move client-facing wire types, constants, socket event mappings (`SOCKET_CLIENT_EVENTS`, `SOCKET_SERVER_EVENTS`), and error codes (`SOCKET_ERROR_CODES`) into `@interests/shared/src/transportProtocol.ts`.
+   - Bump `SHARED_VERSION` to `0.0.3`.
+
+5. **Server Presentation Metadata Projection:**
+   - Enrich recipient's private `MatchSelfView` in `buildMatchPlayerView` with profile presentation (`name`, `startingCashCents`) and offered/selected objectives (`name`, `family`) using `@interests/rules` definitions.
+   - Strictly preserves player privacy: other players appear only as public summaries (`hasSelectedObjective: boolean`) without leaking profiles, offered objectives, or selected objective cards.
+
+6. **Client State Machine & Lifecycle Flows:**
+   - `EntryScreen`: Create Room, Join Room, Recover Seat with immediate private recovery code modal presentation.
+   - `LobbyView`: 4-seat lobby layout showing join order, host crown, connection status, synchronization status, rotate recovery code action, and host-only "Start Game" button enabled only when 4 members are connected and synchronized.
+   - `ObjectiveSelection`: Card deck presentation of profile and 2 secret objectives with durable `CHOOSE_OBJECTIVE` submission.
+   - `RoundStartView`: Quarter overview, rotating spotlight order, and host-only `BEGIN_ROUND` control.
+   - `SpotlightView`: Active player highlight, completed spotlight counter, and active-player-only "Pass Spotlight" action advancing through Quarter 2 round-start upon 4 passes.
+   - `PauseBanner`: Clear formatted pause reasons with host-only resume button enabled when all seats are connected.
+   - `ReplacedScreen`: Clean disconnect screen when superseded by another tab or recovered by a new session.
+
 
 
 

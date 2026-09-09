@@ -48,7 +48,7 @@ function connectClientWithBootstrap(
       extraHeaders: {
         host: hostHeader,
         origin: `http://${hostHeader}`,
-        cookie: `finance_game_session=${sessionToken}`,
+        cookie: `interests_session=${sessionToken}`,
       },
     });
 
@@ -316,7 +316,7 @@ describe("Realtime Four-Client Integration Flow (PR #18 Manual/Lifecycle Verific
 
     // Recovering browser can now establish a new controlling socket
     const recoveredCookie = recoverRes.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     );
     expect(recoveredCookie).toBeDefined();
 

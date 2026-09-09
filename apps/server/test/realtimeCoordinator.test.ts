@@ -70,7 +70,7 @@ function connectClient(
       extraHeaders.origin = originHeader;
     }
     if (options.sessionToken) {
-      extraHeaders.cookie = `finance_game_session=${options.sessionToken}`;
+      extraHeaders.cookie = `interests_session=${options.sessionToken}`;
     }
 
     const authPayload: Record<string, unknown> = options.auth ?? {
@@ -852,7 +852,7 @@ describe("Realtime Coordinator and Socket Authentication", () => {
 
     // Recovered device connects with new session token
     const newSessionCookie = recoverRes.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     );
     expect(newSessionCookie).toBeDefined();
 

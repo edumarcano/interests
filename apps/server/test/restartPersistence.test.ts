@@ -63,7 +63,7 @@ describe("Restart persistence", () => {
     const roomCode = createBody.room.code;
     const memberId = createBody.self.memberId;
     const sessionCookie = createRes.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     expect(sessionCookie).toBeDefined();
     if (!sessionCookie) throw new Error("Session cookie not found");
@@ -96,7 +96,7 @@ describe("Restart persistence", () => {
     const sessionRes = await server2.fastify.inject({
       method: "GET",
       url: "/api/session",
-      cookies: { finance_game_session: sessionCookie },
+      cookies: { interests_session: sessionCookie },
     });
     expect(sessionRes.statusCode).toBe(200);
     const sessionBody = JSON.parse(sessionRes.body);
@@ -109,7 +109,7 @@ describe("Restart persistence", () => {
     const roomRes = await server2.fastify.inject({
       method: "GET",
       url: `/api/rooms/${roomCode}`,
-      cookies: { finance_game_session: sessionCookie },
+      cookies: { interests_session: sessionCookie },
     });
     expect(roomRes.statusCode).toBe(200);
     const roomBody = JSON.parse(roomRes.body);

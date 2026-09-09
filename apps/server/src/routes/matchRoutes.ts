@@ -1,9 +1,10 @@
+import { SESSION_COOKIE_NAME } from "@interests/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { ServerConfig } from "../config.js";
 import type { MatchService } from "../match/MatchService.js";
 import { MatchError } from "../match/types.js";
 
-const COOKIE_NAME = "finance_game_session";
+const COOKIE_NAME = SESSION_COOKIE_NAME;
 
 export interface MatchRouteOptions {
   config: ServerConfig;
