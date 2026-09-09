@@ -606,6 +606,487 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
     expect(pView.self.opportunity?.facts?.annualRevenueCents).toBe(8_000_000);
   });
 
+  it("14. Server restart preserves active financed transaction, reservations, offer, and acceptance state", async () => {
+    const {
+      clients,
+      targetBuyerIndex,
+      opp,
+      roomCode,
+      cookies,
+      clientPlayerIds,
+    } = await setupMatchAtRoundStart();
+    const buyerSocket = clients[targetBuyerIndex]!.socket;
+
+    let rev = 4;
+    // Investigate
+    await sendCommand(buyerSocket, {
+      commandId: "88888888-8888-4888-8888-000000000001",
+      expectedRevision: rev++,
+      command: {
+        type: "INVESTIGATE_OPPORTUNITY",
+        opportunityId: opp.id,
+      },
+    });
+
+    // Begin round
+    await sendCommand(clients[0]!.socket, {
+      commandId: "88888888-8888-4888-8888-000000000002",
+      expectedRevision: rev++,
+      command: { type: "BEGIN_ROUND" },
+    });
+
+    // Advance spotlights until buyer holds spotlight
+    while (true) {
+      const getRes = await server.fastify.inject({
+        method: "GET",
+        url: `/api/rooms/${roomCode}/match`,
+        cookies: { interests_session: cookies[targetBuyerIndex]! },
+      });
+      const pView = JSON.parse(getRes.body).match as MatchPlayerView;
+      const activePlayerId = pView.round?.activeSpotlightPlayerId;
+      const buyerPlayerId = pView.self.playerId;
+
+      if (activePlayerId === buyerPlayerId) break;
+
+      const activeIdx = clientPlayerIds.findIndex(
+        (id: PlayerId) => id === activePlayerId,
+      );
+      await sendCommand(clients[activeIdx]!.socket, {
+        commandId: `88888888-8888-4888-8888-00000000001${rev}`,
+        expectedRevision: rev++,
+        command: { type: "PASS_SPOTLIGHT" },
+      });
+    }
+
+    // Buyer pursues with financing (3M contribution, 2M requested principal)
+    const pursueAck = await sendCommand(buyerSocket, {
+      commandId: "88888888-8888-4888-8888-000000000020",
+      expectedRevision: rev++,
+      command: {
+        type: "PURSUE_BUSINESS_WITH_PLAYER_LOAN",
+        opportunityId: opp.id,
+        buyerCashContributionCents: 3_000_000,
+        requestedPrincipalCents: 2_000_000,
+      },
+    });
+    expect(pursueAck.ok).toBe(true);
+
+    // Get active transaction id
+    const buyerViewRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { interests_session: cookies[targetBuyerIndex]! },
+    });
+    const buyerView = JSON.parse(buyerViewRes.body).match as MatchPlayerView;
+    const tx = buyerView.activeTransaction!;
+    expect(tx).toBeDefined();
+
+    // Identify eligible lender (not buyer, not seller)
+    const sellerPlayerId = opp.sellerPlayerId;
+    let lenderIndex = -1;
+    for (let i = 0; i < 4; i++) {
+      if (i !== targetBuyerIndex && clientPlayerIds[i] !== sellerPlayerId) {
+        lenderIndex = i;
+        break;
+      }
+    }
+    expect(lenderIndex).toBeGreaterThanOrEqual(0);
+    const lenderSocket = clients[lenderIndex]!.socket;
+
+    // Lender submits offer (2M principal, 1000 bps APR, 3 quarters)
+    const offerAck = await sendCommand(lenderSocket, {
+      commandId: "88888888-8888-4888-8888-000000000030",
+      expectedRevision: rev++,
+      command: {
+        type: "SUBMIT_PLAYER_LOAN_OFFER",
+        transactionId: tx.transactionId,
+        annualRateBps: 1000,
+        termQuarters: 3,
+      },
+    });
+    expect(offerAck.ok).toBe(true);
+
+    // Buyer accepts offer
+    const acceptAck = await sendCommand(buyerSocket, {
+      commandId: "88888888-8888-4888-8888-000000000040",
+      expectedRevision: rev++,
+      command: {
+        type: "ACCEPT_PLAYER_LOAN_OFFER",
+        transactionId: tx.transactionId,
+        expectedTermsRevision: 1,
+      },
+    });
+    expect(acceptAck.ok).toBe(true);
+
+    // RESTART SERVER
+    recoverActiveMatchesOnStartup(matchRepo, lobbyRepo);
+
+    // Disconnect old sockets
+    for (const socket of clientSockets) {
+      if (socket.connected) socket.disconnect();
+    }
+    clientSockets.length = 0;
+
+    // Reconnect buyer
+    const newBuyerClient = await connectSocket(
+      cookies[targetBuyerIndex]!,
+      roomCode,
+    );
+    await syncSocket(
+      newBuyerClient.socket,
+      newBuyerClient.bootstrap.self.connectionGeneration,
+    );
+
+    // Reconnect lender
+    const newLenderClient = await connectSocket(
+      cookies[lenderIndex]!,
+      roomCode,
+    );
+    await syncSocket(
+      newLenderClient.socket,
+      newLenderClient.bootstrap.self.connectionGeneration,
+    );
+
+    // Verify buyer match view after restart
+    const postRestartBuyerRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { interests_session: cookies[targetBuyerIndex]! },
+    });
+    const postRestartBuyerView = JSON.parse(postRestartBuyerRes.body)
+      .match as MatchPlayerView;
+    expect(postRestartBuyerView.activeTransaction).toBeDefined();
+    expect(postRestartBuyerView.activeTransaction?.financingStatus).toBe(
+      "offer-accepted",
+    );
+    expect(postRestartBuyerView.activeTransaction?.offer?.status).toBe(
+      "accepted",
+    );
+    expect(postRestartBuyerView.activeTransaction?.offer?.annualRateBps).toBe(
+      1000,
+    );
+    expect(postRestartBuyerView.activeTransaction?.offer?.termQuarters).toBe(3);
+    expect(postRestartBuyerView.activeTransaction?.offer?.termsRevision).toBe(
+      1,
+    );
+    expect(postRestartBuyerView.self.reservedCashCents).toBe(3_000_000);
+
+    // Verify lender match view after restart
+    const postRestartLenderRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { interests_session: cookies[lenderIndex]! },
+    });
+    const postRestartLenderView = JSON.parse(postRestartLenderRes.body)
+      .match as MatchPlayerView;
+    expect(postRestartLenderView.self.reservedCashCents).toBe(2_000_000);
+  });
+
+  it("15. Server restart after terminal close preserves loan, ownership, cash, and round state", async () => {
+    const {
+      clients,
+      targetBuyerIndex,
+      opp,
+      roomCode,
+      cookies,
+      clientPlayerIds,
+    } = await setupMatchAtRoundStart();
+    const buyerSocket = clients[targetBuyerIndex]!.socket;
+
+    let rev = 4;
+    // Investigate
+    await sendCommand(buyerSocket, {
+      commandId: "99999999-9999-4999-8999-000000000001",
+      expectedRevision: rev++,
+      command: {
+        type: "INVESTIGATE_OPPORTUNITY",
+        opportunityId: opp.id,
+      },
+    });
+
+    // Begin round
+    await sendCommand(clients[0]!.socket, {
+      commandId: "99999999-9999-4999-8999-000000000002",
+      expectedRevision: rev++,
+      command: { type: "BEGIN_ROUND" },
+    });
+
+    // Advance spotlights until buyer holds spotlight
+    while (true) {
+      const getRes = await server.fastify.inject({
+        method: "GET",
+        url: `/api/rooms/${roomCode}/match`,
+        cookies: { interests_session: cookies[targetBuyerIndex]! },
+      });
+      const pView = JSON.parse(getRes.body).match as MatchPlayerView;
+      const activePlayerId = pView.round?.activeSpotlightPlayerId;
+      const buyerPlayerId = pView.self.playerId;
+
+      if (activePlayerId === buyerPlayerId) break;
+
+      const activeIdx = clientPlayerIds.findIndex(
+        (id: PlayerId) => id === activePlayerId,
+      );
+      await sendCommand(clients[activeIdx]!.socket, {
+        commandId: `99999999-9999-4999-8999-00000000001${rev}`,
+        expectedRevision: rev++,
+        command: { type: "PASS_SPOTLIGHT" },
+      });
+    }
+
+    // Buyer pursues with financing
+    await sendCommand(buyerSocket, {
+      commandId: "99999999-9999-4999-8999-000000000020",
+      expectedRevision: rev++,
+      command: {
+        type: "PURSUE_BUSINESS_WITH_PLAYER_LOAN",
+        opportunityId: opp.id,
+        buyerCashContributionCents: 3_000_000,
+        requestedPrincipalCents: 2_000_000,
+      },
+    });
+
+    const buyerViewRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { interests_session: cookies[targetBuyerIndex]! },
+    });
+    const buyerView = JSON.parse(buyerViewRes.body).match as MatchPlayerView;
+    const tx = buyerView.activeTransaction!;
+
+    const sellerPlayerId = opp.sellerPlayerId;
+    let lenderIndex = -1;
+    for (let i = 0; i < 4; i++) {
+      if (i !== targetBuyerIndex && clientPlayerIds[i] !== sellerPlayerId) {
+        lenderIndex = i;
+        break;
+      }
+    }
+    const lenderSocket = clients[lenderIndex]!.socket;
+
+    // Lender submits offer
+    await sendCommand(lenderSocket, {
+      commandId: "99999999-9999-4999-8999-000000000030",
+      expectedRevision: rev++,
+      command: {
+        type: "SUBMIT_PLAYER_LOAN_OFFER",
+        transactionId: tx.transactionId,
+        annualRateBps: 1000,
+        termQuarters: 3,
+      },
+    });
+
+    // Buyer accepts offer
+    await sendCommand(buyerSocket, {
+      commandId: "99999999-9999-4999-8999-000000000040",
+      expectedRevision: rev++,
+      command: {
+        type: "ACCEPT_PLAYER_LOAN_OFFER",
+        transactionId: tx.transactionId,
+        expectedTermsRevision: 1,
+      },
+    });
+
+    // Buyer closes deal
+    const closeAck = await sendCommand(buyerSocket, {
+      commandId: "99999999-9999-4999-8999-000000000050",
+      expectedRevision: rev++,
+      command: {
+        type: "CLOSE_BUSINESS_PURCHASE",
+        transactionId: tx.transactionId,
+      },
+    });
+    expect(closeAck.ok).toBe(true);
+
+    // RESTART SERVER
+    recoverActiveMatchesOnStartup(matchRepo, lobbyRepo);
+
+    for (const socket of clientSockets) {
+      if (socket.connected) socket.disconnect();
+    }
+    clientSockets.length = 0;
+
+    const newBuyerClient = await connectSocket(
+      cookies[targetBuyerIndex]!,
+      roomCode,
+    );
+    await syncSocket(
+      newBuyerClient.socket,
+      newBuyerClient.bootstrap.self.connectionGeneration,
+    );
+
+    const postCloseBuyerRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { interests_session: cookies[targetBuyerIndex]! },
+    });
+    const postCloseBuyerView = JSON.parse(postCloseBuyerRes.body)
+      .match as MatchPlayerView;
+
+    // Transaction is cleared
+    expect(postCloseBuyerView.activeTransaction).toBeNull();
+    // Buyer owns the 100% business
+    expect(postCloseBuyerView.self.ownedAssets?.length).toBeGreaterThanOrEqual(
+      1,
+    );
+    expect(
+      postCloseBuyerView.self.ownedAssets?.some(
+        (a) => a.kind === "business" && a.ownershipPpm === 1_000_000,
+      ),
+    ).toBe(true);
+    // Buyer has player loan
+    expect(postCloseBuyerView.self.loans?.length).toBeGreaterThanOrEqual(1);
+    expect(
+      postCloseBuyerView.self.loans?.some(
+        (l) =>
+          l.kind === "player-loan" &&
+          l.role === "borrower" &&
+          l.outstandingPrincipalCents === 2_000_000,
+      ),
+    ).toBe(true);
+  });
+
+  it("16 & 17. Role-aware projections across buyer, seller, lender, and neutral roles plus socket bootstrap privacy boundary", async () => {
+    const {
+      clients,
+      targetBuyerIndex,
+      opp,
+      roomCode,
+      cookies,
+      clientPlayerIds,
+    } = await setupMatchAtRoundStart();
+
+    // Advance to buyer spotlight and submit financing request
+    const buyerSocket = clients[targetBuyerIndex]!.socket;
+    let rev = 4;
+    await sendCommand(buyerSocket, {
+      commandId: "aaaaaaa1-aaaa-4aaa-8aaa-000000000001",
+      expectedRevision: rev++,
+      command: {
+        type: "INVESTIGATE_OPPORTUNITY",
+        opportunityId: opp.id,
+      },
+    });
+
+    await sendCommand(clients[0]!.socket, {
+      commandId: "aaaaaaa1-aaaa-4aaa-8aaa-000000000002",
+      expectedRevision: rev++,
+      command: { type: "BEGIN_ROUND" },
+    });
+
+    while (true) {
+      const getRes = await server.fastify.inject({
+        method: "GET",
+        url: `/api/rooms/${roomCode}/match`,
+        cookies: { interests_session: cookies[targetBuyerIndex]! },
+      });
+      const pView = JSON.parse(getRes.body).match as MatchPlayerView;
+      const activePlayerId = pView.round?.activeSpotlightPlayerId;
+      const buyerPlayerId = pView.self.playerId;
+      if (activePlayerId === buyerPlayerId) break;
+
+      const activeIdx = clientPlayerIds.findIndex(
+        (id: PlayerId) => id === activePlayerId,
+      );
+      await sendCommand(clients[activeIdx]!.socket, {
+        commandId: `aaaaaaa1-aaaa-4aaa-8aaa-00000000001${rev}`,
+        expectedRevision: rev++,
+        command: { type: "PASS_SPOTLIGHT" },
+      });
+    }
+
+    await sendCommand(buyerSocket, {
+      commandId: "aaaaaaa1-aaaa-4aaa-8aaa-000000000020",
+      expectedRevision: rev++,
+      command: {
+        type: "PURSUE_BUSINESS_WITH_PLAYER_LOAN",
+        opportunityId: opp.id,
+        buyerCashContributionCents: 3_000_000,
+        requestedPrincipalCents: 2_000_000,
+      },
+    });
+
+    const buyerViewRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { interests_session: cookies[targetBuyerIndex]! },
+    });
+    const buyerView = JSON.parse(buyerViewRes.body).match as MatchPlayerView;
+    const tx = buyerView.activeTransaction!;
+
+    const sellerPlayerId = opp.sellerPlayerId;
+    const sellerIndex = clientPlayerIds.indexOf(sellerPlayerId);
+    let lenderIndex = -1;
+    let neutralIndex = -1;
+    for (let i = 0; i < 4; i++) {
+      if (i !== targetBuyerIndex && i !== sellerIndex) {
+        if (lenderIndex === -1) {
+          lenderIndex = i;
+        } else {
+          neutralIndex = i;
+        }
+      }
+    }
+    expect(lenderIndex).toBeGreaterThanOrEqual(0);
+    expect(neutralIndex).toBeGreaterThanOrEqual(0);
+
+    // Lender submits offer
+    await sendCommand(clients[lenderIndex]!.socket, {
+      commandId: "aaaaaaa1-aaaa-4aaa-8aaa-000000000030",
+      expectedRevision: rev++,
+      command: {
+        type: "SUBMIT_PLAYER_LOAN_OFFER",
+        transactionId: tx.transactionId,
+        annualRateBps: 1000,
+        termQuarters: 3,
+      },
+    });
+
+    // 16. Test projection differences across all 4 distinct roles:
+    // 1) Target Buyer
+    const bRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { interests_session: cookies[targetBuyerIndex]! },
+    });
+    const bView = JSON.parse(bRes.body).match as MatchPlayerView;
+    expect(bView.activeTransaction?.role).toBe("buyer");
+    expect(bView.activeTransaction?.financingStatus).toBe("offer-submitted");
+    expect(bView.activeTransaction?.offer?.lenderNickname).toBeDefined();
+    expect(bView.activeTransaction?.offer?.annualRateBps).toBe(1000);
+
+    // 2) Seller
+    const sRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { interests_session: cookies[sellerIndex]! },
+    });
+    const sView = JSON.parse(sRes.body).match as MatchPlayerView;
+    expect(sView.activeTransaction?.role).toBe("seller");
+    expect(sView.activeTransaction?.purchasePriceCents).toBe(5_000_000);
+
+    // 3) Lender
+    const lRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { interests_session: cookies[lenderIndex]! },
+    });
+    const lView = JSON.parse(lRes.body).match as MatchPlayerView;
+    expect(lView.activeTransaction?.role).toBe("lender");
+    expect(lView.activeTransaction?.offer?.status).toBe("offered");
+
+    // 4) Neutral (uninvolved) player
+    const nRes = await server.fastify.inject({
+      method: "GET",
+      url: `/api/rooms/${roomCode}/match`,
+      cookies: { interests_session: cookies[neutralIndex]! },
+    });
+    const nView = JSON.parse(nRes.body).match as MatchPlayerView;
+    expect(nView.activeTransaction?.role).toBe("uninvolved");
+    // Offer candidate details are not leaked to uninvolved players
+    expect(nView.activeTransaction?.offer).toBeNull();
+  }, 20000);
+
   it("12. Paused room rejects new gameplay commands", async () => {
     const { clients, targetBuyerIndex, opp, roomCode, cookies } =
       await setupMatchAtRoundStart();

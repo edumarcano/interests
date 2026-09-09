@@ -35,54 +35,15 @@ export function selectQ1FixtureRoles(
   playerOrder: readonly PlayerId[],
   cashByPlayer: Readonly<Record<PlayerId, Cents>>,
 ): Q1FixtureRoles {
-  // Primary preference: among players whose initial cash is in [3_000_000, 5_000_000),
-  // choose the player with the HIGHEST cash; tie-break by canonical playerOrder.
-  // This guarantees the buyer cannot pay the full 5M cash price alone while ensuring
-  // they can afford the canonical 3M cash contribution fixture.
   let targetBuyerPlayerId: PlayerId | null = null;
   let bestCash = -1;
 
   for (const playerId of playerOrder) {
     const cash = cashByPlayer[playerId];
-    if (
-      cash !== undefined &&
-      cash >= 3_000_000 &&
-      cash < Q1_FIXTURE_ASKING_PRICE_CENTS
-    ) {
+    if (cash !== undefined && cash < Q1_FIXTURE_ASKING_PRICE_CENTS) {
       if (cash > bestCash) {
         bestCash = cash;
         targetBuyerPlayerId = playerId;
-      }
-    }
-  }
-
-  // Fallback if no player in [3M, 5M):
-  // (e.g. combination contains 5M, 10.5M and two < 3M profiles)
-  // Choose the player with cash >= 3M with the lowest cash (closest to asking price).
-  if (targetBuyerPlayerId === null) {
-    let lowestAffordableCash = Number.MAX_SAFE_INTEGER;
-    for (const playerId of playerOrder) {
-      const cash = cashByPlayer[playerId];
-      if (cash !== undefined && cash >= 3_000_000) {
-        if (cash < lowestAffordableCash) {
-          lowestAffordableCash = cash;
-          targetBuyerPlayerId = playerId;
-        }
-      }
-    }
-  }
-
-  // Ultimate fallback if no player has >= 3M:
-  // Choose highest cash < 5M
-  if (targetBuyerPlayerId === null) {
-    let highestCash = -1;
-    for (const playerId of playerOrder) {
-      const cash = cashByPlayer[playerId];
-      if (cash !== undefined && cash < Q1_FIXTURE_ASKING_PRICE_CENTS) {
-        if (cash > highestCash) {
-          highestCash = cash;
-          targetBuyerPlayerId = playerId;
-        }
       }
     }
   }

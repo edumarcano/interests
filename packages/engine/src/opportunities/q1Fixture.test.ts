@@ -162,7 +162,7 @@ describe("Section 14: Q1 Business Opportunity Fixture", () => {
     }
   });
 
-  it("8. All 69 feasible setup combinations retain a financing-feasible path for 3M contribution / 2M principal", () => {
+  it("8. All 69 feasible setup combinations retain a financing-feasible path where buyer has highest cash < 5M and distinct seller", () => {
     // Check all 69 feasible profile combinations from rules
     for (const combo of FEASIBLE_PROFILE_COMBINATIONS) {
       // Create mock cash mapping for the 4 profiles
@@ -176,11 +176,20 @@ describe("Section 14: Q1 Business Opportunity Fixture", () => {
       const roles = selectQ1FixtureRoles(playerIds, cashMap);
       const buyerCash = cashMap[roles.targetBuyerPlayerId];
 
-      // Selected buyer must have at least 3_000_000 cents for the 3M contribution fixture
-      expect(buyerCash).toBeGreaterThanOrEqual(3_000_000);
+      // Strictly under 5M asking price, ensuring buyer cannot purchase in full without financing
+      expect(buyerCash).toBeLessThan(5_000_000);
+      expect(buyerCash).toBeGreaterThan(0);
 
       // Distinct buyer and seller
       expect(roles.targetBuyerPlayerId).not.toBe(roles.sellerPlayerId);
+
+      // Where the selected buyer has at least 3M starting cash, the canonical 3M contribution is supported
+      const hasThreeMillionEligible = Object.values(cashMap).some(
+        (c: number) => c >= 3_000_000 && c < 5_000_000,
+      );
+      if (hasThreeMillionEligible) {
+        expect(buyerCash).toBeGreaterThanOrEqual(3_000_000);
+      }
     }
   });
 });

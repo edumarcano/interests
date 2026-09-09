@@ -1253,5 +1253,34 @@ describe("first private business-purchase opportunity lifecycle", () => {
       expect(parsedState).toEqual(originalState);
       expect(() => assertGameState(parsedState)).not.toThrow();
     });
+
+    it("rejects investigation with WRONG_PHASE when match is still in objective-choosing phase", () => {
+      const { state: initial, businessAssetId } = createOpportunityFixture();
+      const createResult = createPrivateBusinessPurchaseOpportunity(initial, {
+        targetPlayerId: buyerId,
+        sellerPlayerId: sellerId,
+        assetId: businessAssetId,
+        askingPriceCents: 6_000_000,
+      });
+      expect(createResult.ok).toBe(true);
+      if (!createResult.ok) return;
+
+      const choosingState: GameState = {
+        ...createResult.state,
+        phase: "objective-choosing",
+      };
+
+      const investigateResult = investigatePrivateBusinessPurchaseOpportunity(
+        choosingState,
+        createResult.opportunityId,
+        buyerId,
+      );
+
+      expect(investigateResult.ok).toBe(false);
+      if (!investigateResult.ok) {
+        expect(investigateResult.code).toBe("WRONG_PHASE");
+      }
+      expect(investigateResult.state.revision).toBe(choosingState.revision);
+    });
   });
 });

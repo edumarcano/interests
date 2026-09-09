@@ -269,8 +269,10 @@ export function projectPlayerGameState(
     } else if (isFinanced) {
       if (offer?.lenderPlayerId === playerId) {
         role = "lender";
-      } else {
+      } else if (offer === null) {
         role = "lender-candidate";
+      } else {
+        role = "uninvolved";
       }
     }
 

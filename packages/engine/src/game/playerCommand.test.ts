@@ -39,6 +39,32 @@ describe("Section 14: Engine Player Command Integration", () => {
     return { state, opp };
   }
 
+  it("Investigation requires completed setup: rejects with WRONG_PHASE during objective-choosing", () => {
+    const rawGame = createGame({
+      gameId: "test-game-pre-setup",
+      seed: "seed-pre-setup",
+      playerIds,
+    });
+    expect(rawGame.phase).toBe("objective-choosing");
+
+    const opp = Object.values(rawGame.opportunitiesById)[0]!;
+    const targetBuyer = opp.targetPlayerId;
+
+    const res = applyPlayerCommand(rawGame, targetBuyer, {
+      type: "INVESTIGATE_OPPORTUNITY",
+      opportunityId: opp.id,
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.code).toBe("WRONG_PHASE");
+    }
+    expect(res.state.revision).toBe(rawGame.revision);
+    expect(
+      res.state.opportunitiesById[opp.id]?.investigation.investigated,
+    ).toBe(false);
+  });
+
   it("9, 10 & 11. Opportunity Investigation: target succeeds off-spotlight / round-start, non-target rejects, consumes no RNG/IDs/cash", () => {
     const { state, opp } = createReadyGame();
     expect(state.phase).toBe("ready-for-first-round");

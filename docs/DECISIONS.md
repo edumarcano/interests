@@ -633,7 +633,7 @@ Establish the first playable financial-strategy loop (Milestone 6) across the en
    - This is explicitly a narrow Milestone-6 vertical slice playability fixture, not the permanent weighted opportunity generator.
    - Fixed facts: annual revenue `8_000_000` cents, annual operating profit `1_500_000` cents, enterprise value `6_000_000` cents, debt principal `0` cents, asking price `5_000_000` cents, seller ownership `1_000_000` ppm (100%).
    - Role selection is deterministic without consuming RNG:
-     - Target buyer: player with highest initial cash strictly less than `5_000_000` cents (with fallback to lowest cash `>= 3_000_000` if needed), tie-broken by canonical `playerOrder`.
+     - Target buyer: player with highest initial cash strictly less than `5_000_000` cents, tie-broken by canonical `playerOrder`.
      - Seller: next player in canonical `playerOrder` after buyer, wrapping cyclically.
      - Lender: not preselected; any eligible non-buyer/non-seller player may offer financing.
    - Leaves initial `GameState.revision === 0` and consumes zero gameplay RNG draws.

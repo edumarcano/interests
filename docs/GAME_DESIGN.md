@@ -155,7 +155,7 @@ Spotlight turn order defines transaction initiation authority without paralyzing
 
 ### 2.3.1 Milestone 6 First Playable Transaction Loop Fixture [PROTOTYPE]
 
-For Milestone 6 (PR23), the engine attaches a single deterministic Q1 private-business acquisition opportunity fixture ($50,000 asking price, $55,000 enterprise value, $70,000 annual revenue, $12,000 annual operating profit, 0 debt) assigned privately to the player with the highest initial cash under $50,000, with the seller assigned to the next seat in player order. This fixture serves as provisional vertical-slice content to exercise the end-to-end browser playable transaction loop (private investigation, financing request, off-spotlight lender offer, acceptance, and atomic close composed with spotlight advance), not final economic balance law.
+For Milestone 6 (PR23), the engine attaches a single deterministic Q1 private-business acquisition opportunity fixture ($50,000 asking price, $60,000 enterprise value, $80,000 annual revenue, $15,000 annual operating profit, 0 debt) assigned privately to the player with the highest initial cash under $50,000, with the seller assigned to the next seat in player order. This fixture serves as provisional vertical-slice content to exercise the end-to-end browser playable transaction loop (private investigation, financing request, off-spotlight lender offer, acceptance, and atomic close composed with spotlight advance), not final economic balance law.
 
 # 3. Actions, reactions, and transaction timing [LOCKED]
 
