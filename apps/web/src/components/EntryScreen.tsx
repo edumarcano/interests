@@ -4,7 +4,8 @@ import type {
   RecoverRoomResponse,
   SessionBootstrapMembership,
 } from "@interests/shared";
-import React, { useEffect, useState } from "react";
+import type React from "react";
+import { useEffect, useState } from "react";
 import {
   ApiClientError,
   createRoom,

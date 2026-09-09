@@ -26,6 +26,7 @@ import type {
   QuarterStartFinanceBasis,
   RecurringPersonalFinance,
 } from "../model/gameState";
+import { attachQ1BusinessOpportunityFixture } from "../opportunities/q1Fixture";
 import { createRandomState } from "../random/prng";
 import { nextDeterministicId } from "./deterministicIds";
 import { generateDeterministicSetup } from "./setup";
@@ -244,6 +245,15 @@ export function createGame(input: CreateGameInput): GameState {
     }
   }
 
+  const q1Fixture = attachQ1BusinessOpportunityFixture(
+    assetsById,
+    {},
+    currentCounters,
+    input.playerIds,
+    cashByPlayer,
+    1,
+  );
+
   const quarterStartBasis: QuarterStartFinanceBasis = {
     quarter: 1,
     cashByPlayer: { ...cashByPlayer },
@@ -263,7 +273,7 @@ export function createGame(input: CreateGameInput): GameState {
       cashByPlayer,
       recurringByPlayer,
       loansById,
-      assetsById,
+      assetsById: q1Fixture.assetsById,
       publicMarketsByPlayer,
       quarterStartBasis,
     },
@@ -273,9 +283,9 @@ export function createGame(input: CreateGameInput): GameState {
       lastMarketUpdate: null,
     },
     random: setup.random,
-    counters: currentCounters,
+    counters: q1Fixture.counters,
     activeTransaction: null,
-    opportunitiesById: {},
+    opportunitiesById: q1Fixture.opportunitiesById,
     round: null,
   };
 

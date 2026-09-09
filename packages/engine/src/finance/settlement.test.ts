@@ -154,6 +154,7 @@ function buildSyntheticFixture(options?: {
 
   const state: GameState = {
     ...base,
+    opportunitiesById: {},
     finance: {
       ...base.finance,
       recurringByPlayer: {
@@ -502,6 +503,7 @@ describe("quarter settlement foundation", () => {
 
     const isolatedBase: GameState = {
       ...base,
+      opportunitiesById: {},
       finance: {
         ...base.finance,
         recurringByPlayer: {
@@ -630,6 +632,7 @@ describe("quarter settlement foundation", () => {
     // State A: insert prop2 before prop1
     const stateA: GameState = {
       ...base,
+      opportunitiesById: {},
       finance: {
         ...base.finance,
         assetsById: {
@@ -650,6 +653,7 @@ describe("quarter settlement foundation", () => {
 
     const stateB: GameState = {
       ...base,
+      opportunitiesById: {},
       finance: {
         ...base.finance,
         assetsById: {

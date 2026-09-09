@@ -151,6 +151,11 @@ export function investigatePrivateBusinessPurchaseOpportunity(
     code,
   });
 
+  // 1. Phase validation: must have completed setup
+  if (state.phase !== "ready-for-first-round") {
+    return reject("WRONG_PHASE");
+  }
+
   const opportunity = state.opportunitiesById[opportunityId];
   if (
     !opportunity ||

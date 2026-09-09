@@ -70,7 +70,8 @@ export type CreateOpportunityResult =
 export type InvestigateOpportunityErrorCode =
   | "NOT_FOUND_OR_NOT_VISIBLE"
   | "OPPORTUNITY_NOT_AVAILABLE"
-  | "ALREADY_INVESTIGATED";
+  | "ALREADY_INVESTIGATED"
+  | "WRONG_PHASE";
 
 export type InvestigateOpportunityResult =
   | {

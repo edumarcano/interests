@@ -3,7 +3,10 @@ import type {
   MatchPlayerView,
   PlayerCommand,
 } from "@interests/shared";
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
+import { OpportunityCard } from "./OpportunityCard.js";
+import { SelfFinanceSummary } from "./SelfFinanceSummary.js";
 
 interface Props {
   match: MatchPlayerView;
@@ -83,6 +86,18 @@ export const RoundStartView: React.FC<Props> = ({
         >
           {error}
         </div>
+      )}
+
+      {/* Self Finances Summary */}
+      <SelfFinanceSummary self={match.self} />
+
+      {/* Private Opportunity Card (Target Buyer Only) */}
+      {match.self.opportunity && (
+        <OpportunityCard
+          opportunity={match.self.opportunity}
+          isPaused={isPaused}
+          onSendCommand={onSendCommand}
+        />
       )}
 
       <div style={{ marginBottom: "2rem" }}>

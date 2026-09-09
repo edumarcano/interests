@@ -20,13 +20,14 @@ export * from "./invariants/assertGameState.js";
 export * from "./model/gameState";
 export * from "./opportunities/model";
 export * from "./opportunities/privateBusinessPurchase";
+export * from "./opportunities/q1Fixture";
 export * from "./opportunities/view";
 export * from "./random/prng";
 export * from "./transactions/cashBusinessPurchase";
 export * from "./transactions/model";
 export * from "./transactions/reservations";
 
-export const ENGINE_VERSION = "0.0.2";
+export const ENGINE_VERSION = "0.0.3";
 
 export const WORKSPACE_COMPATIBILITY = {
   engine: ENGINE_VERSION,

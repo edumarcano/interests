@@ -19,10 +19,57 @@ export interface PassSpotlightCommandPayload {
   readonly type: "PASS_SPOTLIGHT";
 }
 
+export interface InvestigateOpportunityCommandPayload {
+  readonly type: "INVESTIGATE_OPPORTUNITY";
+  readonly opportunityId: string;
+}
+
+export interface PursueBusinessCashCommandPayload {
+  readonly type: "PURSUE_BUSINESS_CASH";
+  readonly opportunityId: string;
+}
+
+export interface PursueBusinessWithPlayerLoanCommandPayload {
+  readonly type: "PURSUE_BUSINESS_WITH_PLAYER_LOAN";
+  readonly opportunityId: string;
+  readonly buyerCashContributionCents: number;
+  readonly requestedPrincipalCents: number;
+}
+
+export interface SubmitPlayerLoanOfferCommandPayload {
+  readonly type: "SUBMIT_PLAYER_LOAN_OFFER";
+  readonly transactionId: string;
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
+}
+
+export interface AcceptPlayerLoanOfferCommandPayload {
+  readonly type: "ACCEPT_PLAYER_LOAN_OFFER";
+  readonly transactionId: string;
+  readonly expectedTermsRevision: number;
+}
+
+export interface CloseBusinessPurchaseCommandPayload {
+  readonly type: "CLOSE_BUSINESS_PURCHASE";
+  readonly transactionId: string;
+}
+
+export interface CancelActiveTransactionCommandPayload {
+  readonly type: "CANCEL_ACTIVE_TRANSACTION";
+  readonly transactionId: string;
+}
+
 export type PlayerCommand =
   | ChooseObjectiveCommandPayload
   | BeginRoundCommandPayload
-  | PassSpotlightCommandPayload;
+  | PassSpotlightCommandPayload
+  | InvestigateOpportunityCommandPayload
+  | PursueBusinessCashCommandPayload
+  | PursueBusinessWithPlayerLoanCommandPayload
+  | SubmitPlayerLoanOfferCommandPayload
+  | AcceptPlayerLoanOfferCommandPayload
+  | CloseBusinessPurchaseCommandPayload
+  | CancelActiveTransactionCommandPayload;
 
 export interface PlayerCommandEnvelope {
   readonly commandId: CommandId | string;
@@ -51,6 +98,46 @@ export interface MatchObjectiveOptionView {
   readonly family: string;
 }
 
+export interface PrivateOpportunityDiligenceView {
+  readonly annualRevenueCents: number;
+  readonly annualOperatingProfitCents: number;
+  readonly enterpriseValueCents: number;
+  readonly debtPrincipalCents: number;
+}
+
+export interface PrivateOpportunityView {
+  readonly id: string;
+  readonly kind: "private-business-purchase";
+  readonly askingPriceCents: number;
+  readonly sellerPlayerId: PlayerId;
+  readonly sellerNickname: string;
+  readonly status: "available" | "pursued";
+  readonly investigated: boolean;
+  readonly facts?: PrivateOpportunityDiligenceView;
+}
+
+export interface MatchSelfBusinessAssetView {
+  readonly id: string;
+  readonly kind: "business";
+  readonly annualRevenueCents: number;
+  readonly annualOperatingProfitCents: number;
+  readonly enterpriseValueCents: number;
+  readonly debtPrincipalCents: number;
+  readonly ownershipPpm: number;
+}
+
+export interface MatchSelfLoanView {
+  readonly id: string;
+  readonly kind: string;
+  readonly role: "borrower" | "lender";
+  readonly counterpartyNickname: string;
+  readonly originalPrincipalCents: number;
+  readonly outstandingPrincipalCents: number;
+  readonly annualRateBps: number;
+  readonly termQuarters?: number;
+  readonly scheduledQuarterlyPaymentCents?: number;
+}
+
 export interface MatchSelfView {
   readonly playerId: PlayerId;
   readonly profileId: string;
@@ -62,11 +149,47 @@ export interface MatchSelfView {
   ];
   readonly selectedObjectiveId: string | null;
   readonly selectedObjective?: MatchObjectiveOptionView | null;
+  readonly cashCents: number;
+  readonly reservedCashCents: number;
+  readonly availableCashCents: number;
+  readonly opportunity?: PrivateOpportunityView | null;
+  readonly ownedAssets?: readonly MatchSelfBusinessAssetView[];
+  readonly loans?: readonly MatchSelfLoanView[];
+}
+
+export interface ActiveTransactionOfferView {
+  readonly lenderPlayerId: PlayerId;
+  readonly lenderNickname: string;
+  readonly principalCents: number;
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
+  readonly termsRevision: number;
+  readonly status: "offered" | "accepted";
 }
 
 export interface ActiveTransactionSummaryView {
   readonly transactionId: TransactionId;
   readonly kind: string;
+  readonly role:
+    | "buyer"
+    | "seller"
+    | "lender-candidate"
+    | "lender"
+    | "uninvolved";
+  readonly buyerPlayerId: PlayerId;
+  readonly buyerNickname: string;
+  readonly sellerPlayerId: PlayerId;
+  readonly sellerNickname: string;
+  readonly purchasePriceCents: number;
+  readonly isFinanced: boolean;
+  readonly requestedPrincipalCents?: number;
+  readonly buyerContributionCents?: number;
+  readonly financingStatus?:
+    | "waiting-for-offer"
+    | "offer-submitted"
+    | "offer-accepted";
+  readonly offer?: ActiveTransactionOfferView | null;
+  readonly hasExistingOffer?: boolean;
 }
 
 export interface MatchRoundView {

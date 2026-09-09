@@ -241,6 +241,7 @@ function createSyntheticProfileGame(profileId: ProfileId): {
 
   const state: GameState = {
     ...base,
+    opportunitiesById: {},
     finance: {
       ...base.finance,
       cashByPlayer,

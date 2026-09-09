@@ -3,7 +3,8 @@ import type {
   MatchPlayerView,
   PlayerCommand,
 } from "@interests/shared";
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
 
 interface Props {
   match: MatchPlayerView;
