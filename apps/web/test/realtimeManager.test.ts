@@ -1,10 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import {
   SOCKET_CLIENT_EVENTS,
   SOCKET_PROTOCOL_VERSION,
   SOCKET_SERVER_EVENTS,
 } from "@interests/shared";
+import { io } from "socket.io-client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RealtimeManager } from "../src/socket/socketClient.js";
 
 class MockSocket extends EventEmitter {
   connected = true;
@@ -33,9 +35,6 @@ const fakeSocket = new MockSocket();
 vi.mock("socket.io-client", () => ({
   io: vi.fn(() => fakeSocket),
 }));
-
-import { io } from "socket.io-client";
-import { RealtimeManager } from "../src/socket/socketClient.js";
 
 describe("RealtimeManager unit tests", () => {
   beforeEach(() => {
@@ -66,7 +65,7 @@ describe("RealtimeManager unit tests", () => {
     expect(manager.getState().status).toBe("connecting");
   });
 
-  it("handles BOOTSTRAP event and automatically emits SYNCHRONIZE with connectionGeneration", () => {
+  it("handles BOOTSTRAP event, sets status to synchronizing, and sets status to synchronized once ack returns", () => {
     const manager = new RealtimeManager();
     manager.connect("ROOM1");
 
@@ -99,16 +98,21 @@ describe("RealtimeManager unit tests", () => {
       bootstrapPayload,
     );
 
-    const state = manager.getState();
-    expect(state.status).toBe("connected");
-    expect(state.selfMemberId).toBe("m1");
-    expect(state.connectionGeneration).toBe(2);
+    const stateDuringSync = manager.getState();
+    expect(stateDuringSync.status).toBe("synchronizing");
+    expect(stateDuringSync.selfMemberId).toBe("m1");
+    expect(stateDuringSync.connectionGeneration).toBe(2);
 
     const syncEmit = fakeSocket.outgoingEmits.find(
       (e) => e.event === SOCKET_CLIENT_EVENTS.SYNCHRONIZE,
     );
     expect(syncEmit).toBeDefined();
     expect(syncEmit?.payload).toEqual({ connectionGeneration: 2 });
+    expect(typeof syncEmit?.ack).toBe("function");
+
+    // Invoke synchronize ack callback from server
+    syncEmit?.ack?.({ ok: true });
+    expect(manager.getState().status).toBe("synchronized");
   });
 
   it("disconnects and sets replaced status when REPLACED event is received", () => {
@@ -124,7 +128,7 @@ describe("RealtimeManager unit tests", () => {
     expect(fakeSocket.disconnect).toHaveBeenCalled();
   });
 
-  it("sends player command envelope and awaits ack", async () => {
+  it("sends player command envelope and awaits ack, clearing pending command on success", async () => {
     const manager = new RealtimeManager();
     manager.connect("ROOM1");
 
@@ -149,5 +153,44 @@ describe("RealtimeManager unit tests", () => {
       expect(result.outcome).toBe("ACCEPTED");
       expect(result.revision).toBe(1);
     }
+    expect(manager.getPendingCommand()).toBeNull();
+  });
+
+  it("preserves pending command envelope on timeout, and retryPendingCommand reuses the exact same envelope", async () => {
+    const manager = new RealtimeManager();
+    manager.connect("ROOM1");
+
+    // Send with very short timeout so it times out without an ack
+    const timeoutResult = await manager.sendCommand(
+      { type: "PASS_SPOTLIGHT" },
+      10,
+    );
+    expect(timeoutResult.ok).toBe(false);
+    expect(timeoutResult.error.code).toBe("TIMEOUT");
+
+    const pending = manager.getPendingCommand();
+    expect(pending).not.toBeNull();
+    const originalCommandId = pending?.commandId;
+    const originalRevision = pending?.expectedRevision;
+
+    // Hook to acknowledge retry
+    fakeSocket.on(
+      SOCKET_CLIENT_EVENTS.COMMAND,
+      (envelope: any, ack?: Function) => {
+        if (ack) {
+          ack({
+            ok: true,
+            commandId: envelope.commandId,
+            outcome: "ACCEPTED",
+            revision: envelope.expectedRevision + 1,
+          });
+        }
+      },
+    );
+
+    const retryResult = await manager.retryPendingCommand();
+    expect(retryResult.ok).toBe(true);
+    expect(retryResult.commandId).toBe(originalCommandId);
+    expect(manager.getPendingCommand()).toBeNull();
   });
 });

@@ -84,11 +84,11 @@ export const LobbyView: React.FC<Props> = ({
     }
   }
 
-  // 4 seats representation
-  const seats = [1, 2, 3, 4].map((seatNum) => {
-    const member = room.members.find((m) => m.joinOrder === seatNum);
+  // 4 seats representation: durable joinOrder is 0..3, UI seat number is 1..4
+  const seats = [0, 1, 2, 3].map((joinOrder) => {
+    const member = room.members.find((m) => m.joinOrder === joinOrder);
     return {
-      seatNum,
+      seatNum: joinOrder + 1,
       member,
     };
   });

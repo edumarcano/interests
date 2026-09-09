@@ -1,25 +1,30 @@
+import type {
+  CommandAckResult,
+  MatchPlayerView,
+  PauseReason,
+  PlayerCommand,
+  PlayerCommandEnvelope,
+  ResumeData,
+  RoomLobbyView,
+  RoomMemberId,
+  RoomPresencePayload,
+  SessionReplacedPayload,
+  SocketAckResult,
+  SocketBootstrapPayload,
+} from "@interests/shared";
 import {
-  type CommandAckResult,
-  type MatchPlayerView,
-  type PauseReason,
-  type PlayerCommand,
-  type ResumeData,
-  type RoomLobbyView,
-  type RoomMemberId,
-  type RoomPresencePayload,
-  type SessionReplacedPayload,
-  type SocketAckResult,
   SOCKET_CLIENT_EVENTS,
   SOCKET_ERROR_CODES,
   SOCKET_PROTOCOL_VERSION,
   SOCKET_SERVER_EVENTS,
-  type SocketBootstrapPayload,
 } from "@interests/shared";
-import { type Socket, io } from "socket.io-client";
+import { io, type Socket } from "socket.io-client";
 import { createCommandEnvelope } from "../command/commandHelper.js";
 
 export type ConnectionStatus =
   | "connecting"
+  | "synchronizing"
+  | "synchronized"
   | "connected"
   | "reconnecting"
   | "disconnected"
@@ -42,6 +47,7 @@ export type RealtimeListener = (state: RealtimeState) => void;
 export class RealtimeManager {
   private socket: Socket | null = null;
   private listeners = new Set<RealtimeListener>();
+  private pendingCommand: PlayerCommandEnvelope | null = null;
   private state: RealtimeState = {
     status: "disconnected",
     replacedReason: null,
@@ -56,6 +62,10 @@ export class RealtimeManager {
 
   getState(): RealtimeState {
     return this.state;
+  }
+
+  getPendingCommand(): PlayerCommandEnvelope | null {
+    return this.pendingCommand;
   }
 
   subscribe(listener: RealtimeListener): () => void {
@@ -134,7 +144,7 @@ export class RealtimeManager {
 
         const currentGen = payload.self.connectionGeneration;
         this.updateState({
-          status: "connected",
+          status: "synchronizing",
           room: payload.room,
           selfMemberId: payload.self.memberId,
           connectionGeneration: currentGen,
@@ -144,13 +154,24 @@ export class RealtimeManager {
           error: null,
         });
 
-        // Automatically synchronize connection generation
+        // Explicitly synchronize connection generation
         socket.emit(
           SOCKET_CLIENT_EVENTS.SYNCHRONIZE,
           { connectionGeneration: currentGen },
           (res: SocketAckResult) => {
-            if (!res.ok) {
-              console.warn("Synchronization failed:", res.error);
+            if (res && res.ok) {
+              this.updateState({
+                status: "synchronized",
+                error: null,
+              });
+            } else {
+              const message =
+                res && !res.ok ? res.error.message : "Synchronization failed";
+              this.updateState({
+                status: "disconnected",
+                error: message,
+              });
+              socket.disconnect();
             }
           },
         );
@@ -182,12 +203,28 @@ export class RealtimeManager {
     );
   }
 
-  async sendCommand(command: PlayerCommand): Promise<CommandAckResult> {
-    return new Promise((resolve, reject) => {
+  async sendCommand(
+    commandOrEnvelope: PlayerCommand | PlayerCommandEnvelope,
+    timeoutMs = 10000,
+  ): Promise<CommandAckResult> {
+    let envelope: PlayerCommandEnvelope;
+    if (
+      "commandId" in commandOrEnvelope &&
+      "expectedRevision" in commandOrEnvelope
+    ) {
+      envelope = commandOrEnvelope;
+    } else {
+      const expectedRevision = this.state.match?.revision ?? 0;
+      envelope = createCommandEnvelope(commandOrEnvelope, expectedRevision);
+    }
+
+    this.pendingCommand = envelope;
+
+    return new Promise((resolve) => {
       if (!this.socket || !this.socket.connected) {
         return resolve({
           ok: false,
-          commandId: "",
+          commandId: envelope.commandId,
           error: {
             code: SOCKET_ERROR_CODES.INTERNAL_ERROR,
             message: "Socket is not connected",
@@ -196,22 +233,50 @@ export class RealtimeManager {
         });
       }
 
-      const expectedRevision = this.state.match?.revision ?? 0;
-      const envelope = createCommandEnvelope(command, expectedRevision);
+      let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+        timer = null;
+        resolve({
+          ok: false,
+          commandId: envelope.commandId,
+          error: {
+            code: "TIMEOUT",
+            message:
+              "Command acknowledgement timed out; retry may reuse this envelope",
+          },
+          revision: this.state.match?.revision ?? 0,
+        });
+      }, timeoutMs);
 
       this.socket.emit(
         SOCKET_CLIENT_EVENTS.COMMAND,
         envelope,
         (ack: CommandAckResult) => {
-          if (ack.ok) {
-            // Optimistically or through ack, match:view will arrive with new state
-            resolve(ack);
-          } else {
-            resolve(ack);
+          if (timer) {
+            clearTimeout(timer);
+            timer = null;
           }
+          if (ack?.ok) {
+            this.pendingCommand = null;
+          }
+          resolve(ack);
         },
       );
     });
+  }
+
+  async retryPendingCommand(timeoutMs?: number): Promise<CommandAckResult> {
+    if (!this.pendingCommand) {
+      return {
+        ok: false,
+        commandId: "",
+        error: {
+          code: "NO_PENDING_COMMAND",
+          message: "No pending command to retry",
+        },
+        revision: this.state.match?.revision ?? 0,
+      };
+    }
+    return this.sendCommand(this.pendingCommand, timeoutMs);
   }
 
   async resumeRoom(): Promise<SocketAckResult<ResumeData>> {

@@ -1,13 +1,5 @@
 // @vitest-environment happy-dom
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import React from "react";
+
 import type {
   MatchPlayerView,
   PauseReason,
@@ -16,6 +8,17 @@ import type {
   RoomMemberId,
   RoomPresencePayload,
 } from "@interests/shared";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import React from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as apiClient from "../src/api/client.js";
+import { createCommandEnvelope } from "../src/command/commandHelper.js";
 import { ConnectionStatusBadge } from "../src/components/ConnectionStatusBadge.js";
 import { EntryScreen } from "../src/components/EntryScreen.js";
 import { LobbyView } from "../src/components/LobbyView.js";
@@ -26,8 +29,6 @@ import { RecoveryCodeModal } from "../src/components/RecoveryCodeModal.js";
 import { ReplacedScreen } from "../src/components/ReplacedScreen.js";
 import { RoundStartView } from "../src/components/RoundStartView.js";
 import { SpotlightView } from "../src/components/SpotlightView.js";
-import { createCommandEnvelope } from "../src/command/commandHelper.js";
-import * as apiClient from "../src/api/client.js";
 
 beforeEach(() => {
   vi.spyOn(apiClient, "getSession").mockResolvedValue({ memberships: [] });
@@ -49,25 +50,25 @@ describe("TASK Section 30: Client Verification Checklist", () => {
       {
         memberId: "m1" as RoomMemberId,
         nickname: "Alice",
-        joinOrder: 1,
+        joinOrder: 0,
         isHost: true,
       },
       {
         memberId: "m2" as RoomMemberId,
         nickname: "Bob",
-        joinOrder: 2,
+        joinOrder: 1,
         isHost: false,
       },
       {
         memberId: "m3" as RoomMemberId,
         nickname: "Charlie",
-        joinOrder: 3,
+        joinOrder: 2,
         isHost: false,
       },
       {
         memberId: "m4" as RoomMemberId,
         nickname: "Dana",
-        joinOrder: 4,
+        joinOrder: 3,
         isHost: false,
       },
     ],
@@ -78,7 +79,7 @@ describe("TASK Section 30: Client Verification Checklist", () => {
       {
         memberId: "m1" as RoomMemberId,
         nickname: "Alice",
-        joinOrder: 1,
+        joinOrder: 0,
         isHost: true,
         connected: true,
         synchronized: true,
@@ -86,7 +87,7 @@ describe("TASK Section 30: Client Verification Checklist", () => {
       {
         memberId: "m2" as RoomMemberId,
         nickname: "Bob",
-        joinOrder: 2,
+        joinOrder: 1,
         isHost: false,
         connected: true,
         synchronized: true,
@@ -94,7 +95,7 @@ describe("TASK Section 30: Client Verification Checklist", () => {
       {
         memberId: "m3" as RoomMemberId,
         nickname: "Charlie",
-        joinOrder: 3,
+        joinOrder: 2,
         isHost: false,
         connected: true,
         synchronized: true,
@@ -102,7 +103,7 @@ describe("TASK Section 30: Client Verification Checklist", () => {
       {
         memberId: "m4" as RoomMemberId,
         nickname: "Dana",
-        joinOrder: 4,
+        joinOrder: 3,
         isHost: false,
         connected: true,
         synchronized: true,
@@ -117,7 +118,7 @@ describe("TASK Section 30: Client Verification Checklist", () => {
     matchId: "match-1" as any,
     modeId: "standard",
     revision: 0,
-    phase: "setup",
+    phase: "objective-choosing",
     currentQuarter: 1,
     round: null,
     players: [
@@ -125,7 +126,7 @@ describe("TASK Section 30: Client Verification Checklist", () => {
         playerId: "p1" as any,
         roomMemberId: "m1" as RoomMemberId,
         nickname: "Alice",
-        joinOrder: 1,
+        joinOrder: 0,
         isHost: true,
         hasSelectedObjective: false,
       },
@@ -133,7 +134,7 @@ describe("TASK Section 30: Client Verification Checklist", () => {
         playerId: "p2" as any,
         roomMemberId: "m2" as RoomMemberId,
         nickname: "Bob",
-        joinOrder: 2,
+        joinOrder: 1,
         isHost: false,
         hasSelectedObjective: true,
       },
@@ -141,7 +142,7 @@ describe("TASK Section 30: Client Verification Checklist", () => {
         playerId: "p3" as any,
         roomMemberId: "m3" as RoomMemberId,
         nickname: "Charlie",
-        joinOrder: 3,
+        joinOrder: 2,
         isHost: false,
         hasSelectedObjective: false,
       },
@@ -149,7 +150,7 @@ describe("TASK Section 30: Client Verification Checklist", () => {
         playerId: "p4" as any,
         roomMemberId: "m4" as RoomMemberId,
         nickname: "Dana",
-        joinOrder: 4,
+        joinOrder: 3,
         isHost: false,
         hasSelectedObjective: true,
       },
@@ -180,7 +181,7 @@ describe("TASK Section 30: Client Verification Checklist", () => {
   const mockRoundStartMatch: MatchPlayerView = {
     ...mockSetupMatch,
     revision: 4,
-    phase: "active",
+    phase: "ready-for-first-round",
     round: {
       stage: "round-start",
       spotlightOrder: ["p1" as any, "p2" as any, "p3" as any, "p4" as any],
@@ -192,7 +193,7 @@ describe("TASK Section 30: Client Verification Checklist", () => {
   const mockSpotlightMatch: MatchPlayerView = {
     ...mockSetupMatch,
     revision: 5,
-    phase: "active",
+    phase: "ready-for-first-round",
     round: {
       stage: "spotlight",
       spotlightOrder: ["p1" as any, "p2" as any, "p3" as any, "p4" as any],
@@ -638,7 +639,7 @@ describe("TASK Section 30: Client Verification Checklist", () => {
       ...mockSetupMatch,
       currentQuarter: 2,
       revision: 10,
-      phase: "active",
+      phase: "ready-for-first-round",
       round: {
         stage: "round-start",
         spotlightOrder: ["p2" as any, "p3" as any, "p4" as any, "p1" as any],
@@ -731,6 +732,115 @@ describe("TASK Section 30: Client Verification Checklist", () => {
     expect(handleReset).toHaveBeenCalled();
   });
 
+  // 20. MatchView routes to ObjectiveSelection during setup and canonical round stages
+  it("20. MatchView routes correctly across canonical phases and round stages", () => {
+    const handleCmd = vi.fn().mockResolvedValue({
+      ok: true,
+      commandId: "c1",
+      outcome: "ACCEPTED",
+      revision: 1,
+    });
+    const handleResume = vi.fn().mockResolvedValue({ ok: true, data: {} });
+
+    // Objective selection when phase is objective-choosing and round is null
+    const { rerender } = render(
+      <MatchView
+        match={mockSetupMatch}
+        presence={mockPresenceAllSync}
+        pauseReasons={[]}
+        isHost={true}
+        onSendCommand={handleCmd}
+        onResumeRoom={handleResume}
+      />,
+    );
+    expect(screen.getByTestId("objective-selection-view")).toBeTruthy();
+
+    // Round-start view when round stage is round-start
+    rerender(
+      <MatchView
+        match={mockRoundStartMatch}
+        presence={mockPresenceAllSync}
+        pauseReasons={[]}
+        isHost={true}
+        onSendCommand={handleCmd}
+        onResumeRoom={handleResume}
+      />,
+    );
+    expect(screen.getByTestId("round-start-view")).toBeTruthy();
+
+    // Spotlight view when round stage is spotlight
+    rerender(
+      <MatchView
+        match={mockSpotlightMatch}
+        presence={mockPresenceAllSync}
+        pauseReasons={[]}
+        isHost={true}
+        onSendCommand={handleCmd}
+        onResumeRoom={handleResume}
+      />,
+    );
+    expect(screen.getByTestId("spotlight-view")).toBeTruthy();
+  });
+
+  // 21. MatchView host resume requires allConnected AND allSynchronized, and blocks on SYSTEM_FAULT
+  it("21. MatchView host resume requires allConnected AND allSynchronized, and blocks on SYSTEM_FAULT", () => {
+    const handleCmd = vi.fn().mockResolvedValue({
+      ok: true,
+      commandId: "c1",
+      outcome: "ACCEPTED",
+      revision: 1,
+    });
+    const handleResume = vi.fn().mockResolvedValue({ ok: true, data: {} });
+
+    // Paused with DISCONNECTED_MEMBER, all connected & sync -> canResume true
+    const { rerender } = render(
+      <MatchView
+        match={mockRoundStartMatch}
+        presence={mockPresenceAllSync}
+        pauseReasons={["DISCONNECTED_MEMBER"]}
+        isHost={true}
+        onSendCommand={handleCmd}
+        onResumeRoom={handleResume}
+      />,
+    );
+    const resumeBtn = screen.getByTestId(
+      "resume-match-btn",
+    ) as HTMLButtonElement;
+    expect(resumeBtn.disabled).toBe(false);
+
+    // If presence is not all synchronized -> disabled
+    const unsyncedPresence = { ...mockPresenceAllSync, allSynchronized: false };
+    rerender(
+      <MatchView
+        match={mockRoundStartMatch}
+        presence={unsyncedPresence}
+        pauseReasons={["DISCONNECTED_MEMBER"]}
+        isHost={true}
+        onSendCommand={handleCmd}
+        onResumeRoom={handleResume}
+      />,
+    );
+    expect(
+      (screen.getByTestId("resume-match-btn") as HTMLButtonElement).disabled,
+    ).toBe(true);
+
+    // If SYSTEM_FAULT is present -> disabled even if all sync, and alert message is displayed
+    rerender(
+      <MatchView
+        match={mockRoundStartMatch}
+        presence={mockPresenceAllSync}
+        pauseReasons={["SYSTEM_FAULT"]}
+        isHost={true}
+        onSendCommand={handleCmd}
+        onResumeRoom={handleResume}
+      />,
+    );
+    expect(
+      (screen.getByTestId("resume-match-btn") as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(screen.getByText(/manual resume is blocked/i)).toBeTruthy();
+  });
+
   // Helper tests
   it("creates durable command envelope with crypto.randomUUID() and expected revision", () => {
     const envelope = createCommandEnvelope({ type: "PASS_SPOTLIGHT" }, 42);
@@ -746,6 +856,12 @@ describe("TASK Section 30: Client Verification Checklist", () => {
 
     rerender(<ConnectionStatusBadge status="connecting" />);
     expect(screen.getByLabelText(/Connecting/i)).toBeTruthy();
+
+    rerender(<ConnectionStatusBadge status="synchronizing" />);
+    expect(screen.getByLabelText(/Synchronizing/i)).toBeTruthy();
+
+    rerender(<ConnectionStatusBadge status="synchronized" />);
+    expect(screen.getByLabelText(/Synchronized/i)).toBeTruthy();
 
     rerender(<ConnectionStatusBadge status="disconnected" />);
     expect(screen.getByLabelText(/Disconnected/i)).toBeTruthy();

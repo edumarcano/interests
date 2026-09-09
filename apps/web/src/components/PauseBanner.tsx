@@ -17,7 +17,7 @@ function formatReason(reason: PauseReason): string {
     case "MANUAL":
       return "Game paused manually";
     case "SYSTEM_FAULT":
-      return "System fault detected";
+      return "System fault detected (server recovery required; manual resume unavailable)";
     default:
       return reason;
   }
@@ -35,6 +35,8 @@ export const PauseBanner: React.FC<Props> = ({
   if (!reasons || reasons.length === 0) {
     return null;
   }
+
+  const hasSystemFault = reasons.includes("SYSTEM_FAULT");
 
   const handleResumeClick = async () => {
     try {
@@ -68,6 +70,17 @@ export const PauseBanner: React.FC<Props> = ({
         <div style={{ fontSize: "0.9rem", color: "var(--text-secondary)" }}>
           {reasons.map((r) => formatReason(r)).join(" • ")}
         </div>
+        {hasSystemFault && (
+          <div
+            style={{
+              fontSize: "0.85rem",
+              color: "var(--accent-rose)",
+              marginTop: "0.25rem",
+            }}
+          >
+            Manual resume is blocked due to system fault.
+          </div>
+        )}
         {error && (
           <div
             style={{

@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 import type { ConnectionStatus } from "../socket/socketClient.js";
 
 interface Props {
@@ -7,6 +7,25 @@ interface Props {
 
 export const ConnectionStatusBadge: React.FC<Props> = ({ status }) => {
   switch (status) {
+    case "synchronized":
+      return (
+        <span
+          role="status"
+          className="badge badge-connected"
+          aria-label="Connection Status: Synchronized"
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "currentColor",
+            }}
+          />
+          Synchronized
+        </span>
+      );
     case "connected":
       return (
         <span
@@ -24,6 +43,25 @@ export const ConnectionStatusBadge: React.FC<Props> = ({ status }) => {
             }}
           />
           Connected
+        </span>
+      );
+    case "synchronizing":
+      return (
+        <span
+          role="status"
+          className="badge badge-reconnecting"
+          aria-label="Connection Status: Synchronizing"
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "currentColor",
+            }}
+          />
+          Synchronizing...
         </span>
       );
     case "connecting":

@@ -31,7 +31,11 @@ export const MatchView: React.FC<Props> = ({
   onResumeRoom,
 }) => {
   const isPaused = pauseReasons.length > 0;
-  const canResume = isHost && (presence ? presence.allConnected : true);
+  const hasSystemFault = pauseReasons.includes("SYSTEM_FAULT");
+  const canResume =
+    isHost &&
+    Boolean(presence?.allConnected && presence?.allSynchronized) &&
+    !hasSystemFault;
 
   const handleResume = async () => {
     const res = await onResumeRoom();
@@ -49,11 +53,11 @@ export const MatchView: React.FC<Props> = ({
         onResume={handleResume}
       />
 
-      {match.phase === "setup" && (
+      {(match.phase === "objective-choosing" || match.round === null) && (
         <ObjectiveSelection match={match} onSendCommand={onSendCommand} />
       )}
 
-      {match.phase === "active" && match.round?.stage === "round-start" && (
+      {match.round?.stage === "round-start" && (
         <RoundStartView
           match={match}
           isHost={isHost}
@@ -62,7 +66,7 @@ export const MatchView: React.FC<Props> = ({
         />
       )}
 
-      {match.phase === "active" && match.round?.stage === "spotlight" && (
+      {match.round?.stage === "spotlight" && (
         <SpotlightView
           match={match}
           isPaused={isPaused}
