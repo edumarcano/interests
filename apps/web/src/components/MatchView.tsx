@@ -7,7 +7,7 @@ import type {
   RoomPresencePayload,
   SocketAckResult,
 } from "@interests/shared";
-import React from "react";
+import type React from "react";
 import { ObjectiveSelection } from "./ObjectiveSelection.js";
 import { PauseBanner } from "./PauseBanner.js";
 import { RoundStartView } from "./RoundStartView.js";

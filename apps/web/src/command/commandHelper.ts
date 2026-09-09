@@ -22,12 +22,15 @@ export function generateUUID(): string {
       const bytes = new Uint8Array(16);
       crypto.getRandomValues(bytes);
       // Set version 4: bits 12-15 of time_hi_and_version to 0100
-      bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+      const b6 = bytes[6] ?? 0;
+      bytes[6] = (b6 & 0x0f) | 0x40;
       // Set variant RFC4122: bits 6-7 of clock_seq_hi_and_reserved to 10
-      bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+      const b8 = bytes[8] ?? 0;
+      bytes[8] = (b8 & 0x3f) | 0x80;
       const hex: string[] = [];
       for (let i = 0; i < 16; i++) {
-        hex.push(bytes[i]!.toString(16).padStart(2, "0"));
+        const val = bytes[i] ?? 0;
+        hex.push(val.toString(16).padStart(2, "0"));
       }
       return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
     }
