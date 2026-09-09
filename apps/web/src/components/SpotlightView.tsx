@@ -3,7 +3,11 @@ import type {
   MatchPlayerView,
   PlayerCommand,
 } from "@interests/shared";
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
+import { OpportunityCard } from "./OpportunityCard.js";
+import { SelfFinanceSummary } from "./SelfFinanceSummary.js";
+import { TransactionPanel } from "./TransactionPanel.js";
 
 interface Props {
   match: MatchPlayerView;
@@ -113,6 +117,26 @@ export const SpotlightView: React.FC<Props> = ({
         </div>
       )}
 
+      {/* Self Finances Summary */}
+      <SelfFinanceSummary self={match.self} />
+
+      {/* Private Opportunity Card (Target Buyer, unpursued or investigating) */}
+      {match.self.opportunity && !match.activeTransaction && (
+        <OpportunityCard
+          opportunity={match.self.opportunity}
+          isPaused={isPaused}
+          onSendCommand={onSendCommand}
+        />
+      )}
+
+      {/* Transaction & Pursuit Panel */}
+      <TransactionPanel
+        match={match}
+        opportunity={match.self.opportunity}
+        isPaused={isPaused}
+        onSendCommand={onSendCommand}
+      />
+
       <div style={{ marginBottom: "2rem" }}>
         <div className="grid-4">
           {round?.spotlightOrder.map((pId, idx) => {
@@ -210,25 +234,27 @@ export const SpotlightView: React.FC<Props> = ({
             >
               It's your spotlight!
             </p>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={handlePassSpotlight}
-              disabled={isPaused || submitting}
-              style={{
-                minWidth: 200,
-                fontSize: "1.05rem",
-                padding: "0.8rem 2rem",
-              }}
-              id="pass-spotlight-btn"
-              data-testid="pass-spotlight-btn"
-            >
-              {submitting
-                ? "Passing..."
-                : error
-                  ? "Retry Pass Spotlight"
-                  : "Pass Spotlight"}
-            </button>
+            {!match.activeTransaction && (
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handlePassSpotlight}
+                disabled={isPaused || submitting}
+                style={{
+                  minWidth: 200,
+                  fontSize: "1.05rem",
+                  padding: "0.8rem 2rem",
+                }}
+                id="pass-spotlight-btn"
+                data-testid="pass-spotlight-btn"
+              >
+                {submitting
+                  ? "Passing..."
+                  : error
+                    ? "Retry Pass Spotlight"
+                    : "Pass Spotlight"}
+              </button>
+            )}
           </div>
         ) : (
           <p

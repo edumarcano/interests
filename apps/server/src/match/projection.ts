@@ -6,12 +6,15 @@ import {
   type ProfileId,
 } from "@interests/rules";
 import type {
+  ActiveTransactionSummaryView,
   MatchObjectiveOptionView,
   MatchPlayerSummaryView,
   MatchPlayerView,
   MatchProfileView,
+  MatchSelfLoanView,
   MatchSelfView,
   PlayerId,
+  PrivateOpportunityView,
   RoomMemberId,
 } from "@interests/shared";
 import type { MatchMemberRecord, MatchRoomMember } from "./types.js";
@@ -41,6 +44,14 @@ export function buildMatchPlayerView(params: {
   for (const rm of params.roomMembers) {
     roomMemberById.set(rm.id, rm);
   }
+
+  const getNicknameForPlayer = (playerId: PlayerId): string => {
+    const matchMember = memberByPlayerId.get(playerId);
+    const roomMember = matchMember
+      ? roomMemberById.get(matchMember.roomMemberId)
+      : undefined;
+    return roomMember?.nickname ?? "Unknown";
+  };
 
   const players: MatchPlayerSummaryView[] = pureProjection.players.map(
     (summary) => {
@@ -93,12 +104,63 @@ export function buildMatchPlayerView(params: {
       })()
     : null;
 
+  const opportunity: PrivateOpportunityView | null = pureProjection.self
+    .opportunity
+    ? {
+        ...pureProjection.self.opportunity,
+        sellerNickname: getNicknameForPlayer(
+          pureProjection.self.opportunity.sellerPlayerId,
+        ),
+      }
+    : null;
+
+  const loans: readonly MatchSelfLoanView[] = pureProjection.self.loans.map(
+    (l) => ({
+      id: l.id,
+      kind: l.kind,
+      role: l.role,
+      counterpartyNickname:
+        l.counterpartyPlayerId === "bank"
+          ? "Bank"
+          : getNicknameForPlayer(l.counterpartyPlayerId),
+      originalPrincipalCents: l.originalPrincipalCents,
+      outstandingPrincipalCents: l.outstandingPrincipalCents,
+      annualRateBps: l.annualRateBps,
+      termQuarters: l.termQuarters,
+      scheduledQuarterlyPaymentCents: l.scheduledQuarterlyPaymentCents,
+    }),
+  );
+
   const enrichedSelf: MatchSelfView = {
     ...pureProjection.self,
     profile,
     offeredObjectives,
     selectedObjective,
+    opportunity,
+    ownedAssets: pureProjection.self.ownedAssets,
+    loans,
   };
+
+  const activeTransaction: ActiveTransactionSummaryView | null =
+    pureProjection.activeTransaction
+      ? {
+          ...pureProjection.activeTransaction,
+          buyerNickname: getNicknameForPlayer(
+            pureProjection.activeTransaction.buyerPlayerId,
+          ),
+          sellerNickname: getNicknameForPlayer(
+            pureProjection.activeTransaction.sellerPlayerId,
+          ),
+          offer: pureProjection.activeTransaction.offer
+            ? {
+                ...pureProjection.activeTransaction.offer,
+                lenderNickname: getNicknameForPlayer(
+                  pureProjection.activeTransaction.offer.lenderPlayerId,
+                ),
+              }
+            : null,
+        }
+      : null;
 
   return {
     matchId: pureProjection.matchId,
@@ -109,6 +171,6 @@ export function buildMatchPlayerView(params: {
     round: pureProjection.round,
     players,
     self: enrichedSelf,
-    activeTransaction: pureProjection.activeTransaction,
+    activeTransaction,
   };
 }

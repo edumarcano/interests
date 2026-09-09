@@ -153,6 +153,10 @@ Spotlight turn order defines transaction initiation authority without paralyzing
 - **Participation without spotlight consumption:** Non-spotlight players participating as lenders, equity partners, sellers, or counter-bidders in the active transaction do not consume their own quarterly spotlight.
 - **Preservation of broader reaction design:** The resolution of G1 locks turn sequencing, but does **not** narrow the intended broader V1 reaction system to the single-lender slice implemented in PR #15. The design rules for open multi-lender financing participation, auctions, partnership formations, competing bids, scarce opportunity contention, and contract reactions remain authoritative for future expansion.
 
+### 2.3.1 Milestone 6 First Playable Transaction Loop Fixture [PROTOTYPE]
+
+For Milestone 6 (PR23), the engine attaches a single deterministic Q1 private-business acquisition opportunity fixture ($50,000 asking price, $55,000 enterprise value, $70,000 annual revenue, $12,000 annual operating profit, 0 debt) assigned privately to the player with the highest initial cash under $50,000, with the seller assigned to the next seat in player order. This fixture serves as provisional vertical-slice content to exercise the end-to-end browser playable transaction loop (private investigation, financing request, off-spotlight lender offer, acceptance, and atomic close composed with spotlight advance), not final economic balance law.
+
 # 3. Actions, reactions, and transaction timing [LOCKED]
 
 V1 should use a strict state model so that social freedom does not create rules ambiguity: players may always think and talk, but only certain states allow game-state changes.

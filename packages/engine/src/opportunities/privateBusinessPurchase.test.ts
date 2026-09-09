@@ -101,6 +101,11 @@ function createOpportunityFixture(): {
 
   const state: GameState = {
     ...base,
+    opportunitiesById: {},
+    counters: {
+      ...base.counters,
+      opportunity: 0,
+    },
     finance: {
       ...base.finance,
       cashByPlayer: {

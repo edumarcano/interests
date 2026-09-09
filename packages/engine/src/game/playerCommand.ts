@@ -1,8 +1,22 @@
 import type { ObjectiveId } from "@interests/rules";
-import type { PlayerId } from "@interests/shared";
+import type { OpportunityId, PlayerId, TransactionId } from "@interests/shared";
 import type { GameState } from "../model/gameState.js";
+import {
+  investigatePrivateBusinessPurchaseOpportunity,
+  pursuePrivateBusinessPurchaseOpportunity,
+  pursuePrivateBusinessPurchaseOpportunityWithFinancingRequest,
+} from "../opportunities/privateBusinessPurchase.js";
+import {
+  acceptPlayerLoanFinancingOffer,
+  submitPlayerLoanFinancingOffer,
+} from "../transactions/cashBusinessPurchase.js";
 import { type ActionResult, applyAction } from "./actions.js";
-import { advanceSpotlight, beginRound } from "./round.js";
+import {
+  advanceSpotlight,
+  beginRound,
+  cancelActiveTransactionAndAdvanceSpotlight,
+  closeCashBusinessPurchaseAndAdvanceSpotlight,
+} from "./round.js";
 
 export interface WireChooseObjectiveCommand {
   readonly type: "CHOOSE_OBJECTIVE";
@@ -17,10 +31,57 @@ export interface WirePassSpotlightCommand {
   readonly type: "PASS_SPOTLIGHT";
 }
 
+export interface WireInvestigateOpportunityCommand {
+  readonly type: "INVESTIGATE_OPPORTUNITY";
+  readonly opportunityId: string;
+}
+
+export interface WirePursueBusinessCashCommand {
+  readonly type: "PURSUE_BUSINESS_CASH";
+  readonly opportunityId: string;
+}
+
+export interface WirePursueBusinessWithPlayerLoanCommand {
+  readonly type: "PURSUE_BUSINESS_WITH_PLAYER_LOAN";
+  readonly opportunityId: string;
+  readonly buyerCashContributionCents: number;
+  readonly requestedPrincipalCents: number;
+}
+
+export interface WireSubmitPlayerLoanOfferCommand {
+  readonly type: "SUBMIT_PLAYER_LOAN_OFFER";
+  readonly transactionId: string;
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
+}
+
+export interface WireAcceptPlayerLoanOfferCommand {
+  readonly type: "ACCEPT_PLAYER_LOAN_OFFER";
+  readonly transactionId: string;
+  readonly expectedTermsRevision: number;
+}
+
+export interface WireCloseBusinessPurchaseCommand {
+  readonly type: "CLOSE_BUSINESS_PURCHASE";
+  readonly transactionId: string;
+}
+
+export interface WireCancelActiveTransactionCommand {
+  readonly type: "CANCEL_ACTIVE_TRANSACTION";
+  readonly transactionId: string;
+}
+
 export type WirePlayerCommand =
   | WireChooseObjectiveCommand
   | WireBeginRoundCommand
-  | WirePassSpotlightCommand;
+  | WirePassSpotlightCommand
+  | WireInvestigateOpportunityCommand
+  | WirePursueBusinessCashCommand
+  | WirePursueBusinessWithPlayerLoanCommand
+  | WireSubmitPlayerLoanOfferCommand
+  | WireAcceptPlayerLoanOfferCommand
+  | WireCloseBusinessPurchaseCommand
+  | WireCancelActiveTransactionCommand;
 
 /**
  * Pure engine player command adapter.
@@ -33,6 +94,13 @@ export type WirePlayerCommand =
  * - CHOOSE_OBJECTIVE
  * - BEGIN_ROUND
  * - PASS_SPOTLIGHT
+ * - INVESTIGATE_OPPORTUNITY
+ * - PURSUE_BUSINESS_CASH
+ * - PURSUE_BUSINESS_WITH_PLAYER_LOAN
+ * - SUBMIT_PLAYER_LOAN_OFFER
+ * - ACCEPT_PLAYER_LOAN_OFFER
+ * - CLOSE_BUSINESS_PURCHASE
+ * - CANCEL_ACTIVE_TRANSACTION
  */
 export function applyPlayerCommand(
   state: GameState,
@@ -71,6 +139,222 @@ export function applyPlayerCommand(
 
     case "PASS_SPOTLIGHT": {
       return advanceSpotlight(state, actorPlayerId);
+    }
+
+    case "INVESTIGATE_OPPORTUNITY": {
+      if (
+        typeof wireCommand.opportunityId !== "string" ||
+        !wireCommand.opportunityId
+      ) {
+        return {
+          ok: false,
+          state,
+          code: "INVALID_ACTION",
+          journalEntries: [],
+        };
+      }
+      const res = investigatePrivateBusinessPurchaseOpportunity(
+        state,
+        wireCommand.opportunityId as OpportunityId,
+        actorPlayerId,
+      );
+      if (!res.ok) {
+        return {
+          ok: false,
+          state: res.state,
+          code: res.code,
+          journalEntries: [],
+        };
+      }
+      return {
+        ok: true,
+        state: res.state,
+        journalEntries: [],
+      };
+    }
+
+    case "PURSUE_BUSINESS_CASH": {
+      if (
+        typeof wireCommand.opportunityId !== "string" ||
+        !wireCommand.opportunityId
+      ) {
+        return {
+          ok: false,
+          state,
+          code: "INVALID_ACTION",
+          journalEntries: [],
+        };
+      }
+      const res = pursuePrivateBusinessPurchaseOpportunity(
+        state,
+        wireCommand.opportunityId as OpportunityId,
+        actorPlayerId,
+      );
+      if (!res.ok) {
+        const code =
+          res.code === "TRANSACTION_REJECTED" ? res.transactionCode : res.code;
+        return {
+          ok: false,
+          state: res.state,
+          code,
+          journalEntries: [],
+        };
+      }
+      return {
+        ok: true,
+        state: res.state,
+        journalEntries: [],
+      };
+    }
+
+    case "PURSUE_BUSINESS_WITH_PLAYER_LOAN": {
+      if (
+        typeof wireCommand.opportunityId !== "string" ||
+        !wireCommand.opportunityId ||
+        typeof wireCommand.buyerCashContributionCents !== "number" ||
+        typeof wireCommand.requestedPrincipalCents !== "number"
+      ) {
+        return {
+          ok: false,
+          state,
+          code: "INVALID_ACTION",
+          journalEntries: [],
+        };
+      }
+      const res = pursuePrivateBusinessPurchaseOpportunityWithFinancingRequest(
+        state,
+        wireCommand.opportunityId as OpportunityId,
+        actorPlayerId,
+        {
+          buyerCashContributionCents: wireCommand.buyerCashContributionCents,
+          requestedPrincipalCents: wireCommand.requestedPrincipalCents,
+        },
+      );
+      if (!res.ok) {
+        const code =
+          res.code === "TRANSACTION_REJECTED" ? res.transactionCode : res.code;
+        return {
+          ok: false,
+          state: res.state,
+          code,
+          journalEntries: [],
+        };
+      }
+      return {
+        ok: true,
+        state: res.state,
+        journalEntries: [],
+      };
+    }
+
+    case "SUBMIT_PLAYER_LOAN_OFFER": {
+      if (
+        typeof wireCommand.transactionId !== "string" ||
+        !wireCommand.transactionId ||
+        typeof wireCommand.annualRateBps !== "number" ||
+        typeof wireCommand.termQuarters !== "number"
+      ) {
+        return {
+          ok: false,
+          state,
+          code: "INVALID_ACTION",
+          journalEntries: [],
+        };
+      }
+      const res = submitPlayerLoanFinancingOffer(
+        state,
+        wireCommand.transactionId as TransactionId,
+        actorPlayerId,
+        {
+          annualRateBps: wireCommand.annualRateBps,
+          termQuarters: wireCommand.termQuarters,
+        },
+      );
+      if (!res.ok) {
+        return {
+          ok: false,
+          state: res.state,
+          code: res.code,
+          journalEntries: [],
+        };
+      }
+      return {
+        ok: true,
+        state: res.state,
+        journalEntries: res.journalEntries,
+      };
+    }
+
+    case "ACCEPT_PLAYER_LOAN_OFFER": {
+      if (
+        typeof wireCommand.transactionId !== "string" ||
+        !wireCommand.transactionId ||
+        typeof wireCommand.expectedTermsRevision !== "number"
+      ) {
+        return {
+          ok: false,
+          state,
+          code: "INVALID_ACTION",
+          journalEntries: [],
+        };
+      }
+      const res = acceptPlayerLoanFinancingOffer(
+        state,
+        wireCommand.transactionId as TransactionId,
+        actorPlayerId,
+        wireCommand.expectedTermsRevision,
+      );
+      if (!res.ok) {
+        return {
+          ok: false,
+          state: res.state,
+          code: res.code,
+          journalEntries: [],
+        };
+      }
+      return {
+        ok: true,
+        state: res.state,
+        journalEntries: res.journalEntries,
+      };
+    }
+
+    case "CLOSE_BUSINESS_PURCHASE": {
+      if (
+        typeof wireCommand.transactionId !== "string" ||
+        !wireCommand.transactionId
+      ) {
+        return {
+          ok: false,
+          state,
+          code: "INVALID_ACTION",
+          journalEntries: [],
+        };
+      }
+      return closeCashBusinessPurchaseAndAdvanceSpotlight(
+        state,
+        actorPlayerId,
+        wireCommand.transactionId as TransactionId,
+      );
+    }
+
+    case "CANCEL_ACTIVE_TRANSACTION": {
+      if (
+        typeof wireCommand.transactionId !== "string" ||
+        !wireCommand.transactionId
+      ) {
+        return {
+          ok: false,
+          state,
+          code: "INVALID_ACTION",
+          journalEntries: [],
+        };
+      }
+      return cancelActiveTransactionAndAdvanceSpotlight(
+        state,
+        actorPlayerId,
+        wireCommand.transactionId as TransactionId,
+      );
     }
 
     default: {

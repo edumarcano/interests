@@ -621,6 +621,57 @@ Establish the responsive web browser player application, wire contract boundarie
    - Terminal acknowledgements (both accepted and rejected) matching the pending envelope clear pending command tracking; late acknowledgements for prior commands cannot clear newer pending envelopes. Advancing match revisions also clears pending commands.
    - Cryptographically strong UUIDv4 generation uses RFC4122 byte formatting via `crypto.getRandomValues()`, ensuring compatibility with plain-HTTP LAN access where `crypto.randomUUID()` is restricted by browsers.
 
+## ARCH-036 - First playable business opportunity and player-financing command loop
+
+**Status:** Accepted  
+**Date:** September 9, 2026
+
+Establish the first playable financial-strategy loop (Milestone 6) across the engine, server, and responsive web browser interface:
+
+1. **Deterministic Q1 Vertical-Slice Opportunity Fixture:**
+   - Add exactly one debt-free private business asset and one private business-purchase opportunity during deterministic game initialization (`createdQuarter: 1`).
+   - This is explicitly a narrow Milestone-6 vertical slice playability fixture, not the permanent weighted opportunity generator.
+   - Fixed facts: annual revenue `8_000_000` cents, annual operating profit `1_500_000` cents, enterprise value `6_000_000` cents, debt principal `0` cents, asking price `5_000_000` cents, seller ownership `1_000_000` ppm (100%).
+   - Role selection is deterministic without consuming RNG:
+     - Target buyer: player with highest initial cash strictly less than `5_000_000` cents (with fallback to lowest cash `>= 3_000_000` if needed), tie-broken by canonical `playerOrder`.
+     - Seller: next player in canonical `playerOrder` after buyer, wrapping cyclically.
+     - Lender: not preselected; any eligible non-buyer/non-seller player may offer financing.
+   - Leaves initial `GameState.revision === 0` and consumes zero gameplay RNG draws.
+
+2. **Diligence and Privacy Boundaries:**
+   - Due diligence facts are pregenerated once upon initialization and revealed only when the target buyer executes `INVESTIGATE_OPPORTUNITY`.
+   - Investigation consumes no RNG, advances no counters, and costs zero cash. It advances revision by exactly +1 on success.
+   - The target buyer may conduct background diligence at `ROUND_START` or while another player holds the spotlight.
+   - Non-target players never receive or see the private opportunity in bootstrap views or socket updates.
+   - Other players' exact cash, reserved cash, and available cash remain hidden from public views.
+
+3. **Spotlight Authority and Transaction Lifecycle:**
+   - Only the active spotlight buyer may initiate transaction pursuit (`PURSUE_BUSINESS_CASH` or `PURSUE_BUSINESS_WITH_PLAYER_LOAN`). Non-active players or wrong stage attempts are rejected with `NOT_ACTIVE_SPOTLIGHT` or `WRONG_ROUND_STAGE`.
+   - Off-spotlight eligible third-party players may participate by submitting a loan financing offer (`SUBMIT_PLAYER_LOAN_OFFER`) without consuming or holding the spotlight.
+   - Single firm offer per transaction: a second offer is rejected with `OFFER_ALREADY_EXISTS`.
+   - The buyer accepts exact terms revision via `ACCEPT_PLAYER_LOAN_OFFER`; stale terms revision is rejected with `STALE_TERMS_REVISION`.
+   - Cash reservations prevent over-committing available funds but do not move cash until close.
+
+4. **Terminal Composition Boundary & Exactly One Revision:**
+   - Terminal close (`CLOSE_BUSINESS_PURCHASE`) or cancel (`CANCEL_ACTIVE_TRANSACTION`) automatically advances the active spotlight without requiring a separate "Pass Spotlight" action.
+   - Intermediate spotlight close/cancel increments GameState revision by exactly 1 total.
+   - Final spotlight close/cancel composes terminal transaction resolution + quarterly settlement into a single atomic transition that advances revision by exactly 1 total and rolls into Quarter 2 `ROUND_START`.
+   - Emitted transaction journal entries strictly precede quarterly settlement journal entries.
+   - If quarterly settlement fails during final close, the entire transition rolls back atomically to the pre-close state with zero journal entries.
+   - A player loan originated in Quarter 1 does not receive repayment in the same Quarter 1 final settlement; scheduled repayments begin in Quarter 2.
+
+5. **Server Pipeline & Actor Security:**
+   - Actor identity is strictly derived from the controlling session/socket member mapping.
+   - Strict Zod schemas reject any injected actor/authority fields (`playerId`, `buyerPlayerId`, `lenderPlayerId`, `isHost`, etc.).
+   - Commands are durable, idempotent, and serialized through the room's single-writer queue. Retrying the same commandId with the same payload returns the original receipt; modifying the payload returns `COMMAND_ID_REUSED`.
+   - Paused rooms reject transaction commands with `ROOM_PAUSED`.
+   - Active transactions, offers, acceptances, and diligence facts survive server restarts exactly.
+
+6. **Web Client Architecture & Versioning:**
+   - The responsive browser interface provides `OpportunityCard`, `TransactionPanel`, and `SelfFinanceSummary` within the single-column mobile-friendly view.
+   - No client-side game engine: the browser renders authoritative state views and dispatches commands.
+   - Engine version bumped to `0.0.3`, Shared version bumped to `0.0.4`. Rules and persistence format versions remain unchanged.
+
 
 
 

@@ -550,7 +550,7 @@ describe("Match Crash and Restart Recovery", () => {
       const c = await connectSocket(port2, cookie, roomCode);
       clients2.push(c);
       // Safe active transaction summary is present in player view
-      expect(c.bootstrap.match?.activeTransaction).toEqual({
+      expect(c.bootstrap.match?.activeTransaction).toMatchObject({
         transactionId: capturedTx.id,
         kind: capturedTx.kind,
       });

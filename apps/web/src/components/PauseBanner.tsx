@@ -1,5 +1,6 @@
 import type { PauseReason } from "@interests/shared";
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
 
 interface Props {
   reasons: readonly PauseReason[];
