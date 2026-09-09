@@ -18,7 +18,10 @@ import {
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as apiClient from "../src/api/client.js";
-import { createCommandEnvelope } from "../src/command/commandHelper.js";
+import {
+  createCommandEnvelope,
+  generateUUID,
+} from "../src/command/commandHelper.js";
 import { ConnectionStatusBadge } from "../src/components/ConnectionStatusBadge.js";
 import { EntryScreen } from "../src/components/EntryScreen.js";
 import { LobbyView } from "../src/components/LobbyView.js";
@@ -842,7 +845,8 @@ describe("TASK Section 30: Client Verification Checklist", () => {
   });
 
   // Helper tests
-  it("creates durable command envelope with LAN HTTP-safe UUID when crypto.randomUUID is unavailable", () => {
+  it("creates durable command envelope with LAN HTTP-safe UUID when crypto.randomUUID is unavailable and never calls Math.random", () => {
+    const mathRandomSpy = vi.spyOn(Math, "random");
     const originalRandomUUID = crypto.randomUUID;
     try {
       // Simulate insecure context on LAN HTTP where crypto.randomUUID is undefined
@@ -857,8 +861,44 @@ describe("TASK Section 30: Client Verification Checklist", () => {
       const uuidv4Regex =
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
       expect(envelope.commandId).toMatch(uuidv4Regex);
+      expect(mathRandomSpy).not.toHaveBeenCalled();
     } finally {
       crypto.randomUUID = originalRandomUUID;
+    }
+  });
+
+  it("throws explicit controlled error and never uses Math.random when Web Crypto is unavailable", () => {
+    const mathRandomSpy = vi.spyOn(Math, "random");
+    const originalCrypto = globalThis.crypto;
+    try {
+      // 1. globalThis.crypto is undefined
+      // @ts-expect-error test override
+      delete globalThis.crypto;
+
+      expect(() => generateUUID()).toThrow(
+        /Cryptographically secure random number generation.*required/i,
+      );
+      expect(() =>
+        createCommandEnvelope({ type: "PASS_SPOTLIGHT" }, 1),
+      ).toThrow(/Cryptographically secure random number generation.*required/i);
+      expect(mathRandomSpy).not.toHaveBeenCalled();
+
+      // 2. crypto exists but has no secure RNG functions
+      Object.defineProperty(globalThis, "crypto", {
+        value: {},
+        configurable: true,
+        writable: true,
+      });
+      expect(() => generateUUID()).toThrow(
+        /Cryptographically secure random number generation.*required/i,
+      );
+      expect(mathRandomSpy).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(globalThis, "crypto", {
+        value: originalCrypto,
+        configurable: true,
+        writable: true,
+      });
     }
   });
 

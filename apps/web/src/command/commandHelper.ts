@@ -5,9 +5,10 @@ import type {
 } from "@interests/shared";
 
 /**
- * Generates a cryptographically strong UUIDv4 that works in both secure contexts (HTTPS, localhost)
+ * Generates a cryptographically strong RFC4122 UUIDv4 that works in both secure contexts (HTTPS, localhost)
  * and insecure plain-HTTP LAN contexts (e.g. mobile browser connecting to LAN IP http://192.168.x.x:5173).
  * crypto.randomUUID() is restricted to secure contexts, whereas crypto.getRandomValues() is available across all contexts.
+ * Throws an explicit error if Web Crypto is unavailable; never falls back to Math.random().
  */
 export function generateUUID(): string {
   if (typeof crypto !== "undefined") {
@@ -15,7 +16,7 @@ export function generateUUID(): string {
       try {
         return crypto.randomUUID();
       } catch {
-        // Fall back if restricted by environment/context
+        // Fall back to crypto.getRandomValues if randomUUID is restricted by environment/context
       }
     }
     if (typeof crypto.getRandomValues === "function") {
@@ -35,11 +36,9 @@ export function generateUUID(): string {
       return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
     }
   }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+  throw new Error(
+    "Cryptographically secure random number generation (Web Crypto API) is required for command IDs",
+  );
 }
 
 export function isSameLogicalCommand(
