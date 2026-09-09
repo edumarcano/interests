@@ -7,11 +7,29 @@ export const ChooseObjectivePayloadSchema = z
   })
   .strict();
 
+export const BeginRoundPayloadSchema = z
+  .object({
+    type: z.literal("BEGIN_ROUND"),
+  })
+  .strict();
+
+export const PassSpotlightPayloadSchema = z
+  .object({
+    type: z.literal("PASS_SPOTLIGHT"),
+  })
+  .strict();
+
+export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
+  ChooseObjectivePayloadSchema,
+  BeginRoundPayloadSchema,
+  PassSpotlightPayloadSchema,
+]);
+
 export const PlayerCommandEnvelopeSchema = z
   .object({
     commandId: z.string().uuid(),
     expectedRevision: z.number().int().nonnegative(),
-    command: ChooseObjectivePayloadSchema,
+    command: PlayerCommandPayloadSchema,
   })
   .strict();
 

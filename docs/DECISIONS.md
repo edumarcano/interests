@@ -514,4 +514,52 @@ Establish the durable match boundary, GameState persistence, idempotent command 
    - Seeds, raw RNG state, deterministic counters, other players' objective offers or selections, cash, and complete snapshots are strictly excluded from network DTOs.
    - In PR #19, `CHOOSE_OBJECTIVE` is the only exposed player command; post-objective major transactions await the G1 rotating spotlight orchestration in Milestone 6.
 
+## ARCH-034 - Executable round-start and rotating spotlight state
+
+**Status:** Accepted  
+**Date:** September 8, 2026
+
+Establish the authoritative quarterly round progression, canonical round state, rotating spotlight orchestration, and host-only continuation model for Standard V1:
+
+1. **Canonical Round State Representation (`RoundState`):**
+   - Model `round: RoundState | null` at the top level of `GameState` where `RoundState = { stage: "round-start" | "spotlight"; spotlightsCompleted: number }`.
+   - During initial objective selection (`phase: "objective-choosing"`), `round === null`.
+   - Transition to `phase: "ready-for-first-round"` upon selection of the fourth objective initializes `round = { stage: "round-start", spotlightsCompleted: 0 }`.
+   - State invariants in `assertGameState` strictly enforce: `objective-choosing` requires `round === null`; `ready-for-first-round` requires non-null `round`; `round-start` requires `spotlightsCompleted === 0`; `spotlight` requires `spotlightsCompleted < playerOrder.length`.
+
+2. **Derived Deterministic Rotating Spotlight Order (`rotating-seat-v1`):**
+   - Spotlight order is computed dynamically via generic modular rotation across `playerOrder.length`: `startIndex = ((currentQuarter - 1) % len + len) % len`.
+   - The active spotlight player identity is derived from `spotlightOrder[round.spotlightsCompleted]`.
+   - No duplicate or fixed-seat turn fields (such as `player1Spotlight` or `seatA`) are persisted in `GameState`.
+
+3. **Host-Only `BEGIN_ROUND` Authorization Boundary:**
+   - Entering the quarter's active spotlights from `ROUND_START` requires an explicit, durable `BEGIN_ROUND` player command.
+   - Authorization is host-only and enforced strictly by the session/server layer (`NOT_ROOM_HOST` rejected receipt).
+   - Host identity remains purely server-side infrastructure metadata and is never stored in deterministic `GameState`.
+   - `BEGIN_ROUND` consumes zero gameplay RNG, advances no counters, changes no cash or financial balances, and settles nothing; it merely advances `round.stage` to `"spotlight"` with `spotlightsCompleted = 0` and increments revision by 1.
+   - There is no four-player readiness gate and no automatic transport-driven progression.
+
+4. **Server-Bound Player Identity & Strict Schemas:**
+   - Both `BEGIN_ROUND` and `PASS_SPOTLIGHT` payloads contain no `playerId`, `isHost`, or room credentials.
+   - Actor identity is derived strictly from the authenticated controlling socket and persistent `RoomMember`-to-`PlayerId` mapping.
+   - Zod schemas remain strict; client payloads containing unauthorized or extraneous fields reject as malformed (`INVALID_INPUT`).
+
+5. **Spotlight Completion & Atomic Final Settlement:**
+   - Passing spotlights 1 through $N-1$ advances `spotlightsCompleted` by 1 and increments revision by 1 without consuming RNG or counters.
+   - Passing the $N$-th (final) spotlight executes authoritative `settleQuarter()` atomically within that single accepted command:
+     - Settle Quarter $N$ cash flows, revalue market holdings, update regime, and roll quarter-start basis to Quarter $N+1$;
+     - Reset round state to next quarter `ROUND_START` (`round = { stage: "round-start", spotlightsCompleted: 0 }`);
+     - Advance revision by exactly 1 total (`resultingRevision === previousRevision + 1`);
+     - Persist emitted settlement journal entries atomically in SQLite `match_events` (`event_kind: "journal-entry"`).
+   - Rejections during final settlement (e.g. `INSUFFICIENT_FUNDS`) reject the command atomically, leaving state, revision, counters, RNG, and quarter completely unchanged.
+
+6. **Transaction Initiation Spotlight Authority:**
+   - Opening cash or financed business purchase transactions requires `round.stage === "spotlight"` and requires the buyer to be the active spotlight player (`getActiveSpotlightPlayerId(state) === buyerPlayerId`).
+   - Non-active players or opening attempts during `round-start` are rejected atomically with `NOT_ACTIVE_SPOTLIGHT` or `WRONG_ROUND_STAGE`.
+   - Active transactions block `PASS_SPOTLIGHT` with `ACTIVE_TRANSACTION`.
+
+7. **Durability and Restart Recovery:**
+   - Canonical `round` state survives JSON serialization, SQLite persistence, and process restart exactly.
+   - Server restart during an active spotlight or at `round-start` preserves exact quarter, stage, spotlight count, and RNG. Host resume clears operational pauses without altering `GameState`.
+
 

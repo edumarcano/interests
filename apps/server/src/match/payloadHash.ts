@@ -29,10 +29,7 @@ export function computeCommandPayloadHash(
 ): string {
   const canonicalContext = {
     expectedRevision: envelope.expectedRevision,
-    command: {
-      type: envelope.command.type,
-      objectiveId: envelope.command.objectiveId,
-    },
+    command: envelope.command,
   };
 
   const serialized = canonicalJsonStringify(canonicalContext);

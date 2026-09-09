@@ -423,6 +423,10 @@ describe("Match Crash and Restart Recovery", () => {
 
     state = {
       ...state,
+      round: {
+        stage: "spotlight",
+        spotlightsCompleted: 0,
+      },
       finance: {
         ...state.finance,
         cashByPlayer: {

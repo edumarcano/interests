@@ -161,4 +161,74 @@ describe("Match Domain - Engine Command Adapter and Privacy Projection", () => {
     const updatedP1Json = JSON.stringify(updatedProjectionP1);
     expect(updatedP1Json).not.toContain(p2Offer0);
   });
+
+  it("projects public round information correctly through setup, spotlight, and settlement", () => {
+    let state = createInitialGame();
+    // 1. During objective selection: round is null
+    const projBefore = projectPlayerGameState(state, p1);
+    expect(projBefore.round).toBeNull();
+
+    // 2. Select all 4 objectives
+    for (const pId of state.playerOrder) {
+      const offer = state.players[pId]!.offeredObjectiveIds[0]!;
+      const res = applyPlayerCommand(state, pId, {
+        type: "CHOOSE_OBJECTIVE",
+        objectiveId: offer,
+      });
+      if (!res.ok) throw new Error();
+      state = res.state;
+    }
+
+    const projRoundStart = projectPlayerGameState(state, p1);
+    expect(projRoundStart.round).toEqual({
+      stage: "round-start",
+      spotlightOrder: [p1, p2, p3, p4],
+      activeSpotlightPlayerId: null,
+      spotlightsCompleted: 0,
+    });
+
+    // 3. Begin round: stage becomes spotlight, active player is p1
+    const beginRes = applyPlayerCommand(state, p1, { type: "BEGIN_ROUND" });
+    if (!beginRes.ok) throw new Error();
+    state = beginRes.state;
+
+    const projSpotlight1 = projectPlayerGameState(state, p1);
+    expect(projSpotlight1.round).toEqual({
+      stage: "spotlight",
+      spotlightOrder: [p1, p2, p3, p4],
+      activeSpotlightPlayerId: p1,
+      spotlightsCompleted: 0,
+    });
+
+    // 4. Pass spotlights 1 to 3
+    for (const actor of [p1, p2, p3]) {
+      const pass = applyPlayerCommand(state, actor, { type: "PASS_SPOTLIGHT" });
+      if (!pass.ok) throw new Error();
+      state = pass.state;
+    }
+
+    const projSpotlight4 = projectPlayerGameState(state, p1);
+    expect(projSpotlight4.round).toEqual({
+      stage: "spotlight",
+      spotlightOrder: [p1, p2, p3, p4],
+      activeSpotlightPlayerId: p4,
+      spotlightsCompleted: 3,
+    });
+
+    // 5. Pass final spotlight (p4) -> Quarter 1 settles atomically -> enters Q2 round-start
+    const finalPass = applyPlayerCommand(state, p4, {
+      type: "PASS_SPOTLIGHT",
+    });
+    if (!finalPass.ok) throw new Error();
+    state = finalPass.state;
+
+    const projQ2 = projectPlayerGameState(state, p1);
+    expect(projQ2.currentQuarter).toBe(2);
+    expect(projQ2.round).toEqual({
+      stage: "round-start",
+      spotlightOrder: [p2, p3, p4, p1],
+      activeSpotlightPlayerId: null,
+      spotlightsCompleted: 0,
+    });
+  });
 });

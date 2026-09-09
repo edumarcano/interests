@@ -79,6 +79,10 @@ function createClosedFinancedQ1State(): {
 
   const state: GameState = {
     ...base,
+    round: {
+      stage: "spotlight",
+      spotlightsCompleted: 0,
+    },
     finance: {
       ...base.finance,
       cashByPlayer: {

@@ -95,7 +95,7 @@ ROUND_START
 
 There is **no mandatory simultaneous planning or Ready phase**. Instead, round progression proceeds as follows:
 
-1.  **ROUND_START:** The round enters and presents the shared new-quarter economy (presenting opening economic conditions in Quarter 1, and presenting the revalued market prices, new macroeconomic regime, and quarter-start entitlement basis already computed at the conclusion of the preceding quarter's settlement per ARCH-024). No second RNG roll or economy transition occurs at round start; market prices and macroeconomic indicators refresh for all players simultaneously.
+1.  **ROUND_START:** An observable, durable presentation state where players view the shared new-quarter economy (presenting opening economic conditions in Quarter 1, and presenting the revalued market prices, new macroeconomic regime, and quarter-start entitlement basis already computed at the conclusion of the preceding quarter's settlement per ARCH-024). There is no four-player readiness gate. The room host explicitly advances the table into the quarter's first spotlight with a single continuation action (`BEGIN_ROUND`). `BEGIN_ROUND` performs no economic roll, rolls no RNG, changes no cash balances, and settles nothing; it simply enters the first spotlight for the already-current quarter.
 
 2.  **Continuous background preparation:** Off-spotlight players may continuously review personal finances, inspect public market conditions, inspect their private opportunities, perform permitted diligence, prepare local decisions, and converse with other players at the table.
 
@@ -103,11 +103,11 @@ There is **no mandatory simultaneous planning or Ready phase**. Instead, round p
 
 4.  **Transaction initiation and reactions:** Only the current spotlight player may initiate a new major transaction. Other players participate when eligible through formal reactions, financing offers, bids, partnership proposals, or consents. At most one unresolved major transaction exists at a time.
 
-5.  **Spotlight resolution:** A spotlight ends when its major transaction reaches terminal resolution (closes, is cancelled, or expires) or when the spotlight player explicitly passes. Upon resolution, the round immediately advances to the next spotlight.
+5.  **Spotlight resolution:** A spotlight ends when its major transaction reaches terminal resolution (closes, is cancelled, or expires) or when the spotlight player explicitly passes (`PASS_SPOTLIGHT`). Upon resolution, the round immediately advances to the next spotlight.
 
-6.  **ROUND_CLOSE & SETTLEMENT:** After the fourth spotlight resolves, the round proceeds directly to close. Recurring personal salaries, property net cash flows, business owner income, debt service, player loan installments, and other contractual commitments settle deterministically once for the full quarter.
+6.  **ROUND_CLOSE & SETTLEMENT:** After the fourth spotlight resolves (or passes), the quarter proceeds immediately to close and settlement without another player action or confirmation click. Settle quarter logic runs deterministically and atomically inside that fourth spotlight resolution: recurring personal salaries, property net cash flows, living expenses, legacy debt service, player loan installments, and market price movements settle once for the full quarter, capturing the next quarter's opening basis and resetting orchestration state directly into the next quarter's `ROUND_START`.
 
-7.  **Next round:** The next quarterly economic period begins with the rotated first spotlight player. There is no second major-action window after the fourth spotlight.
+7.  **Next round:** The next quarterly economic period begins at `ROUND_START` presenting the updated economy and rotated spotlight order. There is no second major-action window after the fourth spotlight.
 
 ## 2.2 Spotlight policy and rotation [LOCKED: rotating-seat-v1]
 

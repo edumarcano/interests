@@ -57,6 +57,7 @@ export function buildMatchPlayerView(params: {
     revision: pureProjection.revision,
     phase: pureProjection.phase,
     currentQuarter: pureProjection.currentQuarter,
+    round: pureProjection.round,
     players,
     self: pureProjection.self,
     activeTransaction: pureProjection.activeTransaction,

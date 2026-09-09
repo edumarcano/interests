@@ -560,6 +560,31 @@ export class MatchService {
         };
       }
 
+      // 9.5 Host authorization for host-only commands (BEGIN_ROUND)
+      if (validEnvelope.command.type === "BEGIN_ROUND") {
+        const isHost = roomInfo?.room.hostMemberId === memberId;
+        if (!isHost) {
+          this.matchRepository.recordRejectedReceipt({
+            matchId: currentMatch.match.id,
+            actorPlayerId,
+            commandId: validEnvelope.commandId,
+            payloadHash,
+            errorCode: "NOT_ROOM_HOST",
+            errorMessage: "Only the room host can begin the round",
+            resultingRevision: currentMatch.match.revision,
+          });
+          return {
+            ok: false,
+            commandId: validEnvelope.commandId,
+            error: {
+              code: "NOT_ROOM_HOST",
+              message: "Only the room host can begin the round",
+            },
+            revision: currentMatch.match.revision,
+          };
+        }
+      }
+
       // 10. Pure engine transition
       const actionResult = applyPlayerCommand(
         currentState,
@@ -588,6 +613,14 @@ export class MatchService {
         };
       }
 
+      const events =
+        actionResult.journalEntries && actionResult.journalEntries.length > 0
+          ? actionResult.journalEntries.map((entry) => ({
+              eventKind: "journal-entry",
+              payloadJson: JSON.stringify(entry),
+            }))
+          : undefined;
+
       // 11. Atomic SQLite commit
       this.matchRepository.commitAcceptedCommand({
         matchId: currentMatch.match.id,
@@ -599,6 +632,7 @@ export class MatchService {
         commandType: validEnvelope.command.type,
         payloadJson: JSON.stringify(validEnvelope.command),
         payloadHash,
+        events,
       });
 
       // 12. Personalized post-commit broadcast

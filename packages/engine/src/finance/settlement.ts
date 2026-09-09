@@ -778,6 +778,13 @@ export function settleQuarter(
     economy: nextEconomy,
     random: marketUpdate.nextRandom,
     counters: currentCounters,
+    round:
+      state.round !== null
+        ? {
+            stage: "round-start",
+            spotlightsCompleted: 0,
+          }
+        : null,
   };
 
   assertGameState(nextState);

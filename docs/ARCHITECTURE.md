@@ -1,6 +1,6 @@
 # Interests - Technical Architecture
 
-> **Version:** 0.5  
+> **Version:** 0.6  
 > **Date:** September 8, 2026  
 > **Status:** Architecture baseline for implementation  
 > **Companion:** [GAME_DESIGN.md](GAME_DESIGN.md), canonical game design v0.4  
@@ -448,12 +448,17 @@ ROUND_START enters and presents the shared new-quarter economy (presenting openi
 
 Continuous background activity includes reviewing data, reading public market indicators, inspecting private opportunities, and preparing drafts. Authorized off-spotlight preparatory actions (such as permitted diligence/investigation) are command-authorized transitions that may mutate that player's canonical and private state (e.g. paying an investigation fee from cash and recording revealed facts) without initiating a new major transaction, altering shared turn progress, or advancing the spotlight. Only the current spotlight player may initiate a new major transaction. Non-spotlight players may participate through reactions when invited or eligible.
 
-The spotlight order follows the named Standard V1 policy `rotating-seat-v1` [ARCH-030]:
+The spotlight order follows the named Standard V1 policy `rotating-seat-v1` [ARCH-030], [ARCH-034]:
+- `GameState.round: RoundState | null` stores pure deterministic round state: `{ stage: "round-start" | "spotlight", spotlightsCompleted: number }`.
+- `round` is `null` during `objective-choosing`, and transitions to `{ stage: "round-start", spotlightsCompleted: 0 }` once all four players have selected objectives.
+- The room host explicitly transitions the match into active play via `BEGIN_ROUND` (`NOT_ROOM_HOST` rejected receipt if a non-host attempts it server-side).
 - Each of the four players receives exactly one spotlight per quarter.
 - The starting seat rotates deterministically each quarter (`Q1: A->B->C->D`, `Q2: B->C->D->A`, `Q3: C->D->A->B`, `Q4: D->A->B->C`, etc.).
 - State structures remain strictly collection-shaped (`playerOrder = [A, B, C, D]`) rather than fixed seat arithmetic or four fixed fields.
-- A spotlight advances immediately upon terminal resolution (closed, cancelled, expired) of its active transaction, or when the spotlight player explicitly passes.
+- A spotlight advances immediately upon terminal resolution (closed, cancelled, expired) of its active transaction, or when the spotlight player explicitly passes via `PASS_SPOTLIGHT`.
+- Advancing the 4th spotlight completion atomically executes quarterly financial settlement, emits journal entries persisted to SQLite `match_events`, and advances to Quarter `Q + 1` with `stage: "round-start"` in a single atomic command (`resultingRevision === previousRevision + 1`).
 - At most one unresolved major transaction exists at a time across the entire match.
+
 
 ### 8.2 Offers and closing
 
@@ -1157,6 +1162,7 @@ These initial decisions can be indexed in `DECISIONS.md` without copying the ent
 | ARCH-031 | Accountless lobby identity and recovery credentials | 6-char room codes, 4-seat lobby, opaque HttpOnly cookie sessions, private recovery codes stored as SHA-256 digests |
 | ARCH-032 | Authenticated controlling sockets and disconnect pause | Cookie-based socket auth, one controller per seat with generation safety, bootstrap/sync, disconnect pause and host resume |
 | ARCH-033 | Durable match snapshots and idempotent command commits | Durable GameState snapshots, RoomMember->PlayerId mapping, per-room command serialization, atomic SQLite commit, idempotent receipts, SERVER_RESTART pause and crash recovery |
+| ARCH-034 | Executable round-start and rotating spotlight state | Pure deterministic RoundState ({ stage, spotlightsCompleted }), host-only BEGIN_ROUND, PASS_SPOTLIGHT, single-command atomic 4th spotlight close + settlement, match_events journal persistence |
 
 ## 25. References
 
@@ -1198,6 +1204,7 @@ The game specification and subsequent agreed session requirements define this pr
 | 0.3 | September 8, 2026 | Accountless lobby identity and recovery credentials ([ARCH-031]): 6-character room codes, 4-seat lobby capacity, opaque HttpOnly cookie sessions, private recovery credentials, and same-origin write protection. |
 | 0.4 | September 8, 2026 | Authenticated controlling sockets and disconnect pause ([ARCH-032]): single controlling socket per seat, generation-safe replacement, bootstrap and synchronization, authorized room presence, disconnect pause for armed rooms, and host-only explicit resume. |
 | 0.5 | September 8, 2026 | Durable match snapshots and idempotent command commits ([ARCH-033]): persistent four-seat match boundary, RoomMember->PlayerId mappings, complete GameState snapshot storage, per-room command queue, atomic SQLite command/receipt commit, SERVER_RESTART handling, and restart recovery. |
+| 0.6 | September 8, 2026 | Executable round-start and rotating spotlight state ([ARCH-034]): deterministic RoundState, host-only BEGIN_ROUND, rotating spotlight order, PASS_SPOTLIGHT command, atomic 4th spotlight close and quarter settlement, and durable match_events journal persistence. |
 
 
 [R1]: https://nodejs.org/en/about/previous-releases

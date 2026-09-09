@@ -10,6 +10,7 @@ import {
 import { settleQuarter } from "../finance/settlement";
 import { applyAction } from "../game/actions";
 import { createGame } from "../game/createGame";
+import { beginRound } from "../game/round";
 import { assertGameState } from "../invariants/assertGameState";
 import type {
   BusinessAsset,
@@ -60,7 +61,11 @@ function createReadyGame(): GameState {
     state = result.state;
   }
 
-  return state;
+  const roundResult = beginRound(state);
+  if (!roundResult.ok) {
+    throw new Error(`Failed to begin round: ${roundResult.code}`);
+  }
+  return roundResult.state;
 }
 
 /**

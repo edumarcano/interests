@@ -11,6 +11,7 @@ import { basisPoints, cents } from "../finance/money";
 import { createSoleOwnership, TOTAL_OWNERSHIP_PPM } from "../finance/ownership";
 import { postCash } from "../finance/posting";
 import { nextDeterministicId } from "../game/deterministicIds";
+import { getActiveSpotlightPlayerId } from "../game/round";
 import { assertGameState } from "../invariants/assertGameState";
 import type { BusinessAsset, GameState } from "../model/gameState";
 import type {
@@ -40,12 +41,17 @@ function validateCommonBusinessPurchase(
     return "WRONG_PHASE";
   }
 
-  // 2. Concurrency validation: at most one active transaction permitted in this slice
+  // 2. Round stage validation: must be in "spotlight"
+  if (!state.round || state.round.stage !== "spotlight") {
+    return "WRONG_ROUND_STAGE";
+  }
+
+  // 3. Concurrency validation: at most one active transaction permitted in this slice
   if (state.activeTransaction !== null) {
     return "ACTIVE_TRANSACTION_EXISTS";
   }
 
-  // 3. Parties existence and distinctness validation
+  // 4. Parties existence and distinctness validation
   if (!state.players[buyerPlayerId]) {
     return "UNKNOWN_PLAYER";
   }
@@ -54,6 +60,11 @@ function validateCommonBusinessPurchase(
   }
   if (buyerPlayerId === sellerPlayerId) {
     return "SAME_PARTY";
+  }
+
+  // 5. Spotlight authority validation: buyer must be the active spotlight player
+  if (getActiveSpotlightPlayerId(state) !== buyerPlayerId) {
+    return "NOT_ACTIVE_SPOTLIGHT";
   }
 
   // 4. Asset validation: must exist and be a supported business

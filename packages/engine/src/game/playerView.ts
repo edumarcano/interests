@@ -1,5 +1,6 @@
 import type { MatchId, PlayerId, TransactionId } from "@interests/shared";
 import type { GameState } from "../model/gameState.js";
+import { getActiveSpotlightPlayerId, getSpotlightOrder } from "./round.js";
 
 export interface PurePlayerSummary {
   readonly playerId: PlayerId;
@@ -18,12 +19,20 @@ export interface PureActiveTransactionSummary {
   readonly kind: string;
 }
 
+export interface PureRoundView {
+  readonly stage: "round-start" | "spotlight";
+  readonly spotlightOrder: readonly PlayerId[];
+  readonly activeSpotlightPlayerId: PlayerId | null;
+  readonly spotlightsCompleted: number;
+}
+
 export interface PurePlayerProjection {
   readonly matchId: MatchId;
   readonly modeId: string;
   readonly revision: number;
   readonly phase: string;
   readonly currentQuarter: number;
+  readonly round: PureRoundView | null;
   readonly players: readonly PurePlayerSummary[];
   readonly self: PureSelfView;
   readonly activeTransaction: PureActiveTransactionSummary | null;
@@ -72,12 +81,23 @@ export function projectPlayerGameState(
         }
       : null;
 
+  const round: PureRoundView | null =
+    state.round !== null
+      ? {
+          stage: state.round.stage,
+          spotlightOrder: getSpotlightOrder(state),
+          activeSpotlightPlayerId: getActiveSpotlightPlayerId(state),
+          spotlightsCompleted: state.round.spotlightsCompleted,
+        }
+      : null;
+
   return {
     matchId: state.gameId as unknown as MatchId,
     modeId: state.modeId,
     revision: state.revision,
     phase: state.phase,
     currentQuarter: state.currentQuarter,
+    round,
     players,
     self,
     activeTransaction,

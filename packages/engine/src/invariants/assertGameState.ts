@@ -141,6 +141,57 @@ export function assertGameState(state: GameState): void {
     }
   }
 
+  // Round orchestration invariants
+  if (state.phase === "objective-choosing") {
+    if (state.round !== null) {
+      throw new Error(
+        "Game invariant failed: objective-choosing requires round to be null",
+      );
+    }
+  } else if (state.phase === "ready-for-first-round") {
+    if (state.round === null || typeof state.round !== "object") {
+      throw new Error(
+        "Game invariant failed: ready-for-first-round requires non-null round state",
+      );
+    }
+    const round = state.round;
+    if (round.stage !== "round-start" && round.stage !== "spotlight") {
+      throw new Error(
+        `Game invariant failed: unrecognized round stage ${String(round.stage)}`,
+      );
+    }
+    if (
+      !Number.isSafeInteger(round.spotlightsCompleted) ||
+      round.spotlightsCompleted < 0
+    ) {
+      throw new Error(
+        `Game invariant failed: spotlightsCompleted must be a non-negative safe integer, got ${String(round.spotlightsCompleted)}`,
+      );
+    }
+    if (round.stage === "round-start") {
+      if (round.spotlightsCompleted !== 0) {
+        throw new Error(
+          `Game invariant failed: round-start requires spotlightsCompleted to be 0, got ${round.spotlightsCompleted}`,
+        );
+      }
+    } else if (round.stage === "spotlight") {
+      if (round.spotlightsCompleted >= state.playerOrder.length) {
+        throw new Error(
+          `Game invariant failed: spotlight stage requires spotlightsCompleted < ${state.playerOrder.length}, got ${round.spotlightsCompleted}`,
+        );
+      }
+      const len = state.playerOrder.length;
+      const startIndex = (((state.currentQuarter - 1) % len) + len) % len;
+      const activePlayerId =
+        state.playerOrder[(startIndex + round.spotlightsCompleted) % len];
+      if (!activePlayerId || !state.playerOrder.includes(activePlayerId)) {
+        throw new Error(
+          "Game invariant failed: derived active spotlight player does not exist in playerOrder",
+        );
+      }
+    }
+  }
+
   // Counter invariants
   for (const counter of Object.values(state.counters)) {
     if (!Number.isSafeInteger(counter) || counter < 0) {

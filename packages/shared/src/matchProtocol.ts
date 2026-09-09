@@ -11,7 +11,18 @@ export interface ChooseObjectiveCommandPayload {
   readonly objectiveId: string;
 }
 
-export type PlayerCommand = ChooseObjectiveCommandPayload;
+export interface BeginRoundCommandPayload {
+  readonly type: "BEGIN_ROUND";
+}
+
+export interface PassSpotlightCommandPayload {
+  readonly type: "PASS_SPOTLIGHT";
+}
+
+export type PlayerCommand =
+  | ChooseObjectiveCommandPayload
+  | BeginRoundCommandPayload
+  | PassSpotlightCommandPayload;
 
 export interface PlayerCommandEnvelope {
   readonly commandId: CommandId | string;
@@ -40,12 +51,20 @@ export interface ActiveTransactionSummaryView {
   readonly kind: string;
 }
 
+export interface MatchRoundView {
+  readonly stage: "round-start" | "spotlight";
+  readonly spotlightOrder: readonly PlayerId[];
+  readonly activeSpotlightPlayerId: PlayerId | null;
+  readonly spotlightsCompleted: number;
+}
+
 export interface MatchPlayerView {
   readonly matchId: MatchId;
   readonly modeId: string;
   readonly revision: number;
   readonly phase: string;
   readonly currentQuarter: number;
+  readonly round: MatchRoundView | null;
   readonly players: readonly MatchPlayerSummaryView[];
   readonly self: MatchSelfView;
   readonly activeTransaction: ActiveTransactionSummaryView | null;
