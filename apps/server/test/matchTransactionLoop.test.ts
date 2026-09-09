@@ -183,6 +183,7 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
     targetBuyerIndex: number;
     opp: PrivateOpportunityView;
     clientPlayerIds: PlayerId[];
+    buyerAvailableCash: number;
   }> {
     const { roomCode, cookies } = await createAndFillRoom();
 
@@ -477,7 +478,7 @@ describe("Section 13 & 15: First Playable Transaction Loop Server Verification",
         cookies: { interests_session: cookies[i]! },
       });
       const lenderView = JSON.parse(lenderRes.body).match as MatchPlayerView;
-      if (lenderView.self.availableCashCents >= tx.requestedPrincipalCents) {
+      if (lenderView.self.availableCashCents >= principal) {
         eligibleLenderIdx = i;
         break;
       }

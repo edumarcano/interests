@@ -1,6 +1,7 @@
 import { PROFILES } from "@interests/rules";
 import { asPlayerId, type PlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
+import { type Cents, cents } from "../finance/money";
 import { createGame } from "../game/createGame";
 import { FEASIBLE_PROFILE_COMBINATIONS } from "../game/setup";
 import { createRandomState } from "../random/prng";
@@ -162,61 +163,84 @@ describe("Section 14: Q1 Business Opportunity Fixture", () => {
     }
   });
 
-  it("8. All 69 feasible setup combinations retain an unconditionally financing-feasible path", () => {
-    let countSupportingCanonicalThreeMillion = 0;
-    let countRequiringLesserContribution = 0;
+  function getPermutations<T>(arr: readonly T[]): T[][] {
+    if (arr.length <= 1) return [[...arr]];
+    const result: T[][] = [];
+    for (let i = 0; i < arr.length; i++) {
+      const current = arr[i]!;
+      const remaining = [...arr.slice(0, i), ...arr.slice(i + 1)];
+      for (const perm of getPermutations(remaining)) {
+        result.push([current, ...perm]);
+      }
+    }
+    return result;
+  }
+
+  it("8. All 69 feasible setup combinations across all 24 seat permutations (1,656 total) retain an unconditionally financing-feasible path", () => {
+    let countPermutationsSupportingCanonicalThreeMillion = 0;
+    let countPermutationsRequiringLesserContribution = 0;
+    let totalPermutations = 0;
 
     for (const combo of FEASIBLE_PROFILE_COMBINATIONS) {
-      // Create mock cash mapping for the 4 profiles
-      const cashMap: Record<PlayerId, any> = {
-        [playerIds[0]!]: PROFILES[combo[0]].startingCashCents,
-        [playerIds[1]!]: PROFILES[combo[1]].startingCashCents,
-        [playerIds[2]!]: PROFILES[combo[2]].startingCashCents,
-        [playerIds[3]!]: PROFILES[combo[3]].startingCashCents,
-      };
+      const permutations = getPermutations(combo);
+      expect(permutations).toHaveLength(24);
 
-      const roles = selectQ1FixtureRoles(playerIds, cashMap);
-      const buyerCash = cashMap[roles.targetBuyerPlayerId]!;
+      for (const perm of permutations) {
+        totalPermutations++;
+        // Create mock cash mapping for the 4 profiles permuted across seats
+        const cashMap: Record<PlayerId, Cents> = {
+          [playerIds[0]!]: cents(PROFILES[perm[0]!].startingCashCents),
+          [playerIds[1]!]: cents(PROFILES[perm[1]!].startingCashCents),
+          [playerIds[2]!]: cents(PROFILES[perm[2]!].startingCashCents),
+          [playerIds[3]!]: cents(PROFILES[perm[3]!].startingCashCents),
+        };
 
-      // 1. Unconditional: buyer cannot purchase in full with starting cash alone
-      expect(buyerCash).toBeLessThan(5_000_000);
+        const roles = selectQ1FixtureRoles(playerIds, cashMap);
+        const buyerCash = cashMap[roles.targetBuyerPlayerId]!;
 
-      // 2. Unconditional: every feasible buyer has at least 2,000,000 cents ($20,000)
-      expect(buyerCash).toBeGreaterThanOrEqual(2_000_000);
+        // 1. Unconditional: buyer cannot purchase in full with starting cash alone
+        expect(buyerCash).toBeLessThan(5_000_000);
 
-      // 3. Unconditional: buyer and seller are distinct players
-      expect(roles.targetBuyerPlayerId).not.toBe(roles.sellerPlayerId);
+        // 2. Unconditional: every feasible buyer has at least 2,000,000 cents ($20,000)
+        expect(buyerCash).toBeGreaterThanOrEqual(2_000_000);
 
-      // 4. Unconditional: seller is the next seat in playerOrder
-      const buyerIndex = playerIds.indexOf(roles.targetBuyerPlayerId);
-      const expectedSellerId = playerIds[(buyerIndex + 1) % playerIds.length];
-      expect(roles.sellerPlayerId).toBe(expectedSellerId);
+        // 3. Unconditional: buyer and seller are distinct players
+        expect(roles.targetBuyerPlayerId).not.toBe(roles.sellerPlayerId);
 
-      // 5. Unconditional: at least one eligible third-party lender has sufficient cash to fund the remaining financing gap
-      const financingGap = 5_000_000 - buyerCash;
-      const eligibleLenderPlayerIds = playerIds.filter(
-        (id) => id !== roles.targetBuyerPlayerId && id !== roles.sellerPlayerId,
-      );
-      const maxLenderCash = Math.max(
-        ...eligibleLenderPlayerIds.map((id) => cashMap[id]!),
-      );
-      expect(maxLenderCash).toBeGreaterThanOrEqual(financingGap);
+        // 4. Unconditional: seller is the next seat in playerOrder
+        const buyerIndex = playerIds.indexOf(roles.targetBuyerPlayerId);
+        const expectedSellerId = playerIds[(buyerIndex + 1) % playerIds.length];
+        expect(roles.sellerPlayerId).toBe(expectedSellerId);
 
-      // 6. Partition assertion across the 69 combinations:
-      // Exactly 64 combinations (92.8%) include a profile with cash in [3M, 5M) and support the $30k contribution fixture.
-      // Exactly 5 combinations (7.2%) have buyer cash in [2.5M, 2.8M) with a lender having >= 5M cash.
-      if (buyerCash >= 3_000_000) {
-        countSupportingCanonicalThreeMillion++;
-      } else {
-        countRequiringLesserContribution++;
-        expect(buyerCash).toBeGreaterThanOrEqual(2_500_000);
-        expect(maxLenderCash).toBeGreaterThanOrEqual(5_000_000);
+        // 5. Unconditional: at least one eligible third-party lender has sufficient cash to fund the remaining financing gap
+        const financingGap = 5_000_000 - buyerCash;
+        const eligibleLenderPlayerIds = playerIds.filter(
+          (id) =>
+            id !== roles.targetBuyerPlayerId && id !== roles.sellerPlayerId,
+        );
+        const maxLenderCash = Math.max(
+          ...eligibleLenderPlayerIds.map((id) => cashMap[id]!),
+        );
+        expect(maxLenderCash).toBeGreaterThanOrEqual(financingGap);
+
+        // 6. Partition assertion across all permutations:
+        // Exactly 1,536 permutations (64 combinations * 24 seats, 92.8%) include a profile with cash in [3M, 5M)
+        // and support the $30k contribution fixture.
+        // Exactly 120 permutations (5 combinations * 24 seats, 7.2%) have buyer cash in [2.5M, 2.8M)
+        // where the $22k-$25k gap is funded by an eligible third-party lender.
+        if (buyerCash >= 3_000_000) {
+          countPermutationsSupportingCanonicalThreeMillion++;
+        } else {
+          countPermutationsRequiringLesserContribution++;
+          expect(buyerCash).toBeGreaterThanOrEqual(2_500_000);
+        }
       }
     }
 
-    // Unconditional distribution guarantees
-    expect(countSupportingCanonicalThreeMillion).toBe(64);
-    expect(countRequiringLesserContribution).toBe(5);
+    // Unconditional distribution guarantees across all 1,656 seat permutations
+    expect(totalPermutations).toBe(1_656);
+    expect(countPermutationsSupportingCanonicalThreeMillion).toBe(64 * 24);
+    expect(countPermutationsRequiringLesserContribution).toBe(5 * 24);
     expect(FEASIBLE_PROFILE_COMBINATIONS.length).toBe(69);
   });
 });
