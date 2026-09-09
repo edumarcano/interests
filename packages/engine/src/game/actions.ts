@@ -3,6 +3,7 @@ import type { PlayerId } from "@interests/shared";
 import type { JournalEntry } from "../finance/journal";
 import { assertGameState } from "../invariants/assertGameState";
 import type { GamePhase, GameState, PlayerState } from "../model/gameState";
+import type { TransactionErrorCode } from "../transactions/model";
 
 export interface ChooseObjectiveAction {
   readonly type: "CHOOSE_OBJECTIVE";
@@ -17,7 +18,17 @@ export type ActionErrorCode =
   | "UNKNOWN_PLAYER"
   | "WRONG_PHASE"
   | "ALREADY_CHOSEN"
-  | "OBJECTIVE_NOT_OFFERED";
+  | "OBJECTIVE_NOT_OFFERED"
+  | "WRONG_ROUND_STAGE"
+  | "NOT_ACTIVE_SPOTLIGHT"
+  | "ACTIVE_TRANSACTION"
+  | "INVALID_QUARTER"
+  | "QUARTER_ALREADY_SETTLED"
+  | "WRONG_QUARTER"
+  | "DESTINATION_OVERFLOW"
+  | "INSUFFICIENT_FUNDS"
+  | "MARKET_VALUE_OVERFLOW"
+  | TransactionErrorCode;
 
 export type ActionResult =
   | {
@@ -76,11 +87,19 @@ export function applyAction(state: GameState, action: unknown): ActionResult {
     ? "ready-for-first-round"
     : "objective-choosing";
 
+  const nextRound = allSelected
+    ? {
+        stage: "round-start" as const,
+        spotlightsCompleted: 0,
+      }
+    : null;
+
   const nextState: GameState = {
     ...state,
     revision: state.revision + 1,
     phase: nextPhase,
     players: nextPlayers,
+    round: nextRound,
   };
 
   assertGameState(nextState);

@@ -5,6 +5,7 @@ import { basisPoints, cents } from "../finance/money";
 import { createSoleOwnership } from "../finance/ownership";
 import { applyAction } from "../game/actions";
 import { createGame } from "../game/createGame";
+import { beginRound } from "../game/round";
 import { assertGameState } from "../invariants/assertGameState";
 import type { BusinessAsset, GameState, PlayerLoan } from "../model/gameState";
 import {
@@ -57,7 +58,11 @@ function createReadyGame(): GameState {
     state = result.state;
   }
 
-  return state;
+  const roundResult = beginRound(state);
+  if (!roundResult.ok) {
+    throw new Error(`Failed to begin round: ${roundResult.code}`);
+  }
+  return roundResult.state;
 }
 
 /**

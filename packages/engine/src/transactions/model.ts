@@ -64,6 +64,8 @@ export interface SubmitPlayerLoanFinancingOfferInput {
 
 export type TransactionErrorCode =
   | "WRONG_PHASE"
+  | "WRONG_ROUND_STAGE"
+  | "NOT_ACTIVE_SPOTLIGHT"
   | "ACTIVE_TRANSACTION_EXISTS"
   | "NO_ACTIVE_TRANSACTION"
   | "TRANSACTION_ID_MISMATCH"

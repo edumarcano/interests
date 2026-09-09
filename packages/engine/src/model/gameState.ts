@@ -33,6 +33,13 @@ export type {
 
 export type GamePhase = "objective-choosing" | "ready-for-first-round";
 
+export type RoundStage = "round-start" | "spotlight";
+
+export interface RoundState {
+  readonly stage: RoundStage;
+  readonly spotlightsCompleted: number;
+}
+
 export interface PlayerState {
   readonly id: PlayerId;
   readonly profileId: ProfileId;
@@ -161,4 +168,5 @@ export interface GameState {
   readonly counters: DeterministicCounters;
   readonly activeTransaction: ActiveTransaction | null;
   readonly opportunitiesById: Readonly<Record<OpportunityId, Opportunity>>;
+  readonly round: RoundState | null;
 }

@@ -11,6 +11,7 @@ import { basisPoints, cents } from "../finance/money";
 import { createSoleOwnership, TOTAL_OWNERSHIP_PPM } from "../finance/ownership";
 import { postCash } from "../finance/posting";
 import { nextDeterministicId } from "../game/deterministicIds";
+import { getActiveSpotlightPlayerId } from "../game/round";
 import { assertGameState } from "../invariants/assertGameState";
 import type { BusinessAsset, GameState } from "../model/gameState";
 import type {
@@ -40,12 +41,17 @@ function validateCommonBusinessPurchase(
     return "WRONG_PHASE";
   }
 
-  // 2. Concurrency validation: at most one active transaction permitted in this slice
+  // 2. Round stage validation: must be in "spotlight"
+  if (!state.round || state.round.stage !== "spotlight") {
+    return "WRONG_ROUND_STAGE";
+  }
+
+  // 3. Concurrency validation: at most one active transaction permitted in this slice
   if (state.activeTransaction !== null) {
     return "ACTIVE_TRANSACTION_EXISTS";
   }
 
-  // 3. Parties existence and distinctness validation
+  // 4. Parties existence and distinctness validation
   if (!state.players[buyerPlayerId]) {
     return "UNKNOWN_PLAYER";
   }
@@ -54,6 +60,11 @@ function validateCommonBusinessPurchase(
   }
   if (buyerPlayerId === sellerPlayerId) {
     return "SAME_PARTY";
+  }
+
+  // 5. Spotlight authority validation: buyer must be the active spotlight player
+  if (getActiveSpotlightPlayerId(state) !== buyerPlayerId) {
+    return "NOT_ACTIVE_SPOTLIGHT";
   }
 
   // 4. Asset validation: must exist and be a supported business
@@ -458,10 +469,10 @@ export function acceptPlayerLoanFinancingOffer(
 }
 
 /**
- * Pure domain function to cancel an active transaction and release its reservation.
- * Moves no cash, changes no ownership, emits no journal entries.
+ * Pure un-revisioned domain function to cancel an active transaction and release its reservation.
+ * Leaves GameState.revision unchanged so it can be composed into higher-level player commands.
  */
-export function cancelActiveTransaction(
+export function applyCancelActiveTransaction(
   state: GameState,
   transactionId: TransactionId,
 ): TransactionResult {
@@ -482,11 +493,8 @@ export function cancelActiveTransaction(
 
   const nextState: GameState = {
     ...state,
-    revision: state.revision + 1,
     activeTransaction: null,
   };
-
-  assertGameState(nextState);
 
   return {
     ok: true,
@@ -496,11 +504,39 @@ export function cancelActiveTransaction(
 }
 
 /**
- * Pure domain function to atomically close an active business purchase transaction (cash-only or financed).
+ * Pure domain function to cancel an active transaction and release its reservation.
+ * Moves no cash, changes no ownership, emits no journal entries.
+ * Increments GameState.revision by 1.
+ */
+export function cancelActiveTransaction(
+  state: GameState,
+  transactionId: TransactionId,
+): TransactionResult {
+  const result = applyCancelActiveTransaction(state, transactionId);
+  if (!result.ok) {
+    return result;
+  }
+
+  const nextState: GameState = {
+    ...result.state,
+    revision: state.revision + 1,
+  };
+
+  assertGameState(nextState);
+
+  return {
+    ...result,
+    state: nextState,
+  };
+}
+
+/**
+ * Pure un-revisioned domain function to atomically close an active business purchase transaction (cash-only or financed).
  * Revalidates complete state, atomically moves funds, transfers sole 100% ownership,
  * clears active transaction and reservations, and emits authoritative journal entries.
+ * Leaves GameState.revision unchanged so it can be composed into higher-level player commands.
  */
-export function closeCashBusinessPurchaseTransaction(
+export function applyCloseCashBusinessPurchaseTransaction(
   state: GameState,
   transactionId: TransactionId,
 ): TransactionResult {
@@ -631,7 +667,6 @@ export function closeCashBusinessPurchaseTransaction(
 
     const nextState: GameState = {
       ...state,
-      revision: state.revision + 1,
       finance: {
         ...postingResult.finance,
         assetsById: nextAssetsById,
@@ -824,7 +859,6 @@ export function closeCashBusinessPurchaseTransaction(
 
   const nextState: GameState = {
     ...state,
-    revision: state.revision + 1,
     finance: {
       ...purchaseResult.finance,
       assetsById: nextAssetsById,
@@ -840,5 +874,36 @@ export function closeCashBusinessPurchaseTransaction(
     state: nextState,
     journalEntries: [loanResult.entry, purchaseResult.entry],
     transactionId: tx.id,
+  };
+}
+
+/**
+ * Pure domain function to atomically close an active business purchase transaction (cash-only or financed).
+ * Revalidates complete state, atomically moves funds, transfers sole 100% ownership,
+ * clears active transaction and reservations, and emits authoritative journal entries.
+ * Increments GameState.revision by 1.
+ */
+export function closeCashBusinessPurchaseTransaction(
+  state: GameState,
+  transactionId: TransactionId,
+): TransactionResult {
+  const result = applyCloseCashBusinessPurchaseTransaction(
+    state,
+    transactionId,
+  );
+  if (!result.ok) {
+    return result;
+  }
+
+  const nextState: GameState = {
+    ...result.state,
+    revision: state.revision + 1,
+  };
+
+  assertGameState(nextState);
+
+  return {
+    ...result,
+    state: nextState,
   };
 }

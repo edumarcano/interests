@@ -13,6 +13,7 @@ export * from "./game/createGame.js";
 export * from "./game/deterministicIds.js";
 export * from "./game/playerCommand.js";
 export * from "./game/playerView.js";
+export * from "./game/round.js";
 export * from "./game/setup.js";
 export * from "./invariants/assertGameState.js";
 
@@ -25,7 +26,7 @@ export * from "./transactions/cashBusinessPurchase";
 export * from "./transactions/model";
 export * from "./transactions/reservations";
 
-export const ENGINE_VERSION = "0.0.1";
+export const ENGINE_VERSION = "0.0.2";
 
 export const WORKSPACE_COMPATIBILITY = {
   engine: ENGINE_VERSION,

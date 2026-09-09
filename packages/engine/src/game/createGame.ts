@@ -276,6 +276,7 @@ export function createGame(input: CreateGameInput): GameState {
     counters: currentCounters,
     activeTransaction: null,
     opportunitiesById: {},
+    round: null,
   };
 
   assertGameState(state);
