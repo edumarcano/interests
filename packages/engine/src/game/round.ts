@@ -1,7 +1,15 @@
-import type { PlayerId } from "@interests/shared";
-import { settleQuarter } from "../finance/settlement.js";
+import type { PlayerId, TransactionId } from "@interests/shared";
+import { applyQuarterSettlement } from "../finance/settlement.js";
 import { assertGameState } from "../invariants/assertGameState.js";
 import type { GameState, RoundState } from "../model/gameState.js";
+import {
+  applyCancelActiveTransaction,
+  applyCloseCashBusinessPurchaseTransaction,
+} from "../transactions/cashBusinessPurchase.js";
+import type {
+  TransactionErrorCode,
+  TransactionResult,
+} from "../transactions/model.js";
 import type { ActionErrorCode, ActionResult } from "./actions.js";
 
 /**
@@ -136,16 +144,157 @@ export function advanceSpotlight(
   }
 
   // Final spotlight: atomic quarter settlement
-  const settleResult = settleQuarter(state, { quarter: state.currentQuarter });
+  const settleResult = applyQuarterSettlement(state, {
+    quarter: state.currentQuarter,
+  });
   if (!settleResult.ok) {
     return reject(settleResult.code);
   }
 
-  // settleQuarter already advances revision by exactly 1, advances quarter,
-  // revalues markets, transitions regime, captures basis, and resets round to round-start.
+  const finalState: GameState = {
+    ...settleResult.state,
+    revision: state.revision + 1,
+  };
+
+  assertGameState(finalState);
+
   return {
     ok: true,
-    state: settleResult.state,
+    state: finalState,
     journalEntries: settleResult.journalEntries,
   };
+}
+
+/**
+ * Pure orchestration helper to atomically compose:
+ * 1. A successful terminal transaction transition (e.g. close or cancel);
+ * 2. Immediate spotlight completion;
+ * 3. Either:
+ *    - advance to the next spotlight (if intermediate spotlight), or
+ *    - perform quarterly settlement and enter next-quarter ROUND_START (if final spotlight);
+ * 4. While incrementing GameState.revision exactly ONCE total.
+ *
+ * If terminal transaction fails, or if final settlement fails:
+ * - the ENTIRE operation rejects atomically;
+ * - original state is returned untouched with 0 journal entries;
+ * - no partial effects, no extra revisions, no uncommitted RNG/counters.
+ */
+export function resolveTerminalTransactionAndAdvanceSpotlight(
+  state: GameState,
+  actorPlayerId: PlayerId,
+  terminalTransition: (state: GameState) => TransactionResult,
+): ActionResult {
+  const reject = (
+    code: ActionErrorCode | TransactionErrorCode,
+  ): ActionResult => ({
+    ok: false,
+    state,
+    code,
+    journalEntries: [],
+  });
+
+  if (state.phase !== "ready-for-first-round") {
+    return reject("WRONG_PHASE");
+  }
+
+  if (!state.round || state.round.stage !== "spotlight") {
+    return reject("WRONG_ROUND_STAGE");
+  }
+
+  const activePlayerId = getActiveSpotlightPlayerId(state);
+  if (activePlayerId !== actorPlayerId) {
+    return reject("NOT_ACTIVE_SPOTLIGHT");
+  }
+
+  // 1. Execute terminal transaction on state (without revision increment)
+  const txResult = terminalTransition(state);
+  if (!txResult.ok) {
+    return reject(txResult.code);
+  }
+
+  if (txResult.state.activeTransaction !== null) {
+    throw new Error(
+      "Invariant violation: terminal transaction did not clear activeTransaction",
+    );
+  }
+
+  const postTxState = txResult.state;
+  const txJournalEntries = txResult.journalEntries;
+  const playerCount = state.playerOrder.length;
+
+  // 2. Intermediate spotlight: advance spotlight index
+  if (state.round.spotlightsCompleted < playerCount - 1) {
+    const nextRound: RoundState = {
+      stage: "spotlight",
+      spotlightsCompleted: state.round.spotlightsCompleted + 1,
+    };
+
+    const finalState: GameState = {
+      ...postTxState,
+      revision: state.revision + 1,
+      round: nextRound,
+    };
+
+    assertGameState(finalState);
+    return {
+      ok: true,
+      state: finalState,
+      journalEntries: txJournalEntries,
+    };
+  }
+
+  // 3. Final spotlight: execute quarterly settlement on postTxState
+  const settleResult = applyQuarterSettlement(postTxState, {
+    quarter: state.currentQuarter,
+  });
+
+  if (!settleResult.ok) {
+    // Entire command rejects atomically, returning the original un-mutated state
+    return reject(settleResult.code);
+  }
+
+  const finalState: GameState = {
+    ...settleResult.state,
+    revision: state.revision + 1,
+  };
+
+  assertGameState(finalState);
+
+  // Preserve deterministic journal order: transaction entries first, settlement entries second
+  return {
+    ok: true,
+    state: finalState,
+    journalEntries: [...txJournalEntries, ...settleResult.journalEntries],
+  };
+}
+
+/**
+ * High-level orchestration helper for closing a cash business purchase and advancing the spotlight.
+ */
+export function closeCashBusinessPurchaseAndAdvanceSpotlight(
+  state: GameState,
+  actorPlayerId: PlayerId,
+  transactionId: TransactionId,
+): ActionResult {
+  return resolveTerminalTransactionAndAdvanceSpotlight(
+    state,
+    actorPlayerId,
+    (draftState) =>
+      applyCloseCashBusinessPurchaseTransaction(draftState, transactionId),
+  );
+}
+
+/**
+ * High-level orchestration helper for cancelling an active transaction and advancing the spotlight.
+ */
+export function cancelActiveTransactionAndAdvanceSpotlight(
+  state: GameState,
+  actorPlayerId: PlayerId,
+  transactionId: TransactionId,
+): ActionResult {
+  return resolveTerminalTransactionAndAdvanceSpotlight(
+    state,
+    actorPlayerId,
+    (draftState) => applyCancelActiveTransaction(draftState, transactionId),
+  );
 }

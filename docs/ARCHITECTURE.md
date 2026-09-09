@@ -456,8 +456,11 @@ The spotlight order follows the named Standard V1 policy `rotating-seat-v1` [ARC
 - The starting seat rotates deterministically each quarter (`Q1: A->B->C->D`, `Q2: B->C->D->A`, `Q3: C->D->A->B`, `Q4: D->A->B->C`, etc.).
 - State structures remain strictly collection-shaped (`playerOrder = [A, B, C, D]`) rather than fixed seat arithmetic or four fixed fields.
 - A spotlight advances immediately upon terminal resolution (closed, cancelled, expired) of its active transaction, or when the spotlight player explicitly passes via `PASS_SPOTLIGHT`.
-- Advancing the 4th spotlight completion atomically executes quarterly financial settlement, emits journal entries persisted to SQLite `match_events`, and advances to Quarter `Q + 1` with `stage: "round-start"` in a single atomic command (`resultingRevision === previousRevision + 1`).
+- Terminal transaction resolution and spotlight advancement compose as one authoritative accepted player-command transition (`resultingRevision === previousRevision + 1`): intermediate terminal resolutions advance the spotlight without a second revision; final terminal resolution composes transaction effects and quarterly financial settlement atomically with exactly one revision increment, preserving deterministic journal ordering (transaction entries precede settlement entries).
+- Advancing the 4th spotlight completion (via pass or terminal transaction close) atomically executes quarterly financial settlement, emits journal entries persisted to SQLite `match_events`, and advances to Quarter `Q + 1` with `stage: "round-start"` in a single atomic command (`resultingRevision === previousRevision + 1`).
+- `settleQuarter()` is an internal/trusted finance primitive for direct accounting tests, migrations, and simulations; normal gameplay quarter settlement is governed exclusively by the round orchestration controller upon final spotlight completion.
 - At most one unresolved major transaction exists at a time across the entire match.
+
 
 
 ### 8.2 Offers and closing

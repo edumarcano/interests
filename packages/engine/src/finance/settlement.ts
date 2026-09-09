@@ -149,9 +149,11 @@ interface PlannedPlayerLoanPayment {
  *     6. Legacy bank loan payments (LoanId)
  *     7. Scheduled player-loan payments (LoanId)
  * - Exactly one SettlementId created and counter advanced once per successful settlement.
- * - Next quarter finance basis captured from closing Quarter N state.
+/**
+ * Pure internal authoritative quarter-settlement operation.
+ * Leaves GameState.revision unchanged so it can be composed into higher-level player commands.
  */
-export function settleQuarter(
+export function applyQuarterSettlement(
   state: GameState,
   request: SettleQuarterRequest,
 ): SettleQuarterResult {
@@ -771,7 +773,6 @@ export function settleQuarter(
 
   const nextState: GameState = {
     ...state,
-    revision: state.revision + 1,
     currentQuarter: nextQuarter,
     lastSettledQuarter: request.quarter,
     finance: currentFinance,
@@ -794,5 +795,34 @@ export function settleQuarter(
     state: nextState,
     settlementId,
     journalEntries,
+  };
+}
+
+/**
+ * Trusted internal finance settlement operation.
+ *
+ * NOTE: Normal player gameplay round progression advances to settlement
+ * through the round controller (advanceSpotlight / terminal transaction resolution).
+ * settleQuarter directly executes quarterly settlement and increments GameState.revision by 1.
+ */
+export function settleQuarter(
+  state: GameState,
+  request: SettleQuarterRequest,
+): SettleQuarterResult {
+  const result = applyQuarterSettlement(state, request);
+  if (!result.ok) {
+    return result;
+  }
+
+  const nextState: GameState = {
+    ...result.state,
+    revision: state.revision + 1,
+  };
+
+  assertGameState(nextState);
+
+  return {
+    ...result,
+    state: nextState,
   };
 }

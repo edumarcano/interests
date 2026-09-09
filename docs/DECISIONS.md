@@ -553,13 +553,23 @@ Establish the authoritative quarterly round progression, canonical round state, 
      - Persist emitted settlement journal entries atomically in SQLite `match_events` (`event_kind: "journal-entry"`).
    - Rejections during final settlement (e.g. `INSUFFICIENT_FUNDS`) reject the command atomically, leaving state, revision, counters, RNG, and quarter completely unchanged.
 
-6. **Transaction Initiation Spotlight Authority:**
+6. **Terminal Transaction Resolution Composition Boundary:**
+   - Terminal transaction resolution (close or cancel) and immediate spotlight completion compose as one authoritative accepted player-command transition (`resultingRevision === previousRevision + 1`):
+     - Intermediate spotlight terminal resolution applies transaction effects, clears the active transaction, advances `spotlightsCompleted`, and advances revision by exactly 1 total.
+     - Final spotlight terminal resolution composes transaction effects, transaction journal entries, and quarterly settlement atomically within a single command transition and exactly 1 revision increment total.
+     - Emitted journal events strictly preserve deterministic ordering: transaction closing journal entries precede end-of-quarter settlement journal entries.
+     - Atomic rollback: if either the terminal transaction fails or composed end-of-quarter settlement fails, the entire transition rejects atomically, preserving the original state, active transaction, and revision with zero journal entries emitted.
+   - Low-level domain operations (`applyCloseCashBusinessPurchaseTransaction`, `applyCancelActiveTransaction`, and `applyQuarterSettlement`) provide un-revisioned state transformations so that orchestration wrappers (`resolveTerminalTransactionAndAdvanceSpotlight`) can compose operations before committing the single final public command revision.
+   - `settleQuarter()` is an internal/trusted finance primitive for tests, migrations, and simulations; normal gameplay quarter settlement is exclusively controlled by the round orchestration loop upon final spotlight completion.
+
+7. **Transaction Initiation Spotlight Authority:**
    - Opening cash or financed business purchase transactions requires `round.stage === "spotlight"` and requires the buyer to be the active spotlight player (`getActiveSpotlightPlayerId(state) === buyerPlayerId`).
    - Non-active players or opening attempts during `round-start` are rejected atomically with `NOT_ACTIVE_SPOTLIGHT` or `WRONG_ROUND_STAGE`.
    - Active transactions block `PASS_SPOTLIGHT` with `ACTIVE_TRANSACTION`.
 
-7. **Durability and Restart Recovery:**
+8. **Durability and Restart Recovery:**
    - Canonical `round` state survives JSON serialization, SQLite persistence, and process restart exactly.
    - Server restart during an active spotlight or at `round-start` preserves exact quarter, stage, spotlight count, and RNG. Host resume clears operational pauses without altering `GameState`.
+
 
 

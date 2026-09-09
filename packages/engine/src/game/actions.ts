@@ -3,6 +3,7 @@ import type { PlayerId } from "@interests/shared";
 import type { JournalEntry } from "../finance/journal";
 import { assertGameState } from "../invariants/assertGameState";
 import type { GamePhase, GameState, PlayerState } from "../model/gameState";
+import type { TransactionErrorCode } from "../transactions/model";
 
 export interface ChooseObjectiveAction {
   readonly type: "CHOOSE_OBJECTIVE";
@@ -26,7 +27,8 @@ export type ActionErrorCode =
   | "WRONG_QUARTER"
   | "DESTINATION_OVERFLOW"
   | "INSUFFICIENT_FUNDS"
-  | "MARKET_VALUE_OVERFLOW";
+  | "MARKET_VALUE_OVERFLOW"
+  | TransactionErrorCode;
 
 export type ActionResult =
   | {

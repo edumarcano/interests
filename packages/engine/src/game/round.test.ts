@@ -1,19 +1,29 @@
-import { asAssetId, asPlayerId } from "@interests/shared";
+import { asAssetId, asPlayerId, asTransactionId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
 
 import { cents } from "../finance/money";
 import { createSoleOwnership } from "../finance/ownership";
+import { applyQuarterSettlement, settleQuarter } from "../finance/settlement";
 import { assertGameState } from "../invariants/assertGameState";
 import type { BusinessAsset, GameState } from "../model/gameState";
-import { openCashBusinessPurchaseTransaction } from "../transactions/cashBusinessPurchase";
+import {
+  applyCancelActiveTransaction,
+  applyCloseCashBusinessPurchaseTransaction,
+  cancelActiveTransaction,
+  closeCashBusinessPurchaseTransaction,
+  openCashBusinessPurchaseTransaction,
+} from "../transactions/cashBusinessPurchase";
 import { applyAction } from "./actions";
 import { createGame } from "./createGame";
 import { applyPlayerCommand } from "./playerCommand";
 import {
   advanceSpotlight,
   beginRound,
+  cancelActiveTransactionAndAdvanceSpotlight,
+  closeCashBusinessPurchaseAndAdvanceSpotlight,
   getActiveSpotlightPlayerId,
   getSpotlightOrder,
+  resolveTerminalTransactionAndAdvanceSpotlight,
 } from "./round";
 
 const pA = asPlayerId("player-A");
@@ -800,5 +810,380 @@ describe("Section 17: Required Engine Tests", () => {
     expect(rejPass.ok).toBe(false);
     if (rejPass.ok) throw new Error();
     expect(rejPass.code).toBe("NOT_ACTIVE_SPOTLIGHT");
+  });
+});
+
+describe("Orchestration Composition: Terminal Transactions & Spotlight Completion", () => {
+  function setupSpotlightWithBusiness(spotlightIndex: number): {
+    state: GameState;
+    buyerPlayerId: typeof pA;
+    sellerPlayerId: typeof pB;
+    bizId: ReturnType<typeof asAssetId>;
+    txId: ReturnType<typeof asTransactionId>;
+  } {
+    const readyState = chooseAllObjectives(createTestGame());
+    let state = (beginRound(readyState) as { ok: true; state: GameState })
+      .state;
+
+    // Advance to the desired spotlight index
+    for (let i = 0; i < spotlightIndex; i++) {
+      const activePlayer = getActiveSpotlightPlayerId(state)!;
+      const pass = advanceSpotlight(state, activePlayer);
+      expect(pass.ok).toBe(true);
+      if (!pass.ok) throw new Error();
+      state = pass.state;
+    }
+
+    const buyerPlayerId = getActiveSpotlightPlayerId(state)!;
+    const sellerPlayerId = state.playerOrder.find(
+      (id) => id !== buyerPlayerId,
+    )!;
+    const bizId = asAssetId(`biz-${spotlightIndex}`);
+
+    const testBiz: BusinessAsset = {
+      id: bizId,
+      kind: "business",
+      annualRevenueCents: cents(5_000_000),
+      annualOperatingProfitCents: cents(1_000_000),
+      enterpriseValueCents: cents(10_000_000),
+      debtPrincipalCents: cents(0),
+      ownershipByPlayerPpm: createSoleOwnership(sellerPlayerId),
+    };
+
+    const stateWithBiz: GameState = {
+      ...state,
+      finance: {
+        ...state.finance,
+        cashByPlayer: {
+          ...state.finance.cashByPlayer,
+          [buyerPlayerId]: cents(10_000_000),
+        },
+        assetsById: {
+          ...state.finance.assetsById,
+          [bizId]: testBiz,
+        },
+      },
+    };
+
+    const openTx = openCashBusinessPurchaseTransaction(stateWithBiz, {
+      buyerPlayerId,
+      sellerPlayerId,
+      assetId: bizId,
+      purchasePriceCents: 5_000_000,
+    });
+    expect(openTx.ok).toBe(true);
+    if (!openTx.ok) throw new Error();
+
+    return {
+      state: openTx.state,
+      buyerPlayerId: buyerPlayerId as typeof pA,
+      sellerPlayerId: sellerPlayerId as typeof pB,
+      bizId,
+      txId: openTx.transactionId!,
+    };
+  }
+
+  it("1. intermediate transaction close advances spotlight with exactly revision + 1 total", () => {
+    // Spotlight 0: pA
+    const { state, buyerPlayerId, sellerPlayerId, bizId, txId } =
+      setupSpotlightWithBusiness(0);
+
+    const inputRevision = state.revision;
+    const pACashBefore = state.finance.cashByPlayer[buyerPlayerId]!;
+    const pBCashBefore = state.finance.cashByPlayer[sellerPlayerId]!;
+
+    const result = closeCashBusinessPurchaseAndAdvanceSpotlight(
+      state,
+      buyerPlayerId,
+      txId,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error();
+
+    // 1. Revision incremented by EXACTLY 1 total
+    expect(result.state.revision).toBe(inputRevision + 1);
+
+    // 2. Active transaction cleared
+    expect(result.state.activeTransaction).toBeNull();
+
+    // 3. Spotlight advanced to spotlight 1 (pB)
+    expect(result.state.round?.stage).toBe("spotlight");
+    expect(result.state.round?.spotlightsCompleted).toBe(1);
+    expect(getActiveSpotlightPlayerId(result.state)).toBe(pB);
+
+    // 4. Transaction effects applied
+    expect(result.state.finance.cashByPlayer[buyerPlayerId]).toBe(
+      pACashBefore - 5_000_000,
+    );
+    expect(result.state.finance.cashByPlayer[sellerPlayerId]).toBe(
+      pBCashBefore + 5_000_000,
+    );
+    const updatedBiz = result.state.finance.assetsById[bizId] as BusinessAsset;
+    expect(updatedBiz.ownershipByPlayerPpm[buyerPlayerId]).toBe(1_000_000);
+
+    // 5. Transaction journal entries emitted
+    expect(result.journalEntries).toHaveLength(1);
+    expect(result.journalEntries[0]?.reason).toBe("business-purchase");
+
+    // 6. Quarter remains 1; no settlement ran
+    expect(result.state.currentQuarter).toBe(1);
+    expect(result.state.lastSettledQuarter).toBe(0);
+  });
+
+  it("2. intermediate transaction cancel advances spotlight with exactly revision + 1 total and releases reservations", () => {
+    // Spotlight 1: pB
+    const { state, buyerPlayerId, sellerPlayerId, bizId, txId } =
+      setupSpotlightWithBusiness(1);
+
+    const inputRevision = state.revision;
+    const buyerCashBefore = state.finance.cashByPlayer[buyerPlayerId]!;
+
+    const result = cancelActiveTransactionAndAdvanceSpotlight(
+      state,
+      buyerPlayerId,
+      txId,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error();
+
+    // 1. Revision incremented by EXACTLY 1 total
+    expect(result.state.revision).toBe(inputRevision + 1);
+
+    // 2. Active transaction cleared
+    expect(result.state.activeTransaction).toBeNull();
+
+    // 3. Spotlight advanced to spotlight 2 (pC)
+    expect(result.state.round?.stage).toBe("spotlight");
+    expect(result.state.round?.spotlightsCompleted).toBe(2);
+    expect(getActiveSpotlightPlayerId(result.state)).toBe(pC);
+
+    // 4. Cash and ownership unchanged
+    expect(result.state.finance.cashByPlayer[buyerPlayerId]).toBe(
+      buyerCashBefore,
+    );
+    const biz = result.state.finance.assetsById[bizId] as BusinessAsset;
+    expect(biz.ownershipByPlayerPpm[sellerPlayerId]).toBe(1_000_000);
+
+    // 5. Zero journal entries for cancellation
+    expect(result.journalEntries).toHaveLength(0);
+
+    // 6. No settlement
+    expect(result.state.currentQuarter).toBe(1);
+  });
+
+  it("3. final spotlight transaction close atomically closes transaction, runs settlement, and enters Q2 round-start with exactly revision + 1 total", () => {
+    // Spotlight 3: 4th and final spotlight of Quarter 1 (pD)
+    const { state, buyerPlayerId, sellerPlayerId, bizId, txId } =
+      setupSpotlightWithBusiness(3);
+
+    expect(state.round?.spotlightsCompleted).toBe(3);
+    const inputRevision = state.revision;
+
+    const result = closeCashBusinessPurchaseAndAdvanceSpotlight(
+      state,
+      buyerPlayerId,
+      txId,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error();
+
+    // 1. Revision incremented by EXACTLY 1 total from input state
+    expect(result.state.revision).toBe(inputRevision + 1);
+
+    // 2. Active transaction cleared
+    expect(result.state.activeTransaction).toBeNull();
+
+    // 3. Business ownership transferred
+    const updatedBiz = result.state.finance.assetsById[bizId] as BusinessAsset;
+    expect(updatedBiz.ownershipByPlayerPpm[buyerPlayerId]).toBe(1_000_000);
+
+    // 4. Settlement completed: quarter advanced to 2, last settled to 1
+    expect(result.state.currentQuarter).toBe(2);
+    expect(result.state.lastSettledQuarter).toBe(1);
+
+    // 5. Round reset to round-start for Quarter 2
+    expect(result.state.round).toEqual({
+      stage: "round-start",
+      spotlightsCompleted: 0,
+    });
+
+    // 6. Q2 spotlight order rotates deterministically
+    expect(getSpotlightOrder(result.state)).toEqual([pB, pC, pD, pA]);
+
+    // 7. Journal entries: transaction entries first, then settlement entries
+    expect(result.journalEntries.length).toBeGreaterThan(1);
+    expect(result.journalEntries[0]?.reason).toBe("business-purchase");
+    expect(result.journalEntries[0]?.relatedAssetId).toBe(bizId);
+
+    // Remaining journal entries are from quarterly settlement
+    const settlementReasons = result.journalEntries
+      .slice(1)
+      .map((e) => e.reason);
+    expect(settlementReasons).toContain("recurring-personal-income");
+    expect(settlementReasons).toContain("recurring-living-expense");
+  });
+
+  it("4. deterministic combined journal ordering: transaction entries precede settlement entries", () => {
+    const { state, buyerPlayerId, bizId, txId } = setupSpotlightWithBusiness(3);
+
+    const result = closeCashBusinessPurchaseAndAdvanceSpotlight(
+      state,
+      buyerPlayerId,
+      txId,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error();
+
+    // First entry is strictly the business purchase closing transaction
+    expect(result.journalEntries[0]).toMatchObject({
+      reason: "business-purchase",
+      relatedAssetId: bizId,
+      relatedTransactionId: txId,
+      quarter: 1,
+    });
+
+    // Subsequent entries are settlement postings for quarter 1
+    for (let i = 1; i < result.journalEntries.length; i++) {
+      expect(result.journalEntries[i]?.quarter).toBe(1);
+      expect(result.journalEntries[i]?.relatedTransactionId).toBeUndefined();
+    }
+  });
+
+  it("5. terminal transaction failure leaves state completely unchanged", () => {
+    const { state, buyerPlayerId } = setupSpotlightWithBusiness(0);
+    const nonExistentTxId = asTransactionId("tx-does-not-exist");
+
+    const result = closeCashBusinessPurchaseAndAdvanceSpotlight(
+      state,
+      buyerPlayerId,
+      nonExistentTxId,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error();
+    expect(result.code).toBe("TRANSACTION_ID_MISMATCH");
+
+    // State returned is the identical original state
+    expect(result.state).toBe(state);
+    expect(result.state.revision).toBe(state.revision);
+    expect(result.state.activeTransaction).not.toBeNull();
+    expect(result.state.round?.spotlightsCompleted).toBe(0);
+    expect(result.journalEntries).toHaveLength(0);
+  });
+
+  it("6. non-active player cannot close or cancel transaction", () => {
+    // Spotlight 0: pA is active, pB is not
+    const { state, txId } = setupSpotlightWithBusiness(0);
+
+    const result = closeCashBusinessPurchaseAndAdvanceSpotlight(
+      state,
+      pB,
+      txId,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error();
+    expect(result.code).toBe("NOT_ACTIVE_SPOTLIGHT");
+    expect(result.state).toBe(state);
+  });
+
+  it("7. final settlement failure rolls back the entire composed transition atomically", () => {
+    // Spotlight 3: pD is active.
+    const { state, buyerPlayerId, sellerPlayerId, bizId, txId } =
+      setupSpotlightWithBusiness(3);
+
+    // Make settlement fail: set massive living expense for pC so settlement fails with INSUFFICIENT_FUNDS
+    const currentRec = state.finance.recurringByPlayer?.[pC];
+    const insolventState: GameState = {
+      ...state,
+      finance: {
+        ...state.finance,
+        recurringByPlayer: {
+          ...state.finance.recurringByPlayer,
+          [pC]: {
+            ...currentRec!,
+            quarterlyLivingExpenseCents: cents(500_000_000),
+          },
+        },
+      },
+    };
+
+    const initialRevision = insolventState.revision;
+    const buyerCashBefore = insolventState.finance.cashByPlayer[buyerPlayerId]!;
+    const sellerCashBefore =
+      insolventState.finance.cashByPlayer[sellerPlayerId]!;
+
+    const result = closeCashBusinessPurchaseAndAdvanceSpotlight(
+      insolventState,
+      buyerPlayerId,
+      txId,
+    );
+
+    // Composed operation MUST reject atomically
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error();
+    expect(result.code).toBe("INSUFFICIENT_FUNDS");
+
+    // The returned state is the ORIGINAL state before the transaction
+    expect(result.state).toBe(insolventState);
+    expect(result.state.revision).toBe(initialRevision);
+    expect(result.state.activeTransaction?.id).toBe(txId);
+    expect(result.state.round?.spotlightsCompleted).toBe(3);
+    expect(result.state.currentQuarter).toBe(1);
+
+    // Business ownership was NOT transferred
+    const biz = result.state.finance.assetsById[bizId] as BusinessAsset;
+    expect(biz.ownershipByPlayerPpm[sellerPlayerId]).toBe(1_000_000);
+    expect(biz.ownershipByPlayerPpm[buyerPlayerId]).toBeUndefined();
+
+    // Cash was NOT moved
+    expect(result.state.finance.cashByPlayer[buyerPlayerId]).toBe(
+      buyerCashBefore,
+    );
+    expect(result.state.finance.cashByPlayer[sellerPlayerId]).toBe(
+      sellerCashBefore,
+    );
+
+    // Zero journal entries emitted
+    expect(result.journalEntries).toHaveLength(0);
+  });
+
+  it("8. un-revisioned primitives and trusted settleQuarter preserve exact revision behavior", () => {
+    const { state, txId } = setupSpotlightWithBusiness(0);
+
+    // applyCancelActiveTransaction keeps revision unchanged
+    const unrevCancel = applyCancelActiveTransaction(state, txId);
+    expect(unrevCancel.ok).toBe(true);
+    if (!unrevCancel.ok) throw new Error();
+    expect(unrevCancel.state.revision).toBe(state.revision);
+
+    // cancelActiveTransaction bumps revision by exactly 1
+    const revCancel = cancelActiveTransaction(state, txId);
+    expect(revCancel.ok).toBe(true);
+    if (!revCancel.ok) throw new Error();
+    expect(revCancel.state.revision).toBe(state.revision + 1);
+
+    // applyCloseCashBusinessPurchaseTransaction keeps revision unchanged
+    const unrevClose = applyCloseCashBusinessPurchaseTransaction(state, txId);
+    expect(unrevClose.ok).toBe(true);
+    if (!unrevClose.ok) throw new Error();
+    expect(unrevClose.state.revision).toBe(state.revision);
+
+    // closeCashBusinessPurchaseTransaction bumps revision by exactly 1
+    const revClose = closeCashBusinessPurchaseTransaction(state, txId);
+    expect(revClose.ok).toBe(true);
+    if (!revClose.ok) throw new Error();
+    expect(revClose.state.revision).toBe(state.revision + 1);
+
+    // applyQuarterSettlement keeps revision unchanged
+    const unrevSettle = applyQuarterSettlement(revCancel.state, { quarter: 1 });
+    expect(unrevSettle.ok).toBe(true);
+    if (!unrevSettle.ok) throw new Error();
+    expect(unrevSettle.state.revision).toBe(revCancel.state.revision);
+
+    // trusted settleQuarter bumps revision by 1
+    const revSettle = settleQuarter(revCancel.state, { quarter: 1 });
+    expect(revSettle.ok).toBe(true);
+    if (!revSettle.ok) throw new Error();
+    expect(revSettle.state.revision).toBe(revCancel.state.revision + 1);
   });
 });
