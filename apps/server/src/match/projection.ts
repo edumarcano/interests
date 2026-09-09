@@ -1,7 +1,16 @@
 import { type GameState, projectPlayerGameState } from "@interests/engine";
+import {
+  OBJECTIVES,
+  type ObjectiveId,
+  PROFILES,
+  type ProfileId,
+} from "@interests/rules";
 import type {
+  MatchObjectiveOptionView,
   MatchPlayerSummaryView,
   MatchPlayerView,
+  MatchProfileView,
+  MatchSelfView,
   PlayerId,
   RoomMemberId,
 } from "@interests/shared";
@@ -51,6 +60,46 @@ export function buildMatchPlayerView(params: {
     },
   );
 
+  const profileDef = PROFILES[pureProjection.self.profileId as ProfileId];
+  const profile: MatchProfileView | undefined = profileDef
+    ? {
+        id: profileDef.id,
+        name: profileDef.name,
+        startingCashCents: profileDef.startingCashCents,
+      }
+    : undefined;
+
+  const offeredObjectives = pureProjection.self.offeredObjectiveIds.map(
+    (id) => {
+      const objDef = OBJECTIVES[id as ObjectiveId];
+      return objDef
+        ? { id: objDef.id, name: objDef.name, family: objDef.family }
+        : { id, name: id, family: "unknown" };
+    },
+  ) as [MatchObjectiveOptionView, MatchObjectiveOptionView];
+
+  const selectedObjective: MatchObjectiveOptionView | null = pureProjection.self
+    .selectedObjectiveId
+    ? (() => {
+        const objDef =
+          OBJECTIVES[pureProjection.self.selectedObjectiveId as ObjectiveId];
+        return objDef
+          ? { id: objDef.id, name: objDef.name, family: objDef.family }
+          : {
+              id: pureProjection.self.selectedObjectiveId,
+              name: pureProjection.self.selectedObjectiveId,
+              family: "unknown",
+            };
+      })()
+    : null;
+
+  const enrichedSelf: MatchSelfView = {
+    ...pureProjection.self,
+    profile,
+    offeredObjectives,
+    selectedObjective,
+  };
+
   return {
     matchId: pureProjection.matchId,
     modeId: pureProjection.modeId,
@@ -59,7 +108,7 @@ export function buildMatchPlayerView(params: {
     currentQuarter: pureProjection.currentQuarter,
     round: pureProjection.round,
     players,
-    self: pureProjection.self,
+    self: enrichedSelf,
     activeTransaction: pureProjection.activeTransaction,
   };
 }

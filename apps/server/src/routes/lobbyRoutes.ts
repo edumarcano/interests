@@ -1,10 +1,11 @@
+import { SESSION_COOKIE_NAME } from "@interests/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { ServerConfig } from "../config.js";
 import { LobbyError } from "../lobby/errors.js";
 import type { LobbyRepository } from "../lobby/types.js";
 import type { RoomConnectionCoordinator } from "../realtime/RoomConnectionCoordinator.js";
 
-const COOKIE_NAME = "finance_game_session";
+const COOKIE_NAME = SESSION_COOKIE_NAME;
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
 export interface LobbyRouteOptions {

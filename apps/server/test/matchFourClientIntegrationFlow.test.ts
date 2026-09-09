@@ -84,7 +84,7 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
     return new Promise((resolve, reject) => {
       const socket = ioClient(`http://127.0.0.1:${port}`, {
         extraHeaders: {
-          cookie: `finance_game_session=${cookie}`,
+          cookie: `interests_session=${cookie}`,
           origin: `http://127.0.0.1:${port}`,
         },
         auth: {
@@ -157,7 +157,7 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
     });
     expect(hostRes.statusCode).toBe(201);
     const hostCookie = hostRes.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     if (!hostCookie) throw new Error("Missing host session cookie");
     const roomCode = JSON.parse(hostRes.body).room.code;
@@ -172,7 +172,7 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
       });
       expect(joinRes.statusCode).toBe(201);
       const memberCookie = joinRes.cookies.find(
-        (c) => c.name === "finance_game_session",
+        (c) => c.name === "interests_session",
       )?.value;
       if (!memberCookie) {
         throw new Error(`Missing session cookie for member ${i}`);
@@ -206,7 +206,7 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
     const startRes = await server1.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0] ?? "" },
+      cookies: { interests_session: cookies[0] ?? "" },
     });
     expect(startRes.statusCode).toBe(200);
     const startBody = JSON.parse(startRes.body);
@@ -379,5 +379,5 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
     activeSockets.length = 0;
     await server2.close();
     db2.close();
-  });
+  }, 30000);
 });

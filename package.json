@@ -6,6 +6,9 @@
   "main": "index.js",
   "scripts": {
     "dev:server": "pnpm --filter @interests/server dev",
+    "dev:web": "pnpm --filter @interests/web dev",
+    "dev": "pnpm --parallel --filter @interests/server --filter @interests/web dev",
+    "build:web": "pnpm --filter @interests/web build",
     "typecheck": "pnpm -r exec tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",

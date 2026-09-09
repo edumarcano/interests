@@ -3,7 +3,7 @@ import {
   createGame,
   projectPlayerGameState,
 } from "@interests/engine";
-import { asPlayerId } from "@interests/shared";
+import { asPlayerId, type RoomMemberId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
 
 describe("Match Domain - Engine Command Adapter and Privacy Projection", () => {
@@ -230,5 +230,98 @@ describe("Match Domain - Engine Command Adapter and Privacy Projection", () => {
       activeSpotlightPlayerId: null,
       spotlightsCompleted: 0,
     });
+  });
+
+  it("enriches self with presentation metadata without leaking other players' secrets in buildMatchPlayerView", async () => {
+    const { buildMatchPlayerView } = await import("../src/match/projection.js");
+    type MatchMemberRecord = import("../src/match/types.js").MatchMemberRecord;
+    type MatchRoomMember = import("../src/match/types.js").MatchRoomMember;
+    const state = createInitialGame();
+    const hostMemberId = "member-host" as RoomMemberId;
+    const roomMembers: MatchRoomMember[] = [
+      {
+        id: "member-host" as RoomMemberId,
+        roomId: "r1" as any,
+        nickname: "HostNick",
+        nicknameKey: "hostnick",
+        joinOrder: 1,
+        createdAt: "",
+      },
+      {
+        id: "member-2" as RoomMemberId,
+        roomId: "r1" as any,
+        nickname: "P2Nick",
+        nicknameKey: "p2nick",
+        joinOrder: 2,
+        createdAt: "",
+      },
+      {
+        id: "member-3" as RoomMemberId,
+        roomId: "r1" as any,
+        nickname: "P3Nick",
+        nicknameKey: "p3nick",
+        joinOrder: 3,
+        createdAt: "",
+      },
+      {
+        id: "member-4" as RoomMemberId,
+        roomId: "r1" as any,
+        nickname: "P4Nick",
+        nicknameKey: "p4nick",
+        joinOrder: 4,
+        createdAt: "",
+      },
+    ];
+    const matchMembers: MatchMemberRecord[] = [
+      {
+        matchId: "m1" as any,
+        playerId: p1,
+        roomMemberId: "member-host" as RoomMemberId,
+        playerOrder: 1,
+      },
+      {
+        matchId: "m1" as any,
+        playerId: p2,
+        roomMemberId: "member-2" as RoomMemberId,
+        playerOrder: 2,
+      },
+      {
+        matchId: "m1" as any,
+        playerId: p3,
+        roomMemberId: "member-3" as RoomMemberId,
+        playerOrder: 3,
+      },
+      {
+        matchId: "m1" as any,
+        playerId: p4,
+        roomMemberId: "member-4" as RoomMemberId,
+        playerOrder: 4,
+      },
+    ];
+
+    const view = buildMatchPlayerView({
+      gameState: state,
+      targetPlayerId: p1,
+      roomMembers,
+      matchMembers,
+      hostMemberId,
+    });
+
+    // Enriched self view
+    expect(view.self.playerId).toBe(p1);
+    expect(view.self.profile).toBeDefined();
+    expect(view.self.profile?.name).toBeTruthy();
+    expect(view.self.offeredObjectives).toBeDefined();
+    expect(view.self.offeredObjectives).toHaveLength(2);
+    expect(view.self.offeredObjectives?.[0]?.name).toBeTruthy();
+    expect(view.self.offeredObjectives?.[0]?.family).toBeTruthy();
+
+    // Other players have only public summary and no profile/objective leaks
+    for (const player of view.players) {
+      if (player.playerId !== p1) {
+        expect("profile" in player).toBe(false);
+        expect("offeredObjectives" in player).toBe(false);
+      }
+    }
   });
 });

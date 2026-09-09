@@ -8,8 +8,8 @@ describe("workspace foundation", () => {
     expect(WORKSPACE_COMPATIBILITY).toEqual({
       engine: "0.0.2",
       rules: "0.0.1",
-      shared: "0.0.2",
-      rulesShared: "0.0.2",
+      shared: "0.0.3",
+      rulesShared: "0.0.3",
     });
   });
 });

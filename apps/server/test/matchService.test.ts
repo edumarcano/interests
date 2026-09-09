@@ -89,7 +89,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const hostBody = JSON.parse(hostRes.body);
     const roomCode = hostBody.room.code;
     const hostCookie = hostRes.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     if (!hostCookie) throw new Error("Host cookie missing");
 
@@ -99,7 +99,7 @@ describe("MatchService and Realtime Pipeline", () => {
       payload: { nickname: "Player2" },
     });
     const p2Cookie = p2Res.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     if (!p2Cookie) throw new Error("P2 cookie missing");
 
@@ -109,7 +109,7 @@ describe("MatchService and Realtime Pipeline", () => {
       payload: { nickname: "Player3" },
     });
     const p3Cookie = p3Res.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     if (!p3Cookie) throw new Error("P3 cookie missing");
 
@@ -119,7 +119,7 @@ describe("MatchService and Realtime Pipeline", () => {
       payload: { nickname: "Player4" },
     });
     const p4Cookie = p4Res.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     if (!p4Cookie) throw new Error("P4 cookie missing");
 
@@ -137,7 +137,7 @@ describe("MatchService and Realtime Pipeline", () => {
       const socket = ioClient(`http://127.0.0.1:${serverPort}`, {
         transports: ["websocket"],
         extraHeaders: {
-          cookie: `finance_game_session=${cookieVal}`,
+          cookie: `interests_session=${cookieVal}`,
           origin: `http://127.0.0.1:${serverPort}`,
         },
         auth: {
@@ -185,7 +185,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const nonHostRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: nonHostCookie },
+      cookies: { interests_session: nonHostCookie },
     });
     expect(nonHostRes.statusCode).toBe(403);
     const nonHostBody = JSON.parse(nonHostRes.body);
@@ -195,7 +195,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const unsyncedStartRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
     expect(unsyncedStartRes.statusCode).toBe(409);
     const unsyncedBody = JSON.parse(unsyncedStartRes.body);
@@ -225,7 +225,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
     expect(startRes.statusCode).toBe(200);
     const startBody = JSON.parse(startRes.body);
@@ -239,7 +239,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const p2MatchRes = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${roomCode}/match`,
-      cookies: { finance_game_session: p2Cookie },
+      cookies: { interests_session: p2Cookie },
     });
     expect(p2MatchRes.statusCode).toBe(200);
     const p2View = JSON.parse(p2MatchRes.body).match as MatchPlayerView;
@@ -256,7 +256,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const getMatchRes = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${roomCode}/match`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
     expect(getMatchRes.statusCode).toBe(200);
     expect(getMatchRes.headers["cache-control"]).toBe("no-store");
@@ -267,7 +267,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const secondStartRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
     expect(secondStartRes.statusCode).toBe(200);
     const secondStartBody = JSON.parse(secondStartRes.body);
@@ -296,7 +296,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
     const startBody = JSON.parse(startRes.body);
     const hostView = startBody.match as MatchPlayerView;
@@ -436,7 +436,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
     const startBody = JSON.parse(startRes.body);
     const hostView = startBody.match as MatchPlayerView;
@@ -553,12 +553,12 @@ describe("MatchService and Realtime Pipeline", () => {
       server.fastify.inject({
         method: "POST",
         url: `/api/rooms/${roomCode}/start`,
-        cookies: { finance_game_session: hostCookie },
+        cookies: { interests_session: hostCookie },
       }),
       server.fastify.inject({
         method: "POST",
         url: `/api/rooms/${roomCode}/start`,
-        cookies: { finance_game_session: hostCookie },
+        cookies: { interests_session: hostCookie },
       }),
     ]);
 
@@ -600,7 +600,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
     const startBody = JSON.parse(startRes.body);
     const hostView = startBody.match as MatchPlayerView;
@@ -610,7 +610,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const p2Res = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${roomCode}/match`,
-      cookies: { finance_game_session: p2Cookie },
+      cookies: { interests_session: p2Cookie },
     });
     const p2View = JSON.parse(p2Res.body).match as MatchPlayerView;
 
@@ -691,7 +691,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
     const hostView = JSON.parse(startRes.body).match as MatchPlayerView;
     const chosenObjective = hostView.self.offeredObjectiveIds[0];
@@ -758,7 +758,7 @@ describe("MatchService and Realtime Pipeline", () => {
     await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
 
     // Deliberately corrupt the persisted match record: tamper revision column to 999
@@ -770,7 +770,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const getRes = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${roomCode}/match`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
 
     expect(getRes.statusCode).toBe(500);
@@ -809,7 +809,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
     expect(startRes.statusCode).toBe(200);
     const startBody = JSON.parse(startRes.body);
@@ -854,7 +854,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const httpRes = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${roomCode}/match`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
     expect(httpRes.statusCode).toBe(500);
     const httpBody = JSON.parse(httpRes.body);
@@ -895,7 +895,7 @@ describe("MatchService and Realtime Pipeline", () => {
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: hostCookie },
+      cookies: { interests_session: hostCookie },
     });
     const hostView = JSON.parse(startRes.body).match as MatchPlayerView;
     const chosenObjective = hostView.self.offeredObjectiveIds[0];

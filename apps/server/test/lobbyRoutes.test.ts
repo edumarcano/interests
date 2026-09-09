@@ -22,10 +22,10 @@ function getSessionCookie(res: {
     secure?: boolean;
   }>;
 }) {
-  const cookie = res.cookies.find((c) => c.name === "finance_game_session");
+  const cookie = res.cookies.find((c) => c.name === "interests_session");
   expect(cookie).toBeDefined();
   if (!cookie) {
-    throw new Error("Expected finance_game_session cookie to be present");
+    throw new Error("Expected interests_session cookie to be present");
   }
   return cookie;
 }
@@ -172,7 +172,7 @@ describe("HTTP Lobby Routes", () => {
     const authRes = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${code}`,
-      cookies: { finance_game_session: sessionCookie.value },
+      cookies: { interests_session: sessionCookie.value },
     });
     expect(authRes.statusCode).toBe(200);
     const body = JSON.parse(authRes.body);
@@ -194,7 +194,7 @@ describe("HTTP Lobby Routes", () => {
     const forbiddenRes = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${otherCode}`,
-      cookies: { finance_game_session: sessionCookie.value },
+      cookies: { interests_session: sessionCookie.value },
     });
     expect(forbiddenRes.statusCode).toBe(403);
     expect(JSON.parse(forbiddenRes.body).error.code).toBe("NOT_A_ROOM_MEMBER");
@@ -212,7 +212,7 @@ describe("HTTP Lobby Routes", () => {
     const sessionRes = await server.fastify.inject({
       method: "GET",
       url: "/api/session",
-      cookies: { finance_game_session: sessionCookie.value },
+      cookies: { interests_session: sessionCookie.value },
     });
 
     expect(sessionRes.statusCode).toBe(200);
@@ -253,7 +253,7 @@ describe("HTTP Lobby Routes", () => {
     const oldRes = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${code}`,
-      cookies: { finance_game_session: oldCookie.value },
+      cookies: { interests_session: oldCookie.value },
     });
     expect(oldRes.statusCode).toBe(403);
     expect(JSON.parse(oldRes.body).error.code).toBe("NOT_A_ROOM_MEMBER");
@@ -283,7 +283,7 @@ describe("HTTP Lobby Routes", () => {
     const recoverRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${code}/recover`,
-      cookies: { finance_game_session: joinCookie.value },
+      cookies: { interests_session: joinCookie.value },
       payload: { recoveryCode: hostRecoveryCode },
     });
 
@@ -295,7 +295,7 @@ describe("HTTP Lobby Routes", () => {
     const verifyRes = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${code}`,
-      cookies: { finance_game_session: joinCookie.value },
+      cookies: { interests_session: joinCookie.value },
     });
     expect(verifyRes.statusCode).toBe(200);
     const verifyBody = JSON.parse(verifyRes.body);
@@ -315,7 +315,7 @@ describe("HTTP Lobby Routes", () => {
     const rotateRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${code}/recovery-code`,
-      cookies: { finance_game_session: cookie.value },
+      cookies: { interests_session: cookie.value },
     });
 
     expect(rotateRes.statusCode).toBe(200);

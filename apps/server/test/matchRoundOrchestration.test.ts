@@ -88,7 +88,7 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     const hostBody = JSON.parse(hostRes.body);
     const roomCode = hostBody.room.code;
     const hostCookie = hostRes.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     if (!hostCookie) throw new Error("Host cookie missing");
 
@@ -100,7 +100,7 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
         payload: { nickname: `Player${i}` },
       });
       const cookie = joinRes.cookies.find(
-        (c) => c.name === "finance_game_session",
+        (c) => c.name === "interests_session",
       )?.value;
       if (!cookie) throw new Error(`Player ${i} cookie missing`);
       cookies.push(cookie);
@@ -117,7 +117,7 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
       const socket = ioClient(`http://127.0.0.1:${serverPort}`, {
         transports: ["websocket"],
         extraHeaders: {
-          cookie: `finance_game_session=${cookieVal}`,
+          cookie: `interests_session=${cookieVal}`,
           origin: `http://127.0.0.1:${serverPort}`,
         },
         auth: {
@@ -196,7 +196,7 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     const startRes = await server.fastify.inject({
       method: "POST",
       url: `/api/rooms/${roomCode}/start`,
-      cookies: { finance_game_session: cookies[0]! },
+      cookies: { interests_session: cookies[0]! },
     });
     const startBody = JSON.parse(startRes.body);
     const matchId = startBody.match.matchId;
@@ -206,7 +206,7 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
       const getMatchRes = await server.fastify.inject({
         method: "GET",
         url: `/api/rooms/${roomCode}/match`,
-        cookies: { finance_game_session: cookies[i]! },
+        cookies: { interests_session: cookies[i]! },
       });
       const pView = JSON.parse(getMatchRes.body).match as MatchPlayerView;
       const offer = pView.self.offeredObjectiveIds[0]!;
@@ -245,7 +245,7 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     const getMatchRes = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${roomCode}/match`,
-      cookies: { finance_game_session: cookies[0]! },
+      cookies: { interests_session: cookies[0]! },
     });
     const matchView = JSON.parse(getMatchRes.body).match as MatchPlayerView;
     expect(matchView.revision).toBe(5);

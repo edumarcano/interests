@@ -50,7 +50,7 @@ describe("Security and Privacy boundaries", () => {
     const body = JSON.parse(createRes.body);
     const recoveryCode = body.self.recoveryCode;
     const sessionCookie = createRes.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
 
     expect(recoveryCode).toBeDefined();
@@ -99,7 +99,7 @@ describe("Security and Privacy boundaries", () => {
     });
     const code = JSON.parse(p1Res.body).room.code;
     const p1Cookie = p1Res.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     expect(p1Cookie).toBeDefined();
     if (!p1Cookie) throw new Error("p1Cookie not found");
@@ -115,7 +115,7 @@ describe("Security and Privacy boundaries", () => {
     const getRes = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${code}`,
-      cookies: { finance_game_session: p1Cookie },
+      cookies: { interests_session: p1Cookie },
     });
     const getBodyStr = getRes.body;
 
@@ -140,7 +140,7 @@ describe("Security and Privacy boundaries", () => {
     });
 
     const cookie1 = r1.cookies.find(
-      (c) => c.name === "finance_game_session",
+      (c) => c.name === "interests_session",
     )?.value;
     expect(cookie1).toBeDefined();
     if (!cookie1) throw new Error("cookie1 not found");
@@ -150,7 +150,7 @@ describe("Security and Privacy boundaries", () => {
     const res = await server.fastify.inject({
       method: "GET",
       url: `/api/rooms/${code2}`,
-      cookies: { finance_game_session: cookie1 },
+      cookies: { interests_session: cookie1 },
     });
 
     expect(res.statusCode).toBe(403);

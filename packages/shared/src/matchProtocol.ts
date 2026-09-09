@@ -39,11 +39,29 @@ export interface MatchPlayerSummaryView {
   readonly hasSelectedObjective: boolean;
 }
 
+export interface MatchProfileView {
+  readonly id: string;
+  readonly name: string;
+  readonly startingCashCents?: number;
+}
+
+export interface MatchObjectiveOptionView {
+  readonly id: string;
+  readonly name: string;
+  readonly family: string;
+}
+
 export interface MatchSelfView {
   readonly playerId: PlayerId;
   readonly profileId: string;
+  readonly profile?: MatchProfileView;
   readonly offeredObjectiveIds: readonly [string, string];
+  readonly offeredObjectives?: readonly [
+    MatchObjectiveOptionView,
+    MatchObjectiveOptionView,
+  ];
   readonly selectedObjectiveId: string | null;
+  readonly selectedObjective?: MatchObjectiveOptionView | null;
 }
 
 export interface ActiveTransactionSummaryView {
