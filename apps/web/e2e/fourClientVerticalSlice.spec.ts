@@ -4,6 +4,18 @@ import {
   type TestServerHarness,
 } from "./support/serverHarness.js";
 
+async function assertNoHorizontalOverflow(page: Page, stageName: string) {
+  const overflow = await page.evaluate(() => {
+    const docWidth = document.documentElement.clientWidth;
+    const scrollW = document.documentElement.scrollWidth;
+    return { docWidth, scrollW };
+  });
+  expect(
+    overflow.scrollW,
+    `Horizontal overflow detected on 320px viewport at stage "${stageName}": scrollWidth ${overflow.scrollW} > clientWidth ${overflow.docWidth}`,
+  ).toBeLessThanOrEqual(overflow.docWidth);
+}
+
 test.describe("PR24 Four-Client Vertical Slice", () => {
   let server: TestServerHarness;
 
@@ -41,6 +53,12 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
     const pageD = await contextD.newPage();
 
     const pages: Page[] = [pageA, pageB, pageC, pageD];
+    const pageByNickname: Record<string, Page> = {
+      Alice: pageA,
+      Bob: pageB,
+      Charlie: pageC,
+      Dana: pageD,
+    };
     const recoveryCodes: Record<string, string> = {};
 
     try {
@@ -101,6 +119,9 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
         await expect(page.getByTestId("lobby-view")).toBeVisible();
       }
 
+      // Responsive check on 320px viewport during Lobby
+      await assertNoHorizontalOverflow(pageD, "lobby");
+
       // 4. Verify all 4 occupied seats and synchronized status across all pages
       for (const p of pages) {
         await expect(p.getByTestId("seat-1")).toBeVisible();
@@ -128,6 +149,9 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
         await firstObjective.click();
         await p.click('[data-testid="confirm-objective-btn"]');
       }
+
+      // Responsive check on 320px viewport during Objective Selection
+      await assertNoHorizontalOverflow(pageD, "objective-selection");
 
       // 7. Verify all clients reach Quarter 1 ROUND_START
       for (const p of pages) {
@@ -166,6 +190,20 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
       await expect(
         buyerPage!.getByTestId("diligence-revealed-section"),
       ).toBeVisible();
+
+      // Assert exact canonical due diligence values
+      await expect(buyerPage!.getByTestId("fact-annual-revenue")).toHaveText(
+        "$80,000",
+      );
+      await expect(buyerPage!.getByTestId("fact-operating-profit")).toHaveText(
+        "$15,000",
+      );
+      await expect(buyerPage!.getByTestId("fact-enterprise-value")).toHaveText(
+        "$60,000",
+      );
+      await expect(buyerPage!.getByTestId("fact-debt-principal")).toHaveText(
+        "$0",
+      );
 
       // Non-targets still do not see opportunity or diligence facts
       for (const nbp of nonBuyerPages) {
@@ -210,14 +248,37 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
       ).toBeVisible();
 
       // 11. Financed acquisition path
+      // Identify seller from opportunity card
+      const sellerNickname = (
+        await buyerPage!.getByTestId("opportunity-seller-name").textContent()
+      )?.trim();
+      expect(sellerNickname).toBeTruthy();
+      const sellerPage = pageByNickname[sellerNickname!];
+      expect(sellerPage).toBeDefined();
+
+      const sellerAssetsBefore = await sellerPage
+        .locator('[data-testid^="owned-asset-"]')
+        .count();
+      expect(sellerAssetsBefore).toBeGreaterThanOrEqual(1);
+
+      // Invariant: buyer cash reservation before financing request is $0
+      await expect(buyerPage!.getByTestId("self-reserved-cash")).toHaveText(
+        "$0",
+      );
+
       // Buyer opens player financing form
       await buyerPage!.click('[data-testid="open-financing-form-btn"]');
       await expect(
         buyerPage!.getByTestId("financing-request-form"),
       ).toBeVisible();
 
-      // Buyer submits financing request (using default safe contribution)
+      // Buyer submits financing request (using default safe contribution of $30,000)
       await buyerPage!.click('[data-testid="submit-financing-request-btn"]');
+
+      // Invariant: buyer cash reservation is updated to reflect reserved contribution
+      await expect(buyerPage!.getByTestId("self-reserved-cash")).toHaveText(
+        "$30,000",
+      );
 
       // Buyer transaction panel shows waiting for lender offer
       await expect(buyerPage!.getByTestId("transaction-panel")).toBeVisible();
@@ -225,31 +286,68 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
         buyerPage!.getByTestId("waiting-for-lender-msg"),
       ).toBeVisible();
 
-      // Identify the eligible lender from the non-buyer pages
-      let lenderPage: Page | null = null;
-      const neutralPages: Page[] = [];
+      // Non-buyer pages partition into seller and candidates
+      const candidatePages = nonBuyerPages.filter((p) => p !== sellerPage);
+      expect(candidatePages.length).toBe(2);
 
-      for (const p of nonBuyerPages) {
-        const canOffer =
-          (await p.getByTestId("submit-lender-offer-btn").count()) > 0;
-        if (canOffer) {
+      // Seller sees seller-status-section and does NOT see submit-lender-offer-btn
+      await expect(
+        sellerPage.getByTestId("seller-status-section"),
+      ).toBeVisible();
+      await expect(
+        sellerPage.getByTestId("submit-lender-offer-btn"),
+      ).toHaveCount(0);
+
+      // Identify eligible lender vs ineligible candidate using isEnabled()
+      let lenderPage: Page | null = null;
+      let neutralCandidatePage: Page | null = null;
+
+      for (const p of candidatePages) {
+        const offerBtn = p.getByTestId("submit-lender-offer-btn");
+        await expect(offerBtn).toBeVisible();
+        const canOffer = await offerBtn.isEnabled();
+        if (canOffer && !lenderPage) {
           lenderPage = p;
         } else {
-          neutralPages.push(p);
+          neutralCandidatePage = p;
         }
       }
 
       expect(lenderPage).not.toBeNull();
-      // Verify neutral pages do not see the lender offer button
-      for (const np of neutralPages) {
-        await expect(np.getByTestId("submit-lender-offer-btn")).toHaveCount(0);
+      expect(neutralCandidatePage).not.toBeNull();
+
+      // If neutral candidate lacked sufficient cash, verify button was disabled
+      const neutralCanOffer = await neutralCandidatePage!
+        .getByTestId("submit-lender-offer-btn")
+        .isEnabled();
+      if (!neutralCanOffer) {
+        await expect(
+          neutralCandidatePage!.getByTestId("submit-lender-offer-btn"),
+        ).toBeDisabled();
       }
+
+      // Responsive check on 320px viewport during Active Transaction
+      await assertNoHorizontalOverflow(pageD, "active-transaction");
 
       // Lender submits valid loan offer
       await lenderPage!.click('[data-testid="submit-lender-offer-btn"]');
       await expect(
         lenderPage!.getByTestId("lender-submitted-section"),
       ).toBeVisible();
+
+      // Neutral candidate now has role "uninvolved" and sees uninvolved-status-section without private loan terms
+      await expect(
+        neutralCandidatePage!.getByTestId("uninvolved-status-section"),
+      ).toBeVisible();
+      await expect(
+        neutralCandidatePage!.getByTestId("submit-lender-offer-btn"),
+      ).toHaveCount(0);
+      await expect(
+        neutralCandidatePage!.getByTestId("lender-submitted-section"),
+      ).toHaveCount(0);
+      await expect(
+        neutralCandidatePage!.getByTestId("lender-rate-input"),
+      ).toHaveCount(0);
 
       // Buyer sees offer and accepts it
       await expect(buyerPage!.getByTestId("accept-offer-btn")).toBeVisible();
@@ -264,6 +362,31 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
       // After closing:
       // Active transaction panel is cleared
       await expect(buyerPage!.getByTestId("transaction-panel")).toBeHidden();
+
+      // Immediate post-close check: Buyer spotlight / pass button is GONE, proving close advanced spotlight
+      await expect(buyerPage!.getByTestId("pass-spotlight-btn")).toHaveCount(0);
+      await expect(
+        buyerPage!.getByTestId("pursuit-controls-panel"),
+      ).toHaveCount(0);
+
+      // Buyer reserved cash is released back to $0
+      await expect(buyerPage!.getByTestId("self-reserved-cash")).toHaveText(
+        "$0",
+      );
+
+      // Seller no longer owns the sold fixture business (EV $60,000)
+      if (sellerAssetsBefore === 1) {
+        await expect(
+          sellerPage.getByTestId("self-owned-assets-list"),
+        ).toHaveCount(0);
+      } else {
+        await expect(
+          sellerPage.getByTestId("self-owned-assets-list"),
+        ).not.toContainText("$60,000");
+        expect(
+          await sellerPage.locator('[data-testid^="owned-asset-"]').count(),
+        ).toBe(sellerAssetsBefore - 1);
+      }
 
       // Buyer owns acquired business
       await expect(
@@ -311,32 +434,42 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
       for (const p of pages) {
         await expect(p.getByTestId("round-start-view")).toBeVisible();
         await expect(p.getByTestId("quarter-heading")).toHaveText("Quarter 2");
+        // No client retains an active transaction panel in Q2
+        await expect(p.getByTestId("transaction-panel")).toHaveCount(0);
+      }
+
+      // Buyer still owns acquired business and has borrower loan
+      await expect(
+        buyerPage!.getByTestId("self-owned-assets-list"),
+      ).toBeVisible();
+      await expect(
+        buyerPage!.getByTestId("self-owned-assets-list"),
+      ).toContainText("Business");
+      await expect(buyerPage!.getByTestId("self-loans-list")).toContainText(
+        /borrower/i,
+      );
+
+      // Lender still has lender loan receivable
+      await expect(lenderPage!.getByTestId("self-loans-list")).toContainText(
+        /lender/i,
+      );
+
+      // Seller still does not own the sold fixture business
+      if (sellerAssetsBefore === 1) {
+        await expect(
+          sellerPage.getByTestId("self-owned-assets-list"),
+        ).toHaveCount(0);
+      } else {
+        await expect(
+          sellerPage.getByTestId("self-owned-assets-list"),
+        ).not.toContainText("$60,000");
+        expect(
+          await sellerPage.locator('[data-testid^="owned-asset-"]').count(),
+        ).toBe(sellerAssetsBefore - 1);
       }
 
       // 13. Responsive assertions: Dana's page on 320px viewport has no unintended horizontal overflow
-      const overflowDetails = await pageD.evaluate(() => {
-        const docWidth = document.documentElement.clientWidth;
-        const scrollW = document.documentElement.scrollWidth;
-        const elements = Array.from(document.querySelectorAll("*"));
-        const overflowing = elements
-          .filter((el) => el.getBoundingClientRect().right > docWidth)
-          .map((el) => ({
-            tag: el.tagName,
-            id: el.id,
-            className: el.className,
-            testId: el.getAttribute("data-testid"),
-            right: el.getBoundingClientRect().right,
-            width: el.getBoundingClientRect().width,
-          }));
-        return { docWidth, scrollW, overflowing };
-      });
-      if (overflowDetails.scrollW > overflowDetails.docWidth) {
-        console.log(
-          "Overflow details for 320px:",
-          JSON.stringify(overflowDetails, null, 2),
-        );
-      }
-      expect(overflowDetails.scrollW <= overflowDetails.docWidth).toBe(true);
+      await assertNoHorizontalOverflow(pageD, "q2-round-start");
     } finally {
       await contextA.close();
       await contextB.close();

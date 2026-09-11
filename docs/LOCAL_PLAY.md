@@ -28,7 +28,7 @@ scripts\play-interests.cmd
 
 ### What this does:
 1. Verifies that the web client bundle (`apps/web/dist`) is built. If missing, automatically runs `pnpm build:web`.
-2. Binds the authoritative Fastify + Socket.IO + SQLite server to `0.0.0.0:3000` (or `SERVER_HOST` / `SERVER_PORT` from environment).
+2. Binds the authoritative Fastify + Socket.IO + SQLite server to `0.0.0.0:3000` (or `INTERESTS_HOST` / `INTERESTS_PORT` from environment).
 3. Detects available private LAN IP addresses and logs:
    - **Local origin**: `http://localhost:3000` (for the host device)
    - **LAN origin(s)**: `http://<lan-ip>:3000` (for other devices on the Wi-Fi network)
@@ -40,11 +40,12 @@ scripts\play-interests.cmd
 
 By default, the SQLite database is located at:
 ```text
-apps/server/interests.db
+./data/interests.sqlite
 ```
-To specify a different location, set the `DATABASE_PATH` environment variable before running:
+(relative to `apps/server/`, created automatically if it does not exist).
+To specify a different location, set the `INTERESTS_DB_PATH` environment variable before running:
 ```bash
-DATABASE_PATH=./data/my-game.db pnpm play
+INTERESTS_DB_PATH=./data/my-game.sqlite pnpm play
 ```
 
 ---

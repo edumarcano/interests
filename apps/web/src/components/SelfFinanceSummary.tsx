@@ -28,15 +28,53 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
     >
       <div
         style={{
-          fontSize: "0.8rem",
-          fontWeight: 700,
-          color: "var(--text-muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
           marginBottom: "0.75rem",
+          flexWrap: "wrap",
+          gap: "0.5rem",
         }}
       >
-        Your Financial Position
+        <div
+          style={{
+            fontSize: "0.8rem",
+            fontWeight: 700,
+            color: "var(--text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}
+        >
+          Your Financial Position
+          {self.profileId && (
+            <span
+              style={{
+                marginLeft: "0.5rem",
+                color: "var(--accent-gold)",
+                fontWeight: 600,
+                textTransform: "none",
+              }}
+              data-testid="self-profile-id"
+            >
+              ({self.profileId})
+            </span>
+          )}
+        </div>
+        {self.selectedObjectiveId && (
+          <div
+            style={{
+              fontSize: "0.8rem",
+              background: "var(--bg-surface-elevated)",
+              padding: "0.2rem 0.5rem",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border-subtle)",
+              color: "var(--text-secondary)",
+            }}
+            data-testid="self-selected-objective"
+          >
+            Objective: <strong>{self.selectedObjectiveId}</strong>
+          </div>
+        )}
       </div>
 
       <div

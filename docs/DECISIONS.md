@@ -712,8 +712,8 @@ Establish the Milestone-6 hardening architecture for physical local/LAN multi-de
 
 5. **Restartable Process Test Harness:**
    - `apps/web/e2e/support/serverHarness.ts` provides real process lifecycle management (`tsx src/main.ts`) using isolated temporary SQLite databases and dynamic port assignment.
-   - Supports clean process termination (`SIGINT`) and process restart against the identical SQLite database file.
-   - Disables HTTP rate limiting for E2E speed via `RATE_LIMIT_MAX=100000`.
+   - Supports clean process termination (`SIGTERM` with `SIGKILL` timeout fallback) and process restart against the identical SQLite database file.
+   - Disables HTTP rate limiting for E2E speed via `INTERESTS_RATE_LIMIT_DISABLED=true`.
 
 6. **Local Play Launcher (`pnpm play`):**
    - Root script `scripts/play.ts` and Windows convenience script `scripts/play-interests.cmd` launch the single-origin server on `0.0.0.0:3000`.

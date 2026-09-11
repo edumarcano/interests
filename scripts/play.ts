@@ -23,8 +23,8 @@ if (!fs.existsSync(indexHtml)) {
   }
 }
 
-const host = process.env.SERVER_HOST || "0.0.0.0";
-const port = process.env.SERVER_PORT || "3000";
+const host = process.env.INTERESTS_HOST || "0.0.0.0";
+const port = process.env.INTERESTS_PORT || "3000";
 
 console.log(`Starting server on ${host}:${port}...`);
 
@@ -34,9 +34,9 @@ const serverProc = spawn("pnpm", ["--filter", "@interests/server", "start"], {
   shell: true,
   env: {
     ...process.env,
-    SERVER_HOST: host,
-    SERVER_PORT: port,
-    STATIC_ROOT: webDistDir,
+    INTERESTS_HOST: host,
+    INTERESTS_PORT: port,
+    INTERESTS_STATIC_ROOT: webDistDir,
   },
 });
 

@@ -133,6 +133,7 @@ export const RoundStartView: React.FC<Props> = ({
                     color: "var(--text-muted)",
                     fontWeight: 600,
                   }}
+                  data-testid={`seat-${idx + 1}`}
                 >
                   TURN {idx + 1}
                 </div>
