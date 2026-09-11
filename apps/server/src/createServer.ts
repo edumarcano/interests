@@ -1,5 +1,8 @@
+import fs from "node:fs";
+import path from "node:path";
 import fastifyCookie from "@fastify/cookie";
 import fastifyRateLimit from "@fastify/rate-limit";
+import fastifyStatic from "@fastify/static";
 import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
@@ -165,6 +168,41 @@ export function createServer(options: CreateServerOptions = {}): GameServer {
         matchService,
       });
     }
+  }
+
+  if (config.staticRoot && fs.existsSync(config.staticRoot)) {
+    const resolvedStaticRoot = path.resolve(config.staticRoot);
+    fastify.register(fastifyStatic, {
+      root: resolvedStaticRoot,
+      prefix: "/",
+      wildcard: false,
+    });
+
+    fastify.setNotFoundHandler(async (request, reply) => {
+      const url = request.raw.url || "";
+      if (url.startsWith("/api") || url.startsWith("/socket.io")) {
+        return reply.status(404).send({
+          error: {
+            code: "NOT_FOUND",
+            message: "Route not found",
+          },
+        });
+      }
+
+      if (request.method === "GET" || request.method === "HEAD") {
+        const indexFile = path.join(resolvedStaticRoot, "index.html");
+        if (fs.existsSync(indexFile)) {
+          return reply.sendFile("index.html");
+        }
+      }
+
+      return reply.status(404).send({
+        error: {
+          code: "NOT_FOUND",
+          message: "Not found",
+        },
+      });
+    });
   }
 
   fastify.addHook("onClose", async () => {

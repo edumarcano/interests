@@ -184,7 +184,23 @@ export class RealtimeManager {
     );
 
     socket.on(SOCKET_SERVER_EVENTS.PRESENCE, (payload: RoomPresencePayload) => {
+      const currentRoom = this.state.room;
+      let updatedRoom = currentRoom;
+      if (currentRoom && payload.members) {
+        updatedRoom = {
+          ...currentRoom,
+          memberCount: payload.members.length,
+          members: payload.members.map((p) => ({
+            memberId: p.memberId,
+            nickname: p.nickname,
+            joinOrder: p.joinOrder,
+            isHost: p.isHost,
+          })),
+        };
+      }
+
       this.updateState({
+        room: updatedRoom,
         presence: payload,
         pauseReasons: payload.pauseReasons,
       });

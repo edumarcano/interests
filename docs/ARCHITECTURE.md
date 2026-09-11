@@ -1,7 +1,7 @@
 # Interests - Technical Architecture
 
-> **Version:** 0.7  
-> **Date:** September 9, 2026  
+> **Version:** 0.8  
+> **Date:** September 10, 2026  
 > **Status:** Architecture baseline for implementation  
 > **Companion:** [GAME_DESIGN.md](GAME_DESIGN.md), canonical game design v0.4  
 > **Intended location:** `docs/ARCHITECTURE.md`
@@ -1211,6 +1211,7 @@ The game specification and subsequent agreed session requirements define this pr
 | 0.5 | September 8, 2026 | Durable match snapshots and idempotent command commits ([ARCH-033]): persistent four-seat match boundary, RoomMember->PlayerId mappings, complete GameState snapshot storage, per-room command queue, atomic SQLite command/receipt commit, SERVER_RESTART handling, and restart recovery. |
 | 0.6 | September 8, 2026 | Executable round-start and rotating spotlight state ([ARCH-034]): deterministic RoundState, host-only BEGIN_ROUND, rotating spotlight order, PASS_SPOTLIGHT command, atomic 4th spotlight close and quarter settlement, and durable match_events journal persistence. |
 | 0.7 | September 9, 2026 | First playable business opportunity and player-financing command loop ([ARCH-036]): deterministic Q1 fixture, background private diligence, spotlight-authorized cash and player-financed pursuit, off-spotlight lender participation, terminal close auto-advancing spotlight, atomic final close + settlement (+1 revision), role-aware allowlisted projections, and durable recovery. |
+| 0.8 | September 10, 2026 | Local single-origin runtime, LAN join discovery, and four-client E2E validation ([ARCH-037]): Fastify static web serving, public LAN runtime discovery, QR code join sharing, multi-context Playwright E2E suite, process restart test harness, and local play launcher. |
 
 
 [R1]: https://nodejs.org/en/about/previous-releases

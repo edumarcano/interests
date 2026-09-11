@@ -673,6 +673,55 @@ Establish the first playable financial-strategy loop (Milestone 6) across the en
    - No client-side game engine: the browser renders authoritative state views and dispatches commands.
    - Engine version bumped to `0.0.3`, Shared version bumped to `0.0.4`. Rules and persistence format versions remain unchanged.
 
+## ARCH-037 - Local single-origin runtime, LAN join discovery, and four-client E2E validation
+
+**Status:** Accepted  
+**Date:** September 10, 2026
+
+Establish the Milestone-6 hardening architecture for physical local/LAN multi-device play and browser end-to-end reliability:
+
+1. **Unified Single-Origin Fastify Static Delivery:**
+   - The Fastify server serves production static assets (`apps/web/dist`) via `@fastify/static` with an SPA HTML fallback handler when configured or when `apps/web/dist` exists.
+   - Eliminates Vite proxy ports, separate client servers, and CORS complexity during local LAN play.
+   - Preserves dedicated API and Socket.IO paths (`/api/*`, `/socket.io/*`) without shadowing.
+   - Server remains fully functional in headless/test configurations where static delivery is disabled.
+
+2. **Public LAN Runtime-Info Boundary:**
+   - A lightweight `GET /api/runtime-info` endpoint reports host LAN candidate origins (`lanOrigins`) discovered deterministically via `node:os.networkInterfaces()`.
+   - Prioritizes standard private network ranges (`192.168.x.x` > `10.x.x.x` > `172.16-31.x.x` > link-local).
+   - Excludes loopback (`127.0.0.1`, `localhost`) and internal interfaces.
+   - Returns public locator information only; never leaks session tokens, recovery credentials, member IDs, seeds, or private state.
+   - If no external interfaces are detected, returns an empty array allowing clients to fall back safely to `window.location.origin`.
+
+3. **Public Deep-Link and QR Privacy Rule:**
+   - Room codes are public locators, not authentication credentials.
+   - The lobby displays a copyable join link (`/?room=<ROOM_CODE>`) and renders an SVG QR code using `qrcode.react`.
+   - Scanning the QR code or following the link opens the Join Room tab with the room code pre-filled, prompting the user to choose their nickname.
+   - It does not auto-join a seat or bypass player consent.
+   - Recovery credentials and session cookies are strictly excluded from URLs, QR codes, and web storage.
+   - Shared version bumped to `0.0.5` for the `RuntimeInfoResponse` protocol type.
+
+4. **Playwright Multi-Context E2E Foundation:**
+   - Automated end-to-end tests use Playwright with four distinct `BrowserContext` instances to enforce real multi-user session boundaries (independent cookies and socket connections).
+   - Viewport configuration exercises realistic mixed clients: desktop host (1280x800), mobile clients (390x844), and narrow phone layout (320x568) with no horizontal overflow.
+   - Automated coverage tests:
+     - Full 4-player vertical slice: room creation, joining, objective selection, diligence discovery, player loan financing, transaction closing, and transition into Quarter 2.
+     - Disconnect & pause: player disconnect causes `DISCONNECTED_MEMBER` pause; reconnect does not auto-resume; host legally resumes.
+     - Recovery takeover: fresh browser context reclaims seat using recovery code; revokes previous controller.
+     - Server restart: process restart during active transaction restores exact state from SQLite and permits clean resumption and closing.
+
+5. **Restartable Process Test Harness:**
+   - `apps/web/e2e/support/serverHarness.ts` provides real process lifecycle management (`tsx src/main.ts`) using isolated temporary SQLite databases and dynamic port assignment.
+   - Supports clean process termination (`SIGINT`) and process restart against the identical SQLite database file.
+   - Disables HTTP rate limiting for E2E speed via `RATE_LIMIT_MAX=100000`.
+
+6. **Local Play Launcher (`pnpm play`):**
+   - Root script `scripts/play.ts` and Windows convenience script `scripts/play-interests.cmd` launch the single-origin server on `0.0.0.0:3000`.
+   - Automatically builds `apps/web/dist` if missing.
+   - Logs local and LAN access URLs and handles clean `SIGINT`/`SIGTERM` process shutdown.
+   - No Electron, Tauri, or native installer packaging in Milestone 6.
+
+
 
 
 

@@ -6,6 +6,7 @@ import type {
   JoinRoomResponse,
   RecoverRoomResponse,
   RotateRecoveryCodeResponse,
+  RuntimeInfoResponse,
   SessionBootstrapResponse,
   StartMatchResponse,
 } from "@interests/shared";
@@ -126,4 +127,12 @@ export async function getMatch(roomCode: string): Promise<GetMatchResponse> {
     credentials: "include",
   });
   return handleResponse<GetMatchResponse>(res);
+}
+
+export async function getRuntimeInfo(): Promise<RuntimeInfoResponse> {
+  const res = await fetch("/api/runtime-info", {
+    method: "GET",
+    credentials: "include",
+  });
+  return handleResponse<RuntimeInfoResponse>(res);
 }
