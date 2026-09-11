@@ -188,8 +188,8 @@ test.describe("PR24 Disconnect, Recovery Takeover, and Server Restart", () => {
       await expect(pageA.getByTestId("start-game-btn")).toBeEnabled();
       await pageA.click("#start-game-btn");
 
-      // Select objectives for all players and record Charlie's choice
-      let charlieSelectedObjectiveId = "";
+      // Select objectives for all players and record each player's choice
+      const selectedObjectiveByNickname: Record<string, string> = {};
       for (const { page, nickname } of [
         { page: pageA, nickname: "Alice" },
         { page: pageB, nickname: "Bob" },
@@ -202,15 +202,17 @@ test.describe("PR24 Disconnect, Recovery Takeover, and Server Restart", () => {
         const firstObj = page
           .locator('[data-testid^="objective-card-"]')
           .first();
-        if (nickname === "Charlie") {
-          const testId = await firstObj.getAttribute("data-testid");
-          charlieSelectedObjectiveId =
-            testId?.replace("objective-card-", "") ?? "";
-        }
+        const testId = await firstObj.getAttribute("data-testid");
+        const objId = testId?.replace("objective-card-", "") ?? "";
+        expect(objId.length).toBeGreaterThan(0);
+        selectedObjectiveByNickname[nickname] = objId;
+
         await firstObj.click();
         await page.click('[data-testid="confirm-objective-btn"]');
       }
 
+      const charlieSelectedObjectiveId =
+        selectedObjectiveByNickname["Charlie"]!;
       expect(charlieSelectedObjectiveId.length).toBeGreaterThan(0);
 
       // All 4 clients reach Quarter 1 ROUND_START
@@ -219,7 +221,7 @@ test.describe("PR24 Disconnect, Recovery Takeover, and Server Restart", () => {
         await expect(p.getByTestId("quarter-heading")).toHaveText("Quarter 1");
       }
 
-      // Record Charlie's private profile and starting cash from old pageC
+      // Record Charlie's private profile, starting cash, and private opportunity state from old pageC
       const charlieProfile = (
         await pageC.getByTestId("self-profile-id").textContent()
       )?.trim();
@@ -228,6 +230,16 @@ test.describe("PR24 Disconnect, Recovery Takeover, and Server Restart", () => {
       )?.trim();
       expect(charlieProfile).toBeTruthy();
       expect(charlieCash).toBeTruthy();
+
+      const charlieHadOpp =
+        (await pageC.getByTestId("private-opportunity-card").count()) > 0;
+      let charlieOppText = "";
+      if (charlieHadOpp) {
+        charlieOppText =
+          (
+            await pageC.getByTestId("private-opportunity-card").textContent()
+          )?.trim() ?? "";
+      }
 
       // Open a fresh 5th BrowserContext with NO cookies
       const contextCharlieNew = await browser.newContext();
@@ -258,6 +270,25 @@ test.describe("PR24 Disconnect, Recovery Takeover, and Server Restart", () => {
         pageCharlieNew.getByTestId("self-selected-objective"),
       ).toContainText(charlieSelectedObjectiveId);
 
+      // Verify Charlie's private opportunity presence and details match before and after recovery
+      if (charlieHadOpp) {
+        await expect(
+          pageCharlieNew.getByTestId("private-opportunity-card"),
+        ).toBeVisible();
+        if (charlieOppText) {
+          const recoveredOppText = (
+            await pageCharlieNew
+              .getByTestId("private-opportunity-card")
+              .textContent()
+          )?.trim();
+          expect(recoveredOppText).toBe(charlieOppText);
+        }
+      } else {
+        await expect(
+          pageCharlieNew.getByTestId("private-opportunity-card"),
+        ).toHaveCount(0);
+      }
+
       // Verify room has exactly four seats in spotlight order
       await expect(pageCharlieNew.getByTestId("seat-1")).toBeVisible();
       await expect(pageCharlieNew.getByTestId("seat-2")).toBeVisible();
@@ -275,6 +306,15 @@ test.describe("PR24 Disconnect, Recovery Takeover, and Server Restart", () => {
       expect(pageCharlieContent).not.toContain("Alice's Objective");
       expect(pageCharlieContent).not.toContain("Bob's Objective");
       expect(pageCharlieContent).not.toContain("Dana's Objective");
+
+      // Assert that other players' concrete selected objective IDs do not appear in Charlie's DOM/view
+      for (const [otherNick, otherObjId] of Object.entries(
+        selectedObjectiveByNickname,
+      )) {
+        if (otherNick !== "Charlie") {
+          expect(pageCharlieContent).not.toContain(otherObjId);
+        }
+      }
 
       // Verify old Page C receives replaced event / session replaced screen
       await expect(pageC.getByTestId("session-replaced-screen")).toBeVisible();
@@ -514,6 +554,14 @@ test.describe("PR24 Disconnect, Recovery Takeover, and Server Restart", () => {
       ).toContainText("Business");
       await expect(lenderPage!.getByTestId("self-loans-list")).toContainText(
         /lender/i,
+      );
+
+      // Invariant: Cash reservations for buyer and lender return to $0 after close
+      await expect(buyerPage!.getByTestId("self-reserved-cash")).toHaveText(
+        "$0",
+      );
+      await expect(lenderPage!.getByTestId("self-reserved-cash")).toHaveText(
+        "$0",
       );
       // Seller no longer owns the sold fixture business (EV $60,000)
       if (sellerAssetsBefore === 1) {

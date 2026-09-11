@@ -147,11 +147,12 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
           .locator('[data-testid^="objective-card-"]')
           .first();
         await firstObjective.click();
+        if (p === pageD) {
+          // Responsive check on 320px viewport during Objective Selection before confirming
+          await assertNoHorizontalOverflow(pageD, "objective-selection");
+        }
         await p.click('[data-testid="confirm-objective-btn"]');
       }
-
-      // Responsive check on 320px viewport during Objective Selection
-      await assertNoHorizontalOverflow(pageD, "objective-selection");
 
       // 7. Verify all clients reach Quarter 1 ROUND_START
       for (const p of pages) {
@@ -272,12 +273,20 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
         buyerPage!.getByTestId("financing-request-form"),
       ).toBeVisible();
 
-      // Buyer submits financing request (using default safe contribution of $30,000)
+      // Read default contribution from form input (defaults adaptively to min($30,000, available cash))
+      const defaultContributionDollars = await buyerPage!
+        .locator("#buyer-cash-contribution")
+        .inputValue();
+      const expectedContribution = Number(defaultContributionDollars);
+      expect(expectedContribution).toBeGreaterThan(0);
+      const expectedReservedText = "$" + expectedContribution.toLocaleString();
+
+      // Buyer submits financing request
       await buyerPage!.click('[data-testid="submit-financing-request-btn"]');
 
       // Invariant: buyer cash reservation is updated to reflect reserved contribution
       await expect(buyerPage!.getByTestId("self-reserved-cash")).toHaveText(
-        "$30,000",
+        expectedReservedText,
       );
 
       // Buyer transaction panel shows waiting for lender offer
@@ -335,6 +344,11 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
         lenderPage!.getByTestId("lender-submitted-section"),
       ).toBeVisible();
 
+      // Invariant: lender cash reservation is updated to reflect reserved loan principal
+      await expect(
+        lenderPage!.getByTestId("self-reserved-cash"),
+      ).not.toHaveText("$0");
+
       // Neutral candidate now has role "uninvolved" and sees uninvolved-status-section without private loan terms
       await expect(
         neutralCandidatePage!.getByTestId("uninvolved-status-section"),
@@ -369,8 +383,11 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
         buyerPage!.getByTestId("pursuit-controls-panel"),
       ).toHaveCount(0);
 
-      // Buyer reserved cash is released back to $0
+      // Buyer and lender reserved cash are released back to $0
       await expect(buyerPage!.getByTestId("self-reserved-cash")).toHaveText(
+        "$0",
+      );
+      await expect(lenderPage!.getByTestId("self-reserved-cash")).toHaveText(
         "$0",
       );
 
