@@ -288,7 +288,7 @@ export async function registerLobbyRoutes(
 
   // GET /api/runtime-info
   fastify.get("/api/runtime-info", async (_request, reply) => {
-    const lanOrigins = discoverLanOrigins(config.port);
+    const lanOrigins = await discoverLanOrigins(config.port);
     return reply.status(200).send({ lanOrigins });
   });
 }

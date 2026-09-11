@@ -29,9 +29,9 @@ scripts\play-interests.cmd
 ### What this does:
 1. Verifies that the web client bundle (`apps/web/dist`) is built. If missing, automatically runs `pnpm build:web`.
 2. Binds the authoritative Fastify + Socket.IO + SQLite server to `0.0.0.0:3000` (or `INTERESTS_HOST` / `INTERESTS_PORT` from environment).
-3. Detects available private LAN IP addresses and logs:
+3. Discovers available private LAN IP addresses, preferring the address associated with the host's active default route/gateway as the primary origin, and logs:
    - **Local origin**: `http://localhost:3000` (for the host device)
-   - **LAN origin(s)**: `http://<lan-ip>:3000` (for other devices on the Wi-Fi network)
+   - **LAN origin(s)**: `http://<lan-ip>:3000` (for other devices on the Wi-Fi network; primary default-route origin listed first)
 4. Keeps the process attached. Press `Ctrl+C` to shut down cleanly.
 
 ---
@@ -95,8 +95,10 @@ INTERESTS_DB_PATH=./data/my-game.sqlite pnpm play
    - Ensure both the host and phone are on the exact same Wi-Fi network.
    - Check Windows Firewall: allow inbound TCP connections on port 3000 for private networks.
    - Ensure your Wi-Fi router does not have "Client Isolation" or "AP Isolation" enabled (common on guest Wi-Fi networks).
-2. **Wrong IP address in QR code**:
-   - The server inspects your network interfaces and prioritizes typical home LAN ranges (`192.168.x.x`, `10.x.x.x`). If multiple adapters exist (e.g. virtual adapters or VPNs), use the secondary LAN links listed below the QR code.
+2. **Wrong IP address in QR code or Join URL**:
+   - Interests automatically detects the host's active default route (the network interface the OS uses for outbound network traffic) and sets it as the primary QR code and join URL address (`lanOrigins[0]`).
+   - If virtual adapters (such as VirtualBox, WSL, or Hyper-V) or VPNs create extra candidate addresses, they remain available as clickable secondary LAN links beneath the QR code.
+   - For troubleshooting, check your host's active default-route address (e.g. `route print 0.0.0.0` or `Get-NetRoute -DestinationPrefix '0.0.0.0/0'` on Windows, `ip route show default` on Linux, `route -n get default` on macOS) and verify that the primary address matches your actual Wi-Fi or Ethernet adapter.
 3. **Camera QR scanner not opening**:
    - Manually navigate to `http://<lan-ip>:3000` on the phone browser, switch to the **Join Room** tab, and enter the room code.
 
