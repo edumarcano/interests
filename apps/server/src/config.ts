@@ -20,6 +20,11 @@ export const ServerConfigSchema = z.object({
    */
   cookieSecure: z.boolean().default(false),
   rateLimitDisabled: z.boolean().default(false),
+  staticRoot: z
+    .string()
+    .trim()
+    .min(1, "Static root cannot be empty")
+    .optional(),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -61,6 +66,12 @@ export function parseServerConfig(
         "Invalid server configuration: rateLimitDisabled must be 'true' or 'false'",
       );
     }
+  }
+  if (
+    env.INTERESTS_STATIC_ROOT !== undefined &&
+    env.INTERESTS_STATIC_ROOT.trim().length > 0
+  ) {
+    raw.staticRoot = env.INTERESTS_STATIC_ROOT.trim();
   }
 
   const result = ServerConfigSchema.safeParse(raw);

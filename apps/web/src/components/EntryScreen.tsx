@@ -16,20 +16,38 @@ import {
 
 interface Props {
   onSuccess: (params: { roomCode: string; recoveryCode?: string }) => void;
+  initialTab?: "create" | "join" | "recover";
+  initialRoomCode?: string;
 }
 
 type TabType = "create" | "join" | "recover";
 
-export const EntryScreen: React.FC<Props> = ({ onSuccess }) => {
-  const [activeTab, setActiveTab] = useState<TabType>("create");
+export const EntryScreen: React.FC<Props> = ({
+  onSuccess,
+  initialTab,
+  initialRoomCode,
+}) => {
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? "create");
   const [nickname, setNickname] = useState("");
-  const [roomCode, setRoomCode] = useState("");
+  const [roomCode, setRoomCode] = useState(initialRoomCode ?? "");
   const [recoveryCode, setRecoveryCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recentRooms, setRecentRooms] = useState<
     readonly SessionBootstrapMembership[]
   >([]);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (initialRoomCode !== undefined) {
+      setRoomCode(initialRoomCode);
+    }
+  }, [initialRoomCode]);
 
   useEffect(() => {
     let cancelled = false;

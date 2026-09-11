@@ -9,10 +9,13 @@
     "dev:web": "pnpm --filter @interests/web dev",
     "dev": "pnpm --parallel --filter @interests/server --filter @interests/web dev",
     "build:web": "pnpm --filter @interests/web build",
+    "play": "tsx scripts/play.ts",
     "typecheck": "pnpm -r exec tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "test": "vitest run"
+    "test": "vitest run --exclude '**/node_modules/**' --exclude '**/e2e/**'",
+    "test:e2e": "pnpm exec playwright test",
+    "test:e2e:headed": "pnpm exec playwright test --headed"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +31,8 @@
   "type": "module",
   "devDependencies": {
     "@biomejs/biome": "^2.5.12",
+    "@playwright/test": "^1.63.0",
+    "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"
   }

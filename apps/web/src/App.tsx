@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { getSession } from "./api/client.js";
 import { ConnectionStatusBadge } from "./components/ConnectionStatusBadge.js";
 import { EntryScreen } from "./components/EntryScreen.js";
 import { LobbyView } from "./components/LobbyView.js";
@@ -8,20 +9,62 @@ import { RecoveryCodeModal } from "./components/RecoveryCodeModal.js";
 import { ReplacedScreen } from "./components/ReplacedScreen.js";
 import { RealtimeManager, type RealtimeState } from "./socket/socketClient.js";
 
+function parseQueryRoom(): string | null {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get("room")?.trim().toUpperCase();
+    if (room && /^[A-Z0-9]{1,8}$/.test(room)) {
+      return room;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export const App: React.FC = () => {
   const realtime = useMemo(() => new RealtimeManager(), []);
   const [realtimeState, setRealtimeState] = useState<RealtimeState>(() =>
     realtime.getState(),
   );
 
-  const [currentRoomCode, setCurrentRoomCode] = useState<string | null>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("room")?.toUpperCase() ?? null;
-  });
+  const [queryRoom] = useState<string | null>(parseQueryRoom);
+  const [currentRoomCode, setCurrentRoomCode] = useState<string | null>(null);
+  const [isCheckingSession, setIsCheckingSession] = useState<boolean>(() =>
+    Boolean(queryRoom),
+  );
 
   const [recoveryCodeToShow, setRecoveryCodeToShow] = useState<string | null>(
     null,
   );
+
+  // Check whether the user is already a member of queryRoom on load
+  useEffect(() => {
+    let cancelled = false;
+    if (queryRoom) {
+      getSession()
+        .then((res) => {
+          if (cancelled) return;
+          const isMember = res.memberships?.some(
+            (m) => m.roomCode === queryRoom,
+          );
+          if (isMember) {
+            setCurrentRoomCode(queryRoom);
+          }
+        })
+        .catch(() => {
+          // Not logged in or session expired
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setIsCheckingSession(false);
+          }
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [queryRoom]);
 
   // Subscribe to socket manager updates
   useEffect(() => {
@@ -108,13 +151,31 @@ export const App: React.FC = () => {
       </header>
 
       <main style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        {realtimeState.status === "replaced" ? (
+        {isCheckingSession ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "auto",
+              color: "var(--text-secondary)",
+              fontSize: "1rem",
+            }}
+          >
+            Checking session for room {queryRoom}...
+          </div>
+        ) : realtimeState.status === "replaced" ? (
           <ReplacedScreen
             reason={realtimeState.replacedReason}
             onReset={handleResetReplaced}
           />
         ) : !currentRoomCode ? (
-          <EntryScreen onSuccess={handleEntrySuccess} />
+          <EntryScreen
+            onSuccess={handleEntrySuccess}
+            initialTab={queryRoom ? "join" : "create"}
+            initialRoomCode={queryRoom ?? undefined}
+          />
         ) : realtimeState.match ? (
           <MatchView
             match={realtimeState.match}

@@ -112,6 +112,10 @@ export interface GetMatchResponse {
   readonly match: MatchPlayerView;
 }
 
+export interface RuntimeInfoResponse {
+  readonly lanOrigins: readonly string[];
+}
+
 export interface PresenceMemberView {
   readonly memberId: RoomMemberId;
   readonly nickname: string;

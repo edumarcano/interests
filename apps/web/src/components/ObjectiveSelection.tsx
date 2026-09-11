@@ -124,7 +124,7 @@ export const ObjectiveSelection: React.FC<Props> = ({
           >
             Player Selection Progress
           </div>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             {match.players.map((p) => (
               <div
                 key={p.playerId}

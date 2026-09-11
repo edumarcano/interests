@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseServerConfig } from "./config.js";
@@ -7,11 +8,20 @@ import { runMigrations } from "./persistence/sqlite/migrations.js";
 import { openDatabase } from "./persistence/sqlite/openDatabase.js";
 import { SqliteLobbyRepository } from "./persistence/sqlite/SqliteLobbyRepository.js";
 import { SqliteMatchRepository } from "./persistence/sqlite/SqliteMatchRepository.js";
+import { discoverLanOrigins } from "./runtime/lanDiscovery.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main(): Promise<void> {
   const config = parseServerConfig(process.env);
+
+  if (!config.staticRoot) {
+    const defaultWebDist = path.resolve(__dirname, "../../web/dist");
+    if (fs.existsSync(defaultWebDist)) {
+      config.staticRoot = defaultWebDist;
+    }
+  }
+
   const db = openDatabase({ dbPath: config.dbPath });
 
   const migrationsDir = path.resolve(__dirname, "../migrations");
@@ -32,7 +42,12 @@ async function main(): Promise<void> {
   });
 
   await server.fastify.listen({ host: config.host, port: config.port });
+  const lanOrigins = discoverLanOrigins(config.port);
   console.log(`Server listening on http://${config.host}:${config.port}`);
+  console.log(`Local origin: http://localhost:${config.port}`);
+  for (const origin of lanOrigins) {
+    console.log(`LAN origin:   ${origin}`);
+  }
 
   let isShuttingDown = false;
   const shutdown = async (signal: string) => {

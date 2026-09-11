@@ -4,6 +4,7 @@ import type { ServerConfig } from "../config.js";
 import { LobbyError } from "../lobby/errors.js";
 import type { LobbyRepository } from "../lobby/types.js";
 import type { RoomConnectionCoordinator } from "../realtime/RoomConnectionCoordinator.js";
+import { discoverLanOrigins } from "../runtime/lanDiscovery.js";
 
 const COOKIE_NAME = SESSION_COOKIE_NAME;
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
@@ -284,4 +285,10 @@ export async function registerLobbyRoutes(
       return reply.status(200).send(result);
     },
   );
+
+  // GET /api/runtime-info
+  fastify.get("/api/runtime-info", async (_request, reply) => {
+    const lanOrigins = discoverLanOrigins(config.port);
+    return reply.status(200).send({ lanOrigins });
+  });
 }

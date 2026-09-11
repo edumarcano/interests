@@ -5,9 +5,14 @@ import type {
   RoomMemberId,
   RoomPresencePayload,
 } from "@interests/shared";
+import { QRCodeSVG } from "qrcode.react";
 import type React from "react";
-import { useState } from "react";
-import { rotateRecoveryCode, startMatch } from "../api/client.js";
+import { useEffect, useState } from "react";
+import {
+  getRuntimeInfo,
+  rotateRecoveryCode,
+  startMatch,
+} from "../api/client.js";
 
 interface Props {
   room: RoomLobbyView;
@@ -29,9 +34,35 @@ export const LobbyView: React.FC<Props> = ({
   onMatchStarted,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [starting, setStarting] = useState(false);
   const [rotating, setRotating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lanOrigins, setLanOrigins] = useState<readonly string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getRuntimeInfo()
+      .then((res) => {
+        if (!cancelled && res.lanOrigins) {
+          setLanOrigins(res.lanOrigins);
+        }
+      })
+      .catch(() => {
+        // Fall back to window.location.origin
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const primaryOrigin =
+    lanOrigins.length > 0
+      ? lanOrigins[0]
+      : typeof window !== "undefined"
+        ? window.location.origin
+        : "";
+  const joinUrl = `${primaryOrigin}/?room=${room.code}`;
 
   const isHost = room.members.some(
     (m) => m.memberId === selfMemberId && m.isHost,
@@ -47,6 +78,16 @@ export const LobbyView: React.FC<Props> = ({
       await navigator.clipboard.writeText(room.code);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore clipboard error
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(joinUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
     } catch {
       // ignore clipboard error
     }
@@ -191,6 +232,147 @@ export const LobbyView: React.FC<Props> = ({
           {error}
         </div>
       )}
+
+      {/* Share / LAN Join Block */}
+      <div
+        className="card"
+        style={{
+          background: "var(--bg-surface-elevated)",
+          border: "1px solid var(--border-subtle)",
+          borderRadius: "var(--radius-md)",
+          padding: "1rem",
+          marginBottom: "1.5rem",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "1.25rem",
+          alignItems: "center",
+        }}
+        data-testid="lobby-share-block"
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            margin: "0 auto",
+          }}
+        >
+          <div
+            style={{
+              padding: "0.5rem",
+              background: "#ffffff",
+              borderRadius: "var(--radius-sm)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            data-testid="qr-container"
+          >
+            <QRCodeSVG
+              value={joinUrl}
+              size={120}
+              bgColor="#ffffff"
+              fgColor="#000000"
+              level="M"
+              role="img"
+              aria-label={`QR Code to join room ${room.code}`}
+              data-testid="lobby-qr-code"
+            />
+          </div>
+          <span
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--text-muted)",
+              marginTop: "0.35rem",
+              textAlign: "center",
+            }}
+          >
+            Scan to Join (Public Link)
+          </span>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <span
+            style={{
+              fontSize: "0.8rem",
+              color: "var(--text-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              fontWeight: 600,
+              display: "block",
+              marginBottom: "0.35rem",
+            }}
+          >
+            Public Join Link (Same Wi-Fi / LAN)
+          </span>
+          <div
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <input
+              type="text"
+              readOnly
+              value={joinUrl}
+              data-testid="join-url-input"
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: "0.85rem",
+                background: "var(--bg-card)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border-subtle)",
+                padding: "0.4rem 0.6rem",
+                borderRadius: "var(--radius-sm)",
+                flex: "1 1 180px",
+                cursor: "text",
+              }}
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleCopyLink}
+              style={{
+                minHeight: 36,
+                padding: "0.35rem 0.75rem",
+                whiteSpace: "nowrap",
+              }}
+              id="copy-join-link-btn"
+              data-testid="copy-join-link-btn"
+            >
+              {copiedLink ? "Copied!" : "Copy Link"}
+            </button>
+          </div>
+          {lanOrigins.length > 1 && (
+            <div
+              style={{
+                marginTop: "0.5rem",
+                fontSize: "0.75rem",
+                color: "var(--text-muted)",
+              }}
+              data-testid="secondary-lan-links"
+            >
+              <span>Other LAN addresses: </span>
+              {lanOrigins.slice(1).map((origin, idx) => (
+                <span key={origin}>
+                  {idx > 0 && ", "}
+                  <a
+                    href={`${origin}/?room=${room.code}`}
+                    style={{ color: "var(--accent-gold)" }}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {origin}
+                  </a>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       <div style={{ marginBottom: "1.5rem" }}>
         <h3
