@@ -35,6 +35,7 @@ import { SpotlightView } from "../src/components/SpotlightView.js";
 
 beforeEach(() => {
   vi.spyOn(apiClient, "getSession").mockResolvedValue({ memberships: [] });
+  vi.spyOn(apiClient, "getRuntimeInfo").mockResolvedValue({ lanOrigins: [] });
 });
 
 afterEach(() => {

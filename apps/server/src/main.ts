@@ -42,7 +42,7 @@ async function main(): Promise<void> {
   });
 
   await server.fastify.listen({ host: config.host, port: config.port });
-  const lanOrigins = discoverLanOrigins(config.port);
+  const lanOrigins = await discoverLanOrigins(config.port);
   console.log(`Server listening on http://${config.host}:${config.port}`);
   console.log(`Local origin: http://localhost:${config.port}`);
   for (const origin of lanOrigins) {

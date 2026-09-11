@@ -686,11 +686,14 @@ Establish the Milestone-6 hardening architecture for physical local/LAN multi-de
    - Preserves dedicated API and Socket.IO paths (`/api/*`, `/socket.io/*`) without shadowing.
    - Server remains fully functional in headless/test configurations where static delivery is disabled.
 
-2. **Public LAN Runtime-Info Boundary:**
-   - A lightweight `GET /api/runtime-info` endpoint reports host LAN candidate origins (`lanOrigins`) discovered deterministically via `node:os.networkInterfaces()`.
-   - Prioritizes standard private network ranges (`192.168.x.x` > `10.x.x.x` > `172.16-31.x.x` > link-local).
-   - Excludes loopback (`127.0.0.1`, `localhost`) and internal interfaces.
-   - Returns public locator information only; never leaks session tokens, recovery credentials, member IDs, seeds, or private state.
+2. **Public LAN Runtime-Info Boundary & Default-Route Origin Selection:**
+   - A lightweight `GET /api/runtime-info` endpoint reports host LAN candidate origins (`lanOrigins`) discovered via network interfaces and routing inspection.
+   - *Amended September 11, 2026 (PR25):* Supersedes the static RFC1918 range preference (`192.168` > `10` > `172`). Interests now inspects the host operating system's routing table (`route print 0.0.0.0` on Windows, `/proc/net/route` / `ip route` on Linux, `route -n get default` / `netstat -rn` on macOS) to identify the IPv4 address associated with the active default route / default gateway.
+   - When the active default-route IPv4 is a valid external candidate, it is selected as the primary origin (`lanOrigins[0]`), ensuring the lobby QR code and share URL encode the actual outbound network interface (e.g. physical Wi-Fi) rather than an unreachable virtual adapter (e.g. VirtualBox `192.168.56.1`).
+   - Discovered alternate candidates remain available in deterministic fallback order.
+   - If default-route discovery is unavailable, fails, throws, or does not correspond to a candidate, discovery falls back gracefully to deterministic candidate ordering without throwing or failing server startup.
+   - Excludes loopback (`127.0.0.1`, `localhost`), IPv6, and internal interfaces.
+   - Returns public locator information only; never leaks session tokens, recovery credentials, member IDs, seeds, or private routing details.
    - If no external interfaces are detected, returns an empty array allowing clients to fall back safely to `window.location.origin`.
 
 3. **Public Deep-Link and QR Privacy Rule:**
