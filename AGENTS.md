@@ -1,132 +1,91 @@
 # Interests Agent Instructions
 
-This file is the canonical repository-level instruction source for AI coding agents working on `Interests`, including Codex, Cursor, and Antigravity. Tool-specific rule files may point here, but they must not duplicate project instructions.
+Canonical instruction source for AI coding agents (`Interests`). Tool-specific rule files only bridge here and must not duplicate instructions.
 
 ## Source of truth
 
-Use the repository documentation according to subject:
+- `docs/GAME_DESIGN.md`: authoritative for game rules, balance intent, and status (LOCKED, PROTOTYPE, TENTATIVE, OPEN, POST-V1).
+- `docs/DECISIONS.md`: authoritative for accepted implementation decisions; supersedes examples in `ARCHITECTURE.md`.
+- `docs/ARCHITECTURE.md`: authoritative for system boundaries, package ownership, data flow, and milestones unless superseded by `DECISIONS.md`.
+- `AGENTS.md`: governs agent operations. Never silently redefine game design or architecture.
+- `.remora/standards/engineering.md`: shared engineering baseline and workflow standards.
 
-- `docs/GAME_DESIGN.md` is authoritative for game rules, player experience, balance intent, and what is LOCKED, PROTOTYPE, TENTATIVE, OPEN, or POST-V1.
-- `docs/DECISIONS.md` is authoritative for accepted implementation decisions and may explicitly supersede examples in `docs/ARCHITECTURE.md`.
-- `docs/ARCHITECTURE.md` is authoritative for system boundaries, package ownership, data flow, persistence, networking, testing, and implementation milestones unless superseded by `docs/DECISIONS.md`.
-- `AGENTS.md` governs how coding agents operate in the repository. It must not silently redefine game design or architecture.
-
-If these sources conflict, follow the most specific authoritative source for the subject. If a requested implementation reaches an item marked OPEN or requires a new product/architecture decision, do not invent a permanent rule. Surface the decision explicitly and update `docs/DECISIONS.md` when the user approves it.
+If sources conflict, follow the most specific authoritative source. Agents decide implementation details autonomously, but must never invent rules for gameplay items marked OPEN or make unapproved architectural decisions. Surface those decisions explicitly and update `docs/DECISIONS.md` when approved.
 
 ## Working principles
 
 - Keep V1 simple, deterministic, testable, and modular.
-- Prefer small vertical slices and small pull requests over broad rewrites.
-- Do not add speculative abstractions, frameworks, services, or dependencies for hypothetical future needs.
 - Do not silently change game rules, numerical assumptions, package boundaries, or accepted architecture.
-- Preserve backwards-compatible deterministic behavior unless the task explicitly changes a versioned rule or compatibility boundary.
-- Treat Git, tests, documentation, and the current PR as persistent project memory. Do not assume another agent's prior conversation is available.
-
-## Before editing
-
-For continuation work, inspect the repository state before making changes:
-
-```text
-git status
-git log --oneline -5
-git diff main...HEAD
-```
-
-Then read the relevant sections of `docs/GAME_DESIGN.md`, `docs/ARCHITECTURE.md`, and `docs/DECISIONS.md` for the task. Inspect nearby production code and tests before designing a new pattern.
-
-Do not overwrite or revert unrelated user or agent work.
+- Preserve backwards-compatible deterministic replay behavior unless a versioned rule change is explicitly authorized.
 
 ## Repository architecture
 
-The project is a TypeScript modular monolith with these intended dependency directions:
-
+Modular TypeScript monolith with strict one-way dependency directions:
 - `apps/web` -> `@interests/shared`
 - `apps/server` -> `@interests/shared`, `@interests/engine`, `@interests/rules`
 - `@interests/simulation` -> `@interests/engine`, `@interests/rules`, `@interests/shared`
 - `@interests/engine` -> `@interests/rules`, `@interests/shared`
 - `@interests/rules` -> `@interests/shared`
-- `@interests/shared` -> no game-domain package
+- `@interests/shared` -> primitives only; no game-domain package dependencies
 
-Do not introduce reverse dependencies, browser imports of engine internals, cross-package relative imports, or a second implementation of financial/game rules in the server or UI.
+Do not introduce reverse dependencies, cross-package relative imports, or browser imports of engine internals.
 
-Package responsibilities:
-
-- `shared`: JSON-compatible IDs, protocol/view types, and cross-boundary primitives only.
-- `rules`: immutable rule/content data and schemas; no engine behavior or infrastructure.
-- `engine`: authoritative deterministic game state, legality, calculations, transitions, RNG use, and projections; no network, database, filesystem, React, wall clock, credentials, or session management.
-- `simulation`: policies, scenarios, reports using the same engine; no alternate game rules.
-- `server`: rooms, identity, queues, persistence, authorization, and transport; no duplicate financial engine.
-- `web`: rendering, local drafts, responsive UX, and transport; no hidden authoritative state or client-side victory/affordability authority.
+Package roles:
+- `shared`: JSON-compatible IDs, protocol/view types, cross-boundary primitives.
+- `rules`: Immutable rule/content data and schemas; no engine behavior.
+- `engine`: Authoritative deterministic state, legality, calculations, transitions, RNG use, projections; no I/O, server, or web frameworks.
+- `simulation`: Policies, scenarios, and reports using engine.
+- `server`: Rooms, identity, persistence, and transport; no duplicated financial logic.
+- `web`: Browser rendering, transport, and local drafts; no authoritative state calculations.
 
 ## Determinism and state
 
-- The server is authoritative; clients request actions and never submit authoritative balances, state, random outcomes, or winners.
+- The server is authoritative; clients request actions and never submit authoritative balances, state, or outcomes.
 - Engine transitions must be deterministic for the same state, command, and immutable rules bundle.
-- Gameplay randomness may only flow through the engine random adapter. Never use `Math.random()` in engine gameplay code.
-- Rejected commands must not mutate state, consume RNG, advance counters, or change revision.
-- Canonical engine state must remain JSON-compatible: plain objects, arrays, strings, safe integers, booleans, and null. Do not store `Date`, `Map`, `Set`, `BigInt`, functions, class instances, or Decimal objects.
-- Deterministic entity identifiers come from explicit match-scoped counters, not wall clock, random UUIDs, socket IDs, or nicknames.
-- Hidden facts are generated once and persisted; inspection reveals existing facts rather than rerolling them.
+- Gameplay randomness flows strictly through the engine random adapter. Never use `Math.random()`.
+- Rejected commands must not mutate state, consume RNG, advance counters, or increment revisions.
+- Canonical engine state must remain JSON-compatible: plain objects, arrays, strings, safe integers, booleans, and null. Never store `Date`, `Map`, `Set`, `BigInt`, functions, class instances, or Decimal objects.
+- Deterministic entity IDs come from explicit match-scoped counters, not wall clock, UUIDs, or socket IDs.
+- Hidden facts are generated once and persisted; diligence inspection reveals existing facts rather than rerolling them.
 
 ## Financial correctness
 
 - Store money as safe integer cents.
-- Store rates as basis points and ownership/ratios using explicit fixed-point conventions defined by the architecture or accepted decisions.
-- Do not use floating-point dollars as canonical state.
-- Cash, debt, fees, ownership, collateral, and transaction closing must be atomic where the architecture requires it.
-- A loan or contract must have one canonical record; derive mirrored views rather than mutating independent borrower/lender copies.
+- Store rates as basis points and ownership/ratios as explicit fixed-point integers. Never use floating-point dollars as canonical state.
+- Cash, debt, fees, ownership, collateral, and transaction closing must be atomic.
+- Contracts and loans have one canonical record; derive mirrored views rather than mutating separate borrower/lender copies.
 - Quarterly recurring settlement must occur exactly once per round.
-- Add or update tests before merging changes that affect money, debt, ownership, settlement, RNG, privacy, or transaction atomicity.
 
 ## Privacy and information boundaries
 
-- Follow the design rule: public position, private details.
-- Never expose complete authoritative state to clients and hide secrets in UI code.
+- Public position, private details: Never expose complete authoritative state to clients.
 - Build recipient-specific allowlisted projections.
-- Hidden objectives, exact private finances, unrevealed opportunity facts, private plans, and other secret state must not leak through public views, logs, errors, snapshots, or test fixtures intended for another player.
-- Add paired-state privacy regression tests when projection code is introduced or changed.
+- Hidden objectives, private finances, unrevealed diligence facts, and private plans must never leak into public views, logs, errors, or snapshots.
+- Add paired-state privacy regression tests when projection code is added or changed.
 
 ## Change discipline
 
-- Work on a feature/fix/chore branch. Do not commit directly to `main` unless the user explicitly requests it.
+- Work on a feature/fix/chore branch. Never commit directly to `main` or merge a PR without explicit user approval.
 - Keep each PR focused on one bounded milestone or defect.
-- Do not merge a PR unless the user explicitly asks for the merge.
-- Do not add or upgrade dependencies without a concrete need. Explain new production dependencies and record meaningful architecture changes in `docs/DECISIONS.md`.
-- Do not replace existing tooling or architectural choices because another tool is more familiar.
-- When a task changes an accepted architecture decision, update `docs/DECISIONS.md` in the same PR.
+- Do not add dependencies, upgrade libraries, or replace tooling without a concrete need; record architectural changes in `docs/DECISIONS.md`.
 
 ## Verification
 
-Before considering a code change complete, run the repository checks appropriate to the change. The default required checks are:
-
+Required verification checks:
 ```text
 pnpm typecheck
 pnpm lint
 pnpm test
 ```
+Run `pnpm format` if formatting changes or Biome reports formatting issues. For harness integrity verification, run `python .remora/helpers/install.py --check --target .`.
 
-Run `pnpm format` before the final check when formatting has changed or Biome reports formatting issues.
+## Multi-agent handoff & harness
 
-Do not knowingly open a PR with failing local checks unless the failure is external, pre-existing, or explicitly documented in the PR.
-
-For deterministic engine changes, add focused tests proving repeatability and rejected-action immutability. For financial or ownership changes, add invariant tests. For network/persistence work, add failure/retry/idempotency coverage appropriate to the slice.
-
-## Multi-agent handoff
-
-This repository may be edited interchangeably with Codex, Cursor, and Antigravity because of usage limits. Every agent must assume another agent may continue the branch later.
-
-- Keep the branch buildable whenever practical.
-- Prefer clear commits that describe one logical change.
-- Leave unfinished work visible in the PR description, issue, tests, or explicit TODO only when necessary; do not rely on chat history.
-- Before continuing another agent's branch, inspect the diff and tests rather than recreating work from memory.
-- Do not create tool-specific copies of project instructions. `AGENTS.md` remains canonical.
-
-## Skills, subagents, and extra automation
-
-Do not add project skills, custom subagents, MCP configuration, or agent-specific workflow frameworks yet unless a recurring workflow has appeared often enough to justify them and the user approves the addition.
-
-If project skills are introduced later, keep one canonical implementation and use adapters only where a tool requires them. Do not maintain three divergent copies for Codex, Cursor, and Antigravity.
+The repository is edited interchangeably by Codex, Cursor, and Antigravity:
+- Remora is installed under `.agents/skills/` and `.remora/` as the canonical workflow harness. Follow `.remora/standards/engineering.md` and use the applicable Remora skills. Do not add divergent tool-specific skills or subagents.
+- Treat Git, tests, documentation, and PRs as persistent memory; do not rely on prior chat history.
+- Keep branches buildable and commits focused on one logical change.
 
 ## Current implementation posture
 
-The project is still early. Favor correctness and architectural clarity over implementation speed. Complete deterministic setup, financial foundations, and transaction slices before investing in rich UI or infrastructure that does not unlock the next playable vertical slice.
+The project is early V1. Complete deterministic setup, financial foundations, and transaction loops before investing in rich UI or infrastructure.
