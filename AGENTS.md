@@ -7,6 +7,7 @@ Canonical instruction source for AI coding agents (`Interests`). Tool-specific r
 - `docs/GAME_DESIGN.md`: authoritative for game rules, balance intent, and status (LOCKED, PROTOTYPE, TENTATIVE, OPEN, POST-V1).
 - `docs/DECISIONS.md`: authoritative for accepted implementation decisions; supersedes examples in `ARCHITECTURE.md`.
 - `docs/ARCHITECTURE.md`: authoritative for system boundaries, package ownership, data flow, and milestones unless superseded by `DECISIONS.md`.
+- `docs/DEVELOPMENT.md`: living milestone status, physical-playtest observations, and next resume point; never overrides design or decisions.
 - `AGENTS.md`: governs agent operations. Never silently redefine game design or architecture.
 - `.remora/standards/engineering.md`: shared engineering baseline and workflow standards.
 
@@ -67,6 +68,7 @@ Package roles:
 
 - Work on a feature/fix/chore branch. Never commit directly to `main` or merge a PR without explicit user approval.
 - Keep each PR focused on one bounded milestone or defect.
+- An approved milestone authorizes agents to plan and implement its agreed scope, create branches/commits, push, self-review, and open multiple dependent or stacked PRs without separate `TASK.md` files or mandatory GitHub Issues. Declare the base and dependency for each PR, and leave each reviewable and checked. Never automatically merge.
 - Do not add dependencies, upgrade libraries, or replace tooling without a concrete need; record architectural changes in `docs/DECISIONS.md`.
 
 ## Verification
@@ -84,6 +86,7 @@ Run `pnpm format` if formatting changes or Biome reports formatting issues. For 
 The repository is edited interchangeably by Codex, Cursor, and Antigravity:
 - Remora is installed under `.agents/skills/` and `.remora/` as the canonical workflow harness. Follow `.remora/standards/engineering.md` and use the applicable Remora skills. Do not add divergent tool-specific skills or subagents.
 - Treat Git, tests, documentation, and PRs as persistent memory; do not rely on prior chat history.
+- At the start of continuation work, inspect `docs/DEVELOPMENT.md` and the actual Git/PR state. Update that status document after meaningful verified progress or milestone changes, without duplicating the canonical design specification.
 - Keep branches buildable and commits focused on one logical change.
 
 ## Current implementation posture
