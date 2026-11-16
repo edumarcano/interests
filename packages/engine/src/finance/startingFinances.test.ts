@@ -21,11 +21,15 @@ import type {
   BusinessAsset,
   GameState,
   LegacyBankLoan,
+  Loan,
   PropertyAsset,
   PublicMarketPortfolio,
   QuarterStartFinanceBasis,
 } from "../model/gameState";
-import { calculateLegacyBankLoanNextPayment } from "./amortization";
+import {
+  calculateCompanyLoanSchedule,
+  calculateLegacyBankLoanNextPayment,
+} from "./amortization";
 import { calculateBusinessEquity } from "./business";
 import { captureBusinessBasis } from "./businessSettlement";
 import { applyScheduledPlayerLoanPayment } from "./loans";
@@ -89,7 +93,7 @@ function createSyntheticProfileGame(profileId: ProfileId): {
   const base = createReadyGame();
   const profileFinances = STARTING_FINANCES_BY_PROFILE[profileId];
 
-  const loansById: Record<LoanId, LegacyBankLoan> = {};
+  const loansById: Record<LoanId, Loan> = {};
   const assetsById: Record<AssetId, PropertyAsset | BusinessAsset> = {};
   const cashByPlayer = { ...base.finance.cashByPlayer };
   const recurringByPlayer = { ...base.finance.recurringByPlayer };
@@ -171,8 +175,15 @@ function createSyntheticProfileGame(profileId: ProfileId): {
     const bizAsset: BusinessAsset = {
       id: createdAssetId,
       kind: "business",
-      cashPolicyId: "legacy-owner-income-v1",
-      cashCents: cents(0),
+      cashPolicyId: "starting-company-v1",
+      cashCents: cents(profileFinances.businessFixture.openingCashCents),
+      workCompensation: {
+        playerId: p1,
+        annualCompensationCents: cents(
+          profileFinances.businessFixture.annualOwnerWorkCompensationCents,
+        ),
+        arrearsCents: cents(0),
+      },
       operatingArrearsCents: cents(0),
       annualRevenueCents: cents(
         profileFinances.businessFixture.annualRevenueCents,
@@ -183,14 +194,32 @@ function createSyntheticProfileGame(profileId: ProfileId): {
       enterpriseValueCents: cents(
         profileFinances.businessFixture.enterpriseValueCents,
       ),
-      debtPrincipalCents: cents(
-        profileFinances.businessFixture.debtPrincipalCents,
-      ),
       ownershipByPlayerPpm: {
         [p1]: ownershipPpm(profileFinances.businessFixture.ownershipPpm),
       },
     };
     assetsById[createdAssetId] = bizAsset;
+    const id = asLoanId("loan-starting-company");
+    const principal = cents(profileFinances.businessFixture.debtPrincipalCents);
+    loansById[id] = {
+      id,
+      kind: "company-loan",
+      borrowerAssetId: createdAssetId,
+      originalPrincipalCents: principal,
+      outstandingPrincipalCents: principal,
+      annualRateBps: basisPoints(800),
+      scheduledQuarterlyPaymentCents: calculateCompanyLoanSchedule({
+        principalCents: principal,
+        annualRateBps: 800,
+      })[0]!.paymentCents,
+      firstDueQuarter: 1,
+      termQuarters: 28,
+      periodsProcessed: 0,
+      principalRepaidCents: cents(0),
+      pastDuePrincipalCents: cents(0),
+      unpaidInterestCents: cents(0),
+      lastProcessedQuarter: 0,
+    };
   }
 
   if (profileFinances.openingPersonalDebtPrincipalCents > 0) {
@@ -393,7 +422,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
   });
 
   describe("Section 28: Opening business debt and equity reconciliation", () => {
-    it("reconciles Small Business Owner business equity: $320k - $60k = $260k", () => {
+    it("reconciles Small Business Owner business equity: $320k + $15k - $60k = $275k", () => {
       const bizFixture =
         STARTING_FINANCES_BY_PROFILE["small-business-owner"].businessFixture;
       expect(bizFixture).toBeDefined();
@@ -408,12 +437,13 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         ),
         enterpriseValueCents: cents(bizFixture.enterpriseValueCents),
         debtPrincipalCents: cents(bizFixture.debtPrincipalCents),
+        cashCents: cents(bizFixture.openingCashCents),
       });
-      expect(equity.equityValueCents).toBe(cents(26_000_000));
+      expect(equity.equityValueCents).toBe(cents(27_500_000));
       expect(equity.equityValueCents).toBeGreaterThanOrEqual(0);
     });
 
-    it("reconciles Self-Employed Operator business equity: $90k - $20k = $70k", () => {
+    it("reconciles Self-Employed Operator business equity: $90k + $10k - $20k = $80k", () => {
       const bizFixture =
         STARTING_FINANCES_BY_PROFILE["self-employed-operator"].businessFixture;
       expect(bizFixture).toBeDefined();
@@ -428,12 +458,13 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         ),
         enterpriseValueCents: cents(bizFixture.enterpriseValueCents),
         debtPrincipalCents: cents(bizFixture.debtPrincipalCents),
+        cashCents: cents(bizFixture.openingCashCents),
       });
-      expect(equity.equityValueCents).toBe(cents(7_000_000));
+      expect(equity.equityValueCents).toBe(cents(8_000_000));
       expect(equity.equityValueCents).toBeGreaterThanOrEqual(0);
     });
 
-    it("reconciles Early-Stage Entrepreneur business equity: $230k - $60k = $170k", () => {
+    it("reconciles Early-Stage Entrepreneur business equity: $150k + $15k - $60k = $105k", () => {
       const bizFixture =
         STARTING_FINANCES_BY_PROFILE["early-stage-entrepreneur"]
           .businessFixture;
@@ -449,8 +480,9 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         ),
         enterpriseValueCents: cents(bizFixture.enterpriseValueCents),
         debtPrincipalCents: cents(bizFixture.debtPrincipalCents),
+        cashCents: cents(bizFixture.openingCashCents),
       });
-      expect(equity.equityValueCents).toBe(cents(17_000_000));
+      expect(equity.equityValueCents).toBe(cents(10_500_000));
       expect(equity.equityValueCents).toBeGreaterThanOrEqual(0);
     });
 
@@ -508,10 +540,10 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         name: "Small Business Owner",
         openingCashCents: 3_000_000,
         startingPublicInvestmentsCents: 0,
-        expectedCoreSurplusCents: 425_000,
+        expectedCoreSurplusCents: 699_450,
         expectedCashYieldCents: 22_500,
         expectedDividendCents: 0,
-        expectedEndingCashCents: 3_447_500,
+        expectedEndingCashCents: 3_721_950,
       },
       {
         profileId: "property-starter",
@@ -538,20 +570,20 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         name: "Self-Employed Operator",
         openingCashCents: 4_000_000,
         startingPublicInvestmentsCents: 0,
-        expectedCoreSurplusCents: 1_050_000,
+        expectedCoreSurplusCents: 1_154_817,
         expectedCashYieldCents: 30_000,
         expectedDividendCents: 0,
-        expectedEndingCashCents: 5_080_000,
+        expectedEndingCashCents: 5_184_817,
       },
       {
         profileId: "early-stage-entrepreneur",
         name: "Early-Stage Entrepreneur",
         openingCashCents: 2_000_000,
         startingPublicInvestmentsCents: 0,
-        expectedCoreSurplusCents: 165_000,
+        expectedCoreSurplusCents: 314_450,
         expectedCashYieldCents: 15_000,
         expectedDividendCents: 0,
-        expectedEndingCashCents: 2_180_000,
+        expectedEndingCashCents: 2_329_450,
       },
     ];
 
@@ -601,7 +633,17 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
           .reduce((sum, e) => sum + e.amountCents, 0);
 
         const coreSurplus =
-          personalIncome + propertyIncome - livingExpense - debtPayments;
+          personalIncome +
+          propertyIncome +
+          playerEntries
+            .filter(
+              (e) =>
+                e.reason === "business-distribution" ||
+                e.reason === "business-work-compensation",
+            )
+            .reduce((sum, e) => sum + e.amountCents, 0) -
+          livingExpense -
+          debtPayments;
         expect(coreSurplus).toBe(cents(tc.expectedCoreSurplusCents));
 
         // Section 13: Exact cash yield fixture
@@ -706,11 +748,11 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         name: "Small Business Owner",
         expectedCashCents: 3_000_000,
         expectedPublicInvestmentsCents: 0,
-        expectedBusinessEquityCents: 26_000_000,
+        expectedBusinessEquityCents: 27_500_000,
         expectedPropertyGrossCents: 0,
         expectedMortgageDebtCents: 0,
         expectedPersonalDebtCents: 1_000_000,
-        expectedNetWorthCents: 28_000_000, // 30k + 260k - 10k = 280k
+        expectedNetWorthCents: 29_500_000,
       },
       {
         profileId: "property-starter",
@@ -739,22 +781,22 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         name: "Self-Employed Operator",
         expectedCashCents: 4_000_000,
         expectedPublicInvestmentsCents: 0,
-        expectedBusinessEquityCents: 7_000_000,
+        expectedBusinessEquityCents: 8_000_000,
         expectedPropertyGrossCents: 0,
         expectedMortgageDebtCents: 0,
         expectedPersonalDebtCents: 800_000,
-        expectedNetWorthCents: 10_200_000, // 40k + 70k - 8k = 102k
+        expectedNetWorthCents: 11_200_000,
       },
       {
         profileId: "early-stage-entrepreneur",
         name: "Early-Stage Entrepreneur",
         expectedCashCents: 2_000_000,
         expectedPublicInvestmentsCents: 0,
-        expectedBusinessEquityCents: 17_000_000,
+        expectedBusinessEquityCents: 10_500_000,
         expectedPropertyGrossCents: 0,
         expectedMortgageDebtCents: 0,
         expectedPersonalDebtCents: 0,
-        expectedNetWorthCents: 19_000_000, // 20k + 170k = 190k
+        expectedNetWorthCents: 12_500_000,
       },
     ];
 
@@ -769,7 +811,8 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         let businessEquity = 0;
         if (profile.businessFixture !== undefined) {
           businessEquity =
-            profile.businessFixture.enterpriseValueCents -
+            profile.businessFixture.enterpriseValueCents +
+            profile.businessFixture.openingCashCents -
             profile.businessFixture.debtPrincipalCents;
         }
         expect(businessEquity).toBe(tc.expectedBusinessEquityCents);
@@ -801,7 +844,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
     }
   });
 
-  describe("Section 23: Business settlement remains excluded", () => {
+  describe("Section 23: Company cash settles while operating facts remain unchanged", () => {
     const businessProfiles = [
       "small-business-owner",
       "self-employed-operator",
@@ -809,7 +852,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
     ] as const;
 
     for (const profileId of businessProfiles) {
-      it(`does not mutate business asset fields during Quarter 1 for ${profileId}`, () => {
+      it(`settles company cash without rerolling operating facts during Quarter 1 for ${profileId}`, () => {
         const { state, assetId } = createSyntheticProfileGame(profileId);
         expect(assetId).toBeDefined();
         if (assetId === undefined) {
@@ -828,7 +871,8 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         const bizAfter = result.state.finance.assetsById[
           assetId
         ] as BusinessAsset;
-        expect(bizAfter).toEqual(bizBefore);
+        expect(bizAfter.cashCents).toBeGreaterThan(bizBefore.cashCents);
+        expect(bizAfter.workCompensation?.arrearsCents).toBe(0);
         expect(bizAfter.annualRevenueCents).toBe(bizBefore.annualRevenueCents);
         expect(bizAfter.annualOperatingProfitCents).toBe(
           bizBefore.annualOperatingProfitCents,
@@ -930,7 +974,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
             expectedDividend = 1_875;
             break;
           case "small-business-owner":
-            expectedCoreSurplus = 425_000;
+            expectedCoreSurplus = 699_450;
             expectedCashYield = 22_500;
             expectedDividend = 0;
             break;
@@ -945,12 +989,12 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
             expectedDividend = 30_000;
             break;
           case "self-employed-operator":
-            expectedCoreSurplus = 1_050_000;
+            expectedCoreSurplus = 1_154_817;
             expectedCashYield = 30_000;
             expectedDividend = 0;
             break;
           case "early-stage-entrepreneur":
-            expectedCoreSurplus = 165_000;
+            expectedCoreSurplus = 314_450;
             expectedCashYield = 15_000;
             expectedDividend = 0;
             break;
@@ -982,7 +1026,17 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
           .reduce((sum, e) => sum + e.amountCents, 0);
 
         const actualCoreSurplus =
-          personalIncome + propertyIncome - livingExpense - debtPayments;
+          personalIncome +
+          propertyIncome +
+          playerEntries
+            .filter(
+              (e) =>
+                e.reason === "business-distribution" ||
+                e.reason === "business-work-compensation",
+            )
+            .reduce((sum, e) => sum + e.amountCents, 0) -
+          livingExpense -
+          debtPayments;
         expect(actualCoreSurplus).toBe(cents(expectedCoreSurplus));
 
         const actualDelta = endingCash - initialCash;
@@ -996,11 +1050,11 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
   describe("Section 29: Journal classifications and deterministic 4-stage ordering", () => {
     it("emits entries with correct accounts, classifications, and stage ordering", () => {
       // Build a game where p1 is Property Starter (income + property NOI + expenses + mortgage)
-      // and p2 is Small Business Owner (income + personal debt + expenses)
+      // and p2 is Corporate Climber (income + personal debt + expenses)
       const { state } = createSyntheticProfileGame("property-starter");
 
-      // Also give p2 Small Business Owner recurring finance and debt
-      const sboFinances = STARTING_FINANCES_BY_PROFILE["small-business-owner"];
+      // Also give p2 Corporate Climber recurring finance and debt
+      const sboFinances = STARTING_FINANCES_BY_PROFILE["corporate-climber"];
       const p2PersonalLoanId = asLoanId("loan-p2-personal-debt");
       const updatedState: GameState = {
         ...state,
@@ -1119,7 +1173,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
         kind: "external",
         account: "living-expense-sink",
       });
-      expect(livingExpenseEntries[1]?.amountCents).toBe(cents(1_200_000));
+      expect(livingExpenseEntries[1]?.amountCents).toBe(cents(1_380_000));
 
       // Verify stage 4: Legacy bank loans (ordered by LoanId)
       const loanEntries = entries.filter(

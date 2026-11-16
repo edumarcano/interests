@@ -74,7 +74,7 @@ function validateCommonBusinessPurchase(
   }
   if (
     asset.kind !== "business" ||
-    asset.cashPolicyId === "legacy-owner-income-v1"
+    asset.cashPolicyId !== "retained-profit-v1"
   ) {
     return "UNSUPPORTED_ASSET";
   }
@@ -578,7 +578,7 @@ export function applyCloseCashBusinessPurchaseTransaction(
   }
   if (
     asset.kind !== "business" ||
-    asset.cashPolicyId === "legacy-owner-income-v1"
+    asset.cashPolicyId !== "retained-profit-v1"
   ) {
     return reject("UNSUPPORTED_ASSET");
   }

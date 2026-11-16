@@ -270,12 +270,15 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
     // State 1: insertion order [loanA, loanB]
     const state1: GameState = {
       ...base,
+      opportunitiesById: {},
       currentQuarter: 2,
       lastSettledQuarter: 1,
       finance: {
         ...base.finance,
+        assetsById: {},
         quarterStartBasis: {
           ...base.finance.quarterStartBasis,
+          businessesById: {},
           quarter: 2,
         },
         cashByPlayer: {
@@ -369,10 +372,12 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
 
     const state: GameState = {
       ...base,
+      opportunitiesById: {},
       currentQuarter: 2,
       lastSettledQuarter: 1,
       finance: {
         ...base.finance,
+        assetsById: {},
         recurringByPlayer: {
           [buyerId]: {
             quarterlyIncomeCents: cents(0),
@@ -393,6 +398,7 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
         },
         quarterStartBasis: {
           ...base.finance.quarterStartBasis,
+          businessesById: {},
           quarter: 2,
         },
         cashByPlayer: {

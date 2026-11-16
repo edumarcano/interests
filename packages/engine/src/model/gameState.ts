@@ -71,6 +71,10 @@ export interface QuarterStartFinanceBasis {
 
 export interface BusinessQuarterBasis {
   readonly cashPolicyId: BusinessCashPolicyId;
+  readonly workCompensation?: {
+    readonly playerId: PlayerId;
+    readonly annualCompensationCents: Cents;
+  };
   readonly annualOperatingProfitCents: Cents;
   readonly ownershipByPlayerPpm: Readonly<Record<PlayerId, OwnershipPpm>>;
 }
@@ -103,7 +107,20 @@ export interface LegacyBankLoan extends LoanPaymentAccounting {
   readonly relatedAssetId?: AssetId;
 }
 
-export type Loan = PlayerLoan | LegacyBankLoan;
+export interface CompanyLoan extends LoanPaymentAccounting {
+  readonly id: LoanId;
+  readonly kind: "company-loan";
+  readonly borrowerAssetId: AssetId;
+  readonly originalPrincipalCents: Cents;
+  readonly outstandingPrincipalCents: Cents;
+  readonly annualRateBps: BasisPoints;
+  readonly scheduledQuarterlyPaymentCents: Cents;
+  readonly firstDueQuarter: number;
+  readonly termQuarters: number;
+  readonly periodsProcessed: number;
+}
+
+export type Loan = PlayerLoan | LegacyBankLoan | CompanyLoan;
 
 export interface PropertyAsset {
   readonly id: AssetId;
@@ -115,6 +132,12 @@ export interface PropertyAsset {
   readonly ownershipByPlayerPpm: Readonly<Record<PlayerId, OwnershipPpm>>;
 }
 
+export interface WorkCompensation {
+  readonly playerId: PlayerId;
+  readonly annualCompensationCents: Cents;
+  readonly arrearsCents: Cents;
+}
+
 export interface BusinessAsset {
   readonly cashPolicyId: BusinessCashPolicyId;
   readonly cashCents: Cents;
@@ -124,7 +147,10 @@ export interface BusinessAsset {
   readonly annualRevenueCents: Cents;
   readonly annualOperatingProfitCents: Cents;
   readonly enterpriseValueCents: Cents;
-  readonly debtPrincipalCents: Cents;
+  /** Zero on managed acquisition assets; absent on registry-financed starting companies. */
+  readonly debtPrincipalCents?: Cents;
+  /** Required for starting-company-v1, absent on the managed acquisition policy. */
+  readonly workCompensation?: WorkCompensation;
   readonly ownershipByPlayerPpm: Readonly<Record<PlayerId, OwnershipPpm>>;
 }
 

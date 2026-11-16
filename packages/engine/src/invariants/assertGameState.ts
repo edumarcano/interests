@@ -21,6 +21,7 @@ import { calculatePropertyCashFlow } from "../finance/property";
 import type { GameState } from "../model/gameState";
 import { isValidRandomState } from "../random/prng";
 import { assertBusinessCashState } from "./assertBusinessCashState";
+import { assertCompanyLoan } from "./assertCompanyLoan";
 import { assertSettlementState } from "./assertSettlementState";
 
 export function assertGameState(state: GameState): void {
@@ -386,7 +387,9 @@ export function assertGameState(state: GameState): void {
       );
     }
 
-    if (loan.kind === "player-loan") {
+    if (loan.kind === "company-loan") {
+      assertCompanyLoan(state, loan);
+    } else if (loan.kind === "player-loan") {
       if (!state.playerOrder.includes(loan.lenderPlayerId)) {
         throw new Error(
           `Game invariant failed: loan ${loan.id} has unknown lender ${loan.lenderPlayerId}`,
@@ -709,15 +712,16 @@ export function assertGameState(state: GameState): void {
         );
       }
       if (
-        !Number.isSafeInteger(asset.debtPrincipalCents) ||
-        asset.debtPrincipalCents < 0
+        asset.debtPrincipalCents !== undefined &&
+        (!Number.isSafeInteger(asset.debtPrincipalCents) ||
+          asset.debtPrincipalCents < 0)
       ) {
         throw new Error(
           `Game invariant failed: business ${asset.id} debtPrincipalCents must be non-negative safe integer cents`,
         );
       }
       try {
-        calculateBusinessEquity(asset);
+        calculateBusinessEquity(asset, state.finance.loansById);
       } catch (err) {
         throw new Error(
           `Game invariant failed: business ${asset.id} calculation failed: ${String(err)}`,

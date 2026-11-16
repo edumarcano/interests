@@ -1,13 +1,11 @@
-import {
-  addCents,
-  type Cents,
-  cents,
-  isNonNegativeCents,
-  isSafeCents,
-  subtractCents,
-} from "./money";
+import type { AssetId } from "@interests/shared";
+import type { FinanceState, WorkCompensation } from "../model/gameState";
+import { FinanceDecimal } from "./decimal";
+import { type Cents, cents, isNonNegativeCents, isSafeCents } from "./money";
 
 export interface BusinessEquityInput {
+  readonly id?: AssetId;
+  readonly workCompensation?: WorkCompensation;
   readonly cashCents?: Cents;
   readonly operatingArrearsCents?: Cents;
   readonly annualRevenueCents: Cents;
@@ -30,6 +28,7 @@ export interface DebtFreeBusinessEquityResult {
 /** Operating EV excludes company cash; company claims are deducted once. */
 export function calculateBusinessEquity(
   business: BusinessEquityInput,
+  loansById: FinanceState["loansById"] = {},
 ): BusinessEquityResult {
   if (!isNonNegativeCents(business.annualRevenueCents)) {
     throw new RangeError(
@@ -49,7 +48,15 @@ export function calculateBusinessEquity(
     );
   }
 
-  const debtCents = business.debtPrincipalCents ?? cents(0);
+  let debt = new FinanceDecimal(business.debtPrincipalCents ?? 0);
+  let unpaidInterest = new FinanceDecimal(0);
+  for (const loan of Object.values(loansById)) {
+    if (loan.kind !== "company-loan" || loan.borrowerAssetId !== business.id)
+      continue;
+    debt = debt.plus(loan.outstandingPrincipalCents);
+    unpaidInterest = unpaidInterest.plus(loan.unpaidInterestCents);
+  }
+  const debtCents = cents(debt.toNumber());
   if (!isNonNegativeCents(debtCents)) {
     throw new RangeError(
       `debtPrincipalCents must be non-negative safe integer cents, got ${String(debtCents)}`,
@@ -63,9 +70,14 @@ export function calculateBusinessEquity(
   return {
     enterpriseValueCents: business.enterpriseValueCents,
     debtPrincipalCents: debtCents,
-    equityValueCents: subtractCents(
-      subtractCents(addCents(business.enterpriseValueCents, cash), debtCents),
-      arrears,
+    equityValueCents: cents(
+      new FinanceDecimal(business.enterpriseValueCents)
+        .plus(cash)
+        .minus(debt)
+        .minus(unpaidInterest)
+        .minus(arrears)
+        .minus(business.workCompensation?.arrearsCents ?? 0)
+        .toNumber(),
     ),
   };
 }

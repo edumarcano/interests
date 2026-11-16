@@ -36,16 +36,18 @@ describe("passive baseline simulation", () => {
     const ready = completePassiveBaselineSetup(initial);
     const result = simulateReadyGame(ready, 4);
     expect(result.failure).toBeNull();
-    expect(
-      result.playerCashFlows[fixture.sellerPlayerId]
-        ?.businessDistributionsReceivedCents,
-    ).toBe(900_000);
-    for (const playerId of ready.playerOrder.filter(
-      (id) => id !== fixture.sellerPlayerId,
-    )) {
+    const expectedByProfile: Record<string, number> = {
+      "small-business-owner": 5_497_800,
+      "self-employed-operator": 1_619_268,
+      "early-stage-entrepreneur": 1_497_800,
+    };
+    for (const playerId of ready.playerOrder) {
+      const expected =
+        (expectedByProfile[ready.players[playerId]!.profileId] ?? 0) +
+        (playerId === fixture.sellerPlayerId ? 900_000 : 0);
       expect(
         result.playerCashFlows[playerId]?.businessDistributionsReceivedCents,
-      ).toBe(0);
+      ).toBe(expected);
     }
   });
   describe("setup policy (Section 29)", () => {

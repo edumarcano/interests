@@ -23,13 +23,31 @@ export function assertBusinessCashState(state: GameState): void {
       throw new Error(
         "Game invariant failed: productive business debt has no approved schedule",
       );
-    if (
-      asset.cashPolicyId === "legacy-owner-income-v1" &&
-      (asset.cashCents !== 0 || asset.operatingArrearsCents !== 0)
-    )
-      throw new Error(
-        "Game invariant failed: legacy owner income cannot accumulate company cash/payables",
-      );
+    if (asset.cashPolicyId === "starting-company-v1") {
+      if (Object.hasOwn(asset, "debtPrincipalCents"))
+        throw new Error(
+          "Game invariant failed: company debt must be registry-owned",
+        );
+      if (
+        !Object.values(state.finance.loansById).some(
+          (loan) =>
+            loan.kind === "company-loan" && loan.borrowerAssetId === asset.id,
+        )
+      )
+        throw new Error(
+          "Game invariant failed: missing canonical company loan",
+        );
+      const work = asset.workCompensation;
+      if (
+        !work ||
+        !state.playerOrder.includes(work.playerId) ||
+        (asset.ownershipByPlayerPpm[work.playerId] ?? 0) <= 0
+      )
+        throw new Error("Game invariant failed: invalid company work party");
+      requireMoney(work.annualCompensationCents);
+      requireMoney(work.arrearsCents);
+    } else if (asset.workCompensation !== undefined)
+      throw new Error("Game invariant failed: unsupported work contract");
   }
   const basis = state.finance.quarterStartBasis.businessesById;
   if (
@@ -57,6 +75,17 @@ export function assertBusinessCashState(state: GameState): void {
       throw new Error(
         "Game invariant failed: invalid business entitlement asset",
       );
+    const work = asset.workCompensation;
+    if (
+      work &&
+      (!opening.workCompensation ||
+        opening.workCompensation.playerId !== work.playerId ||
+        opening.workCompensation.annualCompensationCents !==
+          work.annualCompensationCents)
+    )
+      throw new Error("Game invariant failed: invalid company work basis");
+    if (!work && opening.workCompensation !== undefined)
+      throw new Error("Game invariant failed: unexpected company work basis");
     allocateProportionalCents(cents(0), opening.ownershipByPlayerPpm);
     for (const owner of Object.keys(opening.ownershipByPlayerPpm) as PlayerId[])
       if (!state.playerOrder.includes(owner))
@@ -100,22 +129,60 @@ export function assertBusinessCashState(state: GameState): void {
       requireMoney(amount);
       distributed = cents(distributed + amount);
     }
+    const work = business.workCompensation;
+    const beforeComp =
+      business.cashBeforeCompensationCents ?? business.operatingCashCents;
+    const workPaid = work ? work.currentPaidCents + work.arrearsPaidCents : 0;
+    if (work) {
+      if (
+        !asset.workCompensation ||
+        work.playerId !== asset.workCompensation.playerId
+      )
+        throw new Error("Game invariant failed: invalid work outcome party");
+      for (const key of [
+        "currentDueCents",
+        "currentPaidCents",
+        "arrearsDueCents",
+        "arrearsPaidCents",
+        "closingArrearsCents",
+      ] as const)
+        requireMoney(work[key]);
+      if (
+        work.currentPaidCents > work.currentDueCents ||
+        work.arrearsPaidCents > work.arrearsDueCents ||
+        work.closingArrearsCents !==
+          work.currentDueCents + work.arrearsDueCents - workPaid ||
+        work.closingArrearsCents !== asset.workCompensation.arrearsCents ||
+        beforeComp !== business.operatingCashCents + work.currentDueCents
+      )
+        throw new Error(
+          "Game invariant failed: work outcome does not reconcile",
+        );
+    } else if (asset.workCompensation)
+      throw new Error("Game invariant failed: missing work outcome");
+    const debtPaid = business.companyDebtPaidCents ?? 0;
+    requireMoney(debtPaid);
+    const historicalWorkPaid = work?.arrearsPaidCents ?? 0;
     if (
       business.operatingDueCents !==
-        business.openingOperatingArrearsCents +
-          Math.max(0, -business.operatingCashCents) ||
+        business.openingOperatingArrearsCents + Math.max(0, -beforeComp) ||
       business.operatingPaidCents > business.operatingDueCents ||
       business.closingOperatingArrearsCents !==
         business.operatingDueCents - business.operatingPaidCents ||
       business.closingCashCents !==
         business.openingCashCents +
-          Math.max(0, business.operatingCashCents) -
+          Math.max(0, beforeComp) -
           business.operatingPaidCents -
+          workPaid -
+          debtPaid -
           distributed ||
       business.retainedFromSurplusCents + distributed !==
         Math.max(
           0,
-          business.operatingCashCents - business.operatingPaidCents,
+          business.operatingCashCents -
+            business.operatingPaidCents -
+            historicalWorkPaid -
+            debtPaid,
         ) ||
       business.closingCashCents !== asset.cashCents ||
       business.closingOperatingArrearsCents !== asset.operatingArrearsCents

@@ -33,6 +33,10 @@ export interface StartingMortgageFixture {
 export interface StartingBusinessFixture {
   readonly annualRevenueCents: number;
   readonly annualOperatingProfitCents: number;
+  readonly annualNonOwnerOperatingCostsCents: number;
+  readonly annualOwnerWorkCompensationCents: number;
+  readonly externalManagementCostCents: number;
+  readonly openingCashCents: number;
   readonly enterpriseValueCents: number;
   readonly debtPrincipalCents: number;
   readonly ownershipPpm: number;
@@ -86,7 +90,7 @@ const DISCIPLINED_SAVER_FINANCES: ProfileStartingFinances = {
 
 const SMALL_BUSINESS_OWNER_FINANCES: ProfileStartingFinances = {
   startingCashCents: 3_000_000,
-  annualIncomeCents: 6_800_000,
+  annualIncomeCents: 0,
   monthlyLivingExpenseCents: 400_000,
   openingPersonalDebtPrincipalCents: 1_000_000,
   monthlyPersonalDebtPaymentCents: 25_000,
@@ -96,6 +100,10 @@ const SMALL_BUSINESS_OWNER_FINANCES: ProfileStartingFinances = {
     annualOperatingProfitCents: 8_000_000,
     enterpriseValueCents: 32_000_000,
     debtPrincipalCents: 6_000_000,
+    annualNonOwnerOperatingCostsCents: 39_600_000,
+    annualOwnerWorkCompensationCents: 2_400_000,
+    externalManagementCostCents: 6_000_000,
+    openingCashCents: 1_500_000,
     ownershipPpm: 1_000_000,
   },
 };
@@ -133,32 +141,40 @@ const MARKET_INVESTOR_FINANCES: ProfileStartingFinances = {
 
 const SELF_EMPLOYED_OPERATOR_FINANCES: ProfileStartingFinances = {
   startingCashCents: 4_000_000,
-  annualIncomeCents: 9_600_000,
+  annualIncomeCents: 0,
   monthlyLivingExpenseCents: 430_000,
   openingPersonalDebtPrincipalCents: 800_000,
   monthlyPersonalDebtPaymentCents: 20_000,
   startingPublicInvestmentsCents: 0,
   businessFixture: {
-    annualRevenueCents: 15_500_000,
-    annualOperatingProfitCents: 10_000_000,
+    annualRevenueCents: 18_000_000,
+    annualOperatingProfitCents: 2_400_000,
     enterpriseValueCents: 9_000_000,
     debtPrincipalCents: 2_000_000,
+    annualNonOwnerOperatingCostsCents: 7_200_000,
+    annualOwnerWorkCompensationCents: 8_400_000,
+    externalManagementCostCents: 0,
+    openingCashCents: 1_000_000,
     ownershipPpm: 1_000_000,
   },
 };
 
 const EARLY_STAGE_ENTREPRENEUR_FINANCES: ProfileStartingFinances = {
   startingCashCents: 2_000_000,
-  annualIncomeCents: 4_500_000,
+  annualIncomeCents: 0,
   monthlyLivingExpenseCents: 320_000,
   openingPersonalDebtPrincipalCents: 0,
   monthlyPersonalDebtPaymentCents: 0,
   startingPublicInvestmentsCents: 0,
   businessFixture: {
     annualRevenueCents: 30_000_000,
-    annualOperatingProfitCents: 5_400_000,
-    enterpriseValueCents: 23_000_000,
+    annualOperatingProfitCents: 3_000_000,
+    enterpriseValueCents: 15_000_000,
     debtPrincipalCents: 6_000_000,
+    annualNonOwnerOperatingCostsCents: 23_400_000,
+    annualOwnerWorkCompensationCents: 3_600_000,
+    externalManagementCostCents: 0,
+    openingCashCents: 1_500_000,
     ownershipPpm: 1_000_000,
   },
 };

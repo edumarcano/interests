@@ -44,7 +44,9 @@ export interface PureBusinessAssetView {
   readonly equityValueCents: number;
   readonly expectedPayoutCents: number | null;
   readonly payoutQuarter: number | null;
-  readonly incomeTreatment: "included-owner-income" | "business-distribution";
+  readonly incomeTreatment: "work-and-ownership" | "business-distribution";
+  readonly expectedWorkPayCents: number | null;
+  readonly workCompensationArrearsCents: number;
   readonly id: string;
   readonly kind: "business";
   readonly annualRevenueCents: number;
@@ -61,7 +63,7 @@ export interface PureLoanView {
   readonly status: "current" | "in-arrears" | "repaid";
   readonly id: string;
   readonly kind: string;
-  readonly role: "borrower" | "lender";
+  readonly role: "borrower" | "lender" | "company-borrower";
   readonly counterpartyPlayerId: PlayerId | "bank";
   readonly originalPrincipalCents: number;
   readonly outstandingPrincipalCents: number;
@@ -208,26 +210,21 @@ export function projectPlayerGameState(
     if (asset.kind === "business") {
       const ownership = asset.ownershipByPlayerPpm[playerId];
       if (ownership !== undefined && ownership > 0) {
-        const legacy = asset.cashPolicyId === "legacy-owner-income-v1";
+        const firstOperatingQuarter =
+          BUSINESS_CASH_POLICIES[asset.cashPolicyId].firstOperatingQuarter;
+        const equity = calculateBusinessEquity(asset, state.finance.loansById);
         const opening =
           state.finance.quarterStartBasis.businessesById[asset.id];
         const eligibleNow =
-          !legacy &&
           opening &&
           (opening.ownershipByPlayerPpm[playerId] ?? 0) > 0 &&
-          state.currentQuarter >=
-            BUSINESS_CASH_POLICIES["retained-profit-v1"].firstOperatingQuarter;
-        const payoutQuarter = legacy
-          ? null
-          : eligibleNow
-            ? state.currentQuarter
-            : Math.max(
-                state.currentQuarter + 1,
-                BUSINESS_CASH_POLICIES["retained-profit-v1"]
-                  .firstOperatingQuarter,
-              );
+          state.currentQuarter >= firstOperatingQuarter;
+        const payoutQuarter = eligibleNow
+          ? state.currentQuarter
+          : Math.max(state.currentQuarter + 1, firstOperatingQuarter);
+        let expectedWorkPayCents: number | null = 0;
         let expectedPayoutCents: number | null = 0;
-        if (!legacy && payoutQuarter !== null) {
+        if (payoutQuarter !== null) {
           try {
             const forecast = planBusinessSettlement(
               asset,
@@ -235,26 +232,44 @@ export function projectPlayerGameState(
                 ? opening
                 : {
                     cashPolicyId: asset.cashPolicyId,
+                    ...(asset.workCompensation
+                      ? {
+                          workCompensation: {
+                            playerId: asset.workCompensation.playerId,
+                            annualCompensationCents:
+                              asset.workCompensation.annualCompensationCents,
+                          },
+                        }
+                      : {}),
                     annualOperatingProfitCents:
                       asset.annualOperatingProfitCents,
                     ownershipByPlayerPpm: asset.ownershipByPlayerPpm,
                   },
               payoutQuarter,
+              state.finance.loansById,
             );
+            expectedWorkPayCents = forecast?.outcome.workCompensation
+              ? forecast.outcome.workCompensation.currentPaidCents +
+                forecast.outcome.workCompensation.arrearsPaidCents
+              : 0;
             expectedPayoutCents =
               forecast?.outcome.distributionsByPlayer[playerId] ?? 0;
           } catch (error) {
             if (!(error instanceof RangeError)) throw error;
             expectedPayoutCents = null;
+            expectedWorkPayCents = null;
           }
         }
         ownedAssets.push({
           companyCashCents: asset.cashCents,
           operatingArrearsCents: asset.operatingArrearsCents,
-          equityValueCents: calculateBusinessEquity(asset).equityValueCents,
-          incomeTreatment: legacy
-            ? "included-owner-income"
+          equityValueCents: equity.equityValueCents,
+          incomeTreatment: asset.workCompensation
+            ? "work-and-ownership"
             : "business-distribution",
+          expectedWorkPayCents,
+          workCompensationArrearsCents:
+            asset.workCompensation?.arrearsCents ?? 0,
           payoutQuarter,
           expectedPayoutCents,
           id: asset.id,
@@ -262,7 +277,7 @@ export function projectPlayerGameState(
           annualRevenueCents: asset.annualRevenueCents,
           annualOperatingProfitCents: asset.annualOperatingProfitCents,
           enterpriseValueCents: asset.enterpriseValueCents,
-          debtPrincipalCents: asset.debtPrincipalCents,
+          debtPrincipalCents: equity.debtPrincipalCents,
           ownershipPpm: ownership,
         });
       }
@@ -273,16 +288,22 @@ export function projectPlayerGameState(
   for (const loan of Object.values(state.finance.loansById).sort((a, b) =>
     a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
   )) {
-    const borrower = loan.borrowerPlayerId === playerId;
+    const company =
+      loan.kind === "company-loan" &&
+      (state.finance.assetsById[loan.borrowerAssetId]?.ownershipByPlayerPpm[
+        playerId
+      ] ?? 0) > 0;
+    const borrower =
+      loan.kind !== "company-loan" && loan.borrowerPlayerId === playerId;
     const lender =
       loan.kind === "player-loan" && loan.lenderPlayerId === playerId;
-    if (!borrower && !lender) continue;
+    if (!borrower && !lender && !company) continue;
     const repaid =
       loan.outstandingPrincipalCents === 0 && loan.unpaidInterestCents === 0;
     selfLoans.push({
       id: loan.id,
       kind: loan.kind,
-      role: borrower ? "borrower" : "lender",
+      role: company ? "company-borrower" : borrower ? "borrower" : "lender",
       counterpartyPlayerId:
         loan.kind === "player-loan"
           ? borrower
@@ -303,6 +324,9 @@ export function projectPlayerGameState(
           }
         : {
             scheduledQuarterlyPaymentCents: loan.scheduledQuarterlyPaymentCents,
+            ...(loan.kind === "company-loan"
+              ? { termQuarters: loan.termQuarters }
+              : {}),
           }),
       amountDueCents:
         calculateLoanObligation(loan, state.currentQuarter)?.amountDueCents ??
@@ -322,6 +346,18 @@ export function projectPlayerGameState(
     latest && living
       ? {
           quarter: latest.quarter,
+          workCompensation: latest.businesses
+            .filter((b) => b.workCompensation?.playerId === playerId)
+            .map((b) => ({
+              assetId: b.assetId,
+              dueCents:
+                b.workCompensation!.currentDueCents +
+                b.workCompensation!.arrearsDueCents,
+              paidCents:
+                b.workCompensation!.currentPaidCents +
+                b.workCompensation!.arrearsPaidCents,
+              unpaidCents: b.workCompensation!.closingArrearsCents,
+            })),
           businessDistributions: latest.businesses
             .filter((b) => Object.hasOwn(b.distributionsByPlayer, playerId))
             .map((b) => ({
@@ -335,11 +371,18 @@ export function projectPlayerGameState(
             .filter(
               (p) =>
                 p.borrowerPlayerId === playerId ||
-                p.lenderPlayerId === playerId,
+                p.lenderPlayerId === playerId ||
+                (p.borrowerAssetId !== undefined &&
+                  (state.finance.assetsById[p.borrowerAssetId]
+                    ?.ownershipByPlayerPpm[playerId] ?? 0) > 0),
             )
             .map((p) => ({
               loanId: p.loanId,
-              role: p.borrowerPlayerId === playerId ? "borrower" : "lender",
+              role: p.borrowerAssetId
+                ? "company-borrower"
+                : p.borrowerPlayerId === playerId
+                  ? "borrower"
+                  : "lender",
               dueCents: p.dueCents,
               paidCents: p.paidCents,
               principalPaidCents: p.principalPaidCents,

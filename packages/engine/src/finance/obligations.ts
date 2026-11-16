@@ -1,6 +1,14 @@
-import type { LoanId, PlayerId, SettlementId } from "@interests/shared";
+import type {
+  AssetId,
+  LoanId,
+  PlayerId,
+  SettlementId,
+} from "@interests/shared";
 import type { Loan } from "../model/gameState";
-import { calculatePlayerLoanSchedule } from "./amortization";
+import {
+  calculateCompanyLoanSchedule,
+  calculatePlayerLoanSchedule,
+} from "./amortization";
 import type { BusinessSettlementOutcome } from "./businessSettlement";
 import { FinanceDecimal } from "./decimal";
 import { type Cents, cents } from "./money";
@@ -29,7 +37,8 @@ export interface LivingPaymentOutcome {
 
 export interface LoanPaymentOutcome {
   readonly loanId: LoanId;
-  readonly borrowerPlayerId: PlayerId;
+  readonly borrowerPlayerId: PlayerId | null;
+  readonly borrowerAssetId?: AssetId;
   readonly lenderPlayerId: PlayerId | null;
   readonly dueCents: Cents;
   readonly paidCents: Cents;
@@ -53,6 +62,7 @@ export function calculateLoanObligation(
 ): LoanObligation | null {
   if (
     quarter <= loan.lastProcessedQuarter ||
+    (loan.kind === "company-loan" && quarter < loan.firstDueQuarter) ||
     (loan.kind === "player-loan" && quarter <= loan.originatedQuarter) ||
     (loan.outstandingPrincipalCents === 0 && loan.unpaidInterestCents === 0)
   ) {
@@ -78,6 +88,15 @@ export function calculateLoanObligation(
     const row = schedule[Math.min(period, loan.termQuarters) - 1];
     if (!row) throw new Error("Missing contractual installment");
     regularPayment = row.paymentCents;
+    matured = period >= loan.termQuarters;
+  } else if (loan.kind === "company-loan") {
+    const period = quarter - loan.firstDueQuarter + 1;
+    const schedule = calculateCompanyLoanSchedule({
+      principalCents: loan.originalPrincipalCents,
+      annualRateBps: loan.annualRateBps,
+    });
+    regularPayment =
+      schedule[Math.min(period, loan.termQuarters) - 1]!.paymentCents;
     matured = period >= loan.termQuarters;
   } else {
     regularPayment = loan.scheduledQuarterlyPaymentCents;
@@ -142,7 +161,11 @@ export function applyLoanPaymentAllocation(
     loan: updated,
     outcome: {
       loanId: loan.id,
-      borrowerPlayerId: loan.borrowerPlayerId,
+      borrowerPlayerId:
+        loan.kind === "company-loan" ? null : loan.borrowerPlayerId,
+      ...(loan.kind === "company-loan"
+        ? { borrowerAssetId: loan.borrowerAssetId }
+        : {}),
       lenderPlayerId: loan.kind === "player-loan" ? loan.lenderPlayerId : null,
       dueCents: obligation.amountDueCents,
       paidCents,

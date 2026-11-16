@@ -58,7 +58,10 @@ export function createPrivateBusinessPurchaseOpportunity(
   if (!asset) {
     return reject("UNKNOWN_ASSET");
   }
-  if (asset.kind !== "business") {
+  if (
+    asset.kind !== "business" ||
+    asset.cashPolicyId !== "retained-profit-v1"
+  ) {
     return reject("UNSUPPORTED_ASSET");
   }
   if (asset.debtPrincipalCents !== 0) {

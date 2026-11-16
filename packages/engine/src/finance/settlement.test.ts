@@ -648,6 +648,11 @@ describe("quarter settlement foundation", () => {
           ...base.finance.quarterStartBasis,
           businessesById: {},
         },
+        loansById: Object.fromEntries(
+          Object.entries(base.finance.loansById).filter(
+            ([, loan]) => loan.kind !== "company-loan",
+          ),
+        ),
         assetsById: {
           [prop2Id]: prop2,
           [prop1Id]: prop1,
@@ -673,6 +678,11 @@ describe("quarter settlement foundation", () => {
           ...base.finance.quarterStartBasis,
           businessesById: {},
         },
+        loansById: Object.fromEntries(
+          Object.entries(base.finance.loansById).filter(
+            ([, loan]) => loan.kind !== "company-loan",
+          ),
+        ),
         assetsById: {
           [prop1Id]: prop1Reversed,
           [prop2Id]: prop2,
