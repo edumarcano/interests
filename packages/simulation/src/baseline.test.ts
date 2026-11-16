@@ -25,6 +25,29 @@ import type { BaselineSimulationConfig } from "./types";
 import { SIMULATION_VERSION } from "./version";
 
 describe("passive baseline simulation", () => {
+  it("reports actual business distributions separately from company reserves and recurring owner income", () => {
+    const initial = createGame({
+      gameId: "distribution-report",
+      seed: "m7-planning-1",
+      playerIds: STANDARD_SIMULATION_PLAYER_IDS,
+    });
+    const fixture = Object.values(initial.opportunitiesById)[0];
+    if (!fixture) throw new Error("Missing business fixture");
+    const ready = completePassiveBaselineSetup(initial);
+    const result = simulateReadyGame(ready, 4);
+    expect(result.failure).toBeNull();
+    expect(
+      result.playerCashFlows[fixture.sellerPlayerId]
+        ?.businessDistributionsReceivedCents,
+    ).toBe(900_000);
+    for (const playerId of ready.playerOrder.filter(
+      (id) => id !== fixture.sellerPlayerId,
+    )) {
+      expect(
+        result.playerCashFlows[playerId]?.businessDistributionsReceivedCents,
+      ).toBe(0);
+    }
+  });
   describe("setup policy (Section 29)", () => {
     it("selects first offered objective for all players in playerOrder via applyAction", () => {
       const seed = "test-setup-seed";

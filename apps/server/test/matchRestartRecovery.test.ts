@@ -439,11 +439,31 @@ describe("Match Crash and Restart Recovery", () => {
           [businessAssetId]: {
             id: businessAssetId,
             kind: "business",
+            cashPolicyId: "retained-profit-v1",
+            cashCents: 0,
+            operatingArrearsCents: 0,
             enterpriseValueCents: 10_000_000,
             debtPrincipalCents: 0,
             annualRevenueCents: 5_000_000,
             annualOperatingProfitCents: 1_000_000,
             ownershipByPlayerPpm: createSoleOwnership(p2),
+          },
+        },
+      },
+    };
+    state = {
+      ...state,
+      finance: {
+        ...state.finance,
+        quarterStartBasis: {
+          ...state.finance.quarterStartBasis,
+          businessesById: {
+            ...state.finance.quarterStartBasis.businessesById,
+            [businessAssetId]: {
+              cashPolicyId: "retained-profit-v1",
+              annualOperatingProfitCents: 1_000_000,
+              ownershipByPlayerPpm: createSoleOwnership(p2),
+            },
           },
         },
       },

@@ -14,7 +14,6 @@ import {
   type PlayerId,
 } from "@interests/shared";
 import { describe, expect, it } from "vitest";
-
 import { applyAction } from "../game/actions";
 import { createGame } from "../game/createGame";
 import { assertGameState } from "../invariants/assertGameState";
@@ -28,6 +27,7 @@ import type {
 } from "../model/gameState";
 import { calculateLegacyBankLoanNextPayment } from "./amortization";
 import { calculateBusinessEquity } from "./business";
+import { captureBusinessBasis } from "./businessSettlement";
 import { applyScheduledPlayerLoanPayment } from "./loans";
 import { basisPoints, cents } from "./money";
 import { ownershipPpm } from "./ownership";
@@ -171,6 +171,9 @@ function createSyntheticProfileGame(profileId: ProfileId): {
     const bizAsset: BusinessAsset = {
       id: createdAssetId,
       kind: "business",
+      cashPolicyId: "legacy-owner-income-v1",
+      cashCents: cents(0),
+      operatingArrearsCents: cents(0),
       annualRevenueCents: cents(
         profileFinances.businessFixture.annualRevenueCents,
       ),
@@ -242,6 +245,7 @@ function createSyntheticProfileGame(profileId: ProfileId): {
   };
 
   const quarterStartBasis: QuarterStartFinanceBasis = {
+    businessesById: captureBusinessBasis(assetsById),
     quarter: 1,
     cashByPlayer: { ...cashByPlayer },
     publicMarketsByPlayer: { ...publicMarketsByPlayer },

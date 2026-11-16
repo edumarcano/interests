@@ -114,6 +114,9 @@ export function attachQ1BusinessOpportunityFixture(
   const businessAsset: BusinessAsset = {
     id: assetId,
     kind: "business",
+    cashPolicyId: "retained-profit-v1",
+    cashCents: cents(0),
+    operatingArrearsCents: cents(0),
     annualRevenueCents: cents(Q1_FIXTURE_ANNUAL_REVENUE_CENTS),
     annualOperatingProfitCents: cents(Q1_FIXTURE_ANNUAL_OPERATING_PROFIT_CENTS),
     enterpriseValueCents: cents(Q1_FIXTURE_ENTERPRISE_VALUE_CENTS),

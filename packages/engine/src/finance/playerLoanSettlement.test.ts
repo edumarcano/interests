@@ -1,6 +1,5 @@
 import { asAssetId, asLoanId, asPlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
-
 import { applyAction } from "../game/actions";
 import { createGame } from "../game/createGame";
 import { assertGameState } from "../invariants/assertGameState";
@@ -11,6 +10,7 @@ import {
   openFinancedBusinessPurchaseTransaction,
   submitPlayerLoanFinancingOffer,
 } from "../transactions/cashBusinessPurchase";
+import { captureBusinessBasis } from "./businessSettlement";
 import { basisPoints, cents } from "./money";
 import { createSoleOwnership } from "./ownership";
 import { settleQuarter } from "./settlement";
@@ -70,6 +70,9 @@ function createClosedFinancedQ1State(): {
   const testBusiness: BusinessAsset = {
     id: businessAssetId,
     kind: "business",
+    cashPolicyId: "retained-profit-v1",
+    cashCents: cents(0),
+    operatingArrearsCents: cents(0),
     enterpriseValueCents: cents(6_000_000),
     debtPrincipalCents: cents(0),
     annualRevenueCents: cents(8_000_000),
@@ -91,6 +94,13 @@ function createClosedFinancedQ1State(): {
         [sellerId]: cents(2_500_000),
         [lenderId]: cents(10_000_000),
         [neutralId]: cents(1_000_000),
+      },
+      quarterStartBasis: {
+        ...base.finance.quarterStartBasis,
+        businessesById: {
+          ...base.finance.quarterStartBasis.businessesById,
+          ...captureBusinessBasis({ [businessAssetId]: testBusiness }),
+        },
       },
       assetsById: {
         ...base.finance.assetsById,

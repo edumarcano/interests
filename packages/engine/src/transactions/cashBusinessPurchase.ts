@@ -72,10 +72,13 @@ function validateCommonBusinessPurchase(
   if (!asset) {
     return "UNKNOWN_ASSET";
   }
-  if (asset.kind !== "business") {
+  if (
+    asset.kind !== "business" ||
+    asset.cashPolicyId === "legacy-owner-income-v1"
+  ) {
     return "UNSUPPORTED_ASSET";
   }
-  if (asset.debtPrincipalCents !== 0) {
+  if (asset.debtPrincipalCents !== 0 || asset.operatingArrearsCents > 0) {
     return "ENCUMBERED_ASSET";
   }
 
@@ -573,10 +576,13 @@ export function applyCloseCashBusinessPurchaseTransaction(
   if (!asset) {
     return reject("UNKNOWN_ASSET");
   }
-  if (asset.kind !== "business") {
+  if (
+    asset.kind !== "business" ||
+    asset.cashPolicyId === "legacy-owner-income-v1"
+  ) {
     return reject("UNSUPPORTED_ASSET");
   }
-  if (asset.debtPrincipalCents !== 0) {
+  if (asset.debtPrincipalCents !== 0 || asset.operatingArrearsCents > 0) {
     return reject("ENCUMBERED_ASSET");
   }
 

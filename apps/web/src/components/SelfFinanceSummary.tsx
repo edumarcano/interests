@@ -182,6 +182,41 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
                 </span>
                 <span style={{ color: "var(--text-secondary)" }}>
                   EV: {formatCents(asset.enterpriseValueCents)}
+                  {asset.companyCashCents !== undefined && (
+                    <>
+                      <br />
+                      Company cash: {formatCents(asset.companyCashCents)}
+                    </>
+                  )}
+                  {asset.equityValueCents !== undefined && (
+                    <>
+                      <br />
+                      Company equity: {formatCents(asset.equityValueCents)}
+                    </>
+                  )}
+                  {asset.incomeTreatment === "included-owner-income" ? (
+                    <>
+                      <br />
+                      Included in your regular owner income.
+                    </>
+                  ) : (
+                    asset.payoutQuarter != null && (
+                      <>
+                        <br />
+                        Expected payout Q{asset.payoutQuarter}:{" "}
+                        {asset.expectedPayoutCents == null
+                          ? "unavailable"
+                          : formatCents(asset.expectedPayoutCents)}
+                      </>
+                    )
+                  )}
+                  {(asset.operatingArrearsCents ?? 0) > 0 && (
+                    <>
+                      <br />
+                      Company operating arrears:{" "}
+                      {formatCents(asset.operatingArrearsCents ?? 0)}
+                    </>
+                  )}
                 </span>
               </div>
             ))}
@@ -196,6 +231,15 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
           style={{ marginTop: "1rem", overflowWrap: "anywhere" }}
         >
           <strong>Q{self.lastSettlement.quarter} settled</strong>
+          {self.lastSettlement.businessDistributions?.map((payment) => (
+            <div
+              key={payment.assetId}
+              data-testid={`business-payout-${payment.assetId}`}
+            >
+              Business {payment.assetId}: received{" "}
+              {formatCents(payment.amountCents)}.
+            </div>
+          ))}
           <div>
             Living costs: {formatCents(self.lastSettlement.livingPaidCents)}{" "}
             paid of {formatCents(self.lastSettlement.livingDueCents)} due.

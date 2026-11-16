@@ -1,4 +1,5 @@
 import type {
+  BusinessCashPolicyId,
   EconomicRegimeId,
   ObjectiveId,
   ProfileId,
@@ -60,11 +61,18 @@ export type PublicMarketPortfolio = Readonly<
 >;
 
 export interface QuarterStartFinanceBasis {
+  readonly businessesById: Readonly<Record<AssetId, BusinessQuarterBasis>>;
   readonly quarter: number;
   readonly cashByPlayer: Readonly<Record<PlayerId, Cents>>;
   readonly publicMarketsByPlayer: Readonly<
     Record<PlayerId, PublicMarketPortfolio>
   >;
+}
+
+export interface BusinessQuarterBasis {
+  readonly cashPolicyId: BusinessCashPolicyId;
+  readonly annualOperatingProfitCents: Cents;
+  readonly ownershipByPlayerPpm: Readonly<Record<PlayerId, OwnershipPpm>>;
 }
 
 export interface PlayerLoan extends LoanPaymentAccounting {
@@ -108,6 +116,9 @@ export interface PropertyAsset {
 }
 
 export interface BusinessAsset {
+  readonly cashPolicyId: BusinessCashPolicyId;
+  readonly cashCents: Cents;
+  readonly operatingArrearsCents: Cents;
   readonly id: AssetId;
   readonly kind: "business";
   readonly annualRevenueCents: Cents;

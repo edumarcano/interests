@@ -1,6 +1,7 @@
 import type { LoanId, PlayerId, SettlementId } from "@interests/shared";
 import type { Loan } from "../model/gameState";
 import { calculatePlayerLoanSchedule } from "./amortization";
+import type { BusinessSettlementOutcome } from "./businessSettlement";
 import { FinanceDecimal } from "./decimal";
 import { type Cents, cents } from "./money";
 
@@ -39,6 +40,7 @@ export interface LoanPaymentOutcome {
 }
 
 export interface SettlementOutcome {
+  readonly businesses: readonly BusinessSettlementOutcome[];
   readonly settlementId: SettlementId;
   readonly quarter: number;
   readonly livingByPlayer: Readonly<Record<PlayerId, LivingPaymentOutcome>>;

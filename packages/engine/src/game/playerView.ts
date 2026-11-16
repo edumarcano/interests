@@ -1,3 +1,4 @@
+import { BUSINESS_CASH_POLICIES } from "@interests/rules";
 import type {
   MatchId,
   PlayerId,
@@ -5,6 +6,8 @@ import type {
   TransactionId,
 } from "@interests/shared";
 import { calculatePlayerLoanSchedule } from "../finance/amortization";
+import { calculateBusinessEquity } from "../finance/business";
+import { planBusinessSettlement } from "../finance/businessSettlement";
 import { calculateLoanObligation } from "../finance/obligations";
 import type { GameState } from "../model/gameState.js";
 import {
@@ -36,6 +39,12 @@ export interface PureOpportunityView {
 }
 
 export interface PureBusinessAssetView {
+  readonly companyCashCents: number;
+  readonly operatingArrearsCents: number;
+  readonly equityValueCents: number;
+  readonly expectedPayoutCents: number | null;
+  readonly payoutQuarter: number | null;
+  readonly incomeTreatment: "included-owner-income" | "business-distribution";
   readonly id: string;
   readonly kind: "business";
   readonly annualRevenueCents: number;
@@ -199,7 +208,55 @@ export function projectPlayerGameState(
     if (asset.kind === "business") {
       const ownership = asset.ownershipByPlayerPpm[playerId];
       if (ownership !== undefined && ownership > 0) {
+        const legacy = asset.cashPolicyId === "legacy-owner-income-v1";
+        const opening =
+          state.finance.quarterStartBasis.businessesById[asset.id];
+        const eligibleNow =
+          !legacy &&
+          opening &&
+          (opening.ownershipByPlayerPpm[playerId] ?? 0) > 0 &&
+          state.currentQuarter >=
+            BUSINESS_CASH_POLICIES["retained-profit-v1"].firstOperatingQuarter;
+        const payoutQuarter = legacy
+          ? null
+          : eligibleNow
+            ? state.currentQuarter
+            : Math.max(
+                state.currentQuarter + 1,
+                BUSINESS_CASH_POLICIES["retained-profit-v1"]
+                  .firstOperatingQuarter,
+              );
+        let expectedPayoutCents: number | null = 0;
+        if (!legacy && payoutQuarter !== null) {
+          try {
+            const forecast = planBusinessSettlement(
+              asset,
+              eligibleNow
+                ? opening
+                : {
+                    cashPolicyId: asset.cashPolicyId,
+                    annualOperatingProfitCents:
+                      asset.annualOperatingProfitCents,
+                    ownershipByPlayerPpm: asset.ownershipByPlayerPpm,
+                  },
+              payoutQuarter,
+            );
+            expectedPayoutCents =
+              forecast?.outcome.distributionsByPlayer[playerId] ?? 0;
+          } catch (error) {
+            if (!(error instanceof RangeError)) throw error;
+            expectedPayoutCents = null;
+          }
+        }
         ownedAssets.push({
+          companyCashCents: asset.cashCents,
+          operatingArrearsCents: asset.operatingArrearsCents,
+          equityValueCents: calculateBusinessEquity(asset).equityValueCents,
+          incomeTreatment: legacy
+            ? "included-owner-income"
+            : "business-distribution",
+          payoutQuarter,
+          expectedPayoutCents,
           id: asset.id,
           kind: "business",
           annualRevenueCents: asset.annualRevenueCents,
@@ -265,6 +322,12 @@ export function projectPlayerGameState(
     latest && living
       ? {
           quarter: latest.quarter,
+          businessDistributions: latest.businesses
+            .filter((b) => Object.hasOwn(b.distributionsByPlayer, playerId))
+            .map((b) => ({
+              assetId: b.assetId,
+              amountCents: b.distributionsByPlayer[playerId] ?? 0,
+            })),
           livingDueCents: living.currentDueCents + living.arrearsDueCents,
           livingPaidCents: living.currentPaidCents + living.arrearsPaidCents,
           livingArrearsCents: living.closingArrearsCents,

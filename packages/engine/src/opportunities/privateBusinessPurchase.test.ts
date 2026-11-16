@@ -1,5 +1,6 @@
 import { asAssetId, asOpportunityId, asPlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
+import { captureBusinessBasis } from "../finance/businessSettlement";
 
 import { cents } from "../finance/money";
 import {
@@ -92,6 +93,9 @@ function createOpportunityFixture(): {
   const testBusiness: BusinessAsset = {
     id: businessAssetId,
     kind: "business",
+    cashPolicyId: "retained-profit-v1",
+    cashCents: cents(0),
+    operatingArrearsCents: cents(0),
     enterpriseValueCents: cents(10_000_000),
     debtPrincipalCents: cents(0),
     annualRevenueCents: cents(5_000_000),
@@ -112,6 +116,13 @@ function createOpportunityFixture(): {
         ...base.finance.cashByPlayer,
         [buyerId]: cents(10_000_000),
         [sellerId]: cents(2_500_000),
+      },
+      quarterStartBasis: {
+        ...base.finance.quarterStartBasis,
+        businessesById: {
+          ...base.finance.quarterStartBasis.businessesById,
+          ...captureBusinessBasis({ [businessAssetId]: testBusiness }),
+        },
       },
       assetsById: {
         ...base.finance.assetsById,
@@ -864,6 +875,9 @@ describe("first private business-purchase opportunity lifecycle", () => {
       const secondBiz: BusinessAsset = {
         id: secondBizId,
         kind: "business",
+        cashPolicyId: "retained-profit-v1",
+        cashCents: cents(0),
+        operatingArrearsCents: cents(0),
         enterpriseValueCents: cents(2_000_000),
         debtPrincipalCents: cents(0),
         annualRevenueCents: cents(1_000_000),
@@ -875,6 +889,13 @@ describe("first private business-purchase opportunity lifecycle", () => {
         ...initial,
         finance: {
           ...initial.finance,
+          quarterStartBasis: {
+            ...initial.finance.quarterStartBasis,
+            businessesById: {
+              ...initial.finance.quarterStartBasis.businessesById,
+              ...captureBusinessBasis({ [secondBizId]: secondBiz }),
+            },
+          },
           assetsById: {
             ...initial.finance.assetsById,
             [secondBizId]: secondBiz,
@@ -1118,6 +1139,9 @@ describe("first private business-purchase opportunity lifecycle", () => {
             [encumberedBizId]: {
               id: encumberedBizId,
               kind: "business",
+              cashPolicyId: "retained-profit-v1",
+              cashCents: cents(0),
+              operatingArrearsCents: cents(0),
               enterpriseValueCents: cents(10_000_000),
               debtPrincipalCents: cents(1_000_000), // Has debt!
               annualRevenueCents: cents(5_000_000),
@@ -1149,6 +1173,9 @@ describe("first private business-purchase opportunity lifecycle", () => {
             [coOwnedBizId]: {
               id: coOwnedBizId,
               kind: "business",
+              cashPolicyId: "retained-profit-v1",
+              cashCents: cents(0),
+              operatingArrearsCents: cents(0),
               enterpriseValueCents: cents(10_000_000),
               debtPrincipalCents: cents(0),
               annualRevenueCents: cents(5_000_000),

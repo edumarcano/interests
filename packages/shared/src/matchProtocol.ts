@@ -117,6 +117,12 @@ export interface PrivateOpportunityView {
 }
 
 export interface MatchSelfBusinessAssetView {
+  readonly companyCashCents?: number;
+  readonly operatingArrearsCents?: number;
+  readonly equityValueCents?: number;
+  readonly expectedPayoutCents?: number | null;
+  readonly payoutQuarter?: number | null;
+  readonly incomeTreatment?: "included-owner-income" | "business-distribution";
   readonly id: string;
   readonly kind: "business";
   readonly annualRevenueCents: number;
@@ -143,6 +149,10 @@ export interface MatchSelfLoanView {
 }
 
 export interface SelfSettlementView {
+  readonly businessDistributions?: readonly {
+    readonly assetId: string;
+    readonly amountCents: number;
+  }[];
   readonly quarter: number;
   readonly livingDueCents: number;
   readonly livingPaidCents: number;

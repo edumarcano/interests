@@ -3,7 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertGameState, cents, type GameState } from "@interests/engine";
+import {
+  assertGameState,
+  cents,
+  type GameState,
+  getActiveSpotlightPlayerId,
+} from "@interests/engine";
 import type {
   CommandAckResult,
   MatchId,
@@ -657,6 +662,121 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
       spotlightsCompleted: 0,
     });
   });
+  it("persists company receipts and payouts exactly once and isolates private company cash in HTTP views", async () => {
+    const { clients, cookies, roomCode, matchId } =
+      await setupMatchAtRoundStart();
+    const readState = (): GameState => {
+      const record = matchRepo.findMatchById(matchId as MatchId);
+      if (!record) throw new Error("Missing match");
+      return JSON.parse(record.match.snapshotJson) as GameState;
+    };
+    for (let quarter = 1; quarter <= 2; quarter++) {
+      expect(
+        await sendCommand(clients[0]!.socket, {
+          commandId: randomUUID(),
+          expectedRevision: readState().revision,
+          command: { type: "BEGIN_ROUND" },
+        }),
+      ).toMatchObject({ ok: true });
+      for (let turn = 0; turn < 4; turn++) {
+        const before = readState();
+        const actor = getActiveSpotlightPlayerId(before);
+        if (!actor) throw new Error("Missing active player");
+        const socket = clients[before.playerOrder.indexOf(actor)]!.socket;
+        const envelope = {
+          commandId: randomUUID(),
+          expectedRevision: before.revision,
+          command: { type: "PASS_SPOTLIGHT" },
+        };
+        expect(await sendCommand(socket, envelope)).toMatchObject({
+          ok: true,
+          revision: before.revision + 1,
+        });
+        if (turn === 3) {
+          const committed = JSON.stringify(readState());
+          expect(await sendCommand(socket, envelope)).toMatchObject({
+            ok: true,
+            revision: before.revision + 1,
+          });
+          expect(JSON.stringify(readState())).toBe(committed);
+        }
+      }
+    }
+    const state = readState();
+    const company = Object.values(state.finance.assetsById).find(
+      (asset) =>
+        asset.kind === "business" &&
+        asset.cashPolicyId === "retained-profit-v1",
+    );
+    if (company?.kind !== "business") throw new Error("Missing company");
+    expect(company.cashCents).toBe(75_000);
+    const outcome = state.finance.lastSettlement?.businesses[0];
+    expect(outcome).toMatchObject({
+      assetId: company.id,
+      operatingCashCents: 375_000,
+      closingCashCents: 75_000,
+    });
+    const events = db
+      .prepare(
+        "SELECT payload_json FROM match_events WHERE match_id = ? AND event_kind = 'journal-entry'",
+      )
+      .all(matchId) as { payload_json: string }[];
+    const payouts = events
+      .map((event) => JSON.parse(event.payload_json))
+      .filter((entry) => entry.reason === "business-distribution");
+    expect(payouts).toHaveLength(1);
+    expect(payouts[0]).toMatchObject({
+      amountCents: 300_000,
+      source: { kind: "business", assetId: company.id },
+    });
+    const getView = async (index: number): Promise<MatchPlayerView> => {
+      const response = await server.fastify.inject({
+        method: "GET",
+        url: `/api/rooms/${roomCode}/match`,
+        cookies: { interests_session: cookies[index]! },
+      });
+      expect(response.statusCode).toBe(200);
+      return JSON.parse(response.body).match;
+    };
+    const ownerIndex = state.playerOrder.findIndex(
+      (id) => (company.ownershipByPlayerPpm[id] ?? 0) > 0,
+    );
+    expect(
+      (await getView(ownerIndex)).self.lastSettlement?.businessDistributions,
+    ).toEqual([{ assetId: company.id, amountCents: 300_000 }]);
+    const unrelatedIndex = (ownerIndex + 1) % 4;
+    const unrelated = await getView(unrelatedIndex);
+    expect(unrelated.self.lastSettlement?.businessDistributions).toEqual([]);
+    if (!outcome || !state.finance.lastSettlement)
+      throw new Error("Missing company outcome");
+    const paired: GameState = {
+      ...state,
+      finance: {
+        ...state.finance,
+        assetsById: {
+          ...state.finance.assetsById,
+          [company.id]: { ...company, cashCents: cents(75_001) },
+        },
+        lastSettlement: {
+          ...state.finance.lastSettlement,
+          businesses: [
+            {
+              ...outcome,
+              openingCashCents: cents(1),
+              closingCashCents: cents(75_001),
+            },
+          ],
+        },
+      },
+    };
+    assertGameState(paired);
+    db.prepare("UPDATE matches SET snapshot_json = ? WHERE id = ?").run(
+      JSON.stringify(paired),
+      matchId,
+    );
+    expect(await getView(unrelatedIndex)).toEqual(unrelated);
+  });
+
   it("persists zero-payment arrears once, keeps private views isolated, and restores them after a real server/database restart", async () => {
     const { clients, cookies, roomCode, matchId } =
       await setupMatchAtRoundStart();

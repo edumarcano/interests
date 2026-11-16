@@ -32,7 +32,7 @@ describe("debt-free business accounting", () => {
     expect(result.enterpriseValueCents).toBe(8_000_000);
   });
 
-  it("rejects negative monetary values", () => {
+  it("accepts signed profit and rejects negative revenue or enterprise value", () => {
     expect(() =>
       calculateDebtFreeBusinessEquity({
         annualRevenueCents: cents(-1),
@@ -47,7 +47,7 @@ describe("debt-free business accounting", () => {
         annualOperatingProfitCents: cents(-1),
         enterpriseValueCents: cents(100),
       }),
-    ).toThrow(RangeError);
+    ).not.toThrow();
 
     expect(() =>
       calculateDebtFreeBusinessEquity({

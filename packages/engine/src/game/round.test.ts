@@ -1,5 +1,6 @@
 import { asAssetId, asPlayerId, asTransactionId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
+import { captureBusinessBasis } from "../finance/businessSettlement";
 
 import { cents } from "../finance/money";
 import { createSoleOwnership } from "../finance/ownership";
@@ -311,6 +312,9 @@ describe("Section 17: Required Engine Tests", () => {
     const testBiz: BusinessAsset = {
       id: bizId,
       kind: "business",
+      cashPolicyId: "retained-profit-v1",
+      cashCents: cents(0),
+      operatingArrearsCents: cents(0),
       annualRevenueCents: cents(5_000_000),
       annualOperatingProfitCents: cents(1_000_000),
       enterpriseValueCents: cents(10_000_000),
@@ -325,6 +329,13 @@ describe("Section 17: Required Engine Tests", () => {
         cashByPlayer: {
           ...beginRes.state.finance.cashByPlayer,
           [pA]: cents(10_000_000),
+        },
+        quarterStartBasis: {
+          ...beginRes.state.finance.quarterStartBasis,
+          businessesById: {
+            ...beginRes.state.finance.quarterStartBasis.businessesById,
+            ...captureBusinessBasis({ [bizId]: testBiz }),
+          },
         },
         assetsById: {
           ...beginRes.state.finance.assetsById,
@@ -559,6 +570,9 @@ describe("Section 17: Required Engine Tests", () => {
     const testBiz: BusinessAsset = {
       id: bizId,
       kind: "business",
+      cashPolicyId: "retained-profit-v1",
+      cashCents: cents(0),
+      operatingArrearsCents: cents(0),
       annualRevenueCents: cents(5_000_000),
       annualOperatingProfitCents: cents(1_000_000),
       enterpriseValueCents: cents(10_000_000),
@@ -573,6 +587,13 @@ describe("Section 17: Required Engine Tests", () => {
         cashByPlayer: {
           ...readyState.finance.cashByPlayer,
           [pA]: cents(10_000_000),
+        },
+        quarterStartBasis: {
+          ...readyState.finance.quarterStartBasis,
+          businessesById: {
+            ...readyState.finance.quarterStartBasis.businessesById,
+            ...captureBusinessBasis({ [bizId]: testBiz }),
+          },
         },
         assetsById: {
           ...readyState.finance.assetsById,
@@ -603,6 +624,9 @@ describe("Section 17: Required Engine Tests", () => {
     const testBiz: BusinessAsset = {
       id: bizId,
       kind: "business",
+      cashPolicyId: "retained-profit-v1",
+      cashCents: cents(0),
+      operatingArrearsCents: cents(0),
       annualRevenueCents: cents(5_000_000),
       annualOperatingProfitCents: cents(1_000_000),
       enterpriseValueCents: cents(10_000_000),
@@ -617,6 +641,13 @@ describe("Section 17: Required Engine Tests", () => {
         cashByPlayer: {
           ...spotlightState.finance.cashByPlayer,
           [pB]: cents(10_000_000),
+        },
+        quarterStartBasis: {
+          ...spotlightState.finance.quarterStartBasis,
+          businessesById: {
+            ...spotlightState.finance.quarterStartBasis.businessesById,
+            ...captureBusinessBasis({ [bizId]: testBiz }),
+          },
         },
         assetsById: {
           ...spotlightState.finance.assetsById,
@@ -647,6 +678,9 @@ describe("Section 17: Required Engine Tests", () => {
     const testBiz: BusinessAsset = {
       id: bizId,
       kind: "business",
+      cashPolicyId: "retained-profit-v1",
+      cashCents: cents(0),
+      operatingArrearsCents: cents(0),
       annualRevenueCents: cents(5_000_000),
       annualOperatingProfitCents: cents(1_000_000),
       enterpriseValueCents: cents(10_000_000),
@@ -661,6 +695,13 @@ describe("Section 17: Required Engine Tests", () => {
         cashByPlayer: {
           ...spotlightState.finance.cashByPlayer,
           [pA]: cents(10_000_000),
+        },
+        quarterStartBasis: {
+          ...spotlightState.finance.quarterStartBasis,
+          businessesById: {
+            ...spotlightState.finance.quarterStartBasis.businessesById,
+            ...captureBusinessBasis({ [bizId]: testBiz }),
+          },
         },
         assetsById: {
           ...spotlightState.finance.assetsById,
@@ -690,6 +731,9 @@ describe("Section 17: Required Engine Tests", () => {
     const testBiz: BusinessAsset = {
       id: bizId,
       kind: "business",
+      cashPolicyId: "retained-profit-v1",
+      cashCents: cents(0),
+      operatingArrearsCents: cents(0),
       annualRevenueCents: cents(5_000_000),
       annualOperatingProfitCents: cents(1_000_000),
       enterpriseValueCents: cents(10_000_000),
@@ -704,6 +748,13 @@ describe("Section 17: Required Engine Tests", () => {
         cashByPlayer: {
           ...spotlightState.finance.cashByPlayer,
           [pA]: cents(10_000_000),
+        },
+        quarterStartBasis: {
+          ...spotlightState.finance.quarterStartBasis,
+          businessesById: {
+            ...spotlightState.finance.quarterStartBasis.businessesById,
+            ...captureBusinessBasis({ [bizId]: testBiz }),
+          },
         },
         assetsById: {
           ...spotlightState.finance.assetsById,
@@ -843,6 +894,9 @@ describe("Orchestration Composition: Terminal Transactions & Spotlight Completio
     const testBiz: BusinessAsset = {
       id: bizId,
       kind: "business",
+      cashPolicyId: "retained-profit-v1",
+      cashCents: cents(0),
+      operatingArrearsCents: cents(0),
       annualRevenueCents: cents(5_000_000),
       annualOperatingProfitCents: cents(1_000_000),
       enterpriseValueCents: cents(10_000_000),
@@ -857,6 +911,13 @@ describe("Orchestration Composition: Terminal Transactions & Spotlight Completio
         cashByPlayer: {
           ...state.finance.cashByPlayer,
           [buyerPlayerId]: cents(10_000_000),
+        },
+        quarterStartBasis: {
+          ...state.finance.quarterStartBasis,
+          businessesById: {
+            ...state.finance.quarterStartBasis.businessesById,
+            ...captureBusinessBasis({ [bizId]: testBiz }),
+          },
         },
         assetsById: {
           ...state.finance.assetsById,

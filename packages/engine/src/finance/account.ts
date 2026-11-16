@@ -1,4 +1,4 @@
-import type { PlayerId } from "@interests/shared";
+import type { AssetId, PlayerId } from "@interests/shared";
 
 export const EXTERNAL_ACCOUNTS = [
   "employer",
@@ -7,11 +7,14 @@ export const EXTERNAL_ACCOUNTS = [
   "living-expense-sink",
   "property-operating-cashflow",
   "personal-earned-income",
+  "business-operating-cashflow",
+  "business-operating-costs",
 ] as const;
 
 export type ExternalAccount = (typeof EXTERNAL_ACCOUNTS)[number];
 
 export type CashAccount =
+  | { readonly kind: "business"; readonly assetId: AssetId }
   | { readonly kind: "player"; readonly playerId: PlayerId }
   | { readonly kind: "external"; readonly account: ExternalAccount };
 
@@ -30,7 +33,13 @@ export function externalCashAccount(account: ExternalAccount): CashAccount {
   return { kind: "external", account };
 }
 
+export function businessCashAccount(assetId: AssetId): CashAccount {
+  return { kind: "business", assetId };
+}
+
 export function isSameCashAccount(a: CashAccount, b: CashAccount): boolean {
+  if (a.kind === "business" && b.kind === "business")
+    return a.assetId === b.assetId;
   if (a.kind === "player" && b.kind === "player") {
     return a.playerId === b.playerId;
   }

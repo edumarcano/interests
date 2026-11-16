@@ -59,6 +59,7 @@ export function createZeroPlayerCashFlow(): SimulationPlayerCashFlow {
     publicMarketDividendsReceivedCents: 0,
     recurringIncomeReceivedCents: 0,
     propertyDistributionsReceivedCents: 0,
+    businessDistributionsReceivedCents: 0,
     livingExpensesPaidCents: 0,
     legacyPrincipalPaidCents: 0,
     legacyInterestPaidCents: 0,
@@ -212,6 +213,12 @@ export function applySettlementJournalToCashFlows(
           entry.amountCents,
           "recurringIncomeReceivedCents",
         );
+      } else if (entry.reason === "business-distribution") {
+        flow.businessDistributionsReceivedCents = safeAdd(
+          flow.businessDistributionsReceivedCents,
+          entry.amountCents,
+          "businessDistributionsReceivedCents",
+        );
       } else if (entry.reason === "property-operating-distribution") {
         flow.propertyDistributionsReceivedCents = safeAdd(
           flow.propertyDistributionsReceivedCents,
@@ -279,6 +286,7 @@ interface ProfileAccumulator {
   publicMarketDividendsReceived: number[];
   recurringIncomeReceived: number[];
   propertyDistributionsReceived: number[];
+  businessDistributionsReceived: number[];
   livingExpensesPaid: number[];
   legacyPrincipalPaid: number[];
   legacyInterestPaid: number[];
@@ -351,6 +359,7 @@ export function aggregateBatchReport(
       publicMarketDividendsReceived: [],
       recurringIncomeReceived: [],
       propertyDistributionsReceived: [],
+      businessDistributionsReceived: [],
       livingExpensesPaid: [],
       legacyPrincipalPaid: [],
       legacyInterestPaid: [],
@@ -505,6 +514,9 @@ export function aggregateBatchReport(
         flow.publicMarketDividendsReceivedCents,
       );
       acc.recurringIncomeReceived.push(flow.recurringIncomeReceivedCents);
+      acc.businessDistributionsReceived.push(
+        flow.businessDistributionsReceivedCents,
+      );
       acc.propertyDistributionsReceived.push(
         flow.propertyDistributionsReceivedCents,
       );
@@ -578,6 +590,9 @@ export function aggregateBatchReport(
         ),
         recurringIncomeReceivedCents: summarizeCashFlow(
           acc.recurringIncomeReceived,
+        ),
+        businessDistributionsReceivedCents: summarizeCashFlow(
+          acc.businessDistributionsReceived,
         ),
         propertyDistributionsReceivedCents: summarizeCashFlow(
           acc.propertyDistributionsReceived,

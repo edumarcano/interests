@@ -81,6 +81,7 @@ function createInitialFinance(): FinanceState {
     assetsById: {},
     publicMarketsByPlayer,
     quarterStartBasis: {
+      businessesById: {},
       quarter: 1,
       cashByPlayer: { ...cashByPlayer },
       publicMarketsByPlayer: { ...publicMarketsByPlayer },

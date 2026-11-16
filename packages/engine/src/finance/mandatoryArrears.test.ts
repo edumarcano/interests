@@ -58,6 +58,7 @@ function fixture(): GameState {
       ),
       publicMarketsByPlayer: portfolios,
       quarterStartBasis: {
+        businessesById: {},
         quarter: 1,
         cashByPlayer: cash,
         publicMarketsByPlayer: portfolios,

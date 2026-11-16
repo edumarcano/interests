@@ -16,8 +16,18 @@ import type {
   Loan,
   PublicMarketPortfolio,
 } from "../model/gameState";
-import { externalCashAccount, playerCashAccount } from "./account";
+import {
+  type CashAccount,
+  externalCashAccount,
+  playerCashAccount,
+} from "./account";
 import { allocateWeightedCents } from "./allocation";
+import {
+  BusinessCashOverflowError,
+  type BusinessSettlementOutcome,
+  captureBusinessBasis,
+  planBusinessSettlement,
+} from "./businessSettlement";
 import { FinanceDecimal } from "./decimal";
 import { generateQuarterMarketUpdate } from "./economy";
 import type { JournalEntry } from "./journal";
@@ -108,23 +118,36 @@ export function applyQuarterSettlement(
     const playerIds = [...state.playerOrder].sort();
     const postings: CashPostingRequest[] = [];
     const balances: Record<PlayerId, Cents> = { ...state.finance.cashByPlayer };
+    const businessBalances: Record<AssetId, Cents> = {};
+    for (const asset of Object.values(state.finance.assetsById))
+      if (asset.kind === "business")
+        businessBalances[asset.id] = asset.cashCents;
+    const balanceOf = (account: CashAccount): Cents =>
+      account.kind === "player"
+        ? required(balances[account.playerId])
+        : account.kind === "business"
+          ? required(businessBalances[account.assetId])
+          : cents(0);
+    const writeBalance = (account: CashAccount, amount: Cents) => {
+      if (account.kind === "player") balances[account.playerId] = amount;
+      else if (account.kind === "business")
+        businessBalances[account.assetId] = amount;
+    };
     const planPosting = (request: CashPostingRequest) => {
       if (request.amountCents === 0) return;
-      if (request.source.kind === "player") {
-        const id = request.source.playerId;
-        const next = cents(required(balances[id]) - request.amountCents);
+      if (request.source.kind !== "external") {
+        const next = cents(balanceOf(request.source) - request.amountCents);
         if (next < 0) throw new SettlementPlanningError("INSUFFICIENT_FUNDS");
-        balances[id] = next;
+        writeBalance(request.source, next);
       }
-      if (request.destination.kind === "player") {
-        const id = request.destination.playerId;
-        if (
-          request.amountCents >
-          Number.MAX_SAFE_INTEGER - required(balances[id])
-        ) {
+      if (request.destination.kind !== "external") {
+        const previous = balanceOf(request.destination);
+        if (request.amountCents > Number.MAX_SAFE_INTEGER - previous)
           throw new SettlementPlanningError("DESTINATION_OVERFLOW");
-        }
-        balances[id] = cents(required(balances[id]) + request.amountCents);
+        writeBalance(
+          request.destination,
+          cents(previous + request.amountCents),
+        );
       }
       postings.push(request);
     };
@@ -205,6 +228,23 @@ export function applyQuarterSettlement(
           { relatedAssetId: asset.id },
         );
       }
+    }
+
+    const businesses: BusinessSettlementOutcome[] = [];
+    for (const assetId of (
+      Object.keys(state.finance.quarterStartBasis.businessesById) as AssetId[]
+    ).sort()) {
+      const asset = state.finance.assetsById[assetId];
+      if (!asset || asset.kind !== "business")
+        throw new Error("Missing business entitlement asset");
+      const plan = planBusinessSettlement(
+        asset,
+        required(state.finance.quarterStartBasis.businessesById[assetId]),
+        quarter,
+      );
+      if (!plan) continue;
+      for (const posting of plan.postings) planPosting(posting);
+      businesses.push(plan.outcome);
     }
 
     const livingByPlayer = {} as Record<PlayerId, LivingPaymentOutcome>;
@@ -340,6 +380,7 @@ export function applyQuarterSettlement(
       state.counters,
     );
     const settlementOutcome: SettlementOutcome = {
+      businesses,
       settlementId,
       quarter,
       livingByPlayer,
@@ -358,6 +399,23 @@ export function applyQuarterSettlement(
       currentCounters = result.counters;
       journalEntries.push(result.entry);
     }
+    let assetsById = finance.assetsById;
+    for (const business of businesses) {
+      const asset = assetsById[business.assetId];
+      if (
+        !asset ||
+        asset.kind !== "business" ||
+        asset.cashCents !== business.closingCashCents
+      )
+        throw new Error("Business cash postings do not reconcile");
+      assetsById = {
+        ...assetsById,
+        [asset.id]: {
+          ...asset,
+          operatingArrearsCents: business.closingOperatingArrearsCents,
+        },
+      };
+    }
     const nextState: GameState = {
       ...state,
       currentQuarter: quarter + 1,
@@ -365,10 +423,12 @@ export function applyQuarterSettlement(
       finance: {
         ...finance,
         loansById,
+        assetsById,
         livingArrearsByPlayer,
         lastSettlement: settlementOutcome,
         publicMarketsByPlayer: revaluedMarketsByPlayer,
         quarterStartBasis: {
+          businessesById: captureBusinessBasis(assetsById),
           quarter: quarter + 1,
           cashByPlayer: { ...finance.cashByPlayer },
           publicMarketsByPlayer: { ...revaluedMarketsByPlayer },
@@ -399,6 +459,8 @@ export function applyQuarterSettlement(
     };
   } catch (error) {
     if (error instanceof SettlementPlanningError) return reject(error.code);
+    if (error instanceof BusinessCashOverflowError)
+      return reject("DESTINATION_OVERFLOW");
     if (error instanceof RangeError) return reject("OBLIGATION_OVERFLOW");
     throw error;
   }

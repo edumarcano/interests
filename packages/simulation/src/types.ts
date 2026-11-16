@@ -38,6 +38,7 @@ export interface SimulationPlayerCashFlow {
   publicMarketDividendsReceivedCents: number;
   recurringIncomeReceivedCents: number;
   propertyDistributionsReceivedCents: number;
+  businessDistributionsReceivedCents: number;
   livingExpensesPaidCents: number;
   legacyPrincipalPaidCents: number;
   legacyInterestPaidCents: number;
@@ -116,6 +117,7 @@ export interface ProfileAggregateMetrics {
     readonly publicMarketDividendsReceivedCents: CashFlowSummary;
     readonly recurringIncomeReceivedCents: CashFlowSummary;
     readonly propertyDistributionsReceivedCents: CashFlowSummary;
+    readonly businessDistributionsReceivedCents: CashFlowSummary;
     readonly livingExpensesPaidCents: CashFlowSummary;
     readonly legacyPrincipalPaidCents: CashFlowSummary;
     readonly legacyInterestPaidCents: CashFlowSummary;

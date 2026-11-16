@@ -6,7 +6,6 @@ import {
 } from "@interests/rules";
 import { asAssetId, asLoanId, asPlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
-
 import { applyAction } from "../game/actions";
 import { createGame } from "../game/createGame";
 import { assertGameState } from "../invariants/assertGameState";
@@ -17,6 +16,7 @@ import type {
   PropertyAsset,
 } from "../model/gameState";
 import { externalCashAccount, playerCashAccount } from "./account";
+import { captureBusinessBasis } from "./businessSettlement";
 import { generateQuarterMarketUpdate } from "./economy";
 import {
   applyScheduledPlayerLoanPayment,
@@ -122,6 +122,9 @@ function buildSyntheticFixture(options?: {
   const business: BusinessAsset = {
     id: businessId,
     kind: "business",
+    cashPolicyId: "retained-profit-v1",
+    cashCents: cents(0),
+    operatingArrearsCents: cents(0),
     annualRevenueCents: cents(50_000_000),
     annualOperatingProfitCents: cents(8_000_000),
     enterpriseValueCents: cents(32_000_000),
@@ -186,6 +189,7 @@ function buildSyntheticFixture(options?: {
         [p4]: zeroPortfolio,
       },
       quarterStartBasis: {
+        businessesById: captureBusinessBasis({ [businessId]: business }),
         quarter: 1,
         cashByPlayer: {
           [p1]: cents(0),
@@ -535,6 +539,7 @@ describe("quarter settlement foundation", () => {
           [p4]: zeroPortfolio,
         },
         quarterStartBasis: {
+          businessesById: {},
           quarter: 1,
           cashByPlayer: {
             [p1]: cents(0),
@@ -639,6 +644,10 @@ describe("quarter settlement foundation", () => {
       opportunitiesById: {},
       finance: {
         ...base.finance,
+        quarterStartBasis: {
+          ...base.finance.quarterStartBasis,
+          businessesById: {},
+        },
         assetsById: {
           [prop2Id]: prop2,
           [prop1Id]: prop1,
@@ -660,6 +669,10 @@ describe("quarter settlement foundation", () => {
       opportunitiesById: {},
       finance: {
         ...base.finance,
+        quarterStartBasis: {
+          ...base.finance.quarterStartBasis,
+          businessesById: {},
+        },
         assetsById: {
           [prop1Id]: prop1Reversed,
           [prop2Id]: prop2,
