@@ -905,7 +905,7 @@ Opening LTV is \$255,000 / \$330,000 = 77.27%, accepted as an existing legacy lo
 
 Businesses share revenue, operating margin/profit, debt, value, economic sensitivity, capacity, and ownership. Operating profit = revenue x operating margin. Enterprise value = normalized annual operating profit x valuation multiple. Equity value = enterprise value - business debt. For an owner-dependent practice, use the specified owner-earnings valuation basis instead.
 
-For starting businesses in Quarter 1, business debt is balance-sheet-only and derives opening equity; it does not amortize in Quarter 1, and no separate business operating profit distributions occur (owner income is authoritative spendable income). Retained earnings, future distributions, entity cash, and business debt schedules remain open.
+During the first M7 financial slice, the three starting businesses use `legacy-owner-income-v1`: their existing spendable owner income is paid once, company debt remains balance-sheet-only, and no additional operating distribution or retained cash accumulates. This temporary treatment ends when the integrated starting-business fixtures in section 16.3.2 are reviewed and implemented.
 
 | **Business type**        | **Operating margin**                     | **Valuation basis**                      |
 |--------------------------|------------------------------------------|------------------------------------------|
@@ -913,7 +913,7 @@ For starting businesses in Quarter 1, business debt is balance-sheet-only and de
 | Growth business          | 5%-18%                                   | 4x-7x normalized annual operating profit |
 | Owner-dependent practice | Not governed by the mature-business band | 0.5x-1.2x owner earnings                 |
 
-Owner-dependent earnings compensate the player's labor. They are not automatically passive income and must not qualify for Independent merely because payment comes from a business. The normalization window, reinvestment policy, and conversion from profit to owner distributions remain implementation decisions.
+Owner-dependent earnings compensate the player's labor. They are not automatically passive income and must not qualify for Independent merely because payment comes from a business. The approved distribution policy is in section 16.3.1. Further performance normalization and explicit growth-investment effects remain open.
 
 | **Starting business**    | **Annual revenue** | **Annual op. profit / earnings** | **Enterprise value** | **Debt** | **Equity** |
 |--------------------------|--------------------|----------------------------------|----------------------|----------|------------|
@@ -922,6 +922,35 @@ Owner-dependent earnings compensate the player's labor. They are not automatical
 | Early-Stage Entrepreneur | \$300k             | \$54k                            | \$230k               | \$60k    | \$170k     |
 
 These are approximate fixtures. The practice is valued on owner earnings, not as a scalable company. The \$230k growth-business valuation is approximately 4.26x its \$54k profit. Opening owner-income targets of \$68k, \$96k, and \$45k are authoritative spendable income for opening quarter settlement; business operating profit is not distributed separately to avoid double counting. Opening business debt is balance-sheet-only and does not amortize in Quarter 1.
+
+### 16.3.1 Quarterly business cash policy [PROTOTYPE]
+
+The productive business policy is `retained-profit-v1`. Its first operating settlement is Q2: the Q1 fixture pays neither seller nor buyer in Q1. Payout entitlement uses quarter-start ownership and operating inputs. Buying in QN gives the buyer its first payout in QN+1; an ordinary later-quarter seller retains QN's entitlement. The same quarter cannot pay both owners a full distribution.
+
+Quarterly operating cash is annual operating profit / 4, rounded HALF_UP to cents. Operating profit includes necessary labor costs. Positive operating cash enters the company account; negative cash flow consumes reserves and leaves explicit operating payables if reserves are insufficient. Required operating arrears and company debt service precede dividends. Dividend-eligible surplus is current positive operating cash less actual required company payments, floored at zero and capped by company cash. Old reserves fund obligations, not automatic dividends.
+
+Retain HALF_UP(surplus * 2,000 / 10,000) and distribute the exact remainder by quarter-start ownership, using canonical largest-remainder cent allocation. There is no automatic personal cash call or guarantee. Company liabilities stay with the company unless an explicitly supported contract provides otherwise.
+
+| Example | Cash and claims |
+| --- | --- |
+| Debt-free company earns $15,000 annually | Q2 generates $3,750; owners receive $3,000 and the company retains $750 |
+| Two owners hold 60% and 40% | Their shares of that $3,000 payout are $1,800 and $1,200 |
+| Company loses $1,000 with $250 reserves | Pay $250 and record $750 operating payable; no dividend |
+| Company is bought in Q3 | Q3's opening seller receives Q3's distribution; buyer begins in Q4 |
+
+Operating enterprise value excludes company cash. Company equity includes cash once and subtracts loan principal, unpaid interest, and operating payables once; signed company equity remains supported. Retained cash stays with the company on a supported whole-business transfer at the agreed price. The existing sole-owner, debt-free transaction does not support companies with payables or arrears. Partial sales, debt-bearing transfers, and liability assumptions need separate contract rules.
+
+Reserves absorb losses and may fund later explicitly supported investment opportunities. Accumulating reserves alone does not increase operating profit, revenue, or capacity.
+
+### 16.3.2 Unified starting-business calibration [PROTOTYPE direction]
+
+The permanent model separates compensation for work from ownership distributions. Working-owner compensation is an operating cost and is paid once from accounted business cash. When the owner stops working, their compensation ends; necessary replacement labor remains a cost before passive returns. Managed-company earnings already include management costs. V1 needs a working-owner/managed distinction, not an employee or working-hours simulation. Further labor-exit and management-conversion actions remain separately scoped.
+
+Opening company debt uses 8.00% fixed nominal APR and seven-year quarterly amortization (28 quarters) as its prototype calibration basis, with APR / 4, HALF_UP rounding, and final-cent cleanup. Interest is an expense; principal repayment reduces debt. Both consume cash before distributions. These terms do not replace new-loan underwriting or the negotiated player-loan 2-8-quarter limit.
+
+Calibrate revenue, labor compensation, operating profit, valuation, debt payments, reserves, personal income, and living costs together. The old $68k/$96k/$45k owner incomes and company values are references, not fixed targets. The Small Business Owner has meaningful productive ownership with concentrated risk; the Operator earns primarily through personal work; the Entrepreneur has modest liquidity and income with real growth opportunities. Every profile needs viable opening choices without mandatory rescue financing under ordinary conditions. Unimplemented growth is not an opening advantage.
+
+Before activating this model, review one integrated fixture per business, including compensation dependence, valuation basis, first due quarter, cash reserves, and company/player cash reconciliation. Accounting checks do not establish balance or enjoyment; assess both simulations and family playtests. The temporary legacy treatment remains until that fixture checkpoint.
 
 ## 16.4 Business performance by economy [PROTOTYPE]
 
@@ -1045,7 +1074,7 @@ Buyer cash and supported partner equity/player loans can bridge the remainder. S
 
 V1 supports principal, fixed annual interest rate, a 2-8 quarter term, quarterly fully amortizing repayments, and optional collateral. The rate is negotiated; there is no automatic platform fee or bank-style price optimization. The interface calculates payments and requires confirmation from the parties. Variable player loans, convertibles, payment waterfalls, and contingent clauses are deferred.
 
-The loan system must separate principal from interest: repayment of principal is not financing profit. A loan creates cash and a matching liability for the borrower and a receivable for the lender; it does not create net wealth by itself. The game enforces the contract rules, but insufficient cash requires an explicit default/recovery rule, not invented funds. Collateral priority, forced recovery, and insolvency remain open implementation decisions.
+The loan system must separate principal from interest: repayment of principal is not financing profit. A loan creates cash and a matching liability for the borrower and a receivable for the lender; it does not create net wealth by itself. The game enforces the contract rules, but insufficient cash requires an explicit default/recovery rule, not invented funds. Initial mandatory-payment defaults and cash recovery follow section 17.4.2. Collateral priority, forced recovery, and formal insolvency remain open.
 
 ### 17.4.1 Approved Player-Loan Calculation Policy [PROTOTYPE]
 
@@ -1071,9 +1100,39 @@ For V1 fixed-rate player-to-player loans:
 10. **Zero-interest loans:** Total interest is exactly zero. Principal is divided as evenly as possible over the term, with remainder cents distributed to earliest installments in deterministic order. Zero-rate terms that would create a zero-value installment (such as $\text{principalCents} < \text{termQuarters}$) are unsupported and rejected. Final principal is exactly zero.
 11. **Non-reducing principal rejection:** If cent rounding would cause a non-final installment to fail to reduce principal (or if zero-interest terms would create a zero-value installment), the loan terms are rejected as unsupported rather than altering formulas or terms.
 12. **Prepayment:** No prepayment or early payoff mechanic is supported in this slice.
-13. **Insufficient cash:** Insufficient borrower cash does NOT create default, partial payment, emergency funding, or negative cash balance; the payment operation rejects unchanged.
+13. **Insufficient cash:** Mandatory quarterly payments follow section 17.4.2: pay affordable amounts, record arrears, and continue the quarter. Discretionary funding/purchases remain all-or-nothing; insufficient cash does not authorize negative balances or emergency funding.
 
-> **Decision Scope:** This policy resolves only the fixed player-loan calculation subset of A2. A2 remains **OPEN** for opening personal-debt schedules, the Property Starter mortgage, opening business debt, bank-loan period conventions, variable-rate resets, and refinancing rules. A5 remains **OPEN** for default, recovery, collateral, lien priority, and insolvency.
+> **Decision Scope:** This policy resolves only the fixed player-loan calculation subset of A2. A2 remains **OPEN** for opening personal-debt schedules, the Property Starter mortgage, opening business debt, bank-loan period conventions, variable-rate resets, and refinancing rules. Section 17.4.2 resolves the initial mandatory-payment/default subset of A5. Collateral, lien priority, formal bankruptcy, and write-offs remain **OPEN**.
+
+### 17.4.2 Mandatory payments, default, and cash recovery [PROTOTYPE]
+
+`mandatory-arrears-v1` applies to living expenses, opening personal bank debt, the existing player-borrowed mortgage, and player-loan installments. A cash shortfall is a successful settlement outcome with explicit claims; it cannot reject the entire quarter or eliminate a player. Invalid commands, overflow, and genuine engine faults still reject atomically. Discretionary purchases and loan funding retain strict affordability checks.
+
+Freeze each player's payment budget from cash before settlement plus eligible yield, dividends, income, property cash flow, and business payouts. Incoming player-loan repayments cannot fund any obligation in that same settlement. Their receipts become next-quarter cash. Zero-cash circular borrowers both accrue arrears; do not net claims or repeatedly clear transfers.
+
+| Priority | Allocation |
+| --- | --- |
+| 1 | Current living costs |
+| 2 | Unpaid living costs from earlier quarters |
+| 3 | All due legacy-bank, mortgage, and player-loan claims at equal priority, proportional to claim amounts; canonical LoanId breaks remainder-cent ties only |
+
+On each loan, pay unpaid/current interest before principal and overdue principal before newly due principal. Outstanding principal falls only by principal actually paid. Overdue principal is a subset of outstanding principal, not another liability. Due periods advance by quarter regardless of payment. A Q1 player loan first becomes due in Q2.
+
+Keep the agreed regular player installment. Calculate current interest from actual opening outstanding principal at APR / 4, rounded HALF_UP; its remaining regular-payment amount becomes new due principal, capped by principal not already overdue. Add earlier claims separately. At player-loan maturity, all remaining principal is due and stays due until paid. Legacy loans retain their fixed scheduled payment and approved rates, with the same actual-interest/current-principal split. On-time schedules and final-cent cleanup retain their exact results.
+
+Ordinary simple interest continues on outstanding principal, including after maturity. Do not charge interest on unpaid interest, capitalize it, add penalty rates/fees, or accelerate before maturity. Living and operating payables have no interest. No cash journal is emitted for an unpaid amount; record a structured due/paid/unpaid settlement outcome. A zero-principal loan with unpaid interest remains collectible.
+
+| Example | Outcome |
+| --- | --- |
+| $600 budget; $400 current living; $100 bank and $300 player claims | Pay living $400, bank $50, and player lender $150; carry the unpaid loan claims |
+| $50 interest due, $30 available | Pay $30 interest; principal unchanged, $20 interest arrears; future interest excludes the $20 |
+| $0 cash/income and $400 living costs | Record $400 living arrears and advance the quarter without a cash posting |
+| Two zero-cash players each owe the other $100 | Both owe $100 after settlement; no fictional cash or circular clearing |
+| Later income covers all overdue amounts | Collect under the same priorities and return the affected position to current |
+
+Exact amounts are private to the debtor and affected lender; company details go to entitled owners. Lenders see their own actual receipts and nominal unpaid claims, not the borrower's full budget. Unreceived interest is not realized financing profit. No public default announcement or new public distress band is introduced. Distressed players retain ordinary spotlight participation.
+
+Later settlements recover arrears automatically under the same rules. Forced sales, collateral enforcement, formal bankruptcy, write-offs, lien priority, equity issuance and broader ownership consent remain unresolved A5 work. No promise, missing player, or shortfall creates money or cancels a claim.
 
 ## 17.5 Calculation and ledger guardrails
 
@@ -1136,8 +1195,8 @@ The core design is established, but the following rules must be resolved or veri
 | A1     | Quarter-start recurring entitlement convention [PROTOTYPE]. Entitlement for Quarter N is determined by position at start of Quarter N (future cash interest uses quarter-start cash; future dividends use quarter-start holdings). Actual implementation of market dividends, cash yield, and exact annual-to-quarter conversion remains deferred. | Prevents double payment, late-round capture of unearned income, and first/last-spotlight advantage.               |
 | A2     | Opening personal debts use 8.00% fixed APR, quarterly payment = 3 × monthly fixture, fixed-payment amortization with final cleanup [PROTOTYPE subset]. Opening business debt, new bank loans, and rate resets remain OPEN. | Current income/surplus fixtures imply payments but do not define complete debt schedules. Fixed player loans (Section 17.4.1) and opening personal debts are resolved as prototype. |
 | A3     | Property Starter mortgage grandfathered [PROTOTYPE]. \$255k at 5.50% APR, \$4,335.37 quarterly payment, 77.27% LTV accepted as legacy loan without new-loan underwriting. | Choose explicit legacy-loan treatment or adjust the fixture; do not silently bypass underwriting. Resolved as grandfathered legacy loan. |
-| A4     | Section 15.1 owner-income figures are authoritative spendable income; no Quarter-1 business distributions [PROTOTYPE subset]. Retained earnings, future distributions, entity cash, normalization, and business-debt schedules remain OPEN. | Prevents double counting cash, income, and company equity; reproduces the \$68k/\$96k/\$45k owner-income targets. |
-| A5     | Specify equity issuance versus secondary sale, valuation/cost basis, fees, ownership consent, default, collateral recovery, and debt priority.                           | Contracts must have defined consequences when funds are insufficient; a promise is not funding.                   |
+| A4 | Sections 16.3.1-16.3.2 approve 80/20 retained-profit settlement, quarter-start entitlement, entity cash/losses, temporary legacy owner income, and unified calibration direction. Concrete starting-business fixtures and further performance normalization remain OPEN. | Prevents duplicate income/debt and gives retained cash an explicit home. |
+| A5 | Section 17.4.2 approves mandatory shortfalls, proportional partial payments, arrears, simple principal interest, private outcomes, and cash recovery. Collateral, bankruptcy/write-offs, broader transfers, equity issuance, cost basis and consent remain OPEN. | The table continues while unpaid claims remain explicit and collectible. |
 | A6     | Define reservation, cancellation, inspection costs, expiry, and the atomic close of linked funding plus asset purchase.                                                  | Prevents double-spending offers or leaving the buyer with an unintended loan when an acquisition fails.           |
 
 ## 19.2 Progression, victory, and pacing decisions [OPEN]

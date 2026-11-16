@@ -724,8 +724,16 @@ Establish the Milestone-6 hardening architecture for physical local/LAN multi-de
    - Logs local and LAN access URLs and handles clean `SIGINT`/`SIGTERM` process shutdown.
    - No Electron, Tauri, or native installer packaging in Milestone 6.
 
+## ARCH-038 - M7 business cash and mandatory arrears policies
 
+**Status:** Accepted
+**Date:** November 16, 2026
 
+Adopt the prototype policies in GAME_DESIGN sections 16.3.1-16.3.2 and 17.4.2. This decision supersedes ARCH-021/023/028/034/036 only where they reject an otherwise valid mandatory settlement for insufficient cash or exclude all future business cash flows. It does not weaken discretionary closing affordability, rejection atomicity, or the once-only quarter/revision boundary.
 
-
-
+1. **Rules and scope:** Immutable `mandatory-arrears-v1`, `legacy-owner-income-v1`, and `retained-profit-v1` policy data live in `@interests/rules`. The first PR records policy without activating new engine behavior. Later functional PRs bump engine/rules/shared/persistence versions as appropriate; incompatible saved matches remain intact and require their compatible build, not silent conversion.
+2. **Mandatory payments:** Pay current living costs, living arrears, then equal-priority proportional due bank/mortgage/player-loan claims. Freeze simultaneous budgets excluding same-quarter incoming loan repayments. Record unpaid interest separately and overdue principal as part of outstanding principal. Calendar due periods continue through a miss; player-loan maturity makes remaining principal due. Ordinary interest uses actual principal, never unpaid interest. Preserve exact on-time loan arithmetic.
+3. **Business cash:** First operating settlement is Q2. Quarter-start ownership receives the distribution, with 20% retained after required company payments. Positive cash, losses, reserves, and operating payables have canonical accounted homes. A supported whole-business transfer preserves company cash and rejects unhandled payables/debt. No automatic owner guarantee, cash call, or reserve-driven growth is introduced.
+4. **Canonical outcomes and persistence:** Actual nonzero transfers create journals. Due/paid/unpaid outcomes also cover zero-payment cases. Keep bounded current summaries in engine state and historical outcomes alongside journal events in the existing atomic SQLite commit. Full histories remain private; projections allow only the affected player's/party's detail.
+5. **Starting-owner transition:** Starting businesses temporarily retain existing bundled owner income and balance-sheet-only debt without extra dividends/reserves. The permanent model separates work pay from ownership returns. Use 8% fixed APR / 28 quarters for opening company-loan calibration, not all lending. Old income/value figures may change. Review integrated viable fixtures before activation; no employee simulation or automatic growth effects.
+6. **Delivery boundary:** Implement policies, mandatory shortfalls, and productive debt-free businesses as the first three-PR stack. Unified starting-company fixtures/debt follow separately. Collateral, bankruptcy, write-offs, broader ownership contracts, growth actions, and victory measurement remain outside this stack. All actual game mutations remain engine-owned; the browser displays authoritative amounts.
