@@ -162,6 +162,7 @@ export function advanceSpotlight(
     ok: true,
     state: finalState,
     journalEntries: settleResult.journalEntries,
+    settlementOutcome: settleResult.settlementOutcome,
   };
 }
 
@@ -265,6 +266,7 @@ export function resolveTerminalTransactionAndAdvanceSpotlight(
     ok: true,
     state: finalState,
     journalEntries: [...txJournalEntries, ...settleResult.journalEntries],
+    settlementOutcome: settleResult.settlementOutcome,
   };
 }
 

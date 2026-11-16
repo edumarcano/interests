@@ -613,13 +613,15 @@ export class MatchService {
         };
       }
 
-      const events =
-        actionResult.journalEntries && actionResult.journalEntries.length > 0
-          ? actionResult.journalEntries.map((entry) => ({
-              eventKind: "journal-entry",
-              payloadJson: JSON.stringify(entry),
-            }))
-          : undefined;
+      const events = actionResult.journalEntries.map((entry) => ({
+        eventKind: "journal-entry",
+        payloadJson: JSON.stringify(entry),
+      }));
+      if (actionResult.settlementOutcome)
+        events.push({
+          eventKind: "settlement-outcome",
+          payloadJson: JSON.stringify(actionResult.settlementOutcome),
+        });
 
       // 11. Atomic SQLite commit
       this.matchRepository.commitAcceptedCommand({

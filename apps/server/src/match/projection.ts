@@ -128,6 +128,10 @@ export function buildMatchPlayerView(params: {
       annualRateBps: l.annualRateBps,
       termQuarters: l.termQuarters,
       scheduledQuarterlyPaymentCents: l.scheduledQuarterlyPaymentCents,
+      amountDueCents: l.amountDueCents,
+      pastDuePrincipalCents: l.pastDuePrincipalCents,
+      unpaidInterestCents: l.unpaidInterestCents,
+      status: l.status,
     }),
   );
 

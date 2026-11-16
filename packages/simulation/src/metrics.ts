@@ -94,11 +94,26 @@ export function createPlayerSnapshot(
     "liquidCapitalCents",
   );
 
+  let unpaidObligationsCents =
+    state.finance.livingArrearsByPlayer[playerId] ?? 0;
   let legacyBankDebtCents = 0;
   let playerLoanDebtCents = 0;
   let playerLoanReceivableCents = 0;
+  let unpaidInterestReceivableCents = 0;
 
   for (const loan of Object.values(state.finance.loansById)) {
+    if (loan.borrowerPlayerId === playerId)
+      unpaidObligationsCents = safeAdd(
+        unpaidObligationsCents,
+        loan.unpaidInterestCents,
+        "unpaid obligations",
+      );
+    if (loan.kind === "player-loan" && loan.lenderPlayerId === playerId)
+      unpaidInterestReceivableCents = safeAdd(
+        unpaidInterestReceivableCents,
+        loan.unpaidInterestCents,
+        "unpaid interest receivable",
+      );
     if (loan.kind === "legacy-bank-loan") {
       if (loan.borrowerPlayerId === playerId) {
         legacyBankDebtCents = safeAdd(
@@ -127,11 +142,19 @@ export function createPlayerSnapshot(
 
   const positivePosition = safeAdd(
     safeAdd(cashCents, publicMarketValueCents, "liquidNetPositivePart1"),
-    playerLoanReceivableCents,
+    safeAdd(
+      playerLoanReceivableCents,
+      unpaidInterestReceivableCents,
+      "nominal receivables",
+    ),
     "liquidNetPositivePart2",
   );
   const totalDebt = safeAdd(
-    legacyBankDebtCents,
+    safeAdd(
+      legacyBankDebtCents,
+      unpaidObligationsCents,
+      "unpaid obligation debt",
+    ),
     playerLoanDebtCents,
     "liquidNetDebtPart",
   );
@@ -152,6 +175,8 @@ export function createPlayerSnapshot(
     legacyBankDebtCents,
     playerLoanDebtCents,
     playerLoanReceivableCents,
+    unpaidObligationsCents,
+    unpaidInterestReceivableCents,
     liquidNetPositionCents,
   };
 }
@@ -204,7 +229,10 @@ export function applySettlementJournalToCashFlows(
           `Simulation invariant failed: unknown source player ${pId} in settlement journal`,
         );
       }
-      if (entry.reason === "recurring-living-expense") {
+      if (
+        entry.reason === "recurring-living-expense" ||
+        entry.reason === "living-expense-arrears-payment"
+      ) {
         flow.livingExpensesPaidCents = safeAdd(
           flow.livingExpensesPaidCents,
           entry.amountCents,

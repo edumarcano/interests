@@ -1,6 +1,7 @@
 import type { ObjectiveId } from "@interests/rules";
 import type { PlayerId } from "@interests/shared";
 import type { JournalEntry } from "../finance/journal";
+import type { SettlementOutcome } from "../finance/obligations";
 import { assertGameState } from "../invariants/assertGameState";
 import type { GamePhase, GameState, PlayerState } from "../model/gameState";
 import type {
@@ -32,6 +33,9 @@ export type ActionErrorCode =
   | "DESTINATION_OVERFLOW"
   | "INSUFFICIENT_FUNDS"
   | "MARKET_VALUE_OVERFLOW"
+  | "OBLIGATION_OVERFLOW"
+  | "JOURNAL_ID_EXHAUSTED"
+  | "SETTLEMENT_ID_EXHAUSTED"
   | TransactionErrorCode
   | InvestigateOpportunityErrorCode
   | PursueOpportunityErrorCode;
@@ -39,6 +43,7 @@ export type ActionErrorCode =
 export type ActionResult =
   | {
       readonly ok: true;
+      readonly settlementOutcome?: SettlementOutcome;
       readonly state: GameState;
       readonly journalEntries: readonly JournalEntry[];
     }

@@ -11,7 +11,7 @@ Four independent devices (Windows host laptop, phone, tablet, Linux laptop) succ
 Two limitations emerged:
 
 - **Limited content:** The initial private business opportunity is a deterministic Q1 fixture. Later quarters currently offer little to do beyond passing spotlights.
-- **Settlement deadlock:** In a second match, the phone purchased the Q1 business using a player loan from the host (10% annual rate, three-quarter term). During Q3, the phone was the final spotlight player; passing returned `INSUFFICIENT_FUNDS` in red and did not advance the match. The final spotlight triggers settlement for *all* players, so the insolvent player and exact unpaid obligation are **not confirmed**. Current settlement rejects the entire quarter rather than handling defaults.
+- **Settlement deadlock:** In a second match, the phone purchased the Q1 business using a player loan from the host (10% annual rate, three-quarter term). During Q3, the phone was the final spotlight player; passing returned `INSUFFICIENT_FUNDS` in red and did not advance the match. The final spotlight triggers settlement for *all* players, so the insolvent player and exact unpaid obligation are **not confirmed**. At that time, settlement rejected the entire quarter rather than handling defaults.
 
 The acquisition and repayment flow is playable, but prolonged financial gameplay remains incomplete.
 
@@ -20,9 +20,9 @@ The acquisition and repayment flow is playable, but prolonged financial gameplay
 | Area | Approved policy | Remaining work |
 | --- | --- | --- |
 | **A4: business distributions** | Quarter-start entitlement; first fixture operating settlement Q2; 80% payout / 20% retention after required company obligations; explicit cash, losses and payables | Implement productive debt-free businesses. Keep starting-owner income/debt on an explicit temporary legacy policy until integrated work-compensation, company-loan and opening-balance fixtures are reviewed. |
-| **A5: default and insolvency** | Current living costs, living arrears, then proportional due bank/mortgage/player claims; partial payments, explicit arrears, ordinary principal interest without interest on interest, private outcomes and later cash recovery | Replace table-wide shortfall rejection across engine, persistence and views. Collateral enforcement, bankruptcy, write-offs and broader ownership/financing contracts remain open. |
+| **A5: default and insolvency** | Current living costs, living arrears, then proportional due bank/mortgage/player claims; partial payments, explicit arrears, ordinary principal interest without interest on interest, private outcomes and later cash recovery | Mandatory shortfalls now settle across engine, persistence and views. Collateral enforcement, bankruptcy, write-offs and broader ownership/financing contracts remain open. |
 
-These policies are approved in `GAME_DESIGN.md` sections 16.3 and 17.4.2 and ARCH-038. Policy approval is not implementation evidence: the current engine still skips business distributions and rejects mandatory cash shortfalls. The first stack records policies, implements defaults, then implements productive debt-free businesses. Starting-company calibration is a later checkpoint; old income/value figures are references rather than permanent targets.
+These policies are approved in `GAME_DESIGN.md` sections 16.3 and 17.4.2 and ARCH-038. Mandatory shortfalls now produce partial payments and persistent private arrears while the quarter advances. The engine still skips business distributions until the next stack layer. The first stack records policies, implements defaults, then implements productive debt-free businesses. Starting-company calibration is a later checkpoint; old income/value figures are references rather than permanent targets.
 
 ## Near-term development goals
 

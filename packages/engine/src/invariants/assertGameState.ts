@@ -20,6 +20,7 @@ import { TOTAL_OWNERSHIP_PPM } from "../finance/ownership";
 import { calculatePropertyCashFlow } from "../finance/property";
 import type { GameState } from "../model/gameState";
 import { isValidRandomState } from "../random/prng";
+import { assertSettlementState } from "./assertSettlementState";
 
 export function assertGameState(state: GameState): void {
   if (!Number.isSafeInteger(state.revision) || state.revision < 0) {
@@ -436,12 +437,12 @@ export function assertGameState(state: GameState): void {
         );
       }
       if (
-        !Number.isSafeInteger(loan.installmentsPaid) ||
-        loan.installmentsPaid < 0 ||
-        loan.installmentsPaid > loan.termQuarters
+        !Number.isSafeInteger(loan.installmentsProcessed) ||
+        loan.installmentsProcessed < 0 ||
+        loan.installmentsProcessed > loan.termQuarters
       ) {
         throw new Error(
-          `Game invariant failed: loan ${loan.id} installmentsPaid must be an integer between 0 and termQuarters`,
+          `Game invariant failed: loan ${loan.id} installmentsProcessed must be an integer between 0 and termQuarters`,
         );
       }
       if (
@@ -454,10 +455,9 @@ export function assertGameState(state: GameState): void {
         );
       }
 
-      // Schedule consistency
-      let schedule: ReturnType<typeof calculatePlayerLoanSchedule>;
+      // Contract terms remain valid even when actual repayments differ.
       try {
-        schedule = calculatePlayerLoanSchedule({
+        calculatePlayerLoanSchedule({
           principalCents: loan.originalPrincipalCents,
           annualRateBps: loan.annualRateBps,
           termQuarters: loan.termQuarters,
@@ -465,37 +465,6 @@ export function assertGameState(state: GameState): void {
       } catch (err) {
         throw new Error(
           `Game invariant failed: loan ${loan.id} schedule is invalid: ${String(err)}`,
-        );
-      }
-
-      const prevRow =
-        loan.installmentsPaid > 0
-          ? schedule[loan.installmentsPaid - 1]
-          : undefined;
-
-      if (loan.installmentsPaid > 0 && prevRow === undefined) {
-        throw new Error(
-          `Game invariant failed: loan ${loan.id} schedule has no row for installment ${loan.installmentsPaid}`,
-        );
-      }
-
-      const expectedRemaining =
-        loan.installmentsPaid === 0
-          ? loan.originalPrincipalCents
-          : (prevRow?.closingPrincipalCents ?? -1);
-
-      if (loan.outstandingPrincipalCents !== expectedRemaining) {
-        throw new Error(
-          `Game invariant failed: loan ${loan.id} outstanding principal ${loan.outstandingPrincipalCents} does not match expected remaining principal ${expectedRemaining} for installmentsPaid ${loan.installmentsPaid}`,
-        );
-      }
-
-      if (
-        loan.installmentsPaid === loan.termQuarters &&
-        loan.outstandingPrincipalCents !== 0
-      ) {
-        throw new Error(
-          `Game invariant failed: completed loan ${loan.id} must have zero outstanding principal`,
         );
       }
     } else if (loan.kind === "legacy-bank-loan") {
@@ -547,11 +516,11 @@ export function assertGameState(state: GameState): void {
         );
       }
       if (
-        !Number.isSafeInteger(loan.paymentsApplied) ||
-        loan.paymentsApplied < 0
+        !Number.isSafeInteger(loan.periodsProcessed) ||
+        loan.periodsProcessed < 0
       ) {
         throw new Error(
-          `Game invariant failed: legacy bank loan ${loan.id} paymentsApplied must be a non-negative safe integer`,
+          `Game invariant failed: legacy bank loan ${loan.id} periodsProcessed must be a non-negative safe integer`,
         );
       }
       if (
@@ -947,6 +916,7 @@ export function assertGameState(state: GameState): void {
 
   assertEconomyState(state);
   assertOpportunitiesState(state);
+  assertSettlementState(state);
 }
 
 function assertEconomyState(state: GameState): void {

@@ -522,14 +522,14 @@ describe("Section 17: Required Engine Tests", () => {
     state = (advanceSpotlight(state, pC) as { ok: true; state: GameState })
       .state;
 
-    // Set pD cash to zero so settlement fails due to living expenses
+    // Destination overflow remains an atomic failure under the shortfall policy
     const insolventState: GameState = {
       ...state,
       finance: {
         ...state.finance,
         cashByPlayer: {
           ...state.finance.cashByPlayer,
-          [pD]: cents(0),
+          [pD]: cents(Number.MAX_SAFE_INTEGER),
         },
         recurringByPlayer: {
           ...state.finance.recurringByPlayer,
@@ -544,7 +544,7 @@ describe("Section 17: Required Engine Tests", () => {
     const failResult = advanceSpotlight(insolventState, pD);
     expect(failResult.ok).toBe(false);
     if (failResult.ok) throw new Error();
-    expect(failResult.code).toBe("INSUFFICIENT_FUNDS");
+    expect(failResult.code).toBe("DESTINATION_OVERFLOW");
     expect(failResult.state).toBe(insolventState);
     expect(failResult.state.currentQuarter).toBe(1);
     expect(failResult.state.round?.spotlightsCompleted).toBe(3);
@@ -1091,20 +1091,10 @@ describe("Orchestration Composition: Terminal Transactions & Spotlight Completio
     const { state, buyerPlayerId, sellerPlayerId, bizId, txId } =
       setupSpotlightWithBusiness(3);
 
-    // Make settlement fail: set massive living expense for pC so settlement fails with INSUFFICIENT_FUNDS
-    const currentRec = state.finance.recurringByPlayer?.[pC];
+    // Closing consumes the last available journal ID; settlement must roll back the whole command.
     const insolventState: GameState = {
       ...state,
-      finance: {
-        ...state.finance,
-        recurringByPlayer: {
-          ...state.finance.recurringByPlayer,
-          [pC]: {
-            ...currentRec!,
-            quarterlyLivingExpenseCents: cents(500_000_000),
-          },
-        },
-      },
+      counters: { ...state.counters, journal: Number.MAX_SAFE_INTEGER - 1 },
     };
 
     const initialRevision = insolventState.revision;
@@ -1121,7 +1111,7 @@ describe("Orchestration Composition: Terminal Transactions & Spotlight Completio
     // Composed operation MUST reject atomically
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error();
-    expect(result.code).toBe("INSUFFICIENT_FUNDS");
+    expect(result.code).toBe("JOURNAL_ID_EXHAUSTED");
 
     // The returned state is the ORIGINAL state before the transaction
     expect(result.state).toBe(insolventState);
@@ -1145,6 +1135,42 @@ describe("Orchestration Composition: Terminal Transactions & Spotlight Completio
 
     // Zero journal entries emitted
     expect(result.journalEntries).toHaveLength(0);
+  });
+
+  it("final close advances once while recording another player's living shortfall", () => {
+    const { state, buyerPlayerId, bizId, txId } = setupSpotlightWithBusiness(3);
+    const short: GameState = {
+      ...state,
+      finance: {
+        ...state.finance,
+        recurringByPlayer: {
+          ...state.finance.recurringByPlayer,
+          [pC]: {
+            quarterlyIncomeCents: cents(0),
+            quarterlyLivingExpenseCents: cents(500_000_000),
+          },
+        },
+      },
+    };
+    const result = closeCashBusinessPurchaseAndAdvanceSpotlight(
+      short,
+      buyerPlayerId,
+      txId,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.code);
+    expect(result.state.revision).toBe(state.revision + 1);
+    expect(result.state.currentQuarter).toBe(2);
+    expect(result.state.activeTransaction).toBeNull();
+    expect(result.state.finance.livingArrearsByPlayer[pC]).toBeGreaterThan(0);
+    expect(
+      result.state.finance.assetsById[bizId]?.ownershipByPlayerPpm[
+        buyerPlayerId
+      ],
+    ).toBe(1_000_000);
+    expect(result.settlementOutcome).toEqual(
+      result.state.finance.lastSettlement,
+    );
   });
 
   it("8. un-revisioned primitives and trusted settleQuarter preserve exact revision behavior", () => {

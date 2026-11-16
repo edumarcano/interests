@@ -155,7 +155,11 @@ function createSyntheticProfileGame(profileId: ProfileId): {
         scheduledQuarterlyPaymentCents: cents(
           profileFinances.mortgageFixture.scheduledQuarterlyPaymentCents,
         ),
-        paymentsApplied: 0,
+        periodsProcessed: 0,
+        principalRepaidCents: cents(0),
+        pastDuePrincipalCents: cents(0),
+        unpaidInterestCents: cents(0),
+        lastProcessedQuarter: 0,
         relatedAssetId: createdAssetId,
       };
       loansById[createdLoanId] = mortgage;
@@ -203,7 +207,11 @@ function createSyntheticProfileGame(profileId: ProfileId): {
       scheduledQuarterlyPaymentCents: cents(
         profileFinances.monthlyPersonalDebtPaymentCents * 3,
       ),
-      paymentsApplied: 0,
+      periodsProcessed: 0,
+      principalRepaidCents: cents(0),
+      pastDuePrincipalCents: cents(0),
+      unpaidInterestCents: cents(0),
+      lastProcessedQuarter: 0,
     };
     loansById[createdLoanId] = personalDebt;
   }
@@ -1026,7 +1034,11 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
               scheduledQuarterlyPaymentCents: cents(
                 sboFinances.monthlyPersonalDebtPaymentCents * 3,
               ),
-              paymentsApplied: 0,
+              periodsProcessed: 0,
+              principalRepaidCents: cents(0),
+              pastDuePrincipalCents: cents(0),
+              unpaidInterestCents: cents(0),
+              lastProcessedQuarter: 0,
             },
           },
         },
@@ -1160,7 +1172,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
   });
 
   describe("Section 20: Solvency planning & rejection", () => {
-    it("rejects settlement unchanged with INSUFFICIENT_FUNDS when net balance is negative", () => {
+    it("records living and legacy-bank shortfalls without changing the input state", () => {
       const { state, playerId } = createSyntheticProfileGame(
         "high-income-professional",
       );
@@ -1185,13 +1197,28 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
       };
 
       const result = settleQuarter(insolventState, { quarter: 1 });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.code).toBe("INSUFFICIENT_FUNDS");
-      }
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.code);
+      expect(result.state.currentQuarter).toBe(2);
+      expect(result.state.finance.cashByPlayer[playerId]).toBe(0);
+      expect(
+        result.state.finance.livingArrearsByPlayer[playerId],
+      ).toBeGreaterThan(0);
+      const living = result.settlementOutcome.livingByPlayer[playerId];
+      expect(
+        (living?.currentPaidCents ?? 0) + (living?.closingArrearsCents ?? 0),
+      ).toBe(5_000_000);
+      expect(
+        result.settlementOutcome.loanPayments.some(
+          (p) =>
+            p.borrowerPlayerId === playerId &&
+            p.paidCents === 0 &&
+            p.closingPastDuePrincipalCents > 0,
+        ),
+      ).toBe(true);
 
       // Assert state immutability
-      expect(result.journalEntries).toHaveLength(0);
+      expect(result.journalEntries.length).toBeGreaterThan(0);
       expect(insolventState.counters.journal).toBe(state.counters.journal);
       expect(insolventState.counters.settlement).toBe(
         state.counters.settlement,

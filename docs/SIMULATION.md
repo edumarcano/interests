@@ -72,3 +72,7 @@ The `passive-baseline-v1` simulation is a diagnostic measurement tool, not a gam
 - **Financing / Negotiation:** No new debt is originated, refinanced, or renegotiated;
 - **Career Progression:** No salary increases, promotions, or career switches occur;
 - **Universal Net Worth:** The reported `liquidNetPositionCents` metric measures only liquid capital (`cash + public market value + player loan receivables - legacy debt - player loan debt`) and explicitly excludes property and business equity.
+
+## Mandatory shortfalls in M7
+
+Insufficient cash now records partial payments and arrears while the simulation continues. Actual engine faults (such as exhausted IDs or arithmetic overflow) still stop a run and are reported as failures. Living-expense cash metrics include payments of earlier arrears. Player snapshots separate principal debt/receivables from unpaid living and interest obligations and nominal unpaid-interest receivables; liquid net position includes those claims once. Nominal receivables are not guaranteed recoverable value or realized interest profit. Company equity and broader distress/balance reports remain outside this narrow metric.

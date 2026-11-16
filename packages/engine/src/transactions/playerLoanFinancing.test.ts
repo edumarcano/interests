@@ -277,7 +277,7 @@ describe("Section 20: Exact Financed Acquisition Fixture", () => {
     expect(loan.outstandingPrincipalCents).toBe(4_000_000);
     expect(loan.annualRateBps).toBe(1_000);
     expect(loan.termQuarters).toBe(3);
-    expect(loan.installmentsPaid).toBe(0);
+    expect(loan.installmentsProcessed).toBe(0);
     expect(loan.originatedQuarter).toBe(closedState.currentQuarter);
 
     // Exactly two journal entries in deterministic order

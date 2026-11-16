@@ -14,6 +14,10 @@ import { playerCashAccount } from "./account";
 import { calculatePlayerLoanSchedule } from "./amortization";
 import type { JournalEntry } from "./journal";
 import { basisPoints, cents } from "./money";
+import {
+  applyLoanPaymentAllocation,
+  calculateLoanObligation,
+} from "./obligations";
 import { postCash } from "./posting";
 
 export interface OriginatePlayerLoanRequest {
@@ -65,7 +69,8 @@ export type ApplyScheduledPlayerLoanPaymentErrorCode =
   | "UNKNOWN_PLAYER"
   | "INSUFFICIENT_FUNDS"
   | "DESTINATION_OVERFLOW"
-  | "INVALID_QUARTER";
+  | "INVALID_QUARTER"
+  | "PAYMENT_NOT_DUE";
 
 export type ApplyScheduledPlayerLoanPaymentResult =
   | {
@@ -212,7 +217,11 @@ export function originateConfirmedPlayerLoan(
     outstandingPrincipalCents: cents(request.principalCents),
     annualRateBps: basisPoints(request.annualRateBps),
     termQuarters: request.termQuarters,
-    installmentsPaid: 0,
+    installmentsProcessed: 0,
+    principalRepaidCents: cents(0),
+    pastDuePrincipalCents: cents(0),
+    unpaidInterestCents: cents(0),
+    lastProcessedQuarter: 0,
     originatedQuarter: request.quarter,
   };
 
@@ -268,25 +277,22 @@ export function applyScheduledPlayerLoanPayment(
     return reject("WRONG_LOAN_KIND");
   }
 
-  // 3. Verify loan is not already fully repaid
-  if (
-    loan.installmentsPaid >= loan.termQuarters ||
-    loan.outstandingPrincipalCents === 0
-  ) {
+  if (loan.outstandingPrincipalCents === 0 && loan.unpaidInterestCents === 0) {
     return reject("LOAN_ALREADY_REPAID");
   }
-
-  // 4. Authoritatively calculate schedule and identify the next installment
-  const schedule = calculatePlayerLoanSchedule({
-    principalCents: loan.originalPrincipalCents,
-    annualRateBps: loan.annualRateBps,
-    termQuarters: loan.termQuarters,
-  });
-
-  const nextInstallment = schedule[loan.installmentsPaid];
-  if (nextInstallment === undefined) {
-    return reject("LOAN_ALREADY_REPAID");
-  }
+  const obligation = calculateLoanObligation(loan, request.quarter);
+  if (!obligation) return reject("PAYMENT_NOT_DUE");
+  const applied = applyLoanPaymentAllocation(
+    loan,
+    obligation,
+    obligation.amountDueCents,
+    request.quarter,
+  );
+  const nextInstallment = {
+    paymentCents: obligation.amountDueCents,
+    principalCents: applied.outcome.principalPaidCents,
+    interestCents: applied.outcome.interestPaidCents,
+  };
 
   // 5. Verify borrower cash availability before posting
   const borrowerCash = finance.cashByPlayer[loan.borrowerPlayerId];
@@ -330,11 +336,7 @@ export function applyScheduledPlayerLoanPayment(
   }
 
   // 7. Update canonical loan record
-  const updatedLoan: PlayerLoan = {
-    ...loan,
-    outstandingPrincipalCents: nextInstallment.closingPrincipalCents,
-    installmentsPaid: loan.installmentsPaid + 1,
-  };
+  const updatedLoan = applied.loan as PlayerLoan;
 
   const nextLoansById = {
     ...postResult.finance.loansById,

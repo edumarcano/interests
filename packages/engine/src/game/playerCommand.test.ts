@@ -556,7 +556,7 @@ describe("Section 14: Engine Player Command Integration", () => {
     expect(loan).toBeDefined();
     if (loan?.kind === "player-loan") {
       expect(loan.outstandingPrincipalCents).toBe(2_000_000); // untouched!
-      expect(loan.installmentsPaid).toBe(0); // 0 installments paid in Q1
+      expect(loan.installmentsProcessed).toBe(0); // 0 installments paid in Q1
     }
   });
 
@@ -582,6 +582,7 @@ describe("Section 14: Engine Player Command Integration", () => {
     // Give buyer cash
     state = {
       ...state,
+      counters: { ...state.counters, journal: Number.MAX_SAFE_INTEGER - 2 },
       finance: {
         ...state.finance,
         cashByPlayer: {

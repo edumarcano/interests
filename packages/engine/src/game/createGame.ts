@@ -211,7 +211,11 @@ export function createGame(input: CreateGameInput): GameState {
         ),
         annualRateBps: basisPoints(OPENING_PERSONAL_DEBT_APR_BPS),
         scheduledQuarterlyPaymentCents: cents(quarterlyPayment),
-        paymentsApplied: 0,
+        periodsProcessed: 0,
+        principalRepaidCents: cents(0),
+        pastDuePrincipalCents: cents(0),
+        unpaidInterestCents: cents(0),
+        lastProcessedQuarter: 0,
       };
     }
 
@@ -239,7 +243,11 @@ export function createGame(input: CreateGameInput): GameState {
         scheduledQuarterlyPaymentCents: cents(
           mFixture.scheduledQuarterlyPaymentCents,
         ),
-        paymentsApplied: 0,
+        periodsProcessed: 0,
+        principalRepaidCents: cents(0),
+        pastDuePrincipalCents: cents(0),
+        unpaidInterestCents: cents(0),
+        lastProcessedQuarter: 0,
         relatedAssetId: relatedPropertyId,
       };
     }
@@ -270,6 +278,10 @@ export function createGame(input: CreateGameInput): GameState {
     playerOrder: [...input.playerIds],
     players,
     finance: {
+      livingArrearsByPlayer: Object.fromEntries(
+        input.playerIds.map((id) => [id, cents(0)]),
+      ),
+      lastSettlement: null,
       cashByPlayer,
       recurringByPlayer,
       loansById,

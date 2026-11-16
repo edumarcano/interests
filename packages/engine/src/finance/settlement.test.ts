@@ -144,7 +144,11 @@ function buildSyntheticFixture(options?: {
       outstandingPrincipalCents: cents(100_000),
       annualRateBps: basisPoints(800),
       termQuarters: 4,
-      installmentsPaid: 0,
+      installmentsProcessed: 0,
+      principalRepaidCents: cents(0),
+      pastDuePrincipalCents: cents(0),
+      unpaidInterestCents: cents(0),
+      lastProcessedQuarter: 0,
       originatedQuarter: 1,
     };
     loansById = { [loanId]: loan };
@@ -320,7 +324,7 @@ describe("quarter settlement foundation", () => {
       const loanAfter = result.state.finance.loansById[loan.id];
       expect(loanAfter).toBeDefined();
       if (loanAfter?.kind !== "player-loan") return;
-      expect(loanAfter.installmentsPaid).toBe(0);
+      expect(loanAfter.installmentsProcessed).toBe(0);
       expect(loanAfter.outstandingPrincipalCents).toBe(
         loan.originalPrincipalCents,
       );
@@ -1082,7 +1086,7 @@ describe("reference preservation audit (Section 28)", () => {
       loanResult.counters,
       {
         loanId: loanResult.loan.id,
-        quarter: 1,
+        quarter: 2,
       },
     );
     expect(paymentResult.ok).toBe(true);
@@ -1156,14 +1160,14 @@ describe("rejected settlement RNG and state preservation (Section 24)", () => {
   it("rolls back RNG and preserves state on deterministic cash flow failure", () => {
     const base = createReadyGame();
 
-    // Create an artificial insufficient funds state by emptying cash of a player with living expenses
+    // Create a real arithmetic rejection despite the approved shortfall policy
     const brokeState: GameState = {
       ...base,
       finance: {
         ...base.finance,
         cashByPlayer: {
           ...base.finance.cashByPlayer,
-          [p1]: cents(0),
+          [p1]: cents(Number.MAX_SAFE_INTEGER),
         },
         recurringByPlayer: {
           ...base.finance.recurringByPlayer,
@@ -1179,7 +1183,7 @@ describe("rejected settlement RNG and state preservation (Section 24)", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
 
-    expect(result.code).toBe("INSUFFICIENT_FUNDS");
+    expect(result.code).toBe("DESTINATION_OVERFLOW");
     expect(result.state).toBe(brokeState);
     expect(result.state.random).toBe(brokeState.random);
     expect(result.state.economy).toBe(brokeState.economy);
