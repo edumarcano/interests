@@ -1,6 +1,6 @@
 # Development status
 
-**Updated:** 2026-11-15  
+**Updated:** 2026-11-16
 **Active milestone:** 7, full gameplay rules and content  
 **Current focus:** Business cash distributions (A4) and insolvency/defaults (A5)
 
@@ -17,17 +17,17 @@ The acquisition and repayment flow is playable, but prolonged financial gameplay
 
 ## Milestone 7: financial foundation
 
-| Area | Approved direction | Decisions still needed |
+| Area | Approved policy | Remaining work |
 | --- | --- | --- |
-| **A4: business distributions** | Profitable businesses distribute cash quarterly in proportion to ownership while retaining some profits. Newly acquired businesses begin paying their new owners in a subsequent quarter. Avoid double-counting the spendable income already included in starting business-owner profiles. | Distribution/retention formula, treatment of losses and retained company cash, debt service, owner-income normalization, and precise entitlement basis |
-| **A5: default and insolvency** | Insufficient cash results in explicit missed payments/defaults and recorded arrears. No invented funds, silent debt forgiveness, or automatic elimination; the game must continue for the table. | Payment priority, partial payments, lender claims and losses, legacy-bank versus player-loan obligations, interest on arrears, recovery/collateral, and what information is visible to other players |
+| **A4: business distributions** | Quarter-start entitlement; first fixture operating settlement Q2; 80% payout / 20% retention after required company obligations; explicit cash, losses and payables | Implement productive debt-free businesses. Keep starting-owner income/debt on an explicit temporary legacy policy until integrated work-compensation, company-loan and opening-balance fixtures are reviewed. |
+| **A5: default and insolvency** | Current living costs, living arrears, then proportional due bank/mortgage/player claims; partial payments, explicit arrears, ordinary principal interest without interest on interest, private outcomes and later cash recovery | Replace table-wide shortfall rejection across engine, persistence and views. Collateral enforcement, bankruptcy, write-offs and broader ownership/financing contracts remain open. |
 
-These directions are agreed, **not yet complete executable rules**. Detailed gameplay/accounting decisions remain open in `GAME_DESIGN.md` (A4/A5) and should be settled with concrete examples before implementation; accepted decisions belong in `DECISIONS.md`.
+These policies are approved in `GAME_DESIGN.md` sections 16.3 and 17.4.2 and ARCH-038. Policy approval is not implementation evidence: the current engine still skips business distributions and rejects mandatory cash shortfalls. The first stack records policies, implements defaults, then implements productive debt-free businesses. Starting-company calibration is a later checkpoint; old income/value figures are references rather than permanent targets.
 
 ## Near-term development goals
 
-1. Define the A4 quarterly business payout and retained-earnings model, including starting-owner income reconciliation.
-2. Define A5 settlement and shortfall treatment for *all* required obligations, not only player-loan installments.
+1. Implement the approved A4 business payout, reserves, entitlement and loss model without double-paying starting owners.
+2. Implement approved A5 shortfall treatment for *all* current mandatory obligations, not only player-loan installments.
 3. Implement the agreed rules across engine and player-facing views, retaining deterministic accounting and private-finance boundaries.
 4. Verify the original failure scenario: a four-player Q1 financed purchase, subsequent payouts and repayments/defaults, and successful progression past Q3 without creating or losing money incorrectly.
 5. Once the financial foundation holds, expand recurring opportunities and actions across businesses, real estate, career, markets, and financing.
