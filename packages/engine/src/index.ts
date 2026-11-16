@@ -27,7 +27,7 @@ export * from "./transactions/cashBusinessPurchase";
 export * from "./transactions/model";
 export * from "./transactions/reservations";
 
-export const ENGINE_VERSION = "0.0.3";
+export const ENGINE_VERSION = "0.0.4";
 
 export const WORKSPACE_COMPATIBILITY = {
   engine: ENGINE_VERSION,
@@ -35,3 +35,8 @@ export const WORKSPACE_COMPATIBILITY = {
   shared: SHARED_VERSION,
   rulesShared: RULES_SHARED_VERSION,
 } as const;
+
+export type {
+  LoanPaymentOutcome,
+  SettlementOutcome,
+} from "./finance/obligations";

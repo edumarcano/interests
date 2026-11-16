@@ -71,6 +71,10 @@ function createInitialFinance(): FinanceState {
     [danaId]: zero,
   };
   return {
+    livingArrearsByPlayer: Object.fromEntries(
+      Object.keys(cashByPlayer).map((id) => [id, cents(0)]),
+    ),
+    lastSettlement: null,
     cashByPlayer,
     recurringByPlayer: createInitialRecurring(),
     loansById: {},
@@ -541,7 +545,11 @@ describe("deterministic repeatability", () => {
       outstandingPrincipalCents: cents(100_000),
       annualRateBps: basisPoints(500),
       termQuarters: 4,
-      installmentsPaid: 0,
+      installmentsProcessed: 0,
+      principalRepaidCents: cents(0),
+      pastDuePrincipalCents: cents(0),
+      unpaidInterestCents: cents(0),
+      lastProcessedQuarter: 0,
       originatedQuarter: 1,
     };
     const finance: FinanceState = {

@@ -9,7 +9,7 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
   const formatCents = (amount: number): string =>
     `$${(amount / 100).toLocaleString("en-US", {
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      maximumFractionDigits: 2,
     })}`;
 
   const formatBps = (bps: number): string => `${(bps / 100).toFixed(2)}%`;
@@ -189,6 +189,46 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
         </div>
       )}
 
+      {self.lastSettlement && (
+        <section
+          aria-label="Last quarter settlement"
+          data-testid="last-settlement"
+          style={{ marginTop: "1rem", overflowWrap: "anywhere" }}
+        >
+          <strong>Q{self.lastSettlement.quarter} settled</strong>
+          <div>
+            Living costs: {formatCents(self.lastSettlement.livingPaidCents)}{" "}
+            paid of {formatCents(self.lastSettlement.livingDueCents)} due.
+          </div>
+          {(self.livingExpenseArrearsCents ?? 0) > 0 && (
+            <div role="status">
+              Unpaid living costs:{" "}
+              {formatCents(self.livingExpenseArrearsCents ?? 0)}. They remain
+              due in later quarters.
+            </div>
+          )}
+          {self.lastSettlement.loanPayments.map((payment) => (
+            <div
+              key={payment.loanId}
+              data-testid={`settled-loan-${payment.loanId}`}
+            >
+              Loan {payment.loanId}:{" "}
+              {payment.role === "lender" ? "received" : "paid"}{" "}
+              {formatCents(payment.paidCents)} of{" "}
+              {formatCents(payment.dueCents)} due
+              {payment.unpaidCents > 0 && (
+                <>; {formatCents(payment.unpaidCents)} remains overdue</>
+              )}
+              .
+            </div>
+          ))}
+          <small>
+            Missed payments remain due. Play continues and later settlements
+            collect affordable amounts.
+          </small>
+        </section>
+      )}
+
       {/* Active Loans */}
       {self.loans && self.loans.length > 0 && (
         <div
@@ -237,6 +277,20 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
                 <span style={{ color: "var(--text-secondary)" }}>
                   {formatCents(loan.outstandingPrincipalCents)} @{" "}
                   {formatBps(loan.annualRateBps)}
+                  {loan.amountDueCents !== undefined && (
+                    <>
+                      <br />
+                      Due this quarter: {formatCents(loan.amountDueCents)}
+                    </>
+                  )}
+                  {loan.status === "in-arrears" && (
+                    <>
+                      <br />
+                      Overdue principal:{" "}
+                      {formatCents(loan.pastDuePrincipalCents ?? 0)}; unpaid
+                      interest: {formatCents(loan.unpaidInterestCents ?? 0)}
+                    </>
+                  )}
                 </span>
               </div>
             ))}

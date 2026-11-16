@@ -32,6 +32,10 @@ function createInitialFinance(): FinanceState {
     [danaId]: zero,
   };
   return {
+    livingArrearsByPlayer: Object.fromEntries(
+      Object.keys(cashByPlayer).map((id) => [id, cents(0)]),
+    ),
+    lastSettlement: null,
     cashByPlayer,
     recurringByPlayer: {
       [aliceId]: {
@@ -107,7 +111,11 @@ describe("player-loan origination", () => {
       outstandingPrincipalCents: 1_000_000,
       annualRateBps: 1_000,
       termQuarters: 3,
-      installmentsPaid: 0,
+      installmentsProcessed: 0,
+      principalRepaidCents: cents(0),
+      pastDuePrincipalCents: cents(0),
+      unpaidInterestCents: cents(0),
+      lastProcessedQuarter: 0,
       originatedQuarter: 1,
     });
 
@@ -424,7 +432,7 @@ describe("scheduled player-loan payment", () => {
     expect(finance.cashByPlayer[bobId]).toBe(2_000_000 - 350_137); // 1,649,863
     expect(finance.cashByPlayer[aliceId]).toBe(1_000_000 + 350_137); // 1,350,137
     expect(inst1.loan.outstandingPrincipalCents).toBe(674_863);
-    expect(inst1.loan.installmentsPaid).toBe(1);
+    expect(inst1.loan.installmentsProcessed).toBe(1);
 
     // Journal breakdown
     expect(inst1.entry.id).toBe("journal-2");
@@ -454,7 +462,7 @@ describe("scheduled player-loan payment", () => {
     expect(finance.cashByPlayer[bobId]).toBe(1_649_863 - 350_137); // 1,299,726
     expect(finance.cashByPlayer[aliceId]).toBe(1_350_137 + 350_137); // 1,700,274
     expect(inst2.loan.outstandingPrincipalCents).toBe(341_598);
-    expect(inst2.loan.installmentsPaid).toBe(2);
+    expect(inst2.loan.installmentsProcessed).toBe(2);
 
     expect(inst2.entry.id).toBe("journal-3");
     expect(inst2.entry.amountCents).toBe(350_137);
@@ -480,7 +488,7 @@ describe("scheduled player-loan payment", () => {
     expect(finance.cashByPlayer[bobId]).toBe(1_299_726 - 350_138); // 949,588
     expect(finance.cashByPlayer[aliceId]).toBe(1_700_274 + 350_138); // 2,050,412
     expect(inst3.loan.outstandingPrincipalCents).toBe(0);
-    expect(inst3.loan.installmentsPaid).toBe(3);
+    expect(inst3.loan.installmentsProcessed).toBe(3);
 
     expect(inst3.entry.id).toBe("journal-4");
     expect(inst3.entry.amountCents).toBe(350_138);
@@ -567,7 +575,7 @@ describe("scheduled player-loan payment", () => {
     const loanAfter = payment.finance.loansById[loanId];
     expect(loanAfter?.outstandingPrincipalCents).toBe(1_000_000);
     if (loanAfter?.kind === "player-loan") {
-      expect(loanAfter.installmentsPaid).toBe(0);
+      expect(loanAfter.installmentsProcessed).toBe(0);
     }
   });
 
@@ -627,7 +635,7 @@ describe("scheduled player-loan payment", () => {
     expect(payment.counters).toBe(counters);
     const loanAfter = payment.finance.loansById[loanId];
     if (loanAfter?.kind === "player-loan") {
-      expect(loanAfter.installmentsPaid).toBe(0);
+      expect(loanAfter.installmentsProcessed).toBe(0);
       expect(loanAfter.outstandingPrincipalCents).toBe(100_000);
     }
   });
@@ -746,6 +754,29 @@ describe("game invariants and setup regression", () => {
 
     expect(() => assertGameState(gameStateWithLoan)).not.toThrow();
 
+    function atQuarter(state: typeof gameStateWithLoan, quarter: number) {
+      return {
+        ...state,
+        currentQuarter: quarter,
+        lastSettledQuarter: quarter - 1,
+        finance: {
+          ...state.finance,
+          quarterStartBasis: { ...state.finance.quarterStartBasis, quarter },
+        },
+        economy: {
+          ...state.economy,
+          lastMarketUpdate: {
+            quarter: quarter - 1,
+            regimeUsed: state.economy.currentRegime,
+            returnBpsByInstrument: {
+              "broad-market-fund": 0,
+              "growth-fund": 0,
+              "income-defensive-fund": 0,
+            },
+          },
+        },
+      };
+    }
     // Pay installment 1
     const p1 = applyScheduledPlayerLoanPayment(
       gameStateWithLoan.finance,
@@ -763,7 +794,7 @@ describe("game invariants and setup regression", () => {
       finance: p1.finance,
       counters: p1.counters,
     };
-    expect(() => assertGameState(stateAfterP1)).not.toThrow();
+    expect(() => assertGameState(atQuarter(stateAfterP1, 2))).not.toThrow();
 
     // Pay installment 2 (final)
     const p2 = applyScheduledPlayerLoanPayment(
@@ -782,7 +813,7 @@ describe("game invariants and setup regression", () => {
       finance: p2.finance,
       counters: p2.counters,
     };
-    expect(() => assertGameState(stateAfterP2)).not.toThrow();
+    expect(() => assertGameState(atQuarter(stateAfterP2, 3))).not.toThrow();
 
     // Invariant failure on corrupted outstanding principal
     const existingLoan = stateAfterP1.finance.loansById[origination.loan.id];
@@ -802,7 +833,7 @@ describe("game invariants and setup regression", () => {
         },
       },
     };
-    expect(() => assertGameState(corruptedLoanState)).toThrow(
+    expect(() => assertGameState(atQuarter(corruptedLoanState, 2))).toThrow(
       /Game invariant failed.*outstanding principal/,
     );
   });
@@ -849,7 +880,7 @@ describe("game invariants and setup regression", () => {
       origination.counters,
       {
         loanId: origination.loan.id,
-        quarter: 1,
+        quarter: 2,
       },
     );
     expect(payment.ok).toBe(true);

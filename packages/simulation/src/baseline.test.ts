@@ -146,13 +146,14 @@ describe("passive baseline simulation", () => {
       });
       const readyState = completePassiveBaselineSetup(state);
 
-      // Mutate cash of player 1 to 0 and remove income to guarantee INSUFFICIENT_FUNDS on living expenses
+      // Exhaust journal IDs to exercise a genuine engine failure, not an affordable-payment shortfall.
       const p1 = readyState.playerOrder[0];
       expect(p1).toBeDefined();
       if (!p1) throw new Error("Missing player 1");
 
       const brokeState = {
         ...readyState,
+        counters: { ...readyState.counters, journal: Number.MAX_SAFE_INTEGER },
         finance: {
           ...readyState.finance,
           cashByPlayer: {
@@ -181,7 +182,7 @@ describe("passive baseline simulation", () => {
       expect(result.completedQuarters).toBe(0);
       expect(result.failure).toEqual({
         quarter: 1,
-        code: "INSUFFICIENT_FUNDS",
+        code: "JOURNAL_ID_EXHAUSTED",
       });
       expect(result.quarterTraces.length).toBe(0);
       const finalP1 = result.finalPlayers[p1];

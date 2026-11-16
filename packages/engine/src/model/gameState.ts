@@ -11,8 +11,11 @@ import type {
   OpportunityId,
   PlayerId,
 } from "@interests/shared";
-
 import type { BasisPoints, Cents } from "../finance/money";
+import type {
+  LoanPaymentAccounting,
+  SettlementOutcome,
+} from "../finance/obligations";
 import type { OwnershipPpm } from "../finance/ownership";
 import type { Opportunity } from "../opportunities/model";
 import type { RandomState } from "../random/prng";
@@ -64,7 +67,7 @@ export interface QuarterStartFinanceBasis {
   >;
 }
 
-export interface PlayerLoan {
+export interface PlayerLoan extends LoanPaymentAccounting {
   readonly id: LoanId;
   readonly kind: "player-loan";
   readonly lenderPlayerId: PlayerId;
@@ -73,13 +76,13 @@ export interface PlayerLoan {
   readonly outstandingPrincipalCents: Cents;
   readonly annualRateBps: BasisPoints;
   readonly termQuarters: number;
-  readonly installmentsPaid: number;
+  readonly installmentsProcessed: number;
   readonly originatedQuarter: number;
 }
 
 export type LegacyBankLoanPurpose = "personal-debt" | "property-mortgage";
 
-export interface LegacyBankLoan {
+export interface LegacyBankLoan extends LoanPaymentAccounting {
   readonly id: LoanId;
   readonly kind: "legacy-bank-loan";
   readonly borrowerPlayerId: PlayerId;
@@ -88,7 +91,7 @@ export interface LegacyBankLoan {
   readonly outstandingPrincipalCents: Cents;
   readonly annualRateBps: BasisPoints;
   readonly scheduledQuarterlyPaymentCents: Cents;
-  readonly paymentsApplied: number;
+  readonly periodsProcessed: number;
   readonly relatedAssetId?: AssetId;
 }
 
@@ -117,6 +120,8 @@ export interface BusinessAsset {
 export type Asset = PropertyAsset | BusinessAsset;
 
 export interface FinanceState {
+  readonly livingArrearsByPlayer: Readonly<Record<PlayerId, Cents>>;
+  readonly lastSettlement: SettlementOutcome | null;
   readonly cashByPlayer: Readonly<Record<PlayerId, Cents>>;
   readonly recurringByPlayer: Readonly<
     Record<PlayerId, RecurringPersonalFinance>

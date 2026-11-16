@@ -1,8 +1,14 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { CommandAckResult, MatchPlayerView } from "@interests/shared";
+import { assertGameState, cents, type GameState } from "@interests/engine";
+import type {
+  CommandAckResult,
+  MatchId,
+  MatchPlayerView,
+} from "@interests/shared";
 import { type Socket as ClientSocket, io as ioClient } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createServer } from "../src/createServer.js";
@@ -513,8 +519,14 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     }>;
 
     expect(events.length).toBeGreaterThan(0);
-    for (const ev of events) {
-      expect(ev.event_kind).toBe("journal-entry");
+    const outcomes = events.filter(
+      (ev) => ev.event_kind === "settlement-outcome",
+    );
+    expect(outcomes).toHaveLength(1);
+    expect(JSON.parse(outcomes[0]!.payload_json)).toEqual(
+      snapshot.finance.lastSettlement,
+    );
+    for (const ev of events.filter((ev) => ev.event_kind === "journal-entry")) {
       const parsed = JSON.parse(ev.payload_json);
       expect(parsed).toHaveProperty("reason");
       expect(parsed).toHaveProperty("amountCents");
@@ -644,5 +656,194 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
       stage: "spotlight",
       spotlightsCompleted: 0,
     });
+  });
+  it("persists zero-payment arrears once, keeps private views isolated, and restores them after a real server/database restart", async () => {
+    const { clients, cookies, roomCode, matchId } =
+      await setupMatchAtRoundStart();
+    const record = matchRepo.findMatchById(matchId as MatchId);
+    if (!record) throw new Error("Missing match");
+    const fixture = JSON.parse(record.match.snapshotJson) as GameState;
+    const debtor = fixture.playerOrder[1];
+    if (!debtor) throw new Error("Missing debtor");
+    // Explicit isolated shortfall fixture; commands below use real authenticated transport.
+    const changed: GameState = {
+      ...fixture,
+      finance: {
+        ...fixture.finance,
+        cashByPlayer: { ...fixture.finance.cashByPlayer, [debtor]: cents(0) },
+        quarterStartBasis: {
+          ...fixture.finance.quarterStartBasis,
+          cashByPlayer: {
+            ...fixture.finance.quarterStartBasis.cashByPlayer,
+            [debtor]: cents(0),
+          },
+        },
+        recurringByPlayer: {
+          ...fixture.finance.recurringByPlayer,
+          [debtor]: {
+            quarterlyIncomeCents: cents(0),
+            quarterlyLivingExpenseCents: cents(9_382_715),
+          },
+        },
+      },
+    };
+    assertGameState(changed);
+    db.prepare("UPDATE matches SET snapshot_json = ? WHERE id = ?").run(
+      JSON.stringify(changed),
+      matchId,
+    );
+    const begin = await sendCommand(clients[0]!.socket, {
+      commandId: randomUUID(),
+      expectedRevision: 4,
+      command: { type: "BEGIN_ROUND" },
+    });
+    expect(begin.ok).toBe(true);
+    let finalEnvelope:
+      | {
+          commandId: string;
+          expectedRevision: number;
+          command: { type: "PASS_SPOTLIGHT" };
+        }
+      | undefined;
+    for (let index = 0; index < 4; index++) {
+      const envelope = {
+        commandId: randomUUID(),
+        expectedRevision: 5 + index,
+        command: { type: "PASS_SPOTLIGHT" as const },
+      };
+      const ack = await sendCommand(clients[index]!.socket, envelope);
+      expect(ack).toMatchObject({ ok: true, revision: 6 + index });
+      finalEnvelope = envelope;
+    }
+    if (!finalEnvelope) throw new Error("Missing final command");
+    const committed = matchRepo.findMatchById(matchId as MatchId);
+    if (!committed) throw new Error("Missing committed match");
+    const snapshot = JSON.parse(committed.match.snapshotJson) as GameState;
+    expect(snapshot.currentQuarter).toBe(2);
+    expect(snapshot.finance.livingArrearsByPlayer[debtor]).toBeGreaterThan(0);
+    expect(
+      snapshot.finance.lastSettlement?.loanPayments
+        .filter((p) => p.borrowerPlayerId === debtor)
+        .every((p) => p.paidCents === 0),
+    ).toBe(true);
+    const retry = await sendCommand(clients[3]!.socket, finalEnvelope);
+    expect(retry).toMatchObject({ ok: true, revision: 9 });
+    expect(
+      matchRepo.findMatchById(matchId as MatchId)?.match.snapshotJson,
+    ).toBe(committed.match.snapshotJson);
+    const outcomes = db
+      .prepare(
+        "SELECT payload_json FROM match_events WHERE match_id = ? AND event_kind = 'settlement-outcome'",
+      )
+      .all(matchId) as { payload_json: string }[];
+    expect(outcomes).toHaveLength(1);
+    expect(JSON.parse(outcomes[0]!.payload_json)).toEqual(
+      snapshot.finance.lastSettlement,
+    );
+    const getView = async (index: number) => {
+      const response = await server.fastify.inject({
+        method: "GET",
+        url: `/api/rooms/${roomCode}/match`,
+        cookies: { interests_session: cookies[index]! },
+      });
+      expect(response.statusCode).toBe(200);
+      return JSON.parse(response.body).match as MatchPlayerView;
+    };
+    const own = await getView(1);
+    const unrelated = await getView(0);
+    expect(own.self.livingExpenseArrearsCents).toBe(
+      snapshot.finance.livingArrearsByPlayer[debtor],
+    );
+    expect(own.self.lastSettlement?.livingDueCents).toBe(9_382_715);
+    expect(JSON.stringify(unrelated)).not.toContain("livingByPlayer");
+    const alternate = JSON.parse(JSON.stringify(snapshot)) as GameState;
+    const past = alternate.finance.livingArrearsByPlayer[debtor] ?? 0;
+    const summary = alternate.finance.lastSettlement;
+    if (!summary || !summary.livingByPlayer[debtor])
+      throw new Error("Missing living summary");
+    const paired: GameState = {
+      ...alternate,
+      finance: {
+        ...alternate.finance,
+        livingArrearsByPlayer: {
+          ...alternate.finance.livingArrearsByPlayer,
+          [debtor]: cents(past + 1),
+        },
+        lastSettlement: {
+          ...summary,
+          livingByPlayer: {
+            ...summary.livingByPlayer,
+            [debtor]: {
+              ...summary.livingByPlayer[debtor],
+              currentDueCents: cents(9_382_716),
+              closingArrearsCents: cents(past + 1),
+            },
+          },
+        },
+      },
+    };
+    assertGameState(paired);
+    db.prepare("UPDATE matches SET snapshot_json = ? WHERE id = ?").run(
+      JSON.stringify(paired),
+      matchId,
+    );
+    expect(await getView(0)).toEqual(unrelated);
+    db.prepare("UPDATE matches SET snapshot_json = ? WHERE id = ?").run(
+      committed.match.snapshotJson,
+      matchId,
+    );
+    for (const client of clients) client.socket.disconnect();
+    await server.close();
+    db.close();
+    db = openDatabase({ dbPath: tempDbPath });
+    runMigrations(db, migrationsDir);
+    lobbyRepo = new SqliteLobbyRepository(db);
+    matchRepo = new SqliteMatchRepository(db);
+    recoverActiveMatchesOnStartup(matchRepo, lobbyRepo);
+    server = createServer({
+      config: {
+        host: "127.0.0.1",
+        port: 0,
+        dbPath: tempDbPath,
+        cookieSecure: false,
+        rateLimitDisabled: true,
+      },
+      repository: lobbyRepo,
+      matchRepository: matchRepo,
+    });
+    await server.fastify.listen({ host: "127.0.0.1", port: 0 });
+    const address = server.fastify.server.address();
+    if (!address || typeof address !== "object")
+      throw new Error("Missing address");
+    serverPort = address.port;
+    expect(
+      matchRepo.findMatchById(matchId as MatchId)?.match.snapshotJson,
+    ).toBe(committed.match.snapshotJson);
+    expect((await getView(1)).self.lastSettlement).toEqual(
+      own.self.lastSettlement,
+    );
+    const replacements: Awaited<ReturnType<typeof connectSocket>>[] = [];
+    for (const cookie of cookies) {
+      const client = await connectSocket(cookie, roomCode);
+      replacements.push(client);
+      await syncSocket(
+        client.socket,
+        client.bootstrap.self.connectionGeneration,
+      );
+    }
+    const resumed = await new Promise<{ ok: boolean }>((resolve) =>
+      replacements[0]!.socket.emit(SOCKET_CLIENT_EVENTS.RESUME, resolve),
+    );
+    expect(resumed.ok).toBe(true);
+    expect(
+      matchRepo.findMatchById(matchId as MatchId)?.match.snapshotJson,
+    ).toBe(committed.match.snapshotJson);
+    expect(
+      await sendCommand(replacements[0]!.socket, {
+        commandId: randomUUID(),
+        expectedRevision: 9,
+        command: { type: "BEGIN_ROUND" },
+      }),
+    ).toMatchObject({ ok: true, revision: 10 });
   });
 });

@@ -136,6 +136,26 @@ export interface MatchSelfLoanView {
   readonly annualRateBps: number;
   readonly termQuarters?: number;
   readonly scheduledQuarterlyPaymentCents?: number;
+  readonly amountDueCents?: number;
+  readonly pastDuePrincipalCents?: number;
+  readonly unpaidInterestCents?: number;
+  readonly status?: "current" | "in-arrears" | "repaid";
+}
+
+export interface SelfSettlementView {
+  readonly quarter: number;
+  readonly livingDueCents: number;
+  readonly livingPaidCents: number;
+  readonly livingArrearsCents: number;
+  readonly loanPayments: readonly {
+    readonly loanId: string;
+    readonly role: "borrower" | "lender";
+    readonly dueCents: number;
+    readonly paidCents: number;
+    readonly principalPaidCents: number;
+    readonly interestPaidCents: number;
+    readonly unpaidCents: number;
+  }[];
 }
 
 export interface MatchSelfView {
@@ -155,6 +175,8 @@ export interface MatchSelfView {
   readonly opportunity?: PrivateOpportunityView | null;
   readonly ownedAssets?: readonly MatchSelfBusinessAssetView[];
   readonly loans?: readonly MatchSelfLoanView[];
+  readonly livingExpenseArrearsCents?: number;
+  readonly lastSettlement?: SelfSettlementView | null;
 }
 
 export interface ActiveTransactionOfferView {

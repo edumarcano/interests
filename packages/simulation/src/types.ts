@@ -28,6 +28,8 @@ export interface SimulationPlayerSnapshot {
   readonly legacyBankDebtCents: number;
   readonly playerLoanDebtCents: number;
   readonly playerLoanReceivableCents: number;
+  readonly unpaidObligationsCents: number;
+  readonly unpaidInterestReceivableCents: number;
   readonly liquidNetPositionCents: number;
 }
 

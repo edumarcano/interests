@@ -149,7 +149,7 @@ describe("Section 26: Quarter Timing Regressions (Q1 -> Q2)", () => {
 
     const loanBeforeQ1 = closedQ1State.finance.loansById[loanId] as PlayerLoan;
     expect(loanBeforeQ1.originatedQuarter).toBe(1);
-    expect(loanBeforeQ1.installmentsPaid).toBe(0);
+    expect(loanBeforeQ1.installmentsProcessed).toBe(0);
     expect(loanBeforeQ1.outstandingPrincipalCents).toBe(4_000_000);
 
     // --- Settle Quarter 1 ---
@@ -162,11 +162,11 @@ describe("Section 26: Quarter Timing Regressions (Q1 -> Q2)", () => {
     expect(stateAfterQ1.lastSettledQuarter).toBe(1);
 
     // Section 26.B:
-    // - player loan installmentsPaid remains 0
+    // - player loan installmentsProcessed remains 0
     // - outstanding principal remains 4_000_000
     // - no player-loan repayment entry is emitted in Q1
     const loanAfterQ1 = stateAfterQ1.finance.loansById[loanId] as PlayerLoan;
-    expect(loanAfterQ1.installmentsPaid).toBe(0);
+    expect(loanAfterQ1.installmentsProcessed).toBe(0);
     expect(loanAfterQ1.outstandingPrincipalCents).toBe(4_000_000);
 
     const q1PlayerLoanEntries = q1Result.journalEntries.filter(
@@ -190,7 +190,7 @@ describe("Section 26: Quarter Timing Regressions (Q1 -> Q2)", () => {
     // principal = 1_300_549 cents
     // closing outstanding = 2_699_451 cents
     const loanAfterQ2 = stateAfterQ2.finance.loansById[loanId] as PlayerLoan;
-    expect(loanAfterQ2.installmentsPaid).toBe(1);
+    expect(loanAfterQ2.installmentsProcessed).toBe(1);
     expect(loanAfterQ2.outstandingPrincipalCents).toBe(2_699_451);
 
     const q2PlayerLoanEntries = q2Result.journalEntries.filter(
@@ -232,7 +232,11 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
       outstandingPrincipalCents: cents(2_000_000),
       annualRateBps: basisPoints(1_000),
       termQuarters: 4,
-      installmentsPaid: 0,
+      installmentsProcessed: 0,
+      principalRepaidCents: cents(0),
+      pastDuePrincipalCents: cents(0),
+      unpaidInterestCents: cents(0),
+      lastProcessedQuarter: 0,
       originatedQuarter: 1,
     };
 
@@ -245,7 +249,11 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
       outstandingPrincipalCents: cents(3_000_000),
       annualRateBps: basisPoints(800),
       termQuarters: 4,
-      installmentsPaid: 0,
+      installmentsProcessed: 0,
+      principalRepaidCents: cents(0),
+      pastDuePrincipalCents: cents(0),
+      unpaidInterestCents: cents(0),
+      lastProcessedQuarter: 0,
       originatedQuarter: 1,
     };
 
@@ -302,7 +310,7 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
     expect(res1.state.counters).toEqual(res2.state.counters);
   });
 
-  it("fails atomically when a borrower relies on same-stage incoming loan payment to fund outgoing payment", () => {
+  it("records a shortfall when a borrower relies on same-stage incoming loan receipts", () => {
     const base = createReadyGame();
 
     // Borrower B owes 1_000_000 to Lender C.
@@ -322,7 +330,11 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
       outstandingPrincipalCents: cents(2_000_000),
       annualRateBps: basisPoints(800),
       termQuarters: 4,
-      installmentsPaid: 0,
+      installmentsProcessed: 0,
+      principalRepaidCents: cents(0),
+      pastDuePrincipalCents: cents(0),
+      unpaidInterestCents: cents(0),
+      lastProcessedQuarter: 0,
       originatedQuarter: 1,
     };
 
@@ -337,7 +349,11 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
       outstandingPrincipalCents: cents(2_000_000),
       annualRateBps: basisPoints(800),
       termQuarters: 4,
-      installmentsPaid: 0,
+      installmentsProcessed: 0,
+      principalRepaidCents: cents(0),
+      pastDuePrincipalCents: cents(0),
+      unpaidInterestCents: cents(0),
+      lastProcessedQuarter: 0,
       originatedQuarter: 1,
     };
 
@@ -384,21 +400,33 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
       },
     };
 
-    // Settle Q2: Even though loan1Id comes first in LoanId ordering and would transfer
-    // ~525k to sellerId, settlement planning must reject because sellerId lacks cash
-    // at the START of the player-loan stage!
+    const before = JSON.stringify(state);
     const result = settleQuarter(state, { quarter: 2 });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-
-    expect(result.code).toBe("INSUFFICIENT_FUNDS");
-    expect(result.state).toBe(state);
-    expect(result.journalEntries).toHaveLength(0);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.code);
+    const payment = result.settlementOutcome.loanPayments.find(
+      (p) => p.loanId === loan2Id,
+    );
+    expect(payment).toBeDefined();
+    expect(payment?.paidCents).toBeLessThan(payment?.dueCents ?? 0);
+    const externalReceipts = result.journalEntries
+      .filter(
+        (e) =>
+          e.destination.kind === "player" &&
+          e.destination.playerId === sellerId &&
+          e.source.kind === "external",
+      )
+      .reduce((sum, e) => sum + e.amountCents, 0);
+    expect(payment?.paidCents).toBe(
+      (state.finance.cashByPlayer[sellerId] ?? 0) + externalReceipts,
+    );
+    expect(payment?.closingPastDuePrincipalCents).toBeGreaterThan(0);
+    expect(JSON.stringify(state)).toBe(before);
   });
 });
 
-describe("Section 24: Player-Loan Insufficient Funds (Atomic Rejection)", () => {
-  it("rejects quarter settlement atomically without mutating state or consuming RNG", () => {
+describe("Player-loan partial payment and arrears", () => {
+  it("advances due periods and records unpaid amounts without mutating the input", () => {
     const { state: closedQ1State, loanId } = createClosedFinancedQ1State();
 
     // Advance to Q2
@@ -441,23 +469,25 @@ describe("Section 24: Player-Loan Insufficient Funds (Atomic Rejection)", () => 
     const initialRevision = insolventQ2State.revision;
 
     const q2Result = settleQuarter(insolventQ2State, { quarter: 2 });
-    expect(q2Result.ok).toBe(false);
-    if (q2Result.ok) return;
-
-    expect(q2Result.code).toBe("INSUFFICIENT_FUNDS");
-    expect(q2Result.state).toBe(insolventQ2State);
-    expect(q2Result.journalEntries).toHaveLength(0);
-
-    // No mutation
-    expect(q2Result.state.counters).toEqual(initialCounters);
-    expect(q2Result.state.random).toEqual(initialRandom);
-    expect(q2Result.state.revision).toBe(initialRevision);
-    expect(q2Result.state.currentQuarter).toBe(2);
-    expect(q2Result.state.lastSettledQuarter).toBe(1);
-
+    expect(q2Result.ok).toBe(true);
+    if (!q2Result.ok) throw new Error(q2Result.code);
+    const payment = q2Result.settlementOutcome.loanPayments.find(
+      (p) => p.loanId === loanId,
+    );
+    expect(payment?.paidCents).toBeLessThan(payment?.dueCents ?? 0);
+    expect(
+      (payment?.closingPastDuePrincipalCents ?? 0) +
+        (payment?.closingUnpaidInterestCents ?? 0),
+    ).toBe((payment?.dueCents ?? 0) - (payment?.paidCents ?? 0));
+    expect(q2Result.state.currentQuarter).toBe(3);
+    expect(q2Result.state.revision).toBe(initialRevision + 1);
     const loan = q2Result.state.finance.loansById[loanId] as PlayerLoan;
-    expect(loan.installmentsPaid).toBe(0);
-    expect(loan.outstandingPrincipalCents).toBe(4_000_000);
+    expect(loan.installmentsProcessed).toBe(1);
+    expect(loan.outstandingPrincipalCents).toBe(
+      4_000_000 - (payment?.principalPaidCents ?? 0),
+    );
+    expect(insolventQ2State.counters).toEqual(initialCounters);
+    expect(insolventQ2State.random).toEqual(initialRandom);
   });
 });
 
@@ -477,7 +507,11 @@ describe("Section 24: Player-Loan Transient Destination Overflow (Canonical Loan
       outstandingPrincipalCents: cents(200),
       annualRateBps: basisPoints(0),
       termQuarters: 2,
-      installmentsPaid: 0,
+      installmentsProcessed: 0,
+      principalRepaidCents: cents(0),
+      pastDuePrincipalCents: cents(0),
+      unpaidInterestCents: cents(0),
+      lastProcessedQuarter: 0,
       originatedQuarter: 1,
     };
 
@@ -491,7 +525,11 @@ describe("Section 24: Player-Loan Transient Destination Overflow (Canonical Loan
       outstandingPrincipalCents: cents(600),
       annualRateBps: basisPoints(0),
       termQuarters: 2,
-      installmentsPaid: 0,
+      installmentsProcessed: 0,
+      principalRepaidCents: cents(0),
+      pastDuePrincipalCents: cents(0),
+      unpaidInterestCents: cents(0),
+      lastProcessedQuarter: 0,
       originatedQuarter: 1,
     };
 

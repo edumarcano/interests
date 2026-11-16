@@ -1,4 +1,11 @@
-import type { MatchId, PlayerId, TransactionId } from "@interests/shared";
+import type {
+  MatchId,
+  PlayerId,
+  SelfSettlementView,
+  TransactionId,
+} from "@interests/shared";
+import { calculatePlayerLoanSchedule } from "../finance/amortization";
+import { calculateLoanObligation } from "../finance/obligations";
 import type { GameState } from "../model/gameState.js";
 import {
   getAvailableCashCents,
@@ -39,6 +46,10 @@ export interface PureBusinessAssetView {
 }
 
 export interface PureLoanView {
+  readonly amountDueCents: number;
+  readonly pastDuePrincipalCents: number;
+  readonly unpaidInterestCents: number;
+  readonly status: "current" | "in-arrears" | "repaid";
   readonly id: string;
   readonly kind: string;
   readonly role: "borrower" | "lender";
@@ -51,6 +62,8 @@ export interface PureLoanView {
 }
 
 export interface PureSelfView {
+  readonly livingExpenseArrearsCents: number;
+  readonly lastSettlement: SelfSettlementView | null;
   readonly playerId: PlayerId;
   readonly profileId: string;
   readonly offeredObjectiveIds: readonly [string, string];
@@ -199,48 +212,85 @@ export function projectPlayerGameState(
     }
   }
 
-  // Self loans (obligations and receivables)
   const selfLoans: PureLoanView[] = [];
-  for (const loan of Object.values(state.finance.loansById)) {
-    if (loan.kind === "player-loan") {
-      if (loan.borrowerPlayerId === playerId) {
-        selfLoans.push({
-          id: loan.id,
-          kind: loan.kind,
-          role: "borrower",
-          counterpartyPlayerId: loan.lenderPlayerId,
-          originalPrincipalCents: loan.originalPrincipalCents,
-          outstandingPrincipalCents: loan.outstandingPrincipalCents,
-          annualRateBps: loan.annualRateBps,
-          termQuarters: loan.termQuarters,
-        });
-      } else if (loan.lenderPlayerId === playerId) {
-        selfLoans.push({
-          id: loan.id,
-          kind: loan.kind,
-          role: "lender",
-          counterpartyPlayerId: loan.borrowerPlayerId,
-          originalPrincipalCents: loan.originalPrincipalCents,
-          outstandingPrincipalCents: loan.outstandingPrincipalCents,
-          annualRateBps: loan.annualRateBps,
-          termQuarters: loan.termQuarters,
-        });
-      }
-    } else if (loan.borrowerPlayerId === playerId) {
-      selfLoans.push({
-        id: loan.id,
-        kind: loan.kind,
-        role: "borrower",
-        counterpartyPlayerId: "bank",
-        originalPrincipalCents: loan.originalPrincipalCents,
-        outstandingPrincipalCents: loan.outstandingPrincipalCents,
-        annualRateBps: loan.annualRateBps,
-        scheduledQuarterlyPaymentCents: loan.scheduledQuarterlyPaymentCents,
-      });
-    }
+  for (const loan of Object.values(state.finance.loansById).sort((a, b) =>
+    a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+  )) {
+    const borrower = loan.borrowerPlayerId === playerId;
+    const lender =
+      loan.kind === "player-loan" && loan.lenderPlayerId === playerId;
+    if (!borrower && !lender) continue;
+    const repaid =
+      loan.outstandingPrincipalCents === 0 && loan.unpaidInterestCents === 0;
+    selfLoans.push({
+      id: loan.id,
+      kind: loan.kind,
+      role: borrower ? "borrower" : "lender",
+      counterpartyPlayerId:
+        loan.kind === "player-loan"
+          ? borrower
+            ? loan.lenderPlayerId
+            : loan.borrowerPlayerId
+          : "bank",
+      originalPrincipalCents: loan.originalPrincipalCents,
+      outstandingPrincipalCents: loan.outstandingPrincipalCents,
+      annualRateBps: loan.annualRateBps,
+      ...(loan.kind === "player-loan"
+        ? {
+            termQuarters: loan.termQuarters,
+            scheduledQuarterlyPaymentCents: calculatePlayerLoanSchedule({
+              principalCents: loan.originalPrincipalCents,
+              annualRateBps: loan.annualRateBps,
+              termQuarters: loan.termQuarters,
+            })[0]?.paymentCents,
+          }
+        : {
+            scheduledQuarterlyPaymentCents: loan.scheduledQuarterlyPaymentCents,
+          }),
+      amountDueCents:
+        calculateLoanObligation(loan, state.currentQuarter)?.amountDueCents ??
+        0,
+      pastDuePrincipalCents: loan.pastDuePrincipalCents,
+      unpaidInterestCents: loan.unpaidInterestCents,
+      status: repaid
+        ? "repaid"
+        : loan.pastDuePrincipalCents > 0 || loan.unpaidInterestCents > 0
+          ? "in-arrears"
+          : "current",
+    });
   }
+  const latest = state.finance.lastSettlement;
+  const living = latest?.livingByPlayer[playerId];
+  const lastSettlement: SelfSettlementView | null =
+    latest && living
+      ? {
+          quarter: latest.quarter,
+          livingDueCents: living.currentDueCents + living.arrearsDueCents,
+          livingPaidCents: living.currentPaidCents + living.arrearsPaidCents,
+          livingArrearsCents: living.closingArrearsCents,
+          loanPayments: latest.loanPayments
+            .filter(
+              (p) =>
+                p.borrowerPlayerId === playerId ||
+                p.lenderPlayerId === playerId,
+            )
+            .map((p) => ({
+              loanId: p.loanId,
+              role: p.borrowerPlayerId === playerId ? "borrower" : "lender",
+              dueCents: p.dueCents,
+              paidCents: p.paidCents,
+              principalPaidCents: p.principalPaidCents,
+              interestPaidCents: p.interestPaidCents,
+              unpaidCents:
+                p.closingPastDuePrincipalCents + p.closingUnpaidInterestCents,
+            })),
+        }
+      : null;
 
   const self: PureSelfView = {
+    livingExpenseArrearsCents:
+      state.finance.livingArrearsByPlayer[playerId] ?? 0,
+    lastSettlement,
     playerId,
     profileId: selfPlayer.profileId,
     offeredObjectiveIds: selfPlayer.offeredObjectiveIds,
