@@ -7,6 +7,7 @@ Canonical instruction source for AI coding agents (`Interests`). Tool-specific r
 - `docs/GAME_DESIGN.md`: authoritative for game rules, balance intent, and status (LOCKED, PROTOTYPE, TENTATIVE, OPEN, POST-V1).
 - `docs/DECISIONS.md`: authoritative for accepted implementation decisions; supersedes examples in `ARCHITECTURE.md`.
 - `docs/ARCHITECTURE.md`: authoritative for system boundaries, package ownership, data flow, and milestones unless superseded by `DECISIONS.md`.
+- `docs/DEVELOPMENT.md`: current milestone status, playtest findings, and gameplay priorities.
 - `AGENTS.md`: governs agent operations. Never silently redefine game design or architecture.
 - `.remora/standards/engineering.md`: shared engineering baseline and workflow standards.
 
