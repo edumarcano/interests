@@ -1,6 +1,15 @@
-import { type Cents, cents, isNonNegativeCents, subtractCents } from "./money";
+import {
+  addCents,
+  type Cents,
+  cents,
+  isNonNegativeCents,
+  isSafeCents,
+  subtractCents,
+} from "./money";
 
 export interface BusinessEquityInput {
+  readonly cashCents?: Cents;
+  readonly operatingArrearsCents?: Cents;
   readonly annualRevenueCents: Cents;
   readonly annualOperatingProfitCents: Cents;
   readonly enterpriseValueCents: Cents;
@@ -18,15 +27,7 @@ export interface DebtFreeBusinessEquityResult {
   readonly equityValueCents: Cents;
 }
 
-/**
- * Pure calculation of business equity value.
- *
- * Equity value = enterprise value - business debt principal.
- * For PR #8 starting business slice, business debt is balance-sheet-only
- * (no retained earnings, no entity cash, no business-debt schedule).
- * A4 remains OPEN.
- * Supports negative equity value for distressed businesses where debt exceeds enterprise value.
- */
+/** Operating EV excludes company cash; company claims are deducted once. */
 export function calculateBusinessEquity(
   business: BusinessEquityInput,
 ): BusinessEquityResult {
@@ -36,9 +37,9 @@ export function calculateBusinessEquity(
     );
   }
 
-  if (!isNonNegativeCents(business.annualOperatingProfitCents)) {
+  if (!isSafeCents(business.annualOperatingProfitCents)) {
     throw new RangeError(
-      `annualOperatingProfitCents must be non-negative safe integer cents, got ${String(business.annualOperatingProfitCents)}`,
+      `annualOperatingProfitCents must be signed safe integer cents, got ${String(business.annualOperatingProfitCents)}`,
     );
   }
 
@@ -55,10 +56,17 @@ export function calculateBusinessEquity(
     );
   }
 
+  const cash = business.cashCents ?? cents(0);
+  const arrears = business.operatingArrearsCents ?? cents(0);
+  if (!isNonNegativeCents(cash) || !isNonNegativeCents(arrears))
+    throw new RangeError("Invalid company cash/payables");
   return {
     enterpriseValueCents: business.enterpriseValueCents,
     debtPrincipalCents: debtCents,
-    equityValueCents: subtractCents(business.enterpriseValueCents, debtCents),
+    equityValueCents: subtractCents(
+      subtractCents(addCents(business.enterpriseValueCents, cash), debtCents),
+      arrears,
+    ),
   };
 }
 

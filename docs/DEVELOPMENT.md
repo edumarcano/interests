@@ -19,17 +19,18 @@ The acquisition and repayment flow is playable, but prolonged financial gameplay
 
 | Area | Approved policy | Remaining work |
 | --- | --- | --- |
-| **A4: business distributions** | Quarter-start entitlement; first fixture operating settlement Q2; 80% payout / 20% retention after required company obligations; explicit cash, losses and payables | Implement productive debt-free businesses. Keep starting-owner income/debt on an explicit temporary legacy policy until integrated work-compensation, company-loan and opening-balance fixtures are reviewed. |
+| **A4: business distributions** | Quarter-start entitlement; first fixture operating settlement Q2; 80% payout / 20% retention after required company obligations; explicit cash, losses and payables | Productive debt-free businesses are implemented. Starting-owner income/debt remains on an explicit temporary legacy policy until integrated work-compensation, company-loan and opening-balance fixtures are reviewed. |
 | **A5: default and insolvency** | Current living costs, living arrears, then proportional due bank/mortgage/player claims; partial payments, explicit arrears, ordinary principal interest without interest on interest, private outcomes and later cash recovery | Mandatory shortfalls now settle across engine, persistence and views. Collateral enforcement, bankruptcy, write-offs and broader ownership/financing contracts remain open. |
 
-These policies are approved in `GAME_DESIGN.md` sections 16.3 and 17.4.2 and ARCH-038. Mandatory shortfalls now produce partial payments and persistent private arrears while the quarter advances. The engine still skips business distributions until the next stack layer. The first stack records policies, implements defaults, then implements productive debt-free businesses. Starting-company calibration is a later checkpoint; old income/value figures are references rather than permanent targets.
+The first stack delivers **partial A4 and initial A5** under `GAME_DESIGN.md` sections 16.3 and 17.4.2 and ARCH-038. Mandatory shortfalls produce partial payments and persistent private arrears while the quarter advances. Productive debt-free businesses account for operating cash, reserves, losses, payables and quarter-start payout entitlement. Private views show actual distributions, company cash/equity and expected payouts. Simple whole-business transfers preserve company cash and reject unhandled debt or payables. Starting-company calibration remains a later checkpoint; old income/value figures are references rather than permanent targets.
+
+The deterministic four-player financed-purchase probe reaches Q5: no Q1 payout, then $3,000 to the buyer and $750 retained each quarter from Q2. The original three-quarter loan repays on schedule; a two-quarter loan still produces a genuine Q3 shortfall and recovers in Q4. Engine tests cover losses, payables, resale entitlement, cent allocation and private projections. Authenticated server tests cover durable cash/outcomes and duplicate settlement commands. All four browser scenarios pass locally using installed Chrome, including Q5 payouts, 320px layout, private HTTP payloads and unchanged finances after a process restart. The pinned Playwright Chromium binary is absent locally. Physical-device verification of these policies remains outstanding.
 
 ## Near-term development goals
 
-1. Implement the approved A4 business payout, reserves, entitlement and loss model without double-paying starting owners.
-2. Implement approved A5 shortfall treatment for *all* current mandatory obligations, not only player-loan installments.
-3. Implement the agreed rules across engine and player-facing views, retaining deterministic accounting and private-finance boundaries.
-4. Verify the original failure scenario: a four-player Q1 financed purchase, subsequent payouts and repayments/defaults, and successful progression past Q3 without creating or losing money incorrectly.
-5. Once the financial foundation holds, expand recurring opportunities and actions across businesses, real estate, career, markets, and financing.
+1. Prepare and review integrated starting-business fixtures, then replace legacy owner income with separate work compensation, ownership returns and canonical company loans.
+2. Consolidate unified financial simulation, browser/restart evidence and physical-device playtesting after that calibration.
+3. Expand recurring opportunities and actions across businesses, real estate, career, markets and financing.
+4. Resolve broader default, collateral and ownership contracts before adding their executable actions.
 
 The wider Milestone 7 scope remains defined in `docs/ARCHITECTURE.md`. This document records current progress and next gameplay priorities; `docs/GAME_DESIGN.md` and `docs/DECISIONS.md` remain authoritative for rules and decisions.

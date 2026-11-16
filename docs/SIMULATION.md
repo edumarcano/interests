@@ -56,18 +56,19 @@ The `passive-baseline-v1` simulation is a diagnostic measurement tool, not a gam
 - **Passive Cash Accumulation:** Net cash accumulation from baseline recurring personal income and living expenses;
 - **Debt Amortization:** Scheduled amortization of opening legacy personal debt and Property Starter mortgage;
 - **Property Operating Distributions:** Net cash distributions received by property owners from scheduled rent and occupancy;
+- **Business Distributions:** Actual owner receipts under the productive business policy, excluding retained company cash and temporary legacy owner income;
 - **Cash Yield:** Interest earned on quarter-start cash balances at the base rate minus spread floor;
 - **Public-Market Dividends:** Dividend cash yield earned on quarter-start public fund balances;
 - **Public-Market Revaluation:** Mark-to-market portfolio value changes driven by regime returns and bounded uniform noise;
 - **Shared Macroeconomic Path:** Economy regime occupancy and Markov transitions over time;
-- **Liquidity Boundaries:** Minimum cash balances observed during the run and any insolvency/overflow settlement rejections.
+- **Liquidity Boundaries:** Minimum cash balances, unpaid obligations and engine settlement failures observed during the run.
 
 ### What This Baseline Does NOT Measure
 
 - **Strategy Strength:** There are no simulated strategic player choices;
 - **Win Probability / Win Rate:** No culmination or victory evaluation is modeled;
 - **Objective Success Rate:** Objective culminations are not attempted;
-- **Opportunity Quality:** No opportunities are generated, evaluated, or taken;
+- **Opportunity Quality:** The deterministic Q1 fixture is initialized, but no opportunities are evaluated or taken;
 - **Trading Skill:** No public-market buy or sell actions occur;
 - **Financing / Negotiation:** No new debt is originated, refinanced, or renegotiated;
 - **Career Progression:** No salary increases, promotions, or career switches occur;

@@ -903,7 +903,7 @@ Opening LTV is \$255,000 / \$330,000 = 77.27%, accepted as an existing legacy lo
 
 ## 16.3 Business accounting and valuation [PROTOTYPE]
 
-Businesses share revenue, operating margin/profit, debt, value, economic sensitivity, capacity, and ownership. Operating profit = revenue x operating margin. Enterprise value = normalized annual operating profit x valuation multiple. Equity value = enterprise value - business debt. For an owner-dependent practice, use the specified owner-earnings valuation basis instead.
+Businesses share revenue, operating margin/profit, debt, value, economic sensitivity, capacity, and ownership. Operating profit = revenue x operating margin. Enterprise value = normalized annual operating profit x valuation multiple. Company equity = enterprise value + company cash - business debt principal - unpaid interest - operating payables. For an owner-dependent practice, use the specified owner-earnings valuation basis instead.
 
 During the first M7 financial slice, the three starting businesses use `legacy-owner-income-v1`: their existing spendable owner income is paid once, company debt remains balance-sheet-only, and no additional operating distribution or retained cash accumulates. This temporary treatment ends when the integrated starting-business fixtures in section 16.3.2 are reviewed and implemented.
 

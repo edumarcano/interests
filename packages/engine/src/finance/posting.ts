@@ -93,31 +93,30 @@ export function postCash(
     return reject("INVALID_ENDPOINT");
   }
 
-  // 4. Source endpoint validation & affordability check
-  let sourceBalance = 0;
-  if (request.source.kind === "player") {
-    const balance = finance.cashByPlayer[request.source.playerId];
-    if (balance === undefined) {
-      return reject("UNKNOWN_PLAYER");
-    }
-    sourceBalance = balance;
-    if (sourceBalance < request.amountCents) {
-      return reject("INSUFFICIENT_FUNDS");
-    }
+  const balanceOf = (account: CashAccount): number | undefined => {
+    if (account.kind === "external") return 0;
+    if (account.kind === "player")
+      return finance.cashByPlayer[account.playerId];
+    const asset = finance.assetsById[account.assetId];
+    return asset?.kind === "business" ? asset.cashCents : undefined;
+  };
+  const sourceBalance = balanceOf(request.source);
+  const destBalance = balanceOf(request.destination);
+  if (sourceBalance === undefined || destBalance === undefined) {
+    return reject(
+      request.source.kind === "business" ||
+        request.destination.kind === "business"
+        ? "INVALID_ENDPOINT"
+        : "UNKNOWN_PLAYER",
+    );
   }
-
-  // 5. Destination endpoint validation & overflow check
-  let destBalance = 0;
-  if (request.destination.kind === "player") {
-    const balance = finance.cashByPlayer[request.destination.playerId];
-    if (balance === undefined) {
-      return reject("UNKNOWN_PLAYER");
-    }
-    destBalance = balance;
-    if (request.amountCents > Number.MAX_SAFE_INTEGER - destBalance) {
-      return reject("DESTINATION_OVERFLOW");
-    }
-  }
+  if (request.source.kind !== "external" && sourceBalance < request.amountCents)
+    return reject("INSUFFICIENT_FUNDS");
+  if (
+    request.destination.kind !== "external" &&
+    request.amountCents > Number.MAX_SAFE_INTEGER - destBalance
+  )
+    return reject("DESTINATION_OVERFLOW");
 
   // 6. Generate next deterministic journal ID
   const { id: journalId, counters: nextCounters } = nextDeterministicId(
@@ -125,20 +124,25 @@ export function postCash(
     counters,
   );
 
-  // 7. Calculate updated player balances
   const nextCashByPlayer = { ...finance.cashByPlayer };
-
-  if (request.source.kind === "player") {
-    nextCashByPlayer[request.source.playerId] = cents(
-      sourceBalance - request.amountCents,
-    );
-  }
-
-  if (request.destination.kind === "player") {
-    nextCashByPlayer[request.destination.playerId] = cents(
-      destBalance + request.amountCents,
-    );
-  }
+  let assetsById = finance.assetsById;
+  const writeBalance = (account: CashAccount, balance: number) => {
+    if (account.kind === "player")
+      nextCashByPlayer[account.playerId] = cents(balance);
+    else if (account.kind === "business") {
+      const asset = assetsById[account.assetId];
+      if (!asset || asset.kind !== "business")
+        throw new Error("Missing preflighted business account");
+      assetsById = {
+        ...assetsById,
+        [asset.id]: { ...asset, cashCents: cents(balance) },
+      };
+    }
+  };
+  if (request.source.kind !== "external")
+    writeBalance(request.source, sourceBalance - request.amountCents);
+  if (request.destination.kind !== "external")
+    writeBalance(request.destination, destBalance + request.amountCents);
 
   const entry: JournalEntry = {
     id: journalId,
@@ -169,6 +173,7 @@ export function postCash(
     finance: {
       ...finance,
       cashByPlayer: nextCashByPlayer,
+      assetsById,
     },
     counters: nextCounters,
     entry,

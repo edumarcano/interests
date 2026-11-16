@@ -20,6 +20,7 @@ import { TOTAL_OWNERSHIP_PPM } from "../finance/ownership";
 import { calculatePropertyCashFlow } from "../finance/property";
 import type { GameState } from "../model/gameState";
 import { isValidRandomState } from "../random/prng";
+import { assertBusinessCashState } from "./assertBusinessCashState";
 import { assertSettlementState } from "./assertSettlementState";
 
 export function assertGameState(state: GameState): void {
@@ -694,12 +695,9 @@ export function assertGameState(state: GameState): void {
           `Game invariant failed: business ${asset.id} annualRevenueCents must be non-negative safe integer cents`,
         );
       }
-      if (
-        !Number.isSafeInteger(asset.annualOperatingProfitCents) ||
-        asset.annualOperatingProfitCents < 0
-      ) {
+      if (!Number.isSafeInteger(asset.annualOperatingProfitCents)) {
         throw new Error(
-          `Game invariant failed: business ${asset.id} annualOperatingProfitCents must be non-negative safe integer cents`,
+          `Game invariant failed: business ${asset.id} annualOperatingProfitCents must be signed safe integer cents`,
         );
       }
       if (
@@ -917,6 +915,7 @@ export function assertGameState(state: GameState): void {
   assertEconomyState(state);
   assertOpportunitiesState(state);
   assertSettlementState(state);
+  assertBusinessCashState(state);
 }
 
 function assertEconomyState(state: GameState): void {
@@ -1057,7 +1056,11 @@ function assertEconomyState(state: GameState): void {
         `Game invariant failed: active transaction asset must be a business, got ${asset.kind}`,
       );
     }
-    if (asset.debtPrincipalCents !== 0) {
+    if (
+      asset.debtPrincipalCents !== 0 ||
+      asset.operatingArrearsCents > 0 ||
+      asset.cashPolicyId !== "retained-profit-v1"
+    ) {
       throw new Error(
         `Game invariant failed: active transaction business must be debt-free, got debt ${asset.debtPrincipalCents}`,
       );

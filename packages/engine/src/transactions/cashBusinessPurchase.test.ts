@@ -1,5 +1,6 @@
 import { asAssetId, asPlayerId, asTransactionId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
+import { captureBusinessBasis } from "../finance/businessSettlement";
 
 import { basisPoints, cents } from "../finance/money";
 import {
@@ -84,6 +85,9 @@ function createTransactionFixture(): {
   const testBusiness: BusinessAsset = {
     id: businessAssetId,
     kind: "business",
+    cashPolicyId: "retained-profit-v1",
+    cashCents: cents(0),
+    operatingArrearsCents: cents(0),
     enterpriseValueCents: cents(10_000_000), // $100,000.00 EV
     debtPrincipalCents: cents(0), // debt-free
     annualRevenueCents: cents(5_000_000),
@@ -99,6 +103,13 @@ function createTransactionFixture(): {
         ...base.finance.cashByPlayer,
         [p1]: cents(10_000_000), // Buyer opening cash: $100,000.00
         [p2]: cents(2_500_000), // Seller opening cash: $25,000.00
+      },
+      quarterStartBasis: {
+        ...base.finance.quarterStartBasis,
+        businessesById: {
+          ...base.finance.quarterStartBasis.businessesById,
+          ...captureBusinessBasis({ [businessAssetId]: testBusiness }),
+        },
       },
       assetsById: {
         ...base.finance.assetsById,

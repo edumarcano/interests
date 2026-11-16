@@ -29,10 +29,10 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
     }
   });
 
-  test("executes canonical four-client LAN journey from room creation through Q1 financed acquisition to Q2", async ({
+  test("executes canonical four-client LAN journey from room creation through financed acquisition, quarterly payouts, and Q5", async ({
     browser,
   }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(120_000);
     // 1. Create four independent browser contexts with mixed realistic viewports
     const contextA = await browser.newContext({
       viewport: { width: 1280, height: 800 }, // Host desktop
@@ -485,8 +485,115 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
         ).toBe(sellerAssetsBefore - 1);
       }
 
+      // Settle Q2-Q4 through real controls and inspect each recipient's actual API view.
+      const businessCard = buyerPage!
+        .locator('[data-testid^="owned-asset-"]')
+        .filter({ hasText: "EV: $60,000" });
+      const cardId = await businessCard.getAttribute("data-testid");
+      if (!cardId) throw new Error("Missing business card ID");
+      const acquiredAssetId = cardId.slice("owned-asset-".length);
+      await expect(businessCard).toContainText("Expected payout Q2: $3,000");
+      await expect(
+        buyerPage!.getByTestId(`business-payout-${acquiredAssetId}`),
+      ).toHaveCount(0);
+      for (let quarter = 2; quarter <= 4; quarter++) {
+        await pageA.getByTestId("begin-round-btn").click();
+        for (let turn = 0; turn < 4; turn++) {
+          let active: Page | undefined;
+          await expect
+            .poll(async () => {
+              for (const candidate of pages) {
+                if (await candidate.getByTestId("pass-spotlight-btn").count()) {
+                  active = candidate;
+                  return true;
+                }
+              }
+              return false;
+            })
+            .toBe(true);
+          if (!active) throw new Error("Missing active player");
+          const button = active.getByTestId("pass-spotlight-btn");
+          await button.click();
+          await expect(button).toHaveCount(0);
+        }
+        for (const page of pages) {
+          await expect(page.getByTestId("quarter-heading")).toHaveText(
+            `Quarter ${quarter + 1}`,
+          );
+          await assertNoHorizontalOverflow(page, `q${quarter + 1}-finance`);
+        }
+        await expect(
+          buyerPage!.getByTestId(`business-payout-${acquiredAssetId}`),
+        ).toHaveText(`Business ${acquiredAssetId}: received $3,000.`);
+        await expect(businessCard).toContainText(
+          `Company cash: ${["$750", "$1,500", "$2,250"][quarter - 2]}`,
+        );
+        const views = [];
+        for (const page of pages) {
+          const response = await page.request.get(
+            `${server.origin}/api/rooms/${roomCode}/match`,
+          );
+          expect(response.ok()).toBeTruthy();
+          views.push((await response.json()).match);
+        }
+        const buyerIndex = pages.indexOf(buyerPage!);
+        expect(
+          views[buyerIndex].self.lastSettlement.businessDistributions,
+        ).toContainEqual({ assetId: acquiredAssetId, amountCents: 300_000 });
+        for (const [index, view] of views.entries()) {
+          expect(view.currentQuarter).toBe(quarter + 1);
+          expect(JSON.stringify(view)).not.toContain("livingByPlayer");
+          expect(JSON.stringify(view)).not.toContain("businessesById");
+          expect(JSON.stringify(view)).not.toContain("cashByPlayer");
+          if (index !== buyerIndex) {
+            expect(
+              view.self.ownedAssets.some(
+                (asset: { id: string }) => asset.id === acquiredAssetId,
+              ),
+            ).toBe(false);
+            expect(
+              view.self.lastSettlement.businessDistributions,
+            ).not.toContainEqual({
+              assetId: acquiredAssetId,
+              amountCents: 300_000,
+            });
+          }
+        }
+      }
+      await buyerPage!.reload();
+      await expect(buyerPage!.getByTestId("quarter-heading")).toHaveText(
+        "Quarter 5",
+      );
+      await expect(
+        buyerPage!.getByTestId(`business-payout-${acquiredAssetId}`),
+      ).toHaveText(`Business ${acquiredAssetId}: received $3,000.`);
+      await expect(businessCard).toContainText("Company cash: $2,250");
+
+      // A process restart restores the same private finance view and does not settle again.
+      const beforeRestart = (
+        await (
+          await buyerPage!.request.get(
+            `${server.origin}/api/rooms/${roomCode}/match`,
+          )
+        ).json()
+      ).match;
+      await server.restart();
+      for (const page of pages) await page.reload();
+      await expect(pageA.getByTestId("resume-match-btn")).toBeEnabled();
+      await pageA.getByTestId("resume-match-btn").click();
+      await expect(pageA.getByTestId("begin-round-btn")).toBeEnabled();
+      const afterRestart = (
+        await (
+          await buyerPage!.request.get(
+            `${server.origin}/api/rooms/${roomCode}/match`,
+          )
+        ).json()
+      ).match;
+      expect(afterRestart).toEqual(beforeRestart);
+      await expect(businessCard).toContainText("Company cash: $2,250");
+
       // 13. Responsive assertions: Dana's page on 320px viewport has no unintended horizontal overflow
-      await assertNoHorizontalOverflow(pageD, "q2-round-start");
+      await assertNoHorizontalOverflow(pageD, "q5-restarted-round-start");
     } finally {
       await contextA.close();
       await contextB.close();

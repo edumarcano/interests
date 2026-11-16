@@ -12,6 +12,7 @@ import {
   type LoanId,
   type PlayerId,
 } from "@interests/shared";
+import { captureBusinessBasis } from "../finance/businessSettlement";
 import { createZeroPublicMarketPortfolio } from "../finance/markets";
 import { basisPoints, type Cents, cents } from "../finance/money";
 import { ownershipPpm } from "../finance/ownership";
@@ -168,6 +169,9 @@ export function createGame(input: CreateGameInput): GameState {
       assetsById[assetId] = {
         id: assetId,
         kind: "business",
+        cashPolicyId: "legacy-owner-income-v1",
+        cashCents: cents(0),
+        operatingArrearsCents: cents(0),
         annualRevenueCents: cents(businessFixture.annualRevenueCents),
         annualOperatingProfitCents: cents(
           businessFixture.annualOperatingProfitCents,
@@ -263,6 +267,7 @@ export function createGame(input: CreateGameInput): GameState {
   );
 
   const quarterStartBasis: QuarterStartFinanceBasis = {
+    businessesById: captureBusinessBasis(q1Fixture.assetsById),
     quarter: 1,
     cashByPlayer: { ...cashByPlayer },
     publicMarketsByPlayer: { ...publicMarketsByPlayer },
