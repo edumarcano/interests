@@ -1,6 +1,10 @@
 export const MANDATORY_SETTLEMENT_POLICY = Object.freeze({
   id: "mandatory-arrears-v1",
-  priority: Object.freeze(["current-living", "living-arrears", "loans"] as const),
+  priority: Object.freeze([
+    "current-living",
+    "living-arrears",
+    "loans",
+  ] as const),
   loanAllocation: "proportional-due-claims",
   loanPaymentOrder: "interest-before-principal",
   incomingLoanPaymentsFundSameQuarter: false,
