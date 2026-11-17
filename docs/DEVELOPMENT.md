@@ -2,7 +2,7 @@
 
 **Updated:** 2026-11-17
 **Active milestone:** 7, full gameplay rules and content  
-**Current focus:** Parallel packets 3-5 (markets, career/labor, bank/property) from the verified PR #37 foundation; no PRs merged
+**Current focus:** Integrate career/labor and bank/property on the public-markets PR; prepare multiplayer capital. No PRs merged.
 
 ## Milestone 6: physical playtest outcome
 
@@ -44,7 +44,7 @@ ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. T
 | --- | --- | --- |
 | 1 | Canonical completion policy and immutable rule data | Delivered in open [PR #36](https://github.com/edumarcano/interests/pull/36), `codex/m7-completion-policies`; both Remora review axes passed; unmerged; runtime activation unchanged |
 | 2 | Entitlements, basis/history, career/focus, financing and terminal contracts | Implemented on `codex/m7-state-foundations`; delivered in open [PR #37](https://github.com/edumarcano/interests/pull/37), stacked on #36; both Remora axes passed; unmerged |
-| 3 | Public-fund buy/sell/rebalance, fees and browser controls | Verified on `codex/m7-public-markets`, stacked on packet 2; PR publication pending |
+| 3 | Public-fund buy/sell/rebalance, fees and browser controls | Delivered in open [PR #38](https://github.com/edumarcano/interests/pull/38), `codex/m7-public-markets`, stacked on #37; both Remora review axes passed; unmerged |
 | 4 | Careers, executive ownership, resignation and equal-cost management conversion | In progress on `codex/m7-career-labor` in `tmp/worktrees/m7-career` |
 | 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | In progress on `codex/m7-bank-property` in `tmp/worktrees/m7-property` |
 | 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Pending |
@@ -77,6 +77,8 @@ The browser displays private holdings, basis, yields and server-calculated previ
 Focused tests cover weighted basis, HALF_UP fees, cash-funded rebalancing, losses, unsafe/malformed inputs, cash reservations, transient posting overflow, journal exhaustion, opening dividends after liquidation and final-settlement rollback. HTTP/socket/SQLite tests persist the last-spotlight trade, journals and settlement once, including receipt retry. A production-build four-browser journey bought Growth Fund for all four players, sold $50 and bought $40 in Q2 with 23 cents in fees and $9.77 net cash received, checked a 320px preview and preserved holdings on reload.
 
 Typecheck, all 704 tests, lint (650 warnings and three infos), the production build and all six browser scenarios passed. Separate Remora specification and engineering reviews found no blockers after correcting preview rejection for unsafe intermediate cash postings and checking snapshot validation against the room membership. The quote and execution agree on the trade itself; the final spotlight can still reject the basket if quarter settlement cannot commit. These checks do not establish objective reachability or balance.
+
+The verified implementation is `58e611d`. PR #38 is open and unmerged; hosted CI is pending.
 
 ## M7 completion and M8 handoff
 
