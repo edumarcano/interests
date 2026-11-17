@@ -813,3 +813,23 @@ Packet 3 executes public-market trading using the existing value-balance represe
 | Browser | Parse dollar input into cents, request authoritative financial previews, and invalidate confirmation after draft or revision changes. Show holdings, basis, yields, per-leg fees and total cash impact. On timeout, reuse the original command ID for the same canonical command so the server can replay the existing receipt. |
 
 Compatibility identifiers become engine `0.0.8`, rules `0.0.6`, shared `0.0.10`, persistence `0.0.7`. Existing snapshots remain associated with their compatible build; no conversion occurs.
+
+## ARCH-043 - Persistent career choices and labor replacement
+
+**Status:** Accepted
+**Date:** November 17, 2026
+
+Packet 4 implements the approved career/labor scope of ARCH-040. Authored career templates live in rules; current pay and affordability determine access, without profile powers or hidden-objective weighting. Persistent offers coexist with the later quarterly opportunity generator.
+
+| Contract | Implementation |
+| --- | --- |
+| Stable quotes | Inspection derives quotes from current quarter and actual labor compensation without consuming RNG, counters or revisions. An ID-only acceptance resolves the current authoritative quote; stale or unaffordable choices reject unchanged. |
+| Choices | An 8% raise has no transition cash cost; a 20% raise costs $5,000; a 35% executive jump requires current annual labor capacity of $120,000 and a $100,000 ownership investment plus the 2% ($2,000) business purchase fee. Reentry offers $60,000 annual employment. Every acceptance consumes the quarter's spotlight, with costs and tradeoffs visible before acceptance. These are prototype authored templates within the approved compensation bands, not balance findings. |
+| One labor role | New employment replaces existing employment or owner work. Resignation removes future salary; owner exit hires equal-cost management. Workers may leave without an ownership veto; this does not authorize a sale or dilution. |
+| Earned rights | Preserve quarter-start employment/work entitlements. Changes affect next quarter; the fourth spotlight composes the action with settlement atomically and increments revision once. Settlement failure returns the original state and empty journal. |
+| Necessary management | Starting-company profit remains after necessary labor. Keep the former worker record with future compensation zero and unpaid claims intact; record an equal annual management cost in the asset and subsequent opening basis. Settlement adds back necessary labor to gross operating receipts and pays management externally once. Unpaid management joins operating payables. Ownership, value, after-labor profit, company cash and debt do not change at conversion. |
+| Executive investment | Fund an external seller through a secondary purchase of a debt-free managed company with $100,000 enterprise/equity value, zero company cash, $100,000 annual revenue and $20,000 annual after-labor operating profit. Debit $102,000 total: $100,000 consideration to the external seller and a separate $2,000 purchase-fee journal to the market sink. Capitalize both in $102,000 acquisition basis without increasing company cash or enterprise value. Record acquisition quarter; no same-quarter investment earnings. The current executive labor record references the ownership position for later finale evaluation; accepting the ordinary offer does not win. |
+| Snapshot invariants | Require the single labor role to match active positive work compensation, with zero current salary outside employment. Opening and current necessary-labor costs must reconcile across conversion. Retired worker claims remain payable; initialization/explicit synthetic fixtures identify only positive compensation as active work. Existing starting-company transfer restrictions remain. |
+| Private requirements | Rules own versioned objective instructions, numerical targets and shared measurement definitions. Only the recipient's offered objectives receive those instructions; the browser displays the selected requirements, own current/earned income, fund values/basis, property details, company finances, claims and labor choices. Eligibility calculation and finales remain packet 8. |
+
+Compatibility identifiers become engine `0.0.9`, rules `0.0.7`, shared `0.0.11`, persistence `0.0.8`. Preserve old snapshots for their compatible builds; no migration or reinterpretation is supplied. This packet does not activate recurring opportunity generation, objective wins, bank underwriting or general ownership changes.

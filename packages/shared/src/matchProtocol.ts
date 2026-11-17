@@ -86,8 +86,39 @@ export interface PublicMarketTradePreview {
   readonly resultingCashCents: number;
 }
 
+export interface AcceptCareerOfferCommandPayload {
+  readonly type: "ACCEPT_CAREER_OFFER";
+  readonly offerId: string;
+}
+export interface ResignLaborCommandPayload {
+  readonly type: "RESIGN_LABOR";
+}
+export interface CareerOfferView {
+  readonly id: string;
+  readonly name: string;
+  readonly role: "professional" | "executive";
+  readonly annualCompensationCents: number;
+  readonly raiseBps: number;
+  readonly transitionCostCents: number;
+  readonly ownershipCostCents: number;
+  readonly ownershipPurchaseFeeCents: number;
+  readonly totalCashRequiredCents: number;
+  readonly ownershipPosition: null | {
+    readonly annualRevenueCents: number;
+    readonly annualOperatingProfitCents: number;
+    readonly enterpriseValueCents: number;
+    readonly companyCashCents: number;
+    readonly debtPrincipalCents: number;
+    readonly ownershipPpm: number;
+  };
+  readonly affordable: boolean;
+  readonly tradeoff: string;
+}
+
 export type PlayerCommand =
   | TradePublicMarketsCommandPayload
+  | AcceptCareerOfferCommandPayload
+  | ResignLaborCommandPayload
   | ChooseObjectiveCommandPayload
   | BeginRoundCommandPayload
   | PassSpotlightCommandPayload
@@ -153,6 +184,7 @@ export interface MatchSelfBusinessAssetView {
   readonly incomeTreatment?: "work-and-ownership" | "business-distribution";
   readonly expectedWorkPayCents?: number | null;
   readonly workCompensationArrearsCents?: number;
+  readonly annualManagementCostCents?: number;
   readonly id: string;
   readonly kind: "business";
   readonly annualRevenueCents: number;
@@ -212,6 +244,8 @@ export type MatchResultView =
     }
   | { readonly kind: "safety-draw"; readonly completedQuarter: number };
 export interface MatchSelfFinancialDetailsView {
+  readonly careerOffers: readonly CareerOfferView[];
+  readonly annualLaborCompensationCents: number | null;
   readonly quarterlyIncomeCents: number;
   readonly quarterlyLivingExpenseCents: number;
   readonly entitledQuarterlyIncomeCents: number;
@@ -220,6 +254,7 @@ export interface MatchSelfFinancialDetailsView {
     | {
         readonly kind: "employment";
         readonly role: "professional" | "executive";
+        readonly ownershipPositionAssetId?: string;
       }
     | { readonly kind: "owner-work"; readonly assetId: string }
     | { readonly kind: "not-working" };
@@ -243,6 +278,8 @@ export interface MatchSelfFinancialDetailsView {
   }[];
   readonly objectiveRequirements: readonly {
     readonly objectiveId: string;
+    readonly instructionsVersion: string;
+    readonly instructions: readonly string[];
     readonly targets: Readonly<Record<string, number>>;
   }[];
 }

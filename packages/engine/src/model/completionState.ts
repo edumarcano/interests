@@ -13,7 +13,11 @@ export const FOCUS_AREAS = [
 ] as const;
 export type FocusArea = (typeof FOCUS_AREAS)[number];
 export type LaborRole =
-  | { readonly kind: "employment"; readonly role: "professional" | "executive" }
+  | {
+      readonly kind: "employment";
+      readonly role: "professional" | "executive";
+      readonly ownershipPositionAssetId?: AssetId;
+    }
   | { readonly kind: "owner-work"; readonly assetId: AssetId }
   | { readonly kind: "not-working" };
 export interface AssetAcquisitionBasis {

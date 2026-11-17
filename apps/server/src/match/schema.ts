@@ -104,8 +104,20 @@ export const TradePublicMarketsPayloadSchema = z
   })
   .strict();
 
+export const AcceptCareerOfferPayloadSchema = z
+  .object({
+    type: z.literal("ACCEPT_CAREER_OFFER"),
+    offerId: z.string().min(1).max(200),
+  })
+  .strict();
+export const ResignLaborPayloadSchema = z
+  .object({ type: z.literal("RESIGN_LABOR") })
+  .strict();
+
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
   TradePublicMarketsPayloadSchema,
+  AcceptCareerOfferPayloadSchema,
+  ResignLaborPayloadSchema,
   ChooseObjectivePayloadSchema,
   BeginRoundPayloadSchema,
   PassSpotlightPayloadSchema,

@@ -9,6 +9,8 @@ export const EXTERNAL_ACCOUNTS = [
   "personal-earned-income",
   "business-operating-cashflow",
   "business-operating-costs",
+  "business-management",
+  "career-counterparty",
 ] as const;
 
 export type ExternalAccount = (typeof EXTERNAL_ACCOUNTS)[number];

@@ -21,6 +21,9 @@ export type GameAction = ChooseObjectiveAction;
 export type ActionErrorCode =
   | "INVALID_MARKET_TRADE"
   | "INSUFFICIENT_HOLDINGS"
+  | "CAREER_OFFER_UNAVAILABLE"
+  | "NOT_WORKING"
+  | "COUNTER_EXHAUSTED"
   | "INVALID_ACTION"
   | "UNKNOWN_PLAYER"
   | "WRONG_PHASE"

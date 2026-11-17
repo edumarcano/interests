@@ -221,6 +221,14 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
                       </>
                     )
                   )}
+                  {(asset.annualManagementCostCents ?? 0) > 0 && (
+                    <>
+                      <br />
+                      External management:{" "}
+                      {formatCents(asset.annualManagementCostCents ?? 0)} per
+                      year
+                    </>
+                  )}
                   {(asset.workCompensationArrearsCents ?? 0) > 0 && (
                     <>
                       <br />

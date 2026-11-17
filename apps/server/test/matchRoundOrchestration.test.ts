@@ -946,7 +946,23 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     const unpaidCompanyId = asAssetId(`asset-${fixture.counters.asset + 1}`);
     const unpaidLoanId = asLoanId(`loan-${fixture.counters.loan + 1}`);
     const companies = {
-      ...fixture.finance.assetsById,
+      ...Object.fromEntries(
+        Object.entries(fixture.finance.assetsById).map(([id, asset]) => [
+          id,
+          asset.kind === "business" &&
+          asset.workCompensation?.playerId === debtor
+            ? {
+                ...asset,
+                annualManagementCostCents:
+                  asset.workCompensation.annualCompensationCents,
+                workCompensation: {
+                  ...asset.workCompensation,
+                  annualCompensationCents: cents(0),
+                },
+              }
+            : asset,
+        ]),
+      ),
       [unpaidCompanyId]: {
         id: unpaidCompanyId,
         kind: "business" as const,

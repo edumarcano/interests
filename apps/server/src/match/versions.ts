@@ -2,7 +2,7 @@ import { ENGINE_VERSION } from "@interests/engine";
 import { RULES_VERSION } from "@interests/rules";
 import { SHARED_VERSION } from "@interests/shared";
 
-export const PERSISTENCE_FORMAT_VERSION = "0.0.7";
+export const PERSISTENCE_FORMAT_VERSION = "0.0.8";
 
 export interface MatchVersionMetadata {
   readonly engineVersion: string;

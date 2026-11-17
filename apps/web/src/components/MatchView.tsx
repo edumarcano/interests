@@ -8,6 +8,8 @@ import type {
   SocketAckResult,
 } from "@interests/shared";
 import type React from "react";
+import { CareerPanel } from "./CareerPanel";
+import { ObjectiveRequirements } from "./ObjectiveRequirements";
 import { ObjectiveSelection } from "./ObjectiveSelection.js";
 import { PauseBanner } from "./PauseBanner.js";
 import { RoundStartView } from "./RoundStartView.js";
@@ -57,6 +59,15 @@ export const MatchView: React.FC<Props> = ({
 
       {(match.phase === "objective-choosing" || match.round === null) && (
         <ObjectiveSelection match={match} onSendCommand={onSendCommand} />
+      )}
+
+      <ObjectiveRequirements self={match.self} />
+      {match.phase === "ready-for-first-round" && (
+        <CareerPanel
+          match={match}
+          isPaused={isPaused}
+          onSendCommand={onSendCommand}
+        />
       )}
 
       {match.round?.stage === "round-start" && (
