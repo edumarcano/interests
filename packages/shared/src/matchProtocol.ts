@@ -101,6 +101,8 @@ export interface CareerOfferView {
   readonly raiseBps: number;
   readonly transitionCostCents: number;
   readonly ownershipCostCents: number;
+  readonly ownershipPurchaseFeeCents: number;
+  readonly totalCashRequiredCents: number;
   readonly ownershipPosition: null | {
     readonly annualRevenueCents: number;
     readonly annualOperatingProfitCents: number;

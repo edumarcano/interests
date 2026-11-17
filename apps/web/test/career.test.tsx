@@ -73,6 +73,8 @@ function match(): MatchPlayerView {
             raiseBps: 800,
             transitionCostCents: 0,
             ownershipCostCents: 0,
+            ownershipPurchaseFeeCents: 0,
+            totalCashRequiredCents: 0,
             ownershipPosition: null,
             affordable: true,
             tradeoff:
@@ -162,4 +164,41 @@ it("renders private fund values/basis, property details and only the selected ex
     (id) => id !== view.self.selectedObjectiveId,
   )!;
   expect(screen.queryByRole("heading", { name: unselected })).toBeNull();
+});
+
+it("shows the authoritative executive purchase fee and total funding requirement before acceptance", () => {
+  const view = match();
+  const offer = {
+    ...view.self.financialDetails.careerOffers[0]!,
+    ownershipCostCents: 10_000_000,
+    ownershipPurchaseFeeCents: 200_000,
+    totalCashRequiredCents: 10_200_000,
+    affordable: false,
+  };
+  render(
+    <CareerPanel
+      match={{
+        ...view,
+        self: {
+          ...view.self,
+          financialDetails: {
+            ...view.self.financialDetails,
+            careerOffers: [offer],
+          },
+        },
+      }}
+      isPaused={false}
+      onSendCommand={vi.fn()}
+    />,
+  );
+  expect(screen.getByText(/Business purchase fee:/).textContent).toContain(
+    "Business purchase fee: $2,000. Total cash required: $102,000.",
+  );
+  expect(
+    (
+      screen.getByRole("button", {
+        name: `Accept ${offer.name}`,
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
 });

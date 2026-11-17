@@ -2,6 +2,7 @@ import {
   CAREER_REENTRY_ANNUAL_CENTS,
   CAREER_TEMPLATES,
   EXECUTIVE_COMPANY_TERMS,
+  TRANSACTION_FEES_BPS,
 } from "@interests/rules";
 import type { AssetId, CareerOfferView, PlayerId } from "@interests/shared";
 import { externalCashAccount, playerCashAccount } from "../finance/account";
@@ -54,6 +55,13 @@ export function getCareerOffers(
       .round()
       .toNumber();
     if (!Number.isSafeInteger(quarterly * 4)) return [];
+    const ownershipPurchaseFeeCents = new FinanceDecimal(t.ownershipCostCents)
+      .times(TRANSACTION_FEES_BPS.business.purchase)
+      .div(10000)
+      .round()
+      .toNumber();
+    const totalCashRequiredCents =
+      t.transitionCostCents + t.ownershipCostCents + ownershipPurchaseFeeCents;
     return [
       {
         id: `career:${state.currentQuarter}:${t.id}:${capacity}:${labor.kind}`,
@@ -67,14 +75,15 @@ export function getCareerOffers(
         raiseBps: capacity ? t.raiseBps : 0,
         transitionCostCents: t.transitionCostCents,
         ownershipCostCents: t.ownershipCostCents,
+        ownershipPurchaseFeeCents,
+        totalCashRequiredCents,
         ownershipPosition:
           t.ownershipCostCents > 0 ? { ...EXECUTIVE_COMPANY_TERMS } : null,
         affordable:
-          state.finance.cashByPlayer[playerId]! >=
-          t.transitionCostCents + t.ownershipCostCents,
+          state.finance.cashByPlayer[playerId]! >= totalCashRequiredCents,
         tradeoff:
           t.ownershipCostCents > 0
-            ? "Buy $100,000 of a managed company from an external seller. Investment can lose value; no company cash is created. Replaces your current labor role."
+            ? "Buy $100,000 of a managed company from an external seller and pay the quoted business purchase fee. Investment can lose value; no company cash is created. Replaces your current labor role."
             : t.transitionCostCents > 0
               ? "Pay $5,000 in transition costs for the larger raise. Replaces your current labor role."
               : "Smaller raise without transition costs. Replaces your current labor role.",
@@ -140,14 +149,27 @@ export function applyCareerCommand(
     const journals = [];
     let ownershipPositionAssetId: AssetId | undefined;
     if (offer) {
-      for (const [amountCents, reason] of [
-        [offer.transitionCostCents, "career-transition-cost"],
-        [offer.ownershipCostCents, "executive-secondary-purchase"],
+      for (const [amountCents, reason, destination] of [
+        [
+          offer.transitionCostCents,
+          "career-transition-cost",
+          "career-counterparty",
+        ],
+        [
+          offer.ownershipCostCents,
+          "executive-secondary-purchase",
+          "career-counterparty",
+        ],
+        [
+          offer.ownershipPurchaseFeeCents,
+          "executive-business-purchase-fee",
+          "market",
+        ],
       ] as const) {
         if (amountCents === 0) continue;
         const posting = postCash(draft.finance, draft.counters, {
           source: playerCashAccount(playerId),
-          destination: externalCashAccount("career-counterparty"),
+          destination: externalCashAccount(destination),
           amountCents,
           reason,
           quarter: state.currentQuarter,
@@ -237,7 +259,10 @@ export function applyCareerCommand(
               ...(ownershipPositionAssetId && offer
                 ? {
                     [ownershipPositionAssetId]: {
-                      costCents: cents(offer.ownershipCostCents),
+                      costCents: cents(
+                        offer.ownershipCostCents +
+                          offer.ownershipPurchaseFeeCents,
+                      ),
                       acquiredQuarter: state.currentQuarter,
                       ownershipPpm: ownershipPpm(1_000_000),
                     },

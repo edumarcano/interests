@@ -93,7 +93,9 @@ export function CareerPanel({
               {money(offer.annualCompensationCents)} per year
               {offer.raiseBps > 0 && ` (${offer.raiseBps / 100}% raise)`}.
               Transition cost: {money(offer.transitionCostCents)}. Ownership
-              investment: {money(offer.ownershipCostCents)}.
+              investment: {money(offer.ownershipCostCents)}. Business purchase
+              fee: {money(offer.ownershipPurchaseFeeCents)}. Total cash
+              required: {money(offer.totalCashRequiredCents)}.
             </p>
             <p>{offer.tradeoff}</p>
             {offer.ownershipPosition && (

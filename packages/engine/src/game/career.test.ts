@@ -155,6 +155,69 @@ describe("persistent career and labor choices", () => {
     });
   });
 
+  it("requires the business purchase fee in executive affordability and quotes its separate amount", () => {
+    const { state, actor } = ready("high-income-professional");
+    const exactPrice = {
+      ...state,
+      finance: {
+        ...state.finance,
+        cashByPlayer: {
+          ...state.finance.cashByPlayer,
+          [actor]: cents(10_000_000),
+        },
+      },
+    };
+    const offer = getCareerOffers(exactPrice, actor).find(
+      (offer) => offer.ownershipCostCents > 0,
+    )!;
+    expect(offer.affordable).toBe(false);
+    expect(offer).toMatchObject({
+      ownershipPurchaseFeeCents: 200_000,
+      totalCashRequiredCents: 10_200_000,
+    });
+    const rejected = applyPlayerCommand(exactPrice, actor, {
+      type: "ACCEPT_CAREER_OFFER",
+      offerId: offer.id,
+    });
+    expect(rejected).toMatchObject({
+      ok: false,
+      code: "INSUFFICIENT_FUNDS",
+      journalEntries: [],
+    });
+    expect(rejected.state).toBe(exactPrice);
+  });
+
+  it("rolls back consideration when the separate executive purchase fee journal cannot commit", () => {
+    const { state, actor } = ready("high-income-professional");
+    const staged = {
+      ...state,
+      counters: { ...state.counters, journal: Number.MAX_SAFE_INTEGER - 1 },
+      finance: {
+        ...state.finance,
+        cashByPlayer: {
+          ...state.finance.cashByPlayer,
+          [actor]: cents(10_200_000),
+        },
+      },
+    };
+    const offer = getCareerOffers(staged, actor).find(
+      (offer) => offer.ownershipCostCents > 0,
+    )!;
+    expect(offer.affordable).toBe(true);
+    const before = JSON.stringify(staged);
+    const result = applyPlayerCommand(staged, actor, {
+      type: "ACCEPT_CAREER_OFFER",
+      offerId: offer.id,
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      code: "COUNTER_EXHAUSTED",
+      journalEntries: [],
+    });
+    expect(result.state).toBe(staged);
+    expect(JSON.stringify(staged)).toBe(before);
+  });
+
   it("funds executive ownership from actual cash without crediting company cash or free equity", () => {
     const { state, actor } = ready("high-income-professional");
     // Explicit synthetic liquidity fixture; compensation and access are ordinary.
@@ -187,13 +250,26 @@ describe("persistent career and labor choices", () => {
     expect(asset.cashCents).toBe(0);
     expect(calculateBusinessEquity(asset).equityValueCents).toBe(10_000_000);
     expect(result.state.progress.byPlayer[actor]!.assetsById[asset.id]).toEqual(
-      { costCents: 10_000_000, acquiredQuarter: 1, ownershipPpm: 1_000_000 },
+      { costCents: 10_200_000, acquiredQuarter: 1, ownershipPpm: 1_000_000 },
     );
     expect(result.journalEntries[0]).toMatchObject({
       amountCents: 10_000_000,
       reason: "executive-secondary-purchase",
       destination: { kind: "external" },
     });
+    expect(result.journalEntries[1]).toMatchObject({
+      amountCents: 200_000,
+      reason: "executive-business-purchase-fee",
+      destination: { kind: "external", account: "market" },
+    });
+    expect(
+      result.journalEntries
+        .filter(
+          (entry) =>
+            entry.source.kind === "player" && entry.source.playerId === actor,
+        )
+        .reduce((sum, entry) => sum + entry.amountCents, 0),
+    ).toBe(10_200_000);
     expect(
       result.state.finance.quarterStartBasis.businessesById[asset.id]!
         .annualOperatingProfitCents,
@@ -235,8 +311,8 @@ describe("persistent career and labor choices", () => {
         expect(asset.cashCents).toBe(0);
         expect(
           state.progress.byPlayer[actor]!.assetsById[asset.id]!.costCents,
-        ).toBe(10_000_000);
-        expect(beforeCash).toBeGreaterThanOrEqual(10_000_000);
+        ).toBe(10_200_000);
+        expect(beforeCash).toBeGreaterThanOrEqual(10_200_000);
         expect(state.progress.byPlayer[actor]!.quarters.length).toBeGreaterThan(
           0,
         );
