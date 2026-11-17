@@ -1,4 +1,12 @@
-import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+import {
+  type Browser,
+  type BrowserContext,
+  expect,
+  type Page,
+  test,
+} from "@playwright/test";
 import {
   startTestServer,
   type TestServerHarness,
@@ -16,7 +24,7 @@ async function assertNoHorizontalOverflow(page: Page, stageName: string) {
   ).toBeLessThanOrEqual(overflow.docWidth);
 }
 
-test.describe("PR24 Four-Client Vertical Slice", () => {
+test.describe("Four-client financial acceptance", () => {
   let server: TestServerHarness;
 
   test.beforeAll(async () => {
@@ -29,9 +37,7 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
     }
   });
 
-  test("executes canonical four-client LAN journey from room creation through financed acquisition, quarterly payouts, and Q5", async ({
-    browser,
-  }) => {
+  async function runJourney(browser: Browser, diagnosticDistress: boolean) {
     test.setTimeout(120_000);
     // 1. Create four independent browser contexts with mixed realistic viewports
     const contextA = await browser.newContext({
@@ -485,6 +491,32 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
         ).toBe(sellerAssetsBefore - 1);
       }
 
+      const preQ2View = (
+        await (
+          await buyerPage!.request.get(
+            `${server.origin}/api/rooms/${roomCode}/match`,
+          )
+        ).json()
+      ).match;
+      const playerLoanId = preQ2View.self.loans.find(
+        (loan: { role: string; kind: string }) =>
+          loan.role === "borrower" && loan.kind === "player-loan",
+      ).id;
+      if (diagnosticDistress) {
+        // Explicit offline boundary fixture: ordinary approved starts no longer default on this loan.
+        await server.stop();
+        execFileSync(process.execPath, [
+          createRequire(import.meta.url).resolve("tsx/cli"),
+          "apps/server/test/support/seedBrowserDistress.ts",
+          server.dbPath,
+          preQ2View.matchId,
+        ]);
+        await server.restart();
+        for (const page of pages) await page.reload();
+        await expect(pageA.getByTestId("resume-match-btn")).toBeEnabled();
+        await pageA.getByTestId("resume-match-btn").click();
+        await expect(pageA.getByTestId("begin-round-btn")).toBeEnabled();
+      }
       // Settle Q2-Q4 through real controls and inspect each recipient's actual API view.
       const businessCard = buyerPage!
         .locator('[data-testid^="owned-asset-"]')
@@ -537,6 +569,44 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
           views.push((await response.json()).match);
         }
         const buyerIndex = pages.indexOf(buyerPage!);
+        if (diagnosticDistress) {
+          const borrower = views[
+            buyerIndex
+          ].self.lastSettlement.loanPayments.find(
+            (p: { loanId: string }) => p.loanId === playerLoanId,
+          );
+          const lender = views[
+            pages.indexOf(lenderPage!)
+          ].self.lastSettlement.loanPayments.find(
+            (p: { loanId: string }) => p.loanId === playerLoanId,
+          );
+          expect(borrower).toMatchObject({ role: "borrower", paidCents: 0 });
+          expect(borrower.unpaidCents).toBeGreaterThan(0);
+          expect(lender).toEqual({ ...borrower, role: "lender" });
+          await expect(
+            buyerPage!.getByTestId(`settled-loan-${playerLoanId}`),
+          ).toContainText("remains overdue");
+          await expect(
+            lenderPage!.getByTestId(`settled-loan-${playerLoanId}`),
+          ).toContainText("received $0");
+          expect(
+            views[buyerIndex].self.livingExpenseArrearsCents,
+          ).toBeGreaterThan(0);
+          for (const page of [sellerPage, neutralCandidatePage!]) {
+            const view = views[pages.indexOf(page)];
+            expect(
+              view.self.loans.some(
+                (l: { id: string }) => l.id === playerLoanId,
+              ),
+            ).toBe(false);
+            expect(
+              view.self.lastSettlement.loanPayments.some(
+                (p: { loanId: string }) => p.loanId === playerLoanId,
+              ),
+            ).toBe(false);
+            expect(JSON.stringify(view)).not.toContain("9382715");
+          }
+        }
         expect(
           views[buyerIndex].self.lastSettlement.businessDistributions,
         ).toContainEqual({ assetId: acquiredAssetId, amountCents: 300_000 });
@@ -577,6 +647,18 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
           )
         ).json()
       ).match;
+      const allBeforeRestart = await Promise.all(
+        pages.map(
+          async (page) =>
+            (
+              await (
+                await page.request.get(
+                  `${server.origin}/api/rooms/${roomCode}/match`,
+                )
+              ).json()
+            ).match,
+        ),
+      );
       await server.restart();
       for (const page of pages) await page.reload();
       await expect(pageA.getByTestId("resume-match-btn")).toBeEnabled();
@@ -590,6 +672,27 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
         ).json()
       ).match;
       expect(afterRestart).toEqual(beforeRestart);
+      const allAfterRestart = await Promise.all(
+        pages.map(
+          async (page) =>
+            (
+              await (
+                await page.request.get(
+                  `${server.origin}/api/rooms/${roomCode}/match`,
+                )
+              ).json()
+            ).match,
+        ),
+      );
+      expect(allAfterRestart).toEqual(allBeforeRestart);
+      if (diagnosticDistress) {
+        await expect(
+          lenderPage!.getByTestId(`settled-loan-${playerLoanId}`),
+        ).toContainText("remains overdue");
+        await expect(buyerPage!.getByTestId("last-settlement")).toContainText(
+          "Unpaid living costs",
+        );
+      }
       await expect(businessCard).toContainText("Company cash: $2,250");
 
       // 13. Responsive assertions: Dana's page on 320px viewport has no unintended horizontal overflow
@@ -600,5 +703,12 @@ test.describe("PR24 Four-Client Vertical Slice", () => {
       await contextC.close();
       await contextD.close();
     }
-  });
+  }
+  for (const diagnosticDistress of [false, true]) {
+    test(`financed purchase through Q5, reload and restart: ${diagnosticDistress ? "synthetic distress" : "ordinary journey"}`, async ({
+      browser,
+    }) => {
+      await runJourney(browser, diagnosticDistress);
+    });
+  }
 });

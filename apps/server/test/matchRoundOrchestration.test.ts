@@ -876,6 +876,18 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
       JSON.stringify(changed),
       matchId,
     );
+    const broadcastViews = clients.map(
+      (client) =>
+        new Promise<MatchPlayerView>((resolve) => {
+          const handler = (view: MatchPlayerView) => {
+            if (view.revision === 9) {
+              client.socket.off(SOCKET_SERVER_EVENTS.MATCH_VIEW, handler);
+              resolve(view);
+            }
+          };
+          client.socket.on(SOCKET_SERVER_EVENTS.MATCH_VIEW, handler);
+        }),
+    );
     const begin = await sendCommand(clients[0]!.socket, {
       commandId: randomUUID(),
       expectedRevision: 4,
@@ -935,6 +947,15 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     };
     const own = await getView(1);
     const unrelated = await getView(0);
+    const broadcasts = await Promise.all(broadcastViews);
+    expect(broadcasts[0]).toEqual(unrelated);
+    expect(broadcasts[1]).toEqual(own);
+    const rejectedOriginal = await sendCommand(clients[0]!.socket, {
+      commandId: randomUUID(),
+      expectedRevision: 9,
+      command: { type: "PASS_SPOTLIGHT" },
+    });
+    expect(rejectedOriginal.ok).toBe(false);
     expect(own.self.livingExpenseArrearsCents).toBe(
       snapshot.finance.livingArrearsByPlayer[debtor],
     );
@@ -986,6 +1007,17 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
       matchId,
     );
     expect(await getView(0)).toEqual(unrelated);
+    const rejectedPaired = await sendCommand(clients[0]!.socket, {
+      commandId: randomUUID(),
+      expectedRevision: 9,
+      command: { type: "PASS_SPOTLIGHT" },
+    });
+    if (rejectedOriginal.ok || rejectedPaired.ok)
+      throw new Error("Expected rejected spotlight command");
+    expect(rejectedPaired.error).toEqual(rejectedOriginal.error);
+    const pairedBootstrap = await connectSocket(cookies[0]!, roomCode);
+    expect(pairedBootstrap.bootstrap.match).toEqual(unrelated);
+    pairedBootstrap.socket.disconnect();
     db.prepare("UPDATE matches SET snapshot_json = ? WHERE id = ?").run(
       committed.match.snapshotJson,
       matchId,
@@ -1024,6 +1056,9 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     for (const cookie of cookies) {
       const client = await connectSocket(cookie, roomCode);
       replacements.push(client);
+      expect(client.bootstrap.match).toEqual(
+        await getView(replacements.length - 1),
+      );
       await syncSocket(
         client.socket,
         client.bootstrap.self.connectionGeneration,

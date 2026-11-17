@@ -1,21 +1,25 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
+import { ENGINE_VERSION, WORKSPACE_COMPATIBILITY } from "@interests/engine";
 
 import {
   DEFAULT_BASELINE_GAMES,
   DEFAULT_BASELINE_QUARTERS,
   runPassiveBaselineBatch,
 } from "./baseline";
+import { runFinanceAcceptanceScenarios } from "./financeScenarios";
 import { DEFAULT_SIMULATION_SEED_PREFIX } from "./seed";
+import { SIMULATION_VERSION } from "./version";
 
 function printHelp(): void {
   console.log(`
-Deterministic Headless Passive Baseline Simulation CLI
+Deterministic Financial Simulation CLI
 
 Usage:
   pnpm --filter @interests/simulation simulate [options]
 
 Options:
+  --scenario <name>                passive-baseline-v1 (default) or finance-acceptance-v1
   --games <positive integer>        Number of games to simulate (default: ${DEFAULT_BASELINE_GAMES})
   --quarters <positive integer>     Quarter horizon per game (default: ${DEFAULT_BASELINE_QUARTERS})
   --seed-prefix <string>            Seed prefix for batch generation (default: "${DEFAULT_SIMULATION_SEED_PREFIX}")
@@ -32,6 +36,7 @@ export function main(argv = process.argv.slice(2)): void {
     const { values } = parseArgs({
       args: argv,
       options: {
+        scenario: { type: "string" },
         games: {
           type: "string",
         },
@@ -54,6 +59,36 @@ export function main(argv = process.argv.slice(2)): void {
       return;
     }
 
+    if (values.scenario === "finance-acceptance-v1") {
+      if (
+        values.games !== undefined ||
+        values.quarters !== undefined ||
+        values["seed-prefix"] !== undefined
+      ) {
+        throw new Error(
+          "finance-acceptance-v1 uses fixed seeds and four-quarter scenarios; omit batch options",
+        );
+      }
+      console.log(
+        JSON.stringify(
+          {
+            scenario: "finance-acceptance-v1",
+            simulationVersion: SIMULATION_VERSION,
+            engineVersion: ENGINE_VERSION,
+            workspaceCompatibility: WORKSPACE_COMPATIBILITY,
+            scenarios: runFinanceAcceptanceScenarios(),
+          },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+    if (
+      values.scenario !== undefined &&
+      values.scenario !== "passive-baseline-v1"
+    )
+      throw new Error(`Unknown scenario: ${values.scenario}`);
     let games = DEFAULT_BASELINE_GAMES;
     if (values.games !== undefined) {
       const parsed = Number(values.games);

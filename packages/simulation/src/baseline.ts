@@ -18,6 +18,7 @@ import {
   applySettlementJournalToCashFlows,
   createPlayerSnapshot,
   createZeroPlayerCashFlow,
+  observeFinance,
   safeAdd,
 } from "./metrics";
 import { createSimulationSeed } from "./seed";
@@ -184,6 +185,7 @@ export function simulateReadyGame(
       break;
     }
 
+    const finance = observeFinance(currentState, settleResult.state);
     currentState = settleResult.state;
     applySettlementJournalToCashFlows(
       playerCashFlows,
@@ -243,6 +245,7 @@ export function simulateReadyGame(
     }
 
     quarterTraces.push({
+      finance,
       quarter: q,
       regimeUsed: lastMarketUpdate.regimeUsed,
       nextRegime: currentState.economy.currentRegime,
@@ -265,6 +268,7 @@ export function simulateReadyGame(
     gameId: metadata?.gameId ?? currentState.gameId,
     seed: metadata?.seed ?? "",
     completedQuarters,
+    finalFinanceBalances: observeFinance(currentState, currentState).balances,
     failure,
     openingPlayers,
     finalPlayers,

@@ -34,6 +34,11 @@ export interface SimulationPlayerSnapshot {
 }
 
 export interface SimulationPlayerCashFlow {
+  workCompensationReceivedCents: number;
+  playerLoanPrincipalReceivedCents: number;
+  playerLoanInterestReceivedCents: number;
+  playerLoanPrincipalPaidCents: number;
+  playerLoanInterestPaidCents: number;
   cashYieldReceivedCents: number;
   publicMarketDividendsReceivedCents: number;
   recurringIncomeReceivedCents: number;
@@ -56,6 +61,7 @@ export interface SimulationQuarterPlayerTrace {
 }
 
 export interface SimulationQuarterTrace {
+  readonly finance: SimulationFinanceObservation;
   readonly quarter: number;
   readonly regimeUsed: EconomicRegimeId;
   readonly nextRegime: EconomicRegimeId;
@@ -74,6 +80,7 @@ export interface PassiveBaselineGameResult {
   readonly gameId: GameId;
   readonly seed: string;
   readonly completedQuarters: number;
+  readonly finalFinanceBalances: SimulationFinanceBalances;
   readonly failure: SimulationSettlementFailure | null;
   readonly openingPlayers: Readonly<Record<PlayerId, SimulationPlayerSnapshot>>;
   readonly finalPlayers: Readonly<Record<PlayerId, SimulationPlayerSnapshot>>;
@@ -113,6 +120,11 @@ export interface ProfileAggregateMetrics {
   readonly openingLiquidNetPositionCents: IntSummary;
   readonly endingLiquidNetPositionCents: IntSummary;
   readonly cashFlows: {
+    readonly workCompensationReceivedCents: CashFlowSummary;
+    readonly playerLoanPrincipalReceivedCents: CashFlowSummary;
+    readonly playerLoanInterestReceivedCents: CashFlowSummary;
+    readonly playerLoanPrincipalPaidCents: CashFlowSummary;
+    readonly playerLoanInterestPaidCents: CashFlowSummary;
     readonly cashYieldReceivedCents: CashFlowSummary;
     readonly publicMarketDividendsReceivedCents: CashFlowSummary;
     readonly recurringIncomeReceivedCents: CashFlowSummary;
@@ -158,8 +170,38 @@ export interface BaselineSimulationReport {
   readonly workspaceCompatibility: typeof WORKSPACE_COMPATIBILITY;
   readonly totals: BaselineSimulationTotals;
   readonly profileMetrics: Readonly<Record<ProfileId, ProfileAggregateMetrics>>;
+  readonly finance: {
+    readonly endingBalances: SimulationFinanceBalances;
+    readonly missedLoanPayments: number;
+    readonly curedClaims: number;
+    readonly bankPrincipalPaidCents: number;
+    readonly bankInterestPaidCents: number;
+    readonly operatingCostsPaidCents: number;
+    readonly retainedFromSurplusCents: number;
+  };
   readonly economy: BaselineSimulationEconomyReport;
   readonly marketReturns: Readonly<
     Record<PublicMarketInstrumentId, MarketInstrumentReturnStatistics>
   >;
+}
+
+export interface SimulationFinanceBalances {
+  livingArrearsCents: number;
+  operatingArrearsCents: number;
+  workArrearsCents: number;
+  unpaidInterestCents: number;
+  pastDuePrincipalCents: number;
+  companyCashCents: number;
+  companyPrincipalCents: number;
+  companyEquityCents: number;
+}
+
+export interface SimulationFinanceObservation {
+  readonly balances: SimulationFinanceBalances;
+  readonly missedLoanPayments: number;
+  readonly curedClaims: number;
+  readonly bankPrincipalPaidCents: number;
+  readonly bankInterestPaidCents: number;
+  readonly operatingCostsPaidCents: number;
+  readonly retainedFromSurplusCents: number;
 }
