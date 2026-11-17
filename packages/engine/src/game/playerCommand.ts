@@ -116,6 +116,9 @@ export function applyPlayerCommand(
     };
   }
 
+  if (state.phase === "finished")
+    return { ok: false, state, code: "WRONG_PHASE", journalEntries: [] };
+
   switch (wireCommand.type) {
     case "CHOOSE_OBJECTIVE": {
       if (typeof wireCommand.objectiveId !== "string") {

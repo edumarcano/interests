@@ -18,6 +18,11 @@ import { captureBusinessBasis } from "../finance/businessSettlement";
 import { createZeroPublicMarketPortfolio } from "../finance/markets";
 import { basisPoints, type Cents, cents } from "../finance/money";
 import { ownershipPpm } from "../finance/ownership";
+import {
+  capturePropertyBasis,
+  captureRecurringBasis,
+  createProgress,
+} from "../finance/progress";
 import { assertGameState } from "../invariants/assertGameState";
 import type {
   Asset,
@@ -307,12 +312,28 @@ export function createGame(input: CreateGameInput): GameState {
 
   const quarterStartBasis: QuarterStartFinanceBasis = {
     businessesById: captureBusinessBasis(q1Fixture.assetsById),
+    propertiesById: capturePropertyBasis(q1Fixture.assetsById),
+    recurringByPlayer: captureRecurringBasis(recurringByPlayer),
     quarter: 1,
     cashByPlayer: { ...cashByPlayer },
     publicMarketsByPlayer: { ...publicMarketsByPlayer },
   };
 
+  const finance = {
+    livingArrearsByPlayer: Object.fromEntries(
+      input.playerIds.map((id) => [id, cents(0)]),
+    ),
+    lastSettlement: null,
+    cashByPlayer,
+    recurringByPlayer,
+    loansById,
+    assetsById: q1Fixture.assetsById,
+    publicMarketsByPlayer,
+    quarterStartBasis,
+  };
   const state: GameState = {
+    progress: createProgress(finance, input.playerIds),
+    result: null,
     gameId: asGameId(input.gameId),
     modeId: "standard-v1",
     revision: 0,
@@ -321,18 +342,7 @@ export function createGame(input: CreateGameInput): GameState {
     lastSettledQuarter: 0,
     playerOrder: [...input.playerIds],
     players,
-    finance: {
-      livingArrearsByPlayer: Object.fromEntries(
-        input.playerIds.map((id) => [id, cents(0)]),
-      ),
-      lastSettlement: null,
-      cashByPlayer,
-      recurringByPlayer,
-      loansById,
-      assetsById: q1Fixture.assetsById,
-      publicMarketsByPlayer,
-      quarterStartBasis,
-    },
+    finance,
     economy: {
       currentRegime: STANDARD_V1_STARTING_REGIME,
       baseRateBps: basisPoints(STANDARD_V1_OPENING_BASE_RATE_BPS),

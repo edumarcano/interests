@@ -176,7 +176,48 @@ export interface SelfSettlementView {
   }[];
 }
 
+export type MatchResultView =
+  | {
+      readonly kind: "objective-victory";
+      readonly winnerPlayerId: PlayerId;
+      readonly completedQuarter: number;
+    }
+  | { readonly kind: "safety-draw"; readonly completedQuarter: number };
+export interface MatchSelfFinancialDetailsView {
+  readonly quarterlyIncomeCents: number;
+  readonly quarterlyLivingExpenseCents: number;
+  readonly entitledQuarterlyIncomeCents: number;
+  readonly entitledQuarterlyLivingExpenseCents: number;
+  readonly labor:
+    | {
+        readonly kind: "employment";
+        readonly role: "professional" | "executive";
+      }
+    | { readonly kind: "owner-work"; readonly assetId: string }
+    | { readonly kind: "not-working" };
+  readonly focus: string;
+  readonly completedObservationQuarters: number;
+  readonly publicMarkets: readonly {
+    readonly id: string;
+    readonly valueCents: number;
+    readonly basisCents: number;
+  }[];
+  readonly properties: readonly {
+    readonly id: string;
+    readonly ownershipPpm: number;
+    readonly marketValueCents: number;
+    readonly scheduledQuarterlyRentCents: number;
+    readonly occupancyBps: number;
+    readonly quarterlyNoiCents: number;
+  }[];
+  readonly objectiveRequirements: readonly {
+    readonly objectiveId: string;
+    readonly targets: Readonly<Record<string, number>>;
+  }[];
+}
+
 export interface MatchSelfView {
+  readonly financialDetails: MatchSelfFinancialDetailsView;
   readonly playerId: PlayerId;
   readonly profileId: string;
   readonly profile?: MatchProfileView;
@@ -240,6 +281,7 @@ export interface MatchRoundView {
 }
 
 export interface MatchPlayerView {
+  readonly result: MatchResultView | null;
   readonly matchId: MatchId;
   readonly modeId: string;
   readonly revision: number;

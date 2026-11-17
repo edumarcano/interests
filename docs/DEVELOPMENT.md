@@ -2,7 +2,7 @@
 
 **Updated:** 2026-11-16
 **Active milestone:** 7, full gameplay rules and content  
-**Current focus:** M7 completion policies approved; implement the remaining Standard V1 actions, recurring content and objective finales
+**Current focus:** Parallel packets 3-5 (markets, career/labor, bank/property) from the verified PR #37 foundation; no PRs merged
 
 ## Milestone 6: physical playtest outcome
 
@@ -43,10 +43,10 @@ ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. T
 | Packet | Deliverable | Current state |
 | --- | --- | --- |
 | 1 | Canonical completion policy and immutable rule data | Delivered in open [PR #36](https://github.com/edumarcano/interests/pull/36), `codex/m7-completion-policies`; both Remora review axes passed; unmerged; runtime activation unchanged |
-| 2 | Entitlements, basis/history, career/focus, financing and terminal contracts | Pending; foundation checkpoint before parallel feature work |
-| 3 | Public-fund buy/sell/rebalance, fees and browser controls | Pending |
-| 4 | Careers, executive ownership, resignation and equal-cost management conversion | Pending |
-| 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Pending |
+| 2 | Entitlements, basis/history, career/focus, financing and terminal contracts | Implemented on `codex/m7-state-foundations`; delivered in open [PR #37](https://github.com/edumarcano/interests/pull/37), stacked on #36; both Remora axes passed; unmerged |
+| 3 | Public-fund buy/sell/rebalance, fees and browser controls | In progress on `codex/m7-public-markets` in `tmp/worktrees/m7-markets` |
+| 4 | Careers, executive ownership, resignation and equal-cost management conversion | In progress on `codex/m7-career-labor` in `tmp/worktrees/m7-career` |
+| 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | In progress on `codex/m7-bank-property` in `tmp/worktrees/m7-property` |
 | 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Pending |
 | 7 | Operating economy, recurring private/public content and non-player alternatives | Pending; remove Q1 demonstration windfall from ordinary setup |
 | 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Pending |
@@ -58,7 +58,15 @@ The planning audit on `38bfead` passed typecheck, build, 653 tests and five brow
 
 ### Packet 1 verification
 
-Typecheck and all 657 tests passed. Lint exited successfully with the existing 517 warnings and three infos. The real financial-acceptance CLI ran twice through `node --import tsx`; its outputs matched and all six scenarios reached Q5. This verifies unchanged active behavior, not pending M7 actions. Independent Remora specification and standards reviews passed with no blockers. PR #36 is open and unmerged; hosted CI is pending. No merge has occurred. Exact objective threshold assertions will accompany evaluator tests in packet 8.
+Typecheck and all 657 tests passed. Lint exited successfully with the existing 517 warnings and three infos. The real financial-acceptance CLI ran twice through `node --import tsx`; its outputs matched and all six scenarios reached Q5. This verifies unchanged active behavior, not pending M7 actions. Independent Remora specification and standards reviews passed with no blockers. PR #36 is open and unmerged at `965f5c0`; hosted CI run 108 passed. No merge has occurred. Exact objective threshold assertions will accompany evaluator tests in packet 8.
+
+### Packet 2 verification
+
+Quarter-start property and recurring income/living entitlements, acquisition/disposal evidence, labor/focus state, four-quarter observations and private finance/requirement projections are implemented. The state includes terminal contracts and command rejection; production victory/draw execution remains packet 8. ARCH-041 records ownership and compatibility details.
+
+All 676 tests and typecheck passed. Lint passed with 584 warnings and three infos; build passed. Both independent Remora axes approved after fixing public-close overflow rejection and ownership/basis snapshot reconciliation. Real command execution reached Q6 with exactly Q2-Q5 retained for all four players; repeated output matched. The six financial acceptance scenarios still reach Q5 and repeat identically. All five browser scenarios passed, including ordinary and synthetic distress paths, seat recovery and process restart. PR #37 is open and unmerged; hosted CI run 110 passed on `09b304a`. No PR has been merged.
+
+The three isolated feature worktrees begin at `09b304a`. Integrate and publish in markets → career → bank/property order, rebasing descendants and resolving shared contracts before each verification/review checkpoint. Worktree dependencies reuse local installed packages; invoke their local `node_modules/.bin` tools directly because pnpm's automatic worktree restoration attempts an uncached registry install. No dependencies or lockfile changed.
 
 ## M7 completion and M8 handoff
 

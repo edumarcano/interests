@@ -20,16 +20,21 @@ try {
   if (loan?.kind !== "player-loan")
     throw new Error("Missing financed purchase");
   const old = state.finance.recurringByPlayer[loan.borrowerPlayerId]!;
+  const recurringByPlayer = {
+    ...state.finance.recurringByPlayer,
+    [loan.borrowerPlayerId]: {
+      ...old,
+      quarterlyLivingExpenseCents: cents(9_382_715),
+    },
+  };
   const diagnostic: GameState = {
     ...state,
     finance: {
       ...state.finance,
-      recurringByPlayer: {
-        ...state.finance.recurringByPlayer,
-        [loan.borrowerPlayerId]: {
-          ...old,
-          quarterlyLivingExpenseCents: cents(9_382_715),
-        },
+      recurringByPlayer,
+      quarterStartBasis: {
+        ...state.finance.quarterStartBasis,
+        recurringByPlayer,
       },
     },
   };

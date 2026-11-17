@@ -3,13 +3,13 @@ import {
   PLAYER_LOAN_MIN_TERM_QUARTERS,
 } from "@interests/rules";
 import type { AssetId, PlayerId, TransactionId } from "@interests/shared";
-
 import { playerCashAccount } from "../finance/account";
 import { calculatePlayerLoanSchedule } from "../finance/amortization";
 import { originateConfirmedPlayerLoan } from "../finance/loans";
 import { basisPoints, cents } from "../finance/money";
 import { createSoleOwnership, TOTAL_OWNERSHIP_PPM } from "../finance/ownership";
 import { postCash } from "../finance/posting";
+import { recordBusinessPurchaseBasis } from "../finance/progress";
 import { nextDeterministicId } from "../game/deterministicIds";
 import { getActiveSpotlightPlayerId } from "../game/round";
 import { assertGameState } from "../invariants/assertGameState";
@@ -671,8 +671,24 @@ export function applyCloseCashBusinessPurchaseTransaction(
       [tx.assetId]: updatedAsset,
     };
 
+    let progress: GameState["progress"];
+    try {
+      progress = recordBusinessPurchaseBasis(
+        state.progress,
+        tx.sellerPlayerId,
+        tx.buyerPlayerId,
+        updatedAsset,
+        tx.purchasePriceCents,
+        state.currentQuarter,
+      );
+    } catch (error) {
+      if (error instanceof RangeError) return reject("DESTINATION_OVERFLOW");
+      throw error;
+    }
+
     const nextState: GameState = {
       ...state,
+      progress,
       finance: {
         ...postingResult.finance,
         assetsById: nextAssetsById,
@@ -863,8 +879,24 @@ export function applyCloseCashBusinessPurchaseTransaction(
     [tx.assetId]: updatedAsset,
   };
 
+  let progress: GameState["progress"];
+  try {
+    progress = recordBusinessPurchaseBasis(
+      state.progress,
+      tx.sellerPlayerId,
+      tx.buyerPlayerId,
+      updatedAsset,
+      tx.purchasePriceCents,
+      state.currentQuarter,
+    );
+  } catch (error) {
+    if (error instanceof RangeError) return reject("DESTINATION_OVERFLOW");
+    throw error;
+  }
+
   const nextState: GameState = {
     ...state,
+    progress,
     finance: {
       ...purchaseResult.finance,
       assetsById: nextAssetsById,

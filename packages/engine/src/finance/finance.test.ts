@@ -5,7 +5,6 @@ import {
   type PlayerId,
 } from "@interests/shared";
 import { describe, expect, it } from "vitest";
-
 import type {
   DeterministicCounters,
   FinanceState,
@@ -29,6 +28,7 @@ import {
 } from "./money";
 import { ownershipPpm } from "./ownership";
 import { postCash } from "./posting";
+import { capturePropertyBasis, createProgress } from "./progress";
 
 const aliceId = asPlayerId("player-alice");
 const bobId = asPlayerId("player-bob");
@@ -81,6 +81,8 @@ function createInitialFinance(): FinanceState {
     assetsById: {},
     publicMarketsByPlayer,
     quarterStartBasis: {
+      propertiesById: {},
+      recurringByPlayer: createInitialRecurring(),
       businessesById: {},
       quarter: 1,
       cashByPlayer: { ...cashByPlayer },

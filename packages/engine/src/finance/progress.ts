@@ -1,0 +1,280 @@
+import { OBJECTIVE_MEASUREMENT_RULES } from "@interests/rules";
+import type { AssetId, PlayerId } from "@interests/shared";
+import type {
+  ProgressState,
+  QuarterObservation,
+  SourceObservation,
+} from "../model/completionState";
+import type {
+  Asset,
+  FinanceState,
+  GameState,
+  PropertyAsset,
+  RecurringPersonalFinance,
+} from "../model/gameState";
+import { calculateBusinessEquity } from "./business";
+import { FinanceDecimal } from "./decimal";
+import type { JournalEntry } from "./journal";
+import { type Cents, cents } from "./money";
+import type { SettlementOutcome } from "./obligations";
+import { allocateProportionalCents } from "./ownership";
+
+export function capturePropertyBasis(
+  assets: FinanceState["assetsById"],
+): Record<AssetId, PropertyAsset> {
+  const result: Record<AssetId, PropertyAsset> = {};
+  for (const asset of Object.values(assets))
+    if (asset.kind === "property")
+      result[asset.id] = {
+        ...asset,
+        ownershipByPlayerPpm: { ...asset.ownershipByPlayerPpm },
+      };
+  return result;
+}
+export function captureRecurringBasis(
+  recurring: FinanceState["recurringByPlayer"],
+): Record<PlayerId, RecurringPersonalFinance> {
+  return Object.fromEntries(
+    Object.entries(recurring).map(([id, value]) => [id, { ...value }]),
+  ) as Record<PlayerId, RecurringPersonalFinance>;
+}
+export function createProgress(
+  finance: FinanceState,
+  playerOrder: readonly PlayerId[],
+): ProgressState {
+  return {
+    byPlayer: Object.fromEntries(
+      playerOrder.map((playerId) => {
+        const owned = Object.values(finance.assetsById).filter(
+          (asset) => (asset.ownershipByPlayerPpm[playerId] ?? 0) > 0,
+        );
+        const working = owned.find(
+          (asset) =>
+            asset.kind === "business" &&
+            asset.workCompensation?.playerId === playerId,
+        );
+        return [
+          playerId,
+          {
+            labor: working
+              ? { kind: "owner-work", assetId: working.id }
+              : finance.recurringByPlayer[playerId]!.quarterlyIncomeCents > 0
+                ? { kind: "employment", role: "professional" }
+                : { kind: "not-working" },
+            focus: "general",
+            publicMarketBasis: { ...finance.publicMarketsByPlayer[playerId]! },
+            assetsById: Object.fromEntries(
+              owned.map((asset) => {
+                const equity =
+                  asset.kind === "business"
+                    ? calculateBusinessEquity(asset, finance.loansById)
+                        .equityValueCents
+                    : asset.marketValueCents;
+                return [
+                  asset.id,
+                  {
+                    costCents: allocateProportionalCents(
+                      cents(Math.max(0, equity)),
+                      asset.ownershipByPlayerPpm,
+                    )[playerId]!,
+                    acquiredQuarter: 0,
+                    ownershipPpm: asset.ownershipByPlayerPpm[playerId]!,
+                  },
+                ];
+              }),
+            ),
+            quarters: [],
+            realizedGainsCents: cents(0),
+            financingInterestReceivedCents: cents(0),
+            disposals: [],
+            profitableDisposalAssetIds: [],
+          },
+        ];
+      }),
+    ) as ProgressState["byPlayer"],
+  };
+}
+
+/** Paid principal and arrears catch-up never become recurring investment income. */
+export function recordQuarterObservations(
+  state: GameState,
+  outcome: SettlementOutcome,
+  journals: readonly JournalEntry[],
+): ProgressState {
+  const byPlayer = { ...state.progress.byPlayer };
+  for (const playerId of state.playerOrder) {
+    const previous = byPlayer[playerId]!;
+    if (previous.quarters.at(-1)?.quarter === outcome.quarter)
+      throw new Error("Quarter observation already recorded");
+    const sources: Record<string, SourceObservation> = {};
+    let employment = 0,
+      work = 0,
+      recurringWork = 0;
+    const add = (
+      key: string,
+      category: SourceObservation["category"],
+      amount: number,
+      debt = 0,
+    ) => {
+      const old = sources[key];
+      sources[key] = {
+        category,
+        recurringReceivedCents: cents(
+          (old?.recurringReceivedCents ?? 0) + amount,
+        ),
+        debtServiceOwedCents: cents((old?.debtServiceOwedCents ?? 0) + debt),
+      };
+    };
+    for (const entry of journals) {
+      if (
+        entry.destination.kind !== "player" ||
+        entry.destination.playerId !== playerId
+      )
+        continue;
+      if (entry.reason === "recurring-personal-income")
+        employment = cents(employment + entry.amountCents);
+      else if (entry.reason === "cash-yield")
+        add("cash", "cash", entry.amountCents);
+      else if (entry.reason === "public-market-dividend")
+        add(
+          `fund:${entry.relatedMarketInstrumentId}`,
+          "public-markets",
+          entry.amountCents,
+        );
+      else if (entry.reason === "property-operating-distribution")
+        add(`asset:${entry.relatedAssetId}`, "property", entry.amountCents);
+      else if (entry.reason === "business-distribution")
+        add(`asset:${entry.relatedAssetId}`, "business", entry.amountCents);
+    }
+    const companyOperatingProfitById: Record<AssetId, Cents> = {};
+    for (const company of outcome.businesses) {
+      const opening =
+        state.finance.quarterStartBasis.businessesById[company.assetId]!;
+      if ((opening.ownershipByPlayerPpm[playerId] ?? 0) > 0)
+        companyOperatingProfitById[company.assetId] = cents(
+          new FinanceDecimal(opening.annualOperatingProfitCents)
+            .div(4)
+            .round()
+            .toNumber(),
+        );
+      if (
+        opening.workCompensation?.playerId === playerId &&
+        company.workCompensation
+      ) {
+        work = cents(
+          work +
+            company.workCompensation.currentPaidCents +
+            company.workCompensation.arrearsPaidCents,
+        );
+        recurringWork = cents(
+          recurringWork + company.workCompensation.currentPaidCents,
+        );
+      }
+    }
+    let financingInterest = previous.financingInterestReceivedCents;
+    let owed = 0,
+      paid = 0;
+    for (const payment of outcome.loanPayments) {
+      const loan = state.finance.loansById[payment.loanId]!;
+      if (payment.borrowerPlayerId === playerId) {
+        owed = cents(owed + payment.dueCents);
+        paid = cents(paid + payment.paidCents);
+        if (loan.kind === "legacy-bank-loan" && loan.relatedAssetId)
+          add(`asset:${loan.relatedAssetId}`, "property", 0, payment.dueCents);
+      }
+      if (payment.lenderPlayerId === playerId && loan.kind === "player-loan") {
+        financingInterest = cents(
+          financingInterest + payment.interestPaidCents,
+        );
+        const currentInterestPaid = Math.max(
+          0,
+          payment.interestPaidCents - loan.unpaidInterestCents,
+        );
+        add(
+          `borrower:${loan.borrowerPlayerId}`,
+          "financing",
+          currentInterestPaid,
+        );
+      }
+    }
+    const observation: QuarterObservation = {
+      quarter: outcome.quarter,
+      employmentIncomeCents: cents(employment),
+      workIncomeCents: cents(work),
+      recurringWorkIncomeCents: cents(recurringWork),
+      livingCostOwedCents: outcome.livingByPlayer[playerId]!.currentDueCents,
+      debtServiceOwedCents: cents(owed),
+      debtServicePaidCents: cents(paid),
+      sourcesById: sources,
+      companyOperatingProfitById,
+    };
+    byPlayer[playerId] = {
+      ...previous,
+      financingInterestReceivedCents: financingInterest,
+      quarters: [...previous.quarters, observation].slice(
+        -OBJECTIVE_MEASUREMENT_RULES.lookbackQuarters,
+      ),
+    };
+  }
+  return { byPlayer };
+}
+
+/** Transfer basis with the actual asset close, not a subsequent history reconstruction. */
+export function recordBusinessPurchaseBasis(
+  progress: ProgressState,
+  seller: PlayerId,
+  buyer: PlayerId,
+  asset: Asset,
+  price: Cents,
+  quarter: number,
+): ProgressState {
+  const sellerProgress = progress.byPlayer[seller]!;
+  const acquisition = sellerProgress.assetsById[asset.id];
+  if (!acquisition) throw new Error("Missing acquisition basis");
+  const realizedGainsCents = cents(
+    new FinanceDecimal(sellerProgress.realizedGainsCents)
+      .plus(price)
+      .minus(acquisition.costCents)
+      .toNumber(),
+  );
+  const sellerBasis = { ...sellerProgress.assetsById };
+  delete sellerBasis[asset.id];
+  const buyerProgress = progress.byPlayer[buyer]!;
+  return {
+    byPlayer: {
+      ...progress.byPlayer,
+      [seller]: {
+        ...sellerProgress,
+        assetsById: sellerBasis,
+        realizedGainsCents,
+        disposals: [
+          ...sellerProgress.disposals,
+          {
+            assetId: asset.id,
+            category: asset.kind,
+            counterpartyPlayerId: buyer,
+            acquiredQuarter: acquisition.acquiredQuarter,
+            soldQuarter: quarter,
+            proceedsCents: price,
+            costCents: acquisition.costCents,
+            referenceEquityCents:
+              asset.kind === "business"
+                ? calculateBusinessEquity(asset, {}).equityValueCents
+                : asset.marketValueCents,
+          },
+        ],
+      },
+      [buyer]: {
+        ...buyerProgress,
+        assetsById: {
+          ...buyerProgress.assetsById,
+          [asset.id]: {
+            costCents: price,
+            acquiredQuarter: quarter,
+            ownershipPpm: asset.ownershipByPlayerPpm[buyer]!,
+          },
+        },
+      },
+    },
+  };
+}

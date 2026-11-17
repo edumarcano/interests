@@ -3,8 +3,11 @@ import {
   assertGameState,
   basisPoints,
   captureBusinessBasis,
+  capturePropertyBasis,
+  captureRecurringBasis,
   cents,
   createGame,
+  createProgress,
   type GameState,
   getActiveSpotlightPlayerId,
   type JournalEntry,
@@ -255,8 +258,28 @@ export function runFinanceScenario(name: FinanceScenarioName) {
       },
     };
   }
+  if (name !== "financed-acquisition") {
+    // These are explicitly synthetic opening boundaries, not mid-quarter changes.
+    state = {
+      ...state,
+      finance: {
+        ...state.finance,
+        quarterStartBasis: {
+          ...state.finance.quarterStartBasis,
+          propertiesById: capturePropertyBasis(state.finance.assetsById),
+          recurringByPlayer: captureRecurringBasis(
+            state.finance.recurringByPlayer,
+          ),
+        },
+      },
+    };
+    state = {
+      ...state,
+      progress: createProgress(state.finance, state.playerOrder),
+    };
+    openingState = state;
+  }
   assertGameState(state);
-  if (name !== "financed-acquisition") openingState = state;
 
   while (state.currentQuarter <= 4) {
     // Explicit synthetic recovery injection at Q4, after the two-period loan matured in Q3.

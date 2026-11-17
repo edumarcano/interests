@@ -1,5 +1,6 @@
 import { asAssetId, asLoanId, asPlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
+import { stageOpeningFixture } from "../../test/openingFixture";
 import { applyAction } from "../game/actions";
 import { createGame } from "../game/createGame";
 import { assertGameState } from "../invariants/assertGameState";
@@ -13,6 +14,7 @@ import {
 import { captureBusinessBasis } from "./businessSettlement";
 import { basisPoints, cents } from "./money";
 import { createSoleOwnership } from "./ownership";
+import { createProgress } from "./progress";
 import { settleQuarter } from "./settlement";
 
 const buyerId = asPlayerId("test-buyer");
@@ -80,7 +82,7 @@ function createClosedFinancedQ1State(): {
     ownershipByPlayerPpm: createSoleOwnership(sellerId),
   };
 
-  const state: GameState = {
+  let state: GameState = {
     ...base,
     round: {
       stage: "spotlight",
@@ -109,6 +111,10 @@ function createClosedFinancedQ1State(): {
     },
   };
 
+  state = {
+    ...state,
+    progress: createProgress(state.finance, state.playerOrder),
+  };
   const openRes = openFinancedBusinessPurchaseTransaction(state, {
     buyerPlayerId: buyerId,
     sellerPlayerId: sellerId,
@@ -225,7 +231,9 @@ describe("Section 26: Quarter Timing Regressions (Q1 -> Q2)", () => {
 
 describe("Section 27: Settlement Order-Independence and Solvency", () => {
   it("produces deeply equivalent outcomes regardless of loansById object insertion order", () => {
-    const base = createReadyGame();
+    const firstQuarter = settleQuarter(createReadyGame(), { quarter: 1 });
+    if (!firstQuarter.ok) throw new Error(firstQuarter.code);
+    const base = firstQuarter.state;
 
     // Create two player loans originated in Q1:
     // Loan A: loan-A, borrower p1, lender p2
@@ -268,7 +276,7 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
     };
 
     // State 1: insertion order [loanA, loanB]
-    const state1: GameState = {
+    const state1: GameState = stageOpeningFixture({
       ...base,
       opportunitiesById: {},
       currentQuarter: 2,
@@ -293,7 +301,7 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
           [loanBId]: loanB,
         },
       },
-    };
+    });
 
     // State 2: insertion order [loanB, loanA]
     const state2: GameState = {
@@ -324,7 +332,9 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
   });
 
   it("records a shortfall when a borrower relies on same-stage incoming loan receipts", () => {
-    const base = createReadyGame();
+    const firstQuarter = settleQuarter(createReadyGame(), { quarter: 1 });
+    if (!firstQuarter.ok) throw new Error(firstQuarter.code);
+    const base = firstQuarter.state;
 
     // Borrower B owes 1_000_000 to Lender C.
     // Borrower B only has 500_000 cash at the start of player-loan stage.
@@ -370,7 +380,7 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
       originatedQuarter: 1,
     };
 
-    const state: GameState = {
+    const state: GameState = stageOpeningFixture({
       ...base,
       opportunitiesById: {},
       currentQuarter: 2,
@@ -414,7 +424,7 @@ describe("Section 27: Settlement Order-Independence and Solvency", () => {
           [loan2Id]: loan2,
         },
       },
-    };
+    });
 
     const before = JSON.stringify(state);
     const result = settleQuarter(state, { quarter: 2 });
@@ -451,7 +461,7 @@ describe("Player-loan partial payment and arrears", () => {
     if (!q1Result.ok) return;
 
     // Drain buyer's cash before Q2 settlement so they cannot afford installment (~$14,005.49)
-    const insolventQ2State: GameState = {
+    const insolventQ2State: GameState = stageOpeningFixture({
       ...q1Result.state,
       finance: {
         ...q1Result.state.finance,
@@ -478,7 +488,7 @@ describe("Player-loan partial payment and arrears", () => {
           [buyerId]: cents(1_000), // $10.00 cash only
         },
       },
-    };
+    });
 
     const initialCounters = { ...insolventQ2State.counters };
     const initialRandom = { ...insolventQ2State.random };

@@ -57,6 +57,8 @@ export function loadAndValidateSnapshot(
     "random",
     "counters",
     "opportunitiesById",
+    "progress",
+    "result",
   ];
 
   for (const field of requiredFields) {

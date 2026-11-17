@@ -24,6 +24,7 @@ import { createZeroPublicMarketPortfolio } from "./markets";
 import { cents } from "./money";
 import { ownershipPpm } from "./ownership";
 import { postCash } from "./posting";
+import { capturePropertyBasis, createProgress } from "./progress";
 import { type SettleQuarterResult, settleQuarter } from "./settlement";
 
 const ids = ["player-1", "player-2", "player-3", "player-4"].map(
@@ -100,6 +101,16 @@ function companyFixture(
         ]),
       ),
       quarterStartBasis: {
+        propertiesById: {},
+        recurringByPlayer: Object.fromEntries(
+          ids.map((id) => [
+            id,
+            {
+              quarterlyIncomeCents: cents(0),
+              quarterlyLivingExpenseCents: cents(0),
+            },
+          ]),
+        ),
         quarter: 1,
         cashByPlayer: balances,
         publicMarketsByPlayer: portfolios,
@@ -107,7 +118,10 @@ function companyFixture(
       },
     },
   };
-  return settle(state).state;
+  return settle({
+    ...state,
+    progress: createProgress(state.finance, state.playerOrder),
+  }).state;
 }
 function financedJourney(term: number) {
   let state = selectObjectives(

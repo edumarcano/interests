@@ -1,7 +1,7 @@
 import { asAssetId, asLoanId, asPlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
-
 import { createGame } from "../game/createGame";
+import { applyPlayerCommand } from "../game/playerCommand";
 import { assertGameState } from "../invariants/assertGameState";
 import type { DeterministicCounters, FinanceState } from "../model/gameState";
 import {
@@ -11,6 +11,8 @@ import {
 import { createZeroPublicMarketPortfolio } from "./markets";
 import { basisPoints, cents } from "./money";
 import { ownershipPpm } from "./ownership";
+import { capturePropertyBasis, createProgress } from "./progress";
+import { settleQuarter } from "./settlement";
 
 const aliceId = asPlayerId("player-alice");
 const bobId = asPlayerId("player-bob");
@@ -59,6 +61,25 @@ function createInitialFinance(): FinanceState {
     assetsById: {},
     publicMarketsByPlayer,
     quarterStartBasis: {
+      propertiesById: {},
+      recurringByPlayer: {
+        [aliceId]: {
+          quarterlyIncomeCents: cents(25_000_00),
+          quarterlyLivingExpenseCents: cents(13_800_00),
+        },
+        [bobId]: {
+          quarterlyIncomeCents: cents(18_000_00),
+          quarterlyLivingExpenseCents: cents(10_200_00),
+        },
+        [charlieId]: {
+          quarterlyIncomeCents: cents(17_000_00),
+          quarterlyLivingExpenseCents: cents(12_000_00),
+        },
+        [danaId]: {
+          quarterlyIncomeCents: cents(11_250_00),
+          quarterlyLivingExpenseCents: cents(9_600_00),
+        },
+      },
       businessesById: {},
       quarter: 1,
       cashByPlayer: { ...cashByPlayer },
@@ -756,10 +777,26 @@ describe("game invariants and setup regression", () => {
     expect(() => assertGameState(gameStateWithLoan)).not.toThrow();
 
     function atQuarter(state: typeof gameStateWithLoan, quarter: number) {
+      // Use real completed quarters for history while testing direct loan payments.
+      let clock = gameStateWithLoan;
+      for (const player of clock.playerOrder) {
+        const selected = applyPlayerCommand(clock, player, {
+          type: "CHOOSE_OBJECTIVE",
+          objectiveId: clock.players[player]!.offeredObjectiveIds[0],
+        });
+        if (!selected.ok) throw new Error(selected.code);
+        clock = selected.state;
+      }
+      while (clock.currentQuarter < quarter) {
+        const settled = settleQuarter(clock, { quarter: clock.currentQuarter });
+        if (!settled.ok) throw new Error(settled.code);
+        clock = settled.state;
+      }
       return {
         ...state,
         currentQuarter: quarter,
         lastSettledQuarter: quarter - 1,
+        progress: clock.progress,
         finance: {
           ...state.finance,
           quarterStartBasis: { ...state.finance.quarterStartBasis, quarter },
