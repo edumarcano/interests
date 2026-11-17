@@ -2,7 +2,7 @@
 
 **Updated:** 2026-11-16
 **Active milestone:** 7, full gameplay rules and content  
-**Current focus:** Financial foundation complete for the approved A4/A5 slice; recurring content and physical playtests next
+**Current focus:** M7 completion policies approved; implement the remaining Standard V1 actions, recurring content and objective finales
 
 ## Milestone 6: physical playtest outcome
 
@@ -19,8 +19,8 @@ The acquisition and repayment flow is playable, but prolonged financial gameplay
 
 | Area | Approved policy | Remaining work |
 | --- | --- | --- |
-| **A4: business distributions** | Separate work pay and ownership returns; company cash/claims; Q1 starting-company operations; Q2 acquisition fixture; 80/20 surplus split | Broader performance normalization, growth, labor-exit and ownership-transfer rules remain open. |
-| **A5: default and insolvency** | Partial payments, explicit living/operating/work/loan claims, ordinary principal interest, fixed maturity and private recovery outcomes | Collateral enforcement, bankruptcy, write-offs and broader financing/ownership contracts remain open. |
+| **A4: business distributions** | Separate work pay and ownership returns; company cash/claims; Q1 starting-company operations; Q2 acquisition fixture; 80/20 surplus split | Approved in ARCH-040; performance, growth, labor exit and ownership actions await implementation. |
+| **A5: default and insolvency** | Partial payments, explicit living/operating/work/loan claims, ordinary principal interest, fixed maturity and private recovery outcomes | Claims/cash cure retained; broader financing/ownership await implementation. Foreclosure, bankruptcy, write-offs and secured player loans are deferred. |
 
 ARCH-039 and GAME_DESIGN 16.3.2 record the approved integrated calibration. Opening company loans pay from Q1 to Q28 at 8% fixed APR; debt exists once in the loan registry and company equity derives it. Employment-only recurring income for the three owner profiles is zero. Work compensation and ownership distributions are funded once from company cash. Old saves require their compatible build; no automatic conversion occurs.
 
@@ -36,11 +36,34 @@ Four independent Chrome contexts completed ordinary and synthetic distress varia
 
 The default Windows test run again hit fork-worker exit code 3221226505; a bounded single-worker full-suite rerun passed all 653 tests. An existing recovery-browser setup synchronization failure passed on targeted rerun. No test-tooling change or claim of resolved worker instability accompanies this financial work.
 
-## Near-term development goals
+## M7 completion delivery
 
-1. Follow up with physical-device and strategy/family playtests; browser emulation does not establish enjoyment or balance.
-2. Expand recurring opportunities and actions across businesses, real estate, career, markets and financing using approved parameters.
-3. Resolve broader default, collateral and ownership contracts before adding their executable actions.
-4. Define remaining economic performance, objective evaluation and duration policies before claiming Milestone 7 complete.
+ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The active runtime still implements the financial slice described above. Policy approval does not supply executable markets, careers, recurring content, objective evaluation or a winner.
 
-The wider Milestone 7 scope remains defined in `docs/ARCHITECTURE.md`. This document records current progress and next gameplay priorities; `docs/GAME_DESIGN.md` and `docs/DECISIONS.md` remain authoritative for rules and decisions.
+| Packet | Deliverable | Current state |
+| --- | --- | --- |
+| 1 | Canonical completion policy and immutable rule data | Implemented on `codex/m7-completion-policies`; both Remora review axes passed; publication pending; runtime activation unchanged |
+| 2 | Entitlements, basis/history, career/focus, financing and terminal contracts | Pending; foundation checkpoint before parallel feature work |
+| 3 | Public-fund buy/sell/rebalance, fees and browser controls | Pending |
+| 4 | Careers, executive ownership, resignation and equal-cost management conversion | Pending |
+| 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Pending |
+| 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Pending |
+| 7 | Operating economy, recurring private/public content and non-player alternatives | Pending; remove Q1 demonstration windfall from ordinary setup |
+| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Pending |
+| 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | Pending |
+
+Each packet requires relevant behavior tests, typecheck, lint, tests and Remora split-axis review. Browser-facing changes also require build and applicable E2E proof. Record actual PR/head/check state here as delivery changes; leave every PR unmerged unless the user explicitly approves merging.
+
+The planning audit on `38bfead` passed typecheck, build, 653 tests and five browser scenarios. Lint passed with existing warnings; Remora's local manifest/hash consistency check passed without trusted-source provenance verification. Loopback server tests required execution outside the sandbox. These are baseline results, not verification of pending M7 features.
+
+### Packet 1 verification
+
+Typecheck and all 657 tests passed. Lint exited successfully with the existing 517 warnings and three infos. The real financial-acceptance CLI ran twice through `node --import tsx`; its outputs matched and all six scenarios reached Q5. This verifies unchanged active behavior, not pending M7 actions. Independent Remora specification and standards reviews passed with no blockers. Publication is pending; no merge has occurred. Exact objective threshold assertions will accompany evaluator tests in packet 8.
+
+## M7 completion and M8 handoff
+
+M7 is complete only after production-command journeys demonstrate all eight legal objective routes without injected wealth or reduced thresholds, an ordinary four-client match reaches a valid winner, Q32 produces a durable draw when required, and privacy/retry/restart checks cover the new actions and terminal results. Finale boundary fixtures supplement those journeys rather than replace them.
+
+Keep deterministic accounting and the current family/LAN evidence as regression protection. M8 owns strategy comparisons, empirical balance and repetition findings, numerical tuning from those findings, and real human/physical-device playtest campaigns. No enjoyment, balance or human-duration claim accompanies this M7 policy checkpoint.
+
+The milestone boundaries remain in `ARCHITECTURE.md`; accepted decisions supersede its older OPEN dependency summaries. `GAME_DESIGN.md` and `DECISIONS.md` own policy, while this document records actual progress and evidence.
