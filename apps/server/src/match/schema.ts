@@ -115,6 +115,13 @@ export const ResignLaborPayloadSchema = z
   .strict();
 
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("EXPAND_BUSINESS"),
+      assetId: z.string().min(1).max(128),
+      investmentCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    })
+    .strict(),
   TradePublicMarketsPayloadSchema,
   AcceptCareerOfferPayloadSchema,
   ResignLaborPayloadSchema,

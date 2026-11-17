@@ -1,6 +1,7 @@
 import type { ObjectiveId } from "@interests/rules";
 import type {
   AcceptCareerOfferCommandPayload,
+  ExpandBusinessCommandPayload,
   OpportunityId,
   PlayerId,
   PropertyCommand,
@@ -8,6 +9,7 @@ import type {
   TradePublicMarketsCommandPayload,
   TransactionId,
 } from "@interests/shared";
+import { expandBusinessAndAdvanceSpotlight } from "../finance/businessExpansion.js";
 import { applyPropertyCommand } from "../finance/propertyActions";
 import { tradePublicMarketsAndAdvanceSpotlight } from "../finance/publicMarketTrading.js";
 import type { GameState } from "../model/gameState.js";
@@ -84,6 +86,7 @@ export interface WireCancelActiveTransactionCommand {
 
 export type WirePlayerCommand =
   | PropertyCommand
+  | ExpandBusinessCommandPayload
   | TradePublicMarketsCommandPayload
   | AcceptCareerOfferCommandPayload
   | ResignLaborCommandPayload
@@ -141,6 +144,12 @@ export function applyPlayerCommand(
     case "RENOVATE_PROPERTY":
     case "FUND_PROPERTY_RESERVE":
       return applyPropertyCommand(state, actorPlayerId, wireCommand);
+    case "EXPAND_BUSINESS":
+      return expandBusinessAndAdvanceSpotlight(
+        state,
+        actorPlayerId,
+        wireCommand,
+      );
     case "TRADE_PUBLIC_MARKETS":
       return tradePublicMarketsAndAdvanceSpotlight(
         state,

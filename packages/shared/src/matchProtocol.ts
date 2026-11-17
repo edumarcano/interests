@@ -175,8 +175,15 @@ export interface PropertyManagementView {
   readonly refinancingQuotes: readonly PropertyBankQuoteView[];
 }
 
+export interface ExpandBusinessCommandPayload {
+  readonly type: "EXPAND_BUSINESS";
+  readonly assetId: string;
+  readonly investmentCents: number;
+}
+
 export type PlayerCommand =
   | PropertyCommand
+  | ExpandBusinessCommandPayload
   | TradePublicMarketsCommandPayload
   | AcceptCareerOfferCommandPayload
   | ResignLaborCommandPayload

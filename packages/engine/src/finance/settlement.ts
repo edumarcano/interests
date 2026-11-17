@@ -489,6 +489,24 @@ export function applyQuarterSettlement(
         },
       };
     }
+    for (const asset of Object.values(assetsById)) {
+      if (
+        asset.kind !== "business" ||
+        asset.pendingAnnualProfitIncreaseCents === undefined
+      )
+        continue;
+      const { pendingAnnualProfitIncreaseCents, ...business } = asset;
+      assetsById = {
+        ...assetsById,
+        [business.id]: {
+          ...business,
+          annualOperatingProfitCents: cents(
+            business.annualOperatingProfitCents +
+              pendingAnnualProfitIncreaseCents,
+          ),
+        },
+      };
+    }
     const nextState: GameState = {
       ...state,
       progress: recordQuarterObservations(

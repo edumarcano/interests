@@ -765,6 +765,19 @@ export function assertGameState(state: GameState): void {
         );
       }
       if (
+        asset.pendingAnnualProfitIncreaseCents !== undefined &&
+        (!Number.isSafeInteger(asset.pendingAnnualProfitIncreaseCents) ||
+          asset.pendingAnnualProfitIncreaseCents <= 0 ||
+          !Number.isSafeInteger(
+            asset.annualOperatingProfitCents +
+              asset.pendingAnnualProfitIncreaseCents,
+          ))
+      ) {
+        throw new Error(
+          `Game invariant failed: invalid pending expansion for ${asset.id}`,
+        );
+      }
+      if (
         !Number.isSafeInteger(asset.enterpriseValueCents) ||
         asset.enterpriseValueCents < 0
       ) {

@@ -189,6 +189,7 @@ export interface BusinessAsset {
   readonly annualRevenueCents: Cents;
   readonly annualOperatingProfitCents: Cents;
   readonly enterpriseValueCents: Cents;
+  readonly pendingAnnualProfitIncreaseCents?: Cents;
   /** Zero on managed acquisition assets; absent on registry-financed starting companies. */
   readonly debtPrincipalCents?: Cents;
   /** Required for starting-company-v1, absent on the managed acquisition policy. */
