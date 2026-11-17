@@ -1,4 +1,5 @@
 import {
+  calculateBusinessEquity,
   ENGINE_VERSION,
   type GameState,
   type JournalEntry,
@@ -28,6 +29,8 @@ import {
   type MarketInstrumentReturnStatistics,
   type PassiveBaselineGameResult,
   type ProfileAggregateMetrics,
+  type SimulationFinanceBalances,
+  type SimulationFinanceObservation,
   type SimulationPlayerCashFlow,
   type SimulationPlayerSnapshot,
 } from "./types";
@@ -55,6 +58,11 @@ export function roundedAverage(sum: number, count: number): number {
 
 export function createZeroPlayerCashFlow(): SimulationPlayerCashFlow {
   return {
+    workCompensationReceivedCents: 0,
+    playerLoanPrincipalReceivedCents: 0,
+    playerLoanInterestReceivedCents: 0,
+    playerLoanPrincipalPaidCents: 0,
+    playerLoanInterestPaidCents: 0,
     cashYieldReceivedCents: 0,
     publicMarketDividendsReceivedCents: 0,
     recurringIncomeReceivedCents: 0,
@@ -195,7 +203,26 @@ export function applySettlementJournalToCashFlows(
           `Simulation invariant failed: unknown destination player ${pId} in settlement journal`,
         );
       }
-      if (entry.reason === "cash-yield") {
+      if (
+        entry.reason === "business-work-compensation" ||
+        entry.reason === "business-work-compensation-arrears"
+      ) {
+        flow.workCompensationReceivedCents = safeAdd(
+          flow.workCompensationReceivedCents,
+          entry.amountCents,
+        );
+      } else if (entry.reason === "loan-payment") {
+        if (!entry.loanPayment)
+          throw new Error("Missing player loan payment breakdown");
+        flow.playerLoanPrincipalReceivedCents = safeAdd(
+          flow.playerLoanPrincipalReceivedCents,
+          entry.loanPayment.principalCents,
+        );
+        flow.playerLoanInterestReceivedCents = safeAdd(
+          flow.playerLoanInterestReceivedCents,
+          entry.loanPayment.interestCents,
+        );
+      } else if (entry.reason === "cash-yield") {
         flow.cashYieldReceivedCents = safeAdd(
           flow.cashYieldReceivedCents,
           entry.amountCents,
@@ -236,7 +263,18 @@ export function applySettlementJournalToCashFlows(
           `Simulation invariant failed: unknown source player ${pId} in settlement journal`,
         );
       }
-      if (
+      if (entry.reason === "loan-payment") {
+        if (!entry.loanPayment)
+          throw new Error("Missing player loan payment breakdown");
+        flow.playerLoanPrincipalPaidCents = safeAdd(
+          flow.playerLoanPrincipalPaidCents,
+          entry.loanPayment.principalCents,
+        );
+        flow.playerLoanInterestPaidCents = safeAdd(
+          flow.playerLoanInterestPaidCents,
+          entry.loanPayment.interestCents,
+        );
+      } else if (
         entry.reason === "recurring-living-expense" ||
         entry.reason === "living-expense-arrears-payment"
       ) {
@@ -270,6 +308,11 @@ export function applySettlementJournalToCashFlows(
 }
 
 interface ProfileAccumulator {
+  workCompensationReceived: number[];
+  playerLoanPrincipalReceived: number[];
+  playerLoanInterestReceived: number[];
+  playerLoanPrincipalPaid: number[];
+  playerLoanInterestPaid: number[];
   exposures: number;
   openingCash: number[];
   endingCash: number[];
@@ -333,6 +376,15 @@ export function aggregateBatchReport(
   simulationVersion: string = SIMULATION_VERSION,
   engineVersion: string = ENGINE_VERSION,
 ): BaselineSimulationReport {
+  const finance = {
+    endingBalances: emptyFinanceBalances(),
+    bankPrincipalPaidCents: 0,
+    bankInterestPaidCents: 0,
+    operatingCostsPaidCents: 0,
+    missedLoanPayments: 0,
+    curedClaims: 0,
+    retainedFromSurplusCents: 0,
+  };
   let completedHorizon = 0;
   let withFailure = 0;
   let totalSettledQuarters = 0;
@@ -343,6 +395,11 @@ export function aggregateBatchReport(
     {} as Record<ProfileId, ProfileAccumulator>;
   for (const pid of PROFILE_IDS) {
     profileAccumulators[pid] = {
+      workCompensationReceived: [],
+      playerLoanPrincipalReceived: [],
+      playerLoanInterestReceived: [],
+      playerLoanPrincipalPaid: [],
+      playerLoanInterestPaid: [],
       exposures: 0,
       openingCash: [],
       endingCash: [],
@@ -422,6 +479,41 @@ export function aggregateBatchReport(
   };
 
   for (const game of results) {
+    const ending = game.finalFinanceBalances;
+    for (const key of Object.keys(
+      ending,
+    ) as (keyof SimulationFinanceBalances)[]) {
+      finance.endingBalances[key] = safeAdd(
+        finance.endingBalances[key],
+        ending[key],
+      );
+    }
+    for (const trace of game.quarterTraces) {
+      finance.missedLoanPayments = safeAdd(
+        finance.missedLoanPayments,
+        trace.finance.missedLoanPayments,
+      );
+      finance.curedClaims = safeAdd(
+        finance.curedClaims,
+        trace.finance.curedClaims,
+      );
+      finance.bankPrincipalPaidCents = safeAdd(
+        finance.bankPrincipalPaidCents,
+        trace.finance.bankPrincipalPaidCents,
+      );
+      finance.bankInterestPaidCents = safeAdd(
+        finance.bankInterestPaidCents,
+        trace.finance.bankInterestPaidCents,
+      );
+      finance.operatingCostsPaidCents = safeAdd(
+        finance.operatingCostsPaidCents,
+        trace.finance.operatingCostsPaidCents,
+      );
+      finance.retainedFromSurplusCents = safeAdd(
+        finance.retainedFromSurplusCents,
+        trace.finance.retainedFromSurplusCents,
+      );
+    }
     totalSettledQuarters = safeAdd(
       totalSettledQuarters,
       game.completedQuarters,
@@ -509,6 +601,13 @@ export function aggregateBatchReport(
       acc.openingLiquidNetPosition.push(open.liquidNetPositionCents);
       acc.endingLiquidNetPosition.push(final.liquidNetPositionCents);
 
+      acc.workCompensationReceived.push(flow.workCompensationReceivedCents);
+      acc.playerLoanPrincipalReceived.push(
+        flow.playerLoanPrincipalReceivedCents,
+      );
+      acc.playerLoanInterestReceived.push(flow.playerLoanInterestReceivedCents);
+      acc.playerLoanPrincipalPaid.push(flow.playerLoanPrincipalPaidCents);
+      acc.playerLoanInterestPaid.push(flow.playerLoanInterestPaidCents);
       acc.cashYieldReceived.push(flow.cashYieldReceivedCents);
       acc.publicMarketDividendsReceived.push(
         flow.publicMarketDividendsReceivedCents,
@@ -584,6 +683,21 @@ export function aggregateBatchReport(
       ),
       endingLiquidNetPositionCents: summarizeInts(acc.endingLiquidNetPosition),
       cashFlows: {
+        workCompensationReceivedCents: summarizeCashFlow(
+          acc.workCompensationReceived,
+        ),
+        playerLoanPrincipalReceivedCents: summarizeCashFlow(
+          acc.playerLoanPrincipalReceived,
+        ),
+        playerLoanInterestReceivedCents: summarizeCashFlow(
+          acc.playerLoanInterestReceived,
+        ),
+        playerLoanPrincipalPaidCents: summarizeCashFlow(
+          acc.playerLoanPrincipalPaid,
+        ),
+        playerLoanInterestPaidCents: summarizeCashFlow(
+          acc.playerLoanInterestPaid,
+        ),
         cashYieldReceivedCents: summarizeCashFlow(acc.cashYieldReceived),
         publicMarketDividendsReceivedCents: summarizeCashFlow(
           acc.publicMarketDividendsReceived,
@@ -666,7 +780,96 @@ export function aggregateBatchReport(
     workspaceCompatibility: WORKSPACE_COMPATIBILITY,
     totals,
     profileMetrics,
+    finance,
     economy,
     marketReturns,
+  };
+}
+
+export function emptyFinanceBalances(): SimulationFinanceBalances {
+  return {
+    livingArrearsCents: 0,
+    operatingArrearsCents: 0,
+    workArrearsCents: 0,
+    unpaidInterestCents: 0,
+    pastDuePrincipalCents: 0,
+    companyCashCents: 0,
+    companyPrincipalCents: 0,
+    companyEquityCents: 0,
+  };
+}
+
+/** Counts claim cures per living account, company operating/work account, or loan. */
+export function observeFinance(
+  before: GameState,
+  after: GameState,
+): SimulationFinanceObservation {
+  const balances = emptyFinanceBalances();
+  let curedClaims = 0;
+  const add = (key: keyof SimulationFinanceBalances, value: number) => {
+    balances[key] = safeAdd(balances[key], value, key);
+  };
+  const cured = (old: number, current: number) => {
+    if (old > 0 && current === 0) curedClaims++;
+  };
+  for (const id of after.playerOrder) {
+    const current = after.finance.livingArrearsByPlayer[id] ?? 0;
+    add("livingArrearsCents", current);
+    cured(before.finance.livingArrearsByPlayer[id] ?? 0, current);
+  }
+  for (const loan of Object.values(after.finance.loansById)) {
+    add("unpaidInterestCents", loan.unpaidInterestCents);
+    add("pastDuePrincipalCents", loan.pastDuePrincipalCents);
+    if (loan.kind === "company-loan")
+      add("companyPrincipalCents", loan.outstandingPrincipalCents);
+    const old = before.finance.loansById[loan.id];
+    if (old)
+      cured(
+        safeAdd(old.unpaidInterestCents, old.pastDuePrincipalCents),
+        safeAdd(loan.unpaidInterestCents, loan.pastDuePrincipalCents),
+      );
+  }
+  for (const asset of Object.values(after.finance.assetsById)) {
+    if (asset.kind !== "business") continue;
+    add("companyCashCents", asset.cashCents);
+    add(
+      "companyEquityCents",
+      calculateBusinessEquity(asset, after.finance.loansById).equityValueCents,
+    );
+    add("operatingArrearsCents", asset.operatingArrearsCents);
+    add("workArrearsCents", asset.workCompensation?.arrearsCents ?? 0);
+    const old = before.finance.assetsById[asset.id];
+    if (old?.kind === "business") {
+      cured(old.operatingArrearsCents, asset.operatingArrearsCents);
+      cured(
+        old.workCompensation?.arrearsCents ?? 0,
+        asset.workCompensation?.arrearsCents ?? 0,
+      );
+    }
+  }
+  const outcome = after.finance.lastSettlement;
+  return {
+    balances,
+    curedClaims,
+    bankPrincipalPaidCents:
+      outcome?.loanPayments
+        .filter((p) => p.lenderPlayerId === null)
+        .reduce((sum, p) => safeAdd(sum, p.principalPaidCents), 0) ?? 0,
+    bankInterestPaidCents:
+      outcome?.loanPayments
+        .filter((p) => p.lenderPlayerId === null)
+        .reduce((sum, p) => safeAdd(sum, p.interestPaidCents), 0) ?? 0,
+    operatingCostsPaidCents:
+      outcome?.businesses.reduce(
+        (sum, b) => safeAdd(sum, b.operatingPaidCents),
+        0,
+      ) ?? 0,
+    missedLoanPayments:
+      outcome?.loanPayments.filter((p) => p.paidCents < p.dueCents).length ?? 0,
+    retainedFromSurplusCents:
+      outcome?.businesses.reduce(
+        (sum, b) => safeAdd(sum, b.retainedFromSurplusCents),
+        0,
+      ) ?? 0,
   };
 }

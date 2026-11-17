@@ -213,6 +213,14 @@ describe("passive baseline simulation", () => {
       const finalP1 = result.finalPlayers[p1];
       expect(finalP1).toBeDefined();
       expect(finalP1?.cashCents).toBe(0);
+      const report = aggregateBatchReport(
+        { gameCount: 1, quarterCount: 5, seedPrefix: "failure-proof" },
+        [result],
+      );
+      expect(report.finance.endingBalances).toEqual(
+        result.finalFinanceBalances,
+      );
+      expect(report.finance.endingBalances.companyCashCents).toBeGreaterThan(0);
     });
   });
 
