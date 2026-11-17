@@ -13,14 +13,18 @@ import type {
   MatchResultView,
   MatchSelfFinancialDetailsView,
   PlayerId,
+  PropertyManagementView,
+  PropertyOfferView,
   SelfSettlementView,
   TransactionId,
 } from "@interests/shared";
 import { calculatePlayerLoanSchedule } from "../finance/amortization";
+import { isAssetBorrower } from "../finance/bank";
 import { calculateBusinessEquity } from "../finance/business";
 import { planBusinessSettlement } from "../finance/businessSettlement";
 import { calculateLoanObligation } from "../finance/obligations";
 import { calculatePropertyCashFlow } from "../finance/property";
+import { propertyManagement, propertyOffers } from "../finance/propertyActions";
 import type { GameState } from "../model/gameState.js";
 import {
   getAvailableCashCents,
@@ -77,7 +81,7 @@ export interface PureLoanView {
   readonly status: "current" | "in-arrears" | "repaid";
   readonly id: string;
   readonly kind: string;
-  readonly role: "borrower" | "lender" | "company-borrower";
+  readonly role: "borrower" | "lender" | "company-borrower" | "asset-borrower";
   readonly counterpartyPlayerId: PlayerId | "bank";
   readonly originalPrincipalCents: number;
   readonly outstandingPrincipalCents: number;
@@ -87,6 +91,8 @@ export interface PureLoanView {
 }
 
 export interface PureSelfView {
+  readonly propertyOffers: readonly PropertyOfferView[];
+  readonly propertyManagement: readonly PropertyManagementView[];
   readonly financialDetails: MatchSelfFinancialDetailsView;
   readonly livingExpenseArrearsCents: number;
   readonly lastSettlement: SelfSettlementView | null;
@@ -316,12 +322,12 @@ export function projectPlayerGameState(
     a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
   )) {
     const company =
-      loan.kind === "company-loan" &&
+      isAssetBorrower(loan) &&
       (state.finance.assetsById[loan.borrowerAssetId]?.ownershipByPlayerPpm[
         playerId
       ] ?? 0) > 0;
     const borrower =
-      loan.kind !== "company-loan" && loan.borrowerPlayerId === playerId;
+      !isAssetBorrower(loan) && loan.borrowerPlayerId === playerId;
     const lender =
       loan.kind === "player-loan" && loan.lenderPlayerId === playerId;
     if (!borrower && !lender && !company) continue;
@@ -330,7 +336,13 @@ export function projectPlayerGameState(
     selfLoans.push({
       id: loan.id,
       kind: loan.kind,
-      role: company ? "company-borrower" : borrower ? "borrower" : "lender",
+      role: company
+        ? loan.kind === "asset-bank-loan"
+          ? "asset-borrower"
+          : "company-borrower"
+        : borrower
+          ? "borrower"
+          : "lender",
       counterpartyPlayerId:
         loan.kind === "player-loan"
           ? borrower
@@ -406,7 +418,9 @@ export function projectPlayerGameState(
             .map((p) => ({
               loanId: p.loanId,
               role: p.borrowerAssetId
-                ? "company-borrower"
+                ? state.finance.loansById[p.loanId]?.kind === "asset-bank-loan"
+                  ? "asset-borrower"
+                  : "company-borrower"
                 : p.borrowerPlayerId === playerId
                   ? "borrower"
                   : "lender",
@@ -424,7 +438,20 @@ export function projectPlayerGameState(
   const currentRecurring = state.finance.recurringByPlayer[playerId]!;
   const entitledRecurring =
     state.finance.quarterStartBasis.recurringByPlayer[playerId]!;
+  let offers: PropertyOfferView[] = [];
+  let management: PropertyManagementView[] = [];
+  try {
+    offers =
+      state.phase === "ready-for-first-round"
+        ? propertyOffers(state, playerId)
+        : [];
+    management = propertyManagement(state, playerId);
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+  }
   const self: PureSelfView = {
+    propertyOffers: offers,
+    propertyManagement: management,
     financialDetails: {
       careerOffers: getCareerOffers(state, playerId),
       annualLaborCompensationCents: currentAnnualLaborCompensation(

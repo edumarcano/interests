@@ -218,3 +218,31 @@ export const OBJECTIVE_TARGETS = Object.freeze({
     finaleDeploymentCents: 20_000_000,
   }),
 } as const satisfies Record<ObjectiveId, Readonly<Record<string, number>>>);
+
+/** Stable fully disclosed NPC listings; no randomized hidden facts or Q1 setup changes. */
+export const PROPERTY_CATALOGUE = Object.freeze([
+  Object.freeze({
+    id: "residential-duplex",
+    name: "Residential duplex",
+    marketValueCents: 10_000_000,
+    scheduledQuarterlyRentCents: 275_000,
+    occupancyBps: 9_500,
+    operatingExpenseRatioBps: 3_000,
+  }),
+  Object.freeze({
+    id: "residential-court",
+    name: "Residential court",
+    marketValueCents: 33_000_000,
+    scheduledQuarterlyRentCents: 990_000,
+    occupancyBps: 9_200,
+    operatingExpenseRatioBps: 3_500,
+  }),
+  Object.freeze({
+    id: "commercial-plaza",
+    name: "Commercial plaza",
+    marketValueCents: 65_000_000,
+    scheduledQuarterlyRentCents: 2_112_500,
+    occupancyBps: 9_000,
+    operatingExpenseRatioBps: 3_500,
+  }),
+] as const);

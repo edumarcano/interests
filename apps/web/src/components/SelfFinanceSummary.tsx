@@ -295,7 +295,11 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
               key={payment.loanId}
               data-testid={`settled-loan-${payment.loanId}`}
             >
-              {payment.role === "company-borrower" ? "Company loan" : "Loan"}{" "}
+              {payment.role === "asset-borrower"
+                ? "Property loan"
+                : payment.role === "company-borrower"
+                  ? "Company loan"
+                  : "Loan"}{" "}
               {payment.loanId}:{" "}
               {payment.role === "lender" ? "received" : "paid"}{" "}
               {formatCents(payment.paidCents)} of{" "}
@@ -357,9 +361,11 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
               >
                 <span>
                   <strong style={{ textTransform: "capitalize" }}>
-                    {loan.role === "company-borrower"
-                      ? "Company borrower"
-                      : loan.role}
+                    {loan.role === "asset-borrower"
+                      ? "Property borrower"
+                      : loan.role === "company-borrower"
+                        ? "Company borrower"
+                        : loan.role}
                   </strong>{" "}
                   ({loan.counterpartyNickname})
                 </span>

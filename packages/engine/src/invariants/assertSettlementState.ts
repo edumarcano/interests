@@ -108,9 +108,13 @@ export function assertSettlementState(state: GameState): void {
       !loan ||
       seen.has(payment.loanId) ||
       payment.borrowerPlayerId !==
-        (loan.kind === "company-loan" ? null : loan.borrowerPlayerId) ||
+        (loan.kind === "company-loan" || loan.kind === "asset-bank-loan"
+          ? null
+          : loan.borrowerPlayerId) ||
       payment.borrowerAssetId !==
-        (loan.kind === "company-loan" ? loan.borrowerAssetId : undefined) ||
+        (loan.kind === "company-loan" || loan.kind === "asset-bank-loan"
+          ? loan.borrowerAssetId
+          : undefined) ||
       payment.lenderPlayerId !==
         (loan.kind === "player-loan" ? loan.lenderPlayerId : null)
     ) {

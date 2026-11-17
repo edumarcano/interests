@@ -3,10 +3,12 @@ import type {
   AcceptCareerOfferCommandPayload,
   OpportunityId,
   PlayerId,
+  PropertyCommand,
   ResignLaborCommandPayload,
   TradePublicMarketsCommandPayload,
   TransactionId,
 } from "@interests/shared";
+import { applyPropertyCommand } from "../finance/propertyActions";
 import { tradePublicMarketsAndAdvanceSpotlight } from "../finance/publicMarketTrading.js";
 import type { GameState } from "../model/gameState.js";
 import {
@@ -81,6 +83,7 @@ export interface WireCancelActiveTransactionCommand {
 }
 
 export type WirePlayerCommand =
+  | PropertyCommand
   | TradePublicMarketsCommandPayload
   | AcceptCareerOfferCommandPayload
   | ResignLaborCommandPayload
@@ -132,6 +135,12 @@ export function applyPlayerCommand(
     return { ok: false, state, code: "WRONG_PHASE", journalEntries: [] };
 
   switch (wireCommand.type) {
+    case "BUY_PROPERTY":
+    case "SELL_PROPERTY":
+    case "REFINANCE_PROPERTY":
+    case "RENOVATE_PROPERTY":
+    case "FUND_PROPERTY_RESERVE":
+      return applyPropertyCommand(state, actorPlayerId, wireCommand);
     case "TRADE_PUBLIC_MARKETS":
       return tradePublicMarketsAndAdvanceSpotlight(
         state,

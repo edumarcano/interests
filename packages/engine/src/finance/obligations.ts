@@ -62,18 +62,22 @@ export function calculateLoanObligation(
 ): LoanObligation | null {
   if (
     quarter <= loan.lastProcessedQuarter ||
-    (loan.kind === "company-loan" && quarter < loan.firstDueQuarter) ||
+    ((loan.kind === "company-loan" || loan.kind === "asset-bank-loan") &&
+      quarter < loan.firstDueQuarter) ||
     (loan.kind === "player-loan" && quarter <= loan.originatedQuarter) ||
     (loan.outstandingPrincipalCents === 0 && loan.unpaidInterestCents === 0)
   ) {
     return null;
   }
   const currentInterest = cents(
-    new FinanceDecimal(loan.outstandingPrincipalCents)
-      .times(loan.annualRateBps)
-      .div(40_000)
-      .round()
-      .toNumber(),
+    loan.kind === "asset-bank-loan" &&
+      loan.interestPaidThroughQuarter >= quarter
+      ? 0
+      : new FinanceDecimal(loan.outstandingPrincipalCents)
+          .times(loan.annualRateBps)
+          .div(40_000)
+          .round()
+          .toNumber(),
   );
   const interestDueCents = cents(loan.unpaidInterestCents + currentInterest);
   let regularPayment: number;
@@ -99,6 +103,8 @@ export function calculateLoanObligation(
       schedule[Math.min(period, loan.termQuarters) - 1]!.paymentCents;
     matured = period >= loan.termQuarters;
   } else {
+    if (loan.kind === "asset-bank-loan")
+      matured = quarter >= loan.maturityQuarter;
     regularPayment = loan.scheduledQuarterlyPaymentCents;
   }
   const notYetOverdue =
@@ -162,8 +168,10 @@ export function applyLoanPaymentAllocation(
     outcome: {
       loanId: loan.id,
       borrowerPlayerId:
-        loan.kind === "company-loan" ? null : loan.borrowerPlayerId,
-      ...(loan.kind === "company-loan"
+        loan.kind === "company-loan" || loan.kind === "asset-bank-loan"
+          ? null
+          : loan.borrowerPlayerId,
+      ...(loan.kind === "company-loan" || loan.kind === "asset-bank-loan"
         ? { borrowerAssetId: loan.borrowerAssetId }
         : {}),
       lenderPlayerId: loan.kind === "player-loan" ? loan.lenderPlayerId : null,

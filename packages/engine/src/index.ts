@@ -30,7 +30,7 @@ export * from "./transactions/cashBusinessPurchase";
 export * from "./transactions/model";
 export * from "./transactions/reservations";
 
-export const ENGINE_VERSION = "0.0.9";
+export const ENGINE_VERSION = "0.0.10";
 
 export const WORKSPACE_COMPATIBILITY = {
   engine: ENGINE_VERSION,
@@ -39,11 +39,13 @@ export const WORKSPACE_COMPATIBILITY = {
   rulesShared: RULES_SHARED_VERSION,
 } as const;
 
+export * from "./finance/bank";
 export type {
   LoanPaymentOutcome,
   SettlementOutcome,
 } from "./finance/obligations";
 export * from "./finance/progress";
+export * from "./finance/propertyActions";
 export * from "./finance/publicMarketTrading";
 export * from "./game/career";
 export * from "./model/completionState";

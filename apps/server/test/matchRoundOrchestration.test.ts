@@ -1252,4 +1252,172 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
       }),
     ).toMatchObject({ ok: true, revision: 10 });
   });
+  it("persists ordinary property funding, canonical bank debt, private positions and identical retry receipts", async () => {
+    const { clients, roomCode, cookies, matchId } =
+      await setupMatchAtRoundStart();
+    async function getView(index: number): Promise<MatchPlayerView> {
+      const result = await server.fastify.inject({
+        method: "GET",
+        url: `/api/rooms/${roomCode}/match`,
+        cookies: { interests_session: cookies[index]! },
+      });
+      expect(result.statusCode).toBe(200);
+      return JSON.parse(result.body).match;
+    }
+    expect(
+      (
+        await sendCommand(clients[0]!.socket, {
+          commandId: randomUUID(),
+          expectedRevision: 4,
+          command: { type: "BEGIN_ROUND" },
+        })
+      ).ok,
+    ).toBe(true);
+    let purchase: {
+      index: number;
+      view: MatchPlayerView;
+      quote: NonNullable<
+        MatchPlayerView["self"]["propertyOffers"]
+      >[number]["quotes"][number];
+    } | null = null;
+    for (let turn = 0; turn < 32; turn++) {
+      let first = await getView(0);
+      if (first.round?.stage === "round-start") {
+        expect(
+          (
+            await sendCommand(clients[0]!.socket, {
+              commandId: randomUUID(),
+              expectedRevision: first.revision,
+              command: { type: "BEGIN_ROUND" },
+            })
+          ).ok,
+        ).toBe(true);
+        first = await getView(0);
+      }
+      const index = first.players.findIndex(
+        (player) => player.playerId === first.round!.activeSpotlightPlayerId,
+      );
+      const own = await getView(index);
+      const quote = own.self.propertyOffers![0]!.quotes.find(
+        (item) => item.principalCents > 0 && item.canClose,
+      );
+      if (quote) {
+        purchase = { index, view: own, quote };
+        break;
+      }
+      expect(
+        (
+          await sendCommand(clients[index]!.socket, {
+            commandId: randomUUID(),
+            expectedRevision: own.revision,
+            command: { type: "PASS_SPOTLIGHT" },
+          })
+        ).ok,
+      ).toBe(true);
+    }
+    if (!purchase) throw new Error("Expected an ordinary affordable mortgage");
+    const { index, view, quote } = purchase;
+    const envelope = {
+      commandId: randomUUID(),
+      expectedRevision: view.revision,
+      command: {
+        type: "BUY_PROPERTY",
+        catalogueId: "residential-duplex",
+        principalCents: quote.principalCents,
+        rateKind: quote.rateKind,
+      },
+    };
+    const ack = await sendCommand(clients[index]!.socket, envelope);
+    expect(ack.ok).toBe(true);
+    const record = matchRepo.findMatchById(matchId as MatchId)!;
+    const snapshot = JSON.parse(record.match.snapshotJson) as GameState;
+    assertGameState(snapshot);
+    const loan = Object.values(snapshot.finance.loansById).find(
+      (loan) => loan.kind === "asset-bank-loan",
+    )!;
+    expect(loan).toHaveProperty(
+      "outstandingPrincipalCents",
+      quote.principalCents,
+    );
+    expect(loan).not.toHaveProperty("borrowerPlayerId");
+    const retry = await sendCommand(clients[index]!.socket, envelope);
+    expect(retry).toEqual(ack);
+    expect(
+      matchRepo.findMatchById(matchId as MatchId)!.match.snapshotJson,
+    ).toBe(record.match.snapshotJson);
+    const own = await getView(index);
+    expect(own.self.loans!.some((item) => item.id === loan.id)).toBe(true);
+    expect(own.self.propertyManagement).toHaveLength(1);
+    for (let other = 0; other < 4; other++)
+      if (other !== index) {
+        const view = await getView(other);
+        expect(view.self.loans!.some((item) => item.id === loan.id)).toBe(
+          false,
+        );
+        expect(
+          view.self.propertyManagement!.some(
+            (item) =>
+              item.assetId ===
+              (loan as { borrowerAssetId: string }).borrowerAssetId,
+          ),
+        ).toBe(false);
+      }
+    const journals = db
+      .prepare(
+        "SELECT payload_json FROM match_events WHERE match_id = ? AND event_kind = 'journal-entry'",
+      )
+      .all(matchId) as { payload_json: string }[];
+    expect(
+      journals.filter(
+        (row) =>
+          JSON.parse(row.payload_json).reason === "asset-bank-loan-origination",
+      ),
+    ).toHaveLength(1);
+    const unrelatedIndex = (index + 1) % 4;
+    const unrelated = await getView(unrelatedIndex);
+    const paired = JSON.parse(record.match.snapshotJson) as GameState;
+    if (loan.kind !== "asset-bank-loan")
+      throw new Error("Expected bank asset borrower");
+    const property = paired.finance.assetsById[loan.borrowerAssetId];
+    if (property?.kind !== "property")
+      throw new Error("Missing financed property");
+    const pairedState: GameState = {
+      ...paired,
+      finance: {
+        ...paired.finance,
+        assetsById: {
+          ...paired.finance.assetsById,
+          [property.id]: {
+            ...property,
+            cashCents: cents((property.cashCents ?? 0) + 11),
+          },
+        },
+      },
+    };
+    assertGameState(pairedState);
+    db.prepare("UPDATE matches SET snapshot_json = ? WHERE id = ?").run(
+      JSON.stringify(pairedState),
+      matchId,
+    );
+    try {
+      expect(await getView(unrelatedIndex)).toEqual(unrelated);
+      expect((await getView(index)).self.propertyManagement).not.toEqual(
+        own.self.propertyManagement,
+      );
+    } finally {
+      db.prepare("UPDATE matches SET snapshot_json = ? WHERE id = ?").run(
+        record.match.snapshotJson,
+        matchId,
+      );
+    }
+    const forged = await sendCommand(clients[index]!.socket, {
+      commandId: randomUUID(),
+      expectedRevision: own.revision,
+      command: { ...envelope.command, annualRateBps: 0 },
+    });
+    expect(forged.ok).toBe(false);
+    expect(
+      matchRepo.findMatchById(matchId as MatchId)!.match.snapshotJson,
+    ).toBe(record.match.snapshotJson);
+  });
 });

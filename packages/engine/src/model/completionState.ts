@@ -67,7 +67,7 @@ export interface PlayerProgress {
   readonly disposals: readonly {
     readonly assetId: AssetId;
     readonly category: "business" | "property";
-    readonly counterpartyPlayerId: PlayerId;
+    readonly counterpartyPlayerId: PlayerId | null;
     readonly acquiredQuarter: number;
     readonly soldQuarter: number;
     readonly proceedsCents: Cents;
@@ -87,7 +87,7 @@ export type MatchResult =
     }
   | { readonly kind: "safety-draw"; readonly completedQuarter: number };
 
-/** Terms contracts for later origination packets; these are not executable loans yet. */
+/** Transaction request terms; executable debt lives in the canonical Loan registry. */
 export interface AssetBankLoanTerms {
   readonly borrowerAssetId: AssetId;
   readonly leadPlayerId: PlayerId;

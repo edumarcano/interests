@@ -129,9 +129,41 @@ export interface CompanyLoan extends LoanPaymentAccounting {
   readonly periodsProcessed: number;
 }
 
-export type Loan = PlayerLoan | LegacyBankLoan | CompanyLoan;
+export interface AssetBankLoan extends LoanPaymentAccounting {
+  readonly id: LoanId;
+  readonly kind: "asset-bank-loan";
+  readonly borrowerAssetId: AssetId;
+  readonly leadPlayerId: PlayerId;
+  readonly purpose: "property-mortgage" | "business-acquisition";
+  readonly originalPrincipalCents: Cents;
+  readonly outstandingPrincipalCents: Cents;
+  readonly annualRateBps: BasisPoints;
+  readonly pricing:
+    | { readonly kind: "fixed" }
+    | { readonly kind: "variable"; readonly spreadBps: number };
+  readonly scheduledQuarterlyPaymentCents: Cents;
+  readonly firstDueQuarter: number;
+  readonly maturityQuarter: number;
+  readonly termQuarters: number;
+  readonly periodsProcessed: number;
+  readonly interestPaidThroughQuarter: number;
+  readonly paymentResetQuarter: number;
+  readonly paymentBasisPrincipalCents: Cents;
+}
+
+export type Loan = PlayerLoan | LegacyBankLoan | CompanyLoan | AssetBankLoan;
 
 export interface PropertyAsset {
+  /** Absent on grandfathered properties whose mortgage remains personal. */
+  readonly cashCents?: Cents;
+  readonly debtServiceReserveCents?: Cents;
+  readonly renovatedQuarter?: number;
+  readonly renovationPending?: {
+    readonly costCents: Cents;
+    readonly effectiveQuarter: number;
+  };
+  readonly catalogueId?: string;
+  readonly disposition?: "sold";
   readonly id: AssetId;
   readonly kind: "property";
   readonly marketValueCents: Cents;
@@ -167,6 +199,20 @@ export interface BusinessAsset {
 export type Asset = PropertyAsset | BusinessAsset;
 
 export interface FinanceState {
+  readonly prepaidAssetInterest?: {
+    readonly quarter: number;
+    readonly byAssetId: Readonly<
+      Record<
+        AssetId,
+        {
+          readonly interestCents: Cents;
+          readonly ownershipByPlayerPpm: Readonly<
+            Record<PlayerId, OwnershipPpm>
+          >;
+        }
+      >
+    >;
+  };
   readonly livingArrearsByPlayer: Readonly<Record<PlayerId, Cents>>;
   readonly lastSettlement: SettlementOutcome | null;
   readonly cashByPlayer: Readonly<Record<PlayerId, Cents>>;

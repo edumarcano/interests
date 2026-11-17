@@ -98,14 +98,16 @@ export function postCash(
     if (account.kind === "player")
       return finance.cashByPlayer[account.playerId];
     const asset = finance.assetsById[account.assetId];
-    return asset?.kind === "business" ? asset.cashCents : undefined;
+    return asset?.kind === account.kind ? (asset.cashCents ?? 0) : undefined;
   };
   const sourceBalance = balanceOf(request.source);
   const destBalance = balanceOf(request.destination);
   if (sourceBalance === undefined || destBalance === undefined) {
     return reject(
       request.source.kind === "business" ||
-        request.destination.kind === "business"
+        request.source.kind === "property" ||
+        request.destination.kind === "business" ||
+        request.destination.kind === "property"
         ? "INVALID_ENDPOINT"
         : "UNKNOWN_PLAYER",
     );
@@ -129,9 +131,9 @@ export function postCash(
   const writeBalance = (account: CashAccount, balance: number) => {
     if (account.kind === "player")
       nextCashByPlayer[account.playerId] = cents(balance);
-    else if (account.kind === "business") {
+    else if (account.kind === "business" || account.kind === "property") {
       const asset = assetsById[account.assetId];
-      if (!asset || asset.kind !== "business")
+      if (!asset || asset.kind !== account.kind)
         throw new Error("Missing preflighted business account");
       assetsById = {
         ...assetsById,

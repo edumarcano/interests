@@ -227,26 +227,25 @@ test.describe("Four-client financial acceptance", () => {
         await expect(p.getByTestId("spotlight-view")).toBeVisible();
       }
 
-      // 10. Pass preceding spotlights until the buyer is active
+      // Wait for each new active client rather than racing separate socket deliveries.
       for (let step = 0; step < 4; step++) {
-        const isBuyerActive =
-          (await buyerPage!.getByTestId("pursuit-controls-panel").count()) > 0;
-        if (isBuyerActive) {
-          break;
-        }
-
-        // Find which page currently has the pass button and click it
-        let passed = false;
-        for (const p of pages) {
-          if ((await p.getByTestId("pass-spotlight-btn").count()) > 0) {
-            const passBtn = p.getByTestId("pass-spotlight-btn");
-            await passBtn.click();
-            await expect(passBtn).toHaveCount(0);
-            passed = true;
-            break;
-          }
-        }
-        if (!passed) break;
+        let activePage: Page | undefined;
+        await expect
+          .poll(async () => {
+            const counts = await Promise.all(
+              pages.map((page) =>
+                page.getByTestId("pass-spotlight-btn").count(),
+              ),
+            );
+            activePage = pages.find((_, index) => counts[index] === 1);
+            return activePage !== undefined;
+          })
+          .toBe(true);
+        if (activePage === buyerPage) break;
+        if (!activePage) throw new Error("Missing active spotlight client");
+        const passButton = activePage.getByTestId("pass-spotlight-btn");
+        await passButton.click();
+        await expect(passButton).toHaveCount(0);
       }
 
       // Buyer must now be active

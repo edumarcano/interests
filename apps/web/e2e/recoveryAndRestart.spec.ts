@@ -416,23 +416,25 @@ test.describe("PR24 Disconnect, Recovery Takeover, and Server Restart", () => {
         await expect(p.getByTestId("spotlight-view")).toBeVisible();
       }
 
-      // Advance to buyer spotlight
+      // Wait for each new active client rather than racing separate socket deliveries.
       for (let step = 0; step < 4; step++) {
-        if (
-          (await buyerPage!.getByTestId("pursuit-controls-panel").count()) > 0
-        )
-          break;
-        let passed = false;
-        for (const p of pages) {
-          if ((await p.getByTestId("pass-spotlight-btn").count()) > 0) {
-            const passBtn = p.getByTestId("pass-spotlight-btn");
-            await passBtn.click();
-            await expect(passBtn).toHaveCount(0);
-            passed = true;
-            break;
-          }
-        }
-        if (!passed) break;
+        let activePage: Page | undefined;
+        await expect
+          .poll(async () => {
+            const counts = await Promise.all(
+              pages.map((page) =>
+                page.getByTestId("pass-spotlight-btn").count(),
+              ),
+            );
+            activePage = pages.find((_, index) => counts[index] === 1);
+            return activePage !== undefined;
+          })
+          .toBe(true);
+        if (activePage === buyerPage) break;
+        if (!activePage) throw new Error("Missing active spotlight client");
+        const passButton = activePage.getByTestId("pass-spotlight-btn");
+        await passButton.click();
+        await expect(passButton).toHaveCount(0);
       }
 
       await expect(
