@@ -1,4 +1,5 @@
 export * from "./matchProtocol.js";
+export * from "./primitives/canonicalJson.js";
 export * from "./primitives/ids.js";
 export * from "./transportProtocol.js";
 

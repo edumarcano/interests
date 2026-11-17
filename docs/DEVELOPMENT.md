@@ -76,9 +76,9 @@ The browser displays private holdings, basis, yields and server-calculated previ
 
 Focused tests cover weighted basis, HALF_UP fees, cash-funded rebalancing, losses, unsafe/malformed inputs, cash reservations, transient posting overflow, journal exhaustion, opening dividends after liquidation and final-settlement rollback. HTTP/socket/SQLite tests persist the last-spotlight trade, journals and settlement once, including receipt retry. A production-build four-browser journey bought Growth Fund for all four players, sold $50 and bought $40 in Q2 with 23 cents in fees and $9.77 net cash received, checked a 320px preview and preserved holdings on reload.
 
-Typecheck, all 704 tests, lint (650 warnings and three infos), the production build and all six browser scenarios passed. Separate Remora specification and engineering reviews found no blockers after correcting preview rejection for unsafe intermediate cash postings and checking snapshot validation against the room membership. The quote and execution agree on the trade itself; the final spotlight can still reject the basket if quarter settlement cannot commit. These checks do not establish objective reachability or balance.
+Typecheck, lint, the production build and all six browser scenarios passed. Separate Remora specification and engineering reviews found no blockers after correcting preview rejection for unsafe intermediate cash postings and checking snapshot validation against the room membership. A reproduced timeout bug then led to shared canonical command comparison between browser and server: the browser reuses the original market command ID on retry. All 705 tests and the production four-browser market journey passed with that fix. The quote and execution agree on the trade itself; the final spotlight can still reject the basket if quarter settlement cannot commit. These checks do not establish objective reachability or balance.
 
-The verified implementation is `58e611d`. PR #38 is open and unmerged; hosted CI is pending.
+PR #38 is open and unmerged. Hosted CI run #114 passed at `cb0cd5b`; the subsequent timeout fix passed local verification.
 
 ## M7 completion and M8 handoff
 
