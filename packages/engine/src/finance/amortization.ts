@@ -1,4 +1,5 @@
 import {
+  OPENING_COMPANY_LOAN_CALIBRATION,
   PLAYER_LOAN_MAX_TERM_QUARTERS,
   PLAYER_LOAN_MIN_TERM_QUARTERS,
 } from "@interests/rules";
@@ -21,6 +22,33 @@ export interface LoanScheduleRow {
   readonly closingPrincipalCents: Cents;
 }
 
+export function calculatePlayerLoanSchedule(
+  input: CalculatePlayerLoanScheduleInput,
+): readonly LoanScheduleRow[] {
+  const { termQuarters } = input;
+  if (
+    !Number.isSafeInteger(termQuarters) ||
+    termQuarters < PLAYER_LOAN_MIN_TERM_QUARTERS ||
+    termQuarters > PLAYER_LOAN_MAX_TERM_QUARTERS
+  ) {
+    throw new RangeError(
+      `Loan term must be an integer between ${PLAYER_LOAN_MIN_TERM_QUARTERS} and ${PLAYER_LOAN_MAX_TERM_QUARTERS} quarters, got ${String(termQuarters)}`,
+    );
+  }
+
+  return calculateAmortizingSchedule(input);
+}
+
+export function calculateCompanyLoanSchedule(input: {
+  readonly principalCents: number;
+  readonly annualRateBps: number;
+}): readonly LoanScheduleRow[] {
+  return calculateAmortizingSchedule({
+    ...input,
+    termQuarters: OPENING_COMPANY_LOAN_CALIBRATION.termQuarters,
+  });
+}
+
 /**
  * Pure calculator for deterministic player-loan amortization schedules.
  *
@@ -37,7 +65,7 @@ export interface LoanScheduleRow {
  *   allocated to earliest installments.
  * - Rejects if rounding causes non-final principal reduction <= 0.
  */
-export function calculatePlayerLoanSchedule(
+function calculateAmortizingSchedule(
   input: CalculatePlayerLoanScheduleInput,
 ): readonly LoanScheduleRow[] {
   const { principalCents, annualRateBps, termQuarters } = input;
@@ -59,16 +87,6 @@ export function calculatePlayerLoanSchedule(
   ) {
     throw new RangeError(
       `Loan annual rate must be a non-negative safe integer of basis points, got ${String(annualRateBps)}`,
-    );
-  }
-
-  if (
-    !Number.isSafeInteger(termQuarters) ||
-    termQuarters < PLAYER_LOAN_MIN_TERM_QUARTERS ||
-    termQuarters > PLAYER_LOAN_MAX_TERM_QUARTERS
-  ) {
-    throw new RangeError(
-      `Loan term must be an integer between ${PLAYER_LOAN_MIN_TERM_QUARTERS} and ${PLAYER_LOAN_MAX_TERM_QUARTERS} quarters, got ${String(termQuarters)}`,
     );
   }
 

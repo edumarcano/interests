@@ -169,6 +169,9 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "0.5rem",
+                  overflowWrap: "anywhere",
                   fontSize: "0.85rem",
                   background: "var(--bg-surface-elevated)",
                   padding: "0.5rem 0.75rem",
@@ -194,10 +197,18 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
                       Company equity: {formatCents(asset.equityValueCents)}
                     </>
                   )}
-                  {asset.incomeTreatment === "included-owner-income" ? (
+                  {asset.incomeTreatment === "work-and-ownership" ? (
                     <>
                       <br />
-                      Included in your regular owner income.
+                      Expected work pay Q{asset.payoutQuarter}:{" "}
+                      {asset.expectedWorkPayCents == null
+                        ? "unavailable"
+                        : formatCents(asset.expectedWorkPayCents)}
+                      <br />
+                      Expected payout Q{asset.payoutQuarter}:{" "}
+                      {asset.expectedPayoutCents == null
+                        ? "unavailable"
+                        : formatCents(asset.expectedPayoutCents)}
                     </>
                   ) : (
                     asset.payoutQuarter != null && (
@@ -209,6 +220,13 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
                           : formatCents(asset.expectedPayoutCents)}
                       </>
                     )
+                  )}
+                  {(asset.workCompensationArrearsCents ?? 0) > 0 && (
+                    <>
+                      <br />
+                      Unpaid work compensation:{" "}
+                      {formatCents(asset.workCompensationArrearsCents ?? 0)}
+                    </>
                   )}
                   {(asset.operatingArrearsCents ?? 0) > 0 && (
                     <>
@@ -231,6 +249,19 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
           style={{ marginTop: "1rem", overflowWrap: "anywhere" }}
         >
           <strong>Q{self.lastSettlement.quarter} settled</strong>
+          {self.lastSettlement.workCompensation?.map((payment) => (
+            <div
+              key={payment.assetId}
+              data-testid={`work-pay-${payment.assetId}`}
+            >
+              Company work pay: received {formatCents(payment.paidCents)} of{" "}
+              {formatCents(payment.dueCents)} due
+              {payment.unpaidCents > 0
+                ? `; ${formatCents(payment.unpaidCents)} remains due`
+                : ""}
+              .
+            </div>
+          ))}
           {self.lastSettlement.businessDistributions?.map((payment) => (
             <div
               key={payment.assetId}
@@ -256,7 +287,8 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
               key={payment.loanId}
               data-testid={`settled-loan-${payment.loanId}`}
             >
-              Loan {payment.loanId}:{" "}
+              {payment.role === "company-borrower" ? "Company loan" : "Loan"}{" "}
+              {payment.loanId}:{" "}
               {payment.role === "lender" ? "received" : "paid"}{" "}
               {formatCents(payment.paidCents)} of{" "}
               {formatCents(payment.dueCents)} due
@@ -305,6 +337,9 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "0.5rem",
+                  overflowWrap: "anywhere",
                   fontSize: "0.85rem",
                   background: "var(--bg-surface-elevated)",
                   padding: "0.5rem 0.75rem",
@@ -314,7 +349,9 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
               >
                 <span>
                   <strong style={{ textTransform: "capitalize" }}>
-                    {loan.role}
+                    {loan.role === "company-borrower"
+                      ? "Company borrower"
+                      : loan.role}
                   </strong>{" "}
                   ({loan.counterpartyNickname})
                 </span>

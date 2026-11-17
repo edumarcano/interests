@@ -68,7 +68,7 @@ describe("profile starting cash rule data", () => {
     expect(saver.monthlyPersonalDebtPaymentCents).toBe(15_000);
 
     const sbo = PROFILES["small-business-owner"].startingFinances;
-    expect(sbo.annualIncomeCents).toBe(6_800_000);
+    expect(sbo.annualIncomeCents).toBe(0);
     expect(sbo.monthlyLivingExpenseCents).toBe(400_000);
     expect(sbo.openingPersonalDebtPrincipalCents).toBe(1_000_000);
     expect(sbo.monthlyPersonalDebtPaymentCents).toBe(25_000);
@@ -86,13 +86,13 @@ describe("profile starting cash rule data", () => {
     expect(inv.monthlyPersonalDebtPaymentCents).toBe(25_000);
 
     const op = PROFILES["self-employed-operator"].startingFinances;
-    expect(op.annualIncomeCents).toBe(9_600_000);
+    expect(op.annualIncomeCents).toBe(0);
     expect(op.monthlyLivingExpenseCents).toBe(430_000);
     expect(op.openingPersonalDebtPrincipalCents).toBe(800_000);
     expect(op.monthlyPersonalDebtPaymentCents).toBe(20_000);
 
     const ent = PROFILES["early-stage-entrepreneur"].startingFinances;
-    expect(ent.annualIncomeCents).toBe(4_500_000);
+    expect(ent.annualIncomeCents).toBe(0);
     expect(ent.monthlyLivingExpenseCents).toBe(320_000);
     expect(ent.openingPersonalDebtPrincipalCents).toBe(0);
     expect(ent.monthlyPersonalDebtPaymentCents).toBe(0);
@@ -122,16 +122,24 @@ describe("profile starting cash rule data", () => {
       annualOperatingProfitCents: 8_000_000,
       enterpriseValueCents: 32_000_000,
       debtPrincipalCents: 6_000_000,
+      annualNonOwnerOperatingCostsCents: 39600000,
+      annualOwnerWorkCompensationCents: 2400000,
+      externalManagementCostCents: 6000000,
+      openingCashCents: 1500000,
       ownershipPpm: 1_000_000,
     });
 
     const op =
       PROFILES["self-employed-operator"].startingFinances.businessFixture;
     expect(op).toEqual({
-      annualRevenueCents: 15_500_000,
-      annualOperatingProfitCents: 10_000_000,
+      annualRevenueCents: 18_000_000,
+      annualOperatingProfitCents: 2_400_000,
       enterpriseValueCents: 9_000_000,
       debtPrincipalCents: 2_000_000,
+      annualNonOwnerOperatingCostsCents: 7200000,
+      annualOwnerWorkCompensationCents: 8400000,
+      externalManagementCostCents: 0,
+      openingCashCents: 1000000,
       ownershipPpm: 1_000_000,
     });
 
@@ -139,9 +147,13 @@ describe("profile starting cash rule data", () => {
       PROFILES["early-stage-entrepreneur"].startingFinances.businessFixture;
     expect(ent).toEqual({
       annualRevenueCents: 30_000_000,
-      annualOperatingProfitCents: 5_400_000,
-      enterpriseValueCents: 23_000_000,
+      annualOperatingProfitCents: 3_000_000,
+      enterpriseValueCents: 15_000_000,
       debtPrincipalCents: 6_000_000,
+      annualNonOwnerOperatingCostsCents: 23400000,
+      annualOwnerWorkCompensationCents: 3600000,
+      externalManagementCostCents: 0,
+      openingCashCents: 1500000,
       ownershipPpm: 1_000_000,
     });
   });

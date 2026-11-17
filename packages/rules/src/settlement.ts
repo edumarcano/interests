@@ -12,7 +12,11 @@ export const MANDATORY_SETTLEMENT_POLICY = Object.freeze({
 });
 
 export const BUSINESS_CASH_POLICIES = Object.freeze({
-  "legacy-owner-income-v1": Object.freeze({ kind: "legacy-owner-income" }),
+  "starting-company-v1": Object.freeze({
+    kind: "retained-profit",
+    retentionBps: 2_000,
+    firstOperatingQuarter: 1,
+  }),
   "retained-profit-v1": Object.freeze({
     kind: "retained-profit",
     retentionBps: 2_000,

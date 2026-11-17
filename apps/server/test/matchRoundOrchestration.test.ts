@@ -5,14 +5,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   assertGameState,
+  basisPoints,
+  captureBusinessBasis,
   cents,
   type GameState,
   getActiveSpotlightPlayerId,
+  ownershipPpm,
 } from "@interests/engine";
-import type {
-  CommandAckResult,
-  MatchId,
-  MatchPlayerView,
+import {
+  asAssetId,
+  asLoanId,
+  type CommandAckResult,
+  type MatchId,
+  type MatchPlayerView,
 } from "@interests/shared";
 import { type Socket as ClientSocket, io as ioClient } from "socket.io-client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -710,7 +715,9 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     );
     if (company?.kind !== "business") throw new Error("Missing company");
     expect(company.cashCents).toBe(75_000);
-    const outcome = state.finance.lastSettlement?.businesses[0];
+    const outcome = state.finance.lastSettlement?.businesses.find(
+      (b) => b.assetId === company.id,
+    );
     expect(outcome).toMatchObject({
       assetId: company.id,
       operatingCashCents: 375_000,
@@ -723,7 +730,11 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
       .all(matchId) as { payload_json: string }[];
     const payouts = events
       .map((event) => JSON.parse(event.payload_json))
-      .filter((entry) => entry.reason === "business-distribution");
+      .filter(
+        (entry) =>
+          entry.reason === "business-distribution" &&
+          entry.relatedAssetId === company.id,
+      );
     expect(payouts).toHaveLength(1);
     expect(payouts[0]).toMatchObject({
       amountCents: 300_000,
@@ -743,10 +754,14 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     );
     expect(
       (await getView(ownerIndex)).self.lastSettlement?.businessDistributions,
-    ).toEqual([{ assetId: company.id, amountCents: 300_000 }]);
+    ).toContainEqual({ assetId: company.id, amountCents: 300_000 });
     const unrelatedIndex = (ownerIndex + 1) % 4;
     const unrelated = await getView(unrelatedIndex);
-    expect(unrelated.self.lastSettlement?.businessDistributions).toEqual([]);
+    expect(
+      unrelated.self.lastSettlement?.businessDistributions?.some(
+        (b) => b.assetId === company.id,
+      ),
+    ).toBe(false);
     if (!outcome || !state.finance.lastSettlement)
       throw new Error("Missing company outcome");
     const paired: GameState = {
@@ -759,13 +774,15 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
         },
         lastSettlement: {
           ...state.finance.lastSettlement,
-          businesses: [
-            {
-              ...outcome,
-              openingCashCents: cents(1),
-              closingCashCents: cents(75_001),
-            },
-          ],
+          businesses: state.finance.lastSettlement.businesses.map((b) =>
+            b.assetId === company.id
+              ? {
+                  ...b,
+                  openingCashCents: cents(1),
+                  closingCashCents: cents(75_001),
+                }
+              : b,
+          ),
         },
       },
     };
@@ -786,13 +803,60 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     const debtor = fixture.playerOrder[1];
     if (!debtor) throw new Error("Missing debtor");
     // Explicit isolated shortfall fixture; commands below use real authenticated transport.
+    const unpaidCompanyId = asAssetId(`asset-${fixture.counters.asset + 1}`);
+    const unpaidLoanId = asLoanId(`loan-${fixture.counters.loan + 1}`);
+    const companies = {
+      ...fixture.finance.assetsById,
+      [unpaidCompanyId]: {
+        id: unpaidCompanyId,
+        kind: "business" as const,
+        cashPolicyId: "starting-company-v1" as const,
+        cashCents: cents(0),
+        operatingArrearsCents: cents(0),
+        annualRevenueCents: cents(30_000_000),
+        annualOperatingProfitCents: cents(-4_000_000),
+        enterpriseValueCents: cents(15_000_000),
+        workCompensation: {
+          playerId: debtor,
+          annualCompensationCents: cents(3_600_000),
+          arrearsCents: cents(0),
+        },
+        ownershipByPlayerPpm: { [debtor]: ownershipPpm(1_000_000) },
+      },
+    };
     const changed: GameState = {
       ...fixture,
+      counters: {
+        ...fixture.counters,
+        asset: fixture.counters.asset + 1,
+        loan: fixture.counters.loan + 1,
+      },
       finance: {
         ...fixture.finance,
+        assetsById: companies,
+        loansById: {
+          ...fixture.finance.loansById,
+          [unpaidLoanId]: {
+            id: unpaidLoanId,
+            kind: "company-loan",
+            borrowerAssetId: unpaidCompanyId,
+            originalPrincipalCents: cents(6_000_000),
+            outstandingPrincipalCents: cents(6_000_000),
+            annualRateBps: basisPoints(800),
+            scheduledQuarterlyPaymentCents: cents(281_938),
+            firstDueQuarter: 1,
+            termQuarters: 28,
+            periodsProcessed: 0,
+            principalRepaidCents: cents(0),
+            pastDuePrincipalCents: cents(0),
+            unpaidInterestCents: cents(0),
+            lastProcessedQuarter: 0,
+          },
+        },
         cashByPlayer: { ...fixture.finance.cashByPlayer, [debtor]: cents(0) },
         quarterStartBasis: {
           ...fixture.finance.quarterStartBasis,
+          businessesById: captureBusinessBasis(companies),
           cashByPlayer: {
             ...fixture.finance.quarterStartBasis.cashByPlayer,
             [debtor]: cents(0),
@@ -875,6 +939,20 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
       snapshot.finance.livingArrearsByPlayer[debtor],
     );
     expect(own.self.lastSettlement?.livingDueCents).toBe(9_382_715);
+    expect(own.self.lastSettlement?.workCompensation).toContainEqual({
+      assetId: unpaidCompanyId,
+      dueCents: 900_000,
+      paidCents: 0,
+      unpaidCents: 900_000,
+    });
+    expect(own.self.loans?.find((l) => l.id === unpaidLoanId)).toMatchObject({
+      role: "company-borrower",
+      status: "in-arrears",
+      outstandingPrincipalCents: 6_000_000,
+      unpaidInterestCents: 120_000,
+    });
+    expect(JSON.stringify(unrelated)).not.toContain(unpaidCompanyId);
+    expect(JSON.stringify(unrelated)).not.toContain(unpaidLoanId);
     expect(JSON.stringify(unrelated)).not.toContain("livingByPlayer");
     const alternate = JSON.parse(JSON.stringify(snapshot)) as GameState;
     const past = alternate.finance.livingArrearsByPlayer[debtor] ?? 0;

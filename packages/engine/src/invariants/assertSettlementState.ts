@@ -107,7 +107,10 @@ export function assertSettlementState(state: GameState): void {
     if (
       !loan ||
       seen.has(payment.loanId) ||
-      payment.borrowerPlayerId !== loan.borrowerPlayerId ||
+      payment.borrowerPlayerId !==
+        (loan.kind === "company-loan" ? null : loan.borrowerPlayerId) ||
+      payment.borrowerAssetId !==
+        (loan.kind === "company-loan" ? loan.borrowerAssetId : undefined) ||
       payment.lenderPlayerId !==
         (loan.kind === "player-loan" ? loan.lenderPlayerId : null)
     ) {

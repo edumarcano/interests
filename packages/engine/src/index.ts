@@ -2,6 +2,9 @@ import { RULES_SHARED_VERSION, RULES_VERSION } from "@interests/rules";
 import { SHARED_VERSION } from "@interests/shared";
 
 export * from "./finance/account";
+export * from "./finance/amortization";
+export * from "./finance/business";
+export * from "./finance/businessSettlement";
 export * from "./finance/economy";
 export * from "./finance/journal";
 export * from "./finance/markets";
@@ -27,7 +30,7 @@ export * from "./transactions/cashBusinessPurchase";
 export * from "./transactions/model";
 export * from "./transactions/reservations";
 
-export const ENGINE_VERSION = "0.0.5";
+export const ENGINE_VERSION = "0.0.6";
 
 export const WORKSPACE_COMPATIBILITY = {
   engine: ENGINE_VERSION,

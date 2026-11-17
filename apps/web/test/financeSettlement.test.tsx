@@ -99,3 +99,51 @@ it("describes the lender's own missed receipt without showing the debtor's livin
     "$123.45",
   );
 });
+
+it("separates work pay, ownership payouts and unpaid company compensation", () => {
+  render(
+    <SelfFinanceSummary
+      self={{
+        ...self,
+        ownedAssets: [
+          {
+            id: "company",
+            kind: "business",
+            annualRevenueCents: 30_000_000,
+            annualOperatingProfitCents: 3_000_000,
+            enterpriseValueCents: 15_000_000,
+            debtPrincipalCents: 6_000_000,
+            ownershipPpm: 1_000_000,
+            incomeTreatment: "work-and-ownership",
+            companyCashCents: 0,
+            equityValueCents: 8_100_000,
+            payoutQuarter: 2,
+            expectedWorkPayCents: 900_000,
+            expectedPayoutCents: 0,
+            workCompensationArrearsCents: 900_000,
+          },
+        ],
+        lastSettlement: {
+          ...self.lastSettlement!,
+          workCompensation: [
+            {
+              assetId: "company",
+              dueCents: 900_000,
+              paidCents: 0,
+              unpaidCents: 900_000,
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  expect(screen.getByTestId("owned-asset-company").textContent).toContain(
+    "Expected work pay Q2: $9,000",
+  );
+  expect(screen.getByTestId("owned-asset-company").textContent).toContain(
+    "Expected payout Q2: $0",
+  );
+  expect(screen.getByTestId("work-pay-company").textContent).toContain(
+    "received $0 of $9,000 due; $9,000 remains due",
+  );
+});

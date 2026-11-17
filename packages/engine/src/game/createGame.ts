@@ -1,4 +1,5 @@
 import {
+  OPENING_COMPANY_LOAN_CALIBRATION,
   OPENING_PERSONAL_DEBT_APR_BPS,
   PROFILES,
   STANDARD_V1_OPENING_BASE_RATE_BPS,
@@ -12,6 +13,7 @@ import {
   type LoanId,
   type PlayerId,
 } from "@interests/shared";
+import { calculateCompanyLoanSchedule } from "../finance/amortization";
 import { captureBusinessBasis } from "../finance/businessSettlement";
 import { createZeroPublicMarketPortfolio } from "../finance/markets";
 import { basisPoints, type Cents, cents } from "../finance/money";
@@ -128,6 +130,7 @@ export function createGame(input: CreateGameInput): GameState {
 
   // 1. Starting Assets creation in canonical playerOrder
   const assetsById: Record<AssetId, Asset> = {};
+  const businessAssetIdByPlayer: Partial<Record<PlayerId, AssetId>> = {};
   const propertyAssetIdByPlayer: Partial<Record<PlayerId, AssetId>> = {};
 
   for (const playerId of input.playerIds) {
@@ -169,19 +172,26 @@ export function createGame(input: CreateGameInput): GameState {
       assetsById[assetId] = {
         id: assetId,
         kind: "business",
-        cashPolicyId: "legacy-owner-income-v1",
-        cashCents: cents(0),
+        cashPolicyId: "starting-company-v1",
+        cashCents: cents(businessFixture.openingCashCents),
+        workCompensation: {
+          playerId,
+          annualCompensationCents: cents(
+            businessFixture.annualOwnerWorkCompensationCents,
+          ),
+          arrearsCents: cents(0),
+        },
         operatingArrearsCents: cents(0),
         annualRevenueCents: cents(businessFixture.annualRevenueCents),
         annualOperatingProfitCents: cents(
           businessFixture.annualOperatingProfitCents,
         ),
         enterpriseValueCents: cents(businessFixture.enterpriseValueCents),
-        debtPrincipalCents: cents(businessFixture.debtPrincipalCents),
         ownershipByPlayerPpm: {
           [playerId]: ownershipPpm(businessFixture.ownershipPpm),
         },
       };
+      businessAssetIdByPlayer[playerId] = assetId;
     }
   }
 
@@ -215,6 +225,35 @@ export function createGame(input: CreateGameInput): GameState {
         ),
         annualRateBps: basisPoints(OPENING_PERSONAL_DEBT_APR_BPS),
         scheduledQuarterlyPaymentCents: cents(quarterlyPayment),
+        periodsProcessed: 0,
+        principalRepaidCents: cents(0),
+        pastDuePrincipalCents: cents(0),
+        unpaidInterestCents: cents(0),
+        lastProcessedQuarter: 0,
+      };
+    }
+
+    if (finances.businessFixture !== undefined) {
+      const borrowerAssetId = businessAssetIdByPlayer[playerId];
+      if (!borrowerAssetId) throw new Error("Missing starting company");
+      const nextLoan = nextDeterministicId("loan", currentCounters);
+      currentCounters = nextLoan.counters;
+      const principal = cents(finances.businessFixture.debtPrincipalCents);
+      loansById[nextLoan.id] = {
+        id: nextLoan.id,
+        kind: "company-loan",
+        borrowerAssetId,
+        originalPrincipalCents: principal,
+        outstandingPrincipalCents: principal,
+        annualRateBps: basisPoints(
+          OPENING_COMPANY_LOAN_CALIBRATION.annualRateBps,
+        ),
+        termQuarters: OPENING_COMPANY_LOAN_CALIBRATION.termQuarters,
+        firstDueQuarter: 1,
+        scheduledQuarterlyPaymentCents: calculateCompanyLoanSchedule({
+          principalCents: principal,
+          annualRateBps: OPENING_COMPANY_LOAN_CALIBRATION.annualRateBps,
+        })[0]!.paymentCents,
         periodsProcessed: 0,
         principalRepaidCents: cents(0),
         pastDuePrincipalCents: cents(0),

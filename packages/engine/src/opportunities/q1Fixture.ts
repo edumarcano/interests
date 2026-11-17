@@ -136,7 +136,7 @@ export function attachQ1BusinessOpportunityFixture(
     annualRevenueCents: businessAsset.annualRevenueCents,
     annualOperatingProfitCents: businessAsset.annualOperatingProfitCents,
     enterpriseValueCents: businessAsset.enterpriseValueCents,
-    debtPrincipalCents: businessAsset.debtPrincipalCents,
+    debtPrincipalCents: businessAsset.debtPrincipalCents ?? cents(0),
   };
 
   const opportunity: PrivateBusinessPurchaseOpportunity = {

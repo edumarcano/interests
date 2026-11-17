@@ -810,15 +810,15 @@ Each baseline is a fixture for the first simulation, not a proven equal-strength
 | High-Income Professional | \$150,000         | \$6,500            | \$850                     | \$15,450                   |
 | Corporate Climber        | \$100,000         | \$4,600            | \$450                     | \$9,850                    |
 | Disciplined Saver        | \$72,000          | \$3,400            | \$150                     | \$7,350                    |
-| Small Business Owner     | \$68,000          | \$4,000            | \$250                     | \$4,250                    |
+| Small Business Owner     | \$78,978          | \$4,000            | \$250                     | \$6,994.50                    |
 | Property Starter         | \$78,000          | \$4,200            | \$0                       | \$8,400                    |
 | Market Investor          | \$76,000          | \$4,000            | \$250                     | \$6,250                    |
-| Self-Employed Operator   | \$96,000          | \$4,300            | \$200                     | \$10,500                   |
-| Early-Stage Entrepreneur | \$45,000          | \$3,200            | \$0                       | \$1,650                    |
+| Self-Employed Operator   | \$100,192.68          | \$4,300            | \$200                     | \$11,548.17                   |
+| Early-Stage Entrepreneur | \$50,978          | \$3,200            | \$0                       | \$3,144.50                    |
 
 Core quarterly surplus = annual player income / 4 - three months of living costs - three months of personal debt payments, plus net property distributions where present. Property Starter includes a target \$500/month rental contribution. Business income is not another salary added on top of the business distribution.
 
-APPROVED OPENING DEBT & OWNER INCOME [PROTOTYPE] Opening personal debts are grandfathered legacy bank debts with fixed nominal APR of 8.00% (quarterly periodic rate of 2.00%). The quarterly scheduled payment is exactly 3 × the monthly personal debt payment in the table above. Payments follow fixed-payment amortization with HALF_UP interest rounding and final-period cleanup. For the three starting businesses, the annual spendable income figures above are authoritative for quarter settlement; no additional business operating distributions or separate business debt amortizations occur in Quarter 1 to prevent double-counting income.
+APPROVED OPENING DEBT & OWNER INCOME [PROTOTYPE] Opening personal debts are grandfathered legacy bank debts with fixed nominal APR of 8.00% (quarterly periodic rate of 2.00%). The quarterly scheduled payment is exactly 3 × the monthly personal debt payment in the table above. Payments follow fixed-payment amortization with HALF_UP interest rounding and final-period cleanup. Starting-company work compensation, debt service and ownership distributions follow section 16.3.2 from Quarter 1. Their employment-only recurring-income component is zero; the displayed total income is a baseline projection, not an additional subsidy.
 
 ## 15.2 Opening balance sheets [PROTOTYPE]
 
@@ -829,13 +829,13 @@ Business values in this table are equity values under the later explicit enterpr
 | High-Income Professional | \$50k    | \$20k                  | \-                  | \-                        | \$55k             | \$15k         |
 | Corporate Climber        | \$35k    | \$10k                  | \-                  | \-                        | \$18k             | \$27k         |
 | Disciplined Saver        | \$105k   | \$5k                   | \-                  | \-                        | \$5k              | \$105k        |
-| Small Business Owner     | \$30k    | \-                     | \$260k              | \-                        | \$10k             | \$280k        |
+| Small Business Owner     | \$30k    | \-                     | \$275k              | \-                        | \$10k             | \$295k        |
 | Property Starter         | \$28k    | \$7k                   | \-                  | \$330k / \$255k           | \-                | \$110k        |
 | Market Investor          | \$25k    | \$80k                  | \-                  | \-                        | \$10k             | \$95k         |
-| Self-Employed Operator   | \$40k    | \-                     | \$70k               | \-                        | \$8k              | \$102k        |
-| Early-Stage Entrepreneur | \$20k    | \-                     | \$170k              | \-                        | \-                | \$190k        |
+| Self-Employed Operator   | \$40k    | \-                     | \$80k               | \-                        | \$8k              | \$112k        |
+| Early-Stage Entrepreneur | \$20k    | \-                     | \$105k              | \-                        | \-                | \$125k        |
 
-VALUATION RECONCILIATION The later business table explicitly made \$260k, \$70k, and \$170k equity values, not gross values before business debt. Consequently net worth is \$280k, \$102k, and \$190k for the Small Business Owner, Self-Employed Operator, and Early-Stage Entrepreneur. The earlier \$220k, \$82k, and \$130k totals are superseded; the stronger ownership baselines must be rechecked for balance.
+Company equity is operating EV plus company cash minus canonical company principal, unpaid interest and operating/work payables. The integrated fixtures in section 16.3.2 establish the opening values above; company cash is not also personal liquidity. These accounting values do not establish strategy balance.
 
 STANDARD V1 OPENING PUBLIC MARKET ALLOCATION [PROTOTYPE] In Standard V1 opening setup, each profile's starting public investments balance is allocated 100% to the Broad Market Fund (`broad-market-fund`), with 0% allocated to Growth Fund (`growth-fund`) and 0% to Income / Defensive Fund (`income-defensive-fund`). Total opening public market portfolio value exactly reconciles with the profile's opening liquid balance sheet.
 
@@ -846,11 +846,11 @@ STANDARD V1 OPENING PUBLIC MARKET ALLOCATION [PROTOTYPE] In Standard V1 opening 
 | High-Income Professional | \$70,000                   | \$111,800                              |
 | Corporate Climber        | \$45,000                   | \$74,400                               |
 | Disciplined Saver        | \$110,000                  | \$134,400                              |
-| Small Business Owner     | \$30,000                   | \$47,000                               |
+| Small Business Owner     | \$30,000                   | \$57,978                               |
 | Property Starter         | \$35,000                   | \$61,600                               |
 | Market Investor          | \$105,000                  | \$50,000                               |
-| Self-Employed Operator   | \$40,000                   | \$82,000                               |
-| Early-Stage Entrepreneur | \$20,000                   | \$26,600                               |
+| Self-Employed Operator   | \$40,000                   | \$86,192.68                               |
+| Early-Stage Entrepreneur | \$20,000                   | \$32,578                               |
 
 This is an arithmetic comparison, not a simulated match: cash after four quarters = starting cash + 4 x core surplus. It excludes dividends, cash yield, inflation, market/asset changes, reinvestment, transaction decisions, and changing loan balances. Equal opening net worth is not the target; comparable achievable strategies are.
 
@@ -905,7 +905,7 @@ Opening LTV is \$255,000 / \$330,000 = 77.27%, accepted as an existing legacy lo
 
 Businesses share revenue, operating margin/profit, debt, value, economic sensitivity, capacity, and ownership. Operating profit = revenue x operating margin. Enterprise value = normalized annual operating profit x valuation multiple. Company equity = enterprise value + company cash - business debt principal - unpaid interest - operating payables. For an owner-dependent practice, use the specified owner-earnings valuation basis instead.
 
-During the first M7 financial slice, the three starting businesses use `legacy-owner-income-v1`: their existing spendable owner income is paid once, company debt remains balance-sheet-only, and no additional operating distribution or retained cash accumulates. This temporary treatment ends when the integrated starting-business fixtures in section 16.3.2 are reviewed and implemented.
+Starting businesses use `starting-company-v1`: fixed owner work compensation, canonical company loans and ownership distributions are funded from company cash beginning in Q1. The managed acquisition fixture uses `retained-profit-v1` and starts operating settlement in Q2. Section 16.3.2 defines the integrated starting fixtures.
 
 | **Business type**        | **Operating margin**                     | **Valuation basis**                      |
 |--------------------------|------------------------------------------|------------------------------------------|
@@ -915,17 +915,11 @@ During the first M7 financial slice, the three starting businesses use `legacy-o
 
 Owner-dependent earnings compensate the player's labor. They are not automatically passive income and must not qualify for Independent merely because payment comes from a business. The approved distribution policy is in section 16.3.1. Further performance normalization and explicit growth-investment effects remain open.
 
-| **Starting business**    | **Annual revenue** | **Annual op. profit / earnings** | **Enterprise value** | **Debt** | **Equity** |
-|--------------------------|--------------------|----------------------------------|----------------------|----------|------------|
-| Small Business Owner     | \$500k             | \$80k                            | \$320k               | \$60k    | \$260k     |
-| Self-Employed Operator   | \$155k             | \$100k                           | \$90k                | \$20k    | \$70k      |
-| Early-Stage Entrepreneur | \$300k             | \$54k                            | \$230k               | \$60k    | \$170k     |
-
-These are approximate fixtures. The practice is valued on owner earnings, not as a scalable company. The \$230k growth-business valuation is approximately 4.26x its \$54k profit. Opening owner-income targets of \$68k, \$96k, and \$45k are authoritative spendable income for opening quarter settlement; business operating profit is not distributed separately to avoid double counting. Opening business debt is balance-sheet-only and does not amortize in Quarter 1.
+The integrated starting-company fixtures in section 16.3.2 replace bundled owner income and balance-sheet-only business debt. Profit is stated after necessary labor, including the working owner's compensation. Operating EV excludes company cash; company equity includes it once and deducts company claims once.
 
 ### 16.3.1 Quarterly business cash policy [PROTOTYPE]
 
-The productive business policy is `retained-profit-v1`. Its first operating settlement is Q2: the Q1 fixture pays neither seller nor buyer in Q1. Payout entitlement uses quarter-start ownership and operating inputs. Buying in QN gives the buyer its first payout in QN+1; an ordinary later-quarter seller retains QN's entitlement. The same quarter cannot pay both owners a full distribution.
+The managed acquisition policy is `retained-profit-v1`. Its first operating settlement is Q2: the Q1 fixture pays neither seller nor buyer in Q1. Payout entitlement uses quarter-start ownership and operating inputs. Buying in QN gives the buyer its first payout in QN+1; an ordinary later-quarter seller retains QN's entitlement. The same quarter cannot pay both owners a full distribution.
 
 Quarterly operating cash is annual operating profit / 4, rounded HALF_UP to cents. Operating profit includes necessary labor costs. Positive operating cash enters the company account; negative cash flow consumes reserves and leaves explicit operating payables if reserves are insufficient. Required operating arrears and company debt service precede dividends. Dividend-eligible surplus is current positive operating cash less actual required company payments, floored at zero and capped by company cash. Old reserves fund obligations, not automatic dividends.
 
@@ -942,7 +936,7 @@ Operating enterprise value excludes company cash. Company equity includes cash o
 
 Reserves absorb losses and may fund later explicitly supported investment opportunities. Accumulating reserves alone does not increase operating profit, revenue, or capacity.
 
-### 16.3.2 Unified starting-business calibration [PROTOTYPE direction]
+### 16.3.2 Unified starting-business fixtures [PROTOTYPE]
 
 The permanent model separates compensation for work from ownership distributions. Working-owner compensation is an operating cost and is paid once from accounted business cash. When the owner stops working, their compensation ends; necessary replacement labor remains a cost before passive returns. Managed-company earnings already include management costs. V1 needs a working-owner/managed distinction, not an employee or working-hours simulation. Further labor-exit and management-conversion actions remain separately scoped.
 
@@ -950,7 +944,36 @@ Opening company debt uses 8.00% fixed nominal APR and seven-year quarterly amort
 
 Calibrate revenue, labor compensation, operating profit, valuation, debt payments, reserves, personal income, and living costs together. The old $68k/$96k/$45k owner incomes and company values are references, not fixed targets. The Small Business Owner has meaningful productive ownership with concentrated risk; the Operator earns primarily through personal work; the Entrepreneur has modest liquidity and income with real growth opportunities. Every profile needs viable opening choices without mandatory rescue financing under ordinary conditions. Unimplemented growth is not an opening advantage.
 
-Before activating this model, review one integrated fixture per business, including compensation dependence, valuation basis, first due quarter, cash reserves, and company/player cash reconciliation. Accounting checks do not establish balance or enjoyment; assess both simulations and family playtests. The temporary legacy treatment remains until that fixture checkpoint.
+The approved fixtures are:
+
+| Annual company fact | Small Business Owner | Self-Employed Operator | Early-Stage Entrepreneur |
+| --- | ---: | ---: | ---: |
+| Revenue | $500,000 | $180,000 | $300,000 |
+| Non-owner operating costs | $396,000 | $72,000 | $234,000 |
+| External management included above | $60,000 | $0 | $0 |
+| Fixed owner work compensation | $24,000 | $84,000 | $36,000 |
+| Operating profit after labor | $80,000 | $24,000 | $30,000 |
+| Operating enterprise value | $320,000 | $90,000 | $150,000 |
+| Opening company cash | $15,000 | $10,000 | $15,000 |
+| Opening company loan principal | $60,000 | $20,000 | $60,000 |
+| Opening company equity | $275,000 | $80,000 | $105,000 |
+
+The Owner's EV is 4x after-labor profit; the Entrepreneur's is 5x. The Operator's practice value is approximately 0.8333x $108,000 owner earnings before financing ($84,000 work pay plus $24,000 after-labor profit), not a passive-profit multiple. All three are wholly owned. Opening company reserves are company assets, not a deduction from personal cash or a second credit of loan proceeds.
+
+| Ordinary quarterly cash flow | Small Business Owner | Self-Employed Operator | Early-Stage Entrepreneur |
+| --- | ---: | ---: | ---: |
+| Company cash before owner work pay | $26,000 | $27,000 | $16,500 |
+| Owner work pay | $6,000 | $21,000 | $9,000 |
+| Company loan payment | $2,819.38 | $939.79 | $2,819.38 |
+| Retained cash from surplus | $3,436.12 | $1,012.04 | $936.12 |
+| Ownership distribution | $13,744.50 | $4,048.17 | $3,744.50 |
+| Personal surplus after living/personal debt, before yield | $6,994.50 | $11,548.17 | $3,144.50 |
+
+Starting companies operate from Q1, with their opening loans first due in Q1 and maturing in Q28. Final on-time payments are $2,819.39, $939.92 and $2,819.39. Misses preserve maturity and unpaid claims; remaining principal is due at maturity, with ordinary principal interest continuing afterward without interest on interest.
+
+Net current non-owner operations settle first, then fixed current work pay, older operating/compensation claims proportionally, company-loan claims proportionally, then dividends. A partial or unpaid work payment is a company liability to that worker, not personal income received or an external payable. Salary cannot be changed by a player to bypass a lender. The engine may post net non-owner operating cash plus explicit compensation rather than every customer receipt and supplier expense; compensation is deducted exactly once.
+
+Working-owner company transfers and labor-exit actions remain unsupported, including after company debt payoff. Replacement labor remains a necessary cost in any future passive-return calculation. Physical-device and strategy/family playtests are still required for balance and enjoyment; reconciled accounting alone does not establish them.
 
 ## 16.4 Business performance by economy [PROTOTYPE]
 
@@ -1102,7 +1125,7 @@ For V1 fixed-rate player-to-player loans:
 12. **Prepayment:** No prepayment or early payoff mechanic is supported in this slice.
 13. **Insufficient cash:** Mandatory quarterly payments follow section 17.4.2: pay affordable amounts, record arrears, and continue the quarter. Discretionary funding/purchases remain all-or-nothing; insufficient cash does not authorize negative balances or emergency funding.
 
-> **Decision Scope:** This policy resolves only the fixed player-loan calculation subset of A2. A2 remains **OPEN** for opening personal-debt schedules, the Property Starter mortgage, opening business debt, bank-loan period conventions, variable-rate resets, and refinancing rules. Section 17.4.2 resolves the initial mandatory-payment/default subset of A5. Collateral, lien priority, formal bankruptcy, and write-offs remain **OPEN**.
+> **Decision Scope:** This policy resolves only the fixed player-loan calculation subset of A2. A2 remains **OPEN** for opening personal-debt schedules, the Property Starter mortgage, new bank-loan period conventions, variable-rate resets, and refinancing rules. Opening company debt follows the approved fixtures in section 16.3.2. Section 17.4.2 resolves the initial mandatory-payment/default subset of A5. Collateral, lien priority, formal bankruptcy, and write-offs remain **OPEN**.
 
 ### 17.4.2 Mandatory payments, default, and cash recovery [PROTOTYPE]
 
@@ -1193,9 +1216,9 @@ The core design is established, but the following rules must be resolved or veri
 | **ID** | **Decision to settle**                                                                                                                                                   | **Why it matters**                                                                                                |
 |--------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
 | A1     | Quarter-start recurring entitlement convention [PROTOTYPE]. Entitlement for Quarter N is determined by position at start of Quarter N (future cash interest uses quarter-start cash; future dividends use quarter-start holdings). Actual implementation of market dividends, cash yield, and exact annual-to-quarter conversion remains deferred. | Prevents double payment, late-round capture of unearned income, and first/last-spotlight advantage.               |
-| A2     | Opening personal debts use 8.00% fixed APR, quarterly payment = 3 × monthly fixture, fixed-payment amortization with final cleanup [PROTOTYPE subset]. Opening business debt, new bank loans, and rate resets remain OPEN. | Current income/surplus fixtures imply payments but do not define complete debt schedules. Fixed player loans (Section 17.4.1) and opening personal debts are resolved as prototype. |
+| A2     | Opening personal debts use 8.00% fixed APR, quarterly payment = 3 × monthly fixture, fixed-payment amortization with final cleanup [PROTOTYPE subset]. Opening business loans use section 16.3.2's approved 8% / 28-quarter Q1 schedule. New bank loans and rate resets remain OPEN. | Current income/surplus fixtures imply payments but do not define complete debt schedules. Fixed player loans (Section 17.4.1) and opening personal debts are resolved as prototype. |
 | A3     | Property Starter mortgage grandfathered [PROTOTYPE]. \$255k at 5.50% APR, \$4,335.37 quarterly payment, 77.27% LTV accepted as legacy loan without new-loan underwriting. | Choose explicit legacy-loan treatment or adjust the fixture; do not silently bypass underwriting. Resolved as grandfathered legacy loan. |
-| A4 | Sections 16.3.1-16.3.2 approve 80/20 retained-profit settlement, quarter-start entitlement, entity cash/losses, temporary legacy owner income, and unified calibration direction. Concrete starting-business fixtures and further performance normalization remain OPEN. | Prevents duplicate income/debt and gives retained cash an explicit home. |
+| A4 | Sections 16.3.1-16.3.2 approve 80/20 retained-profit settlement, quarter-start entitlement, entity cash/losses, temporary legacy owner income, and unified calibration direction. Starting-company fixtures and loan/work settlement are approved in section 16.3.2; further performance normalization remains OPEN. | Prevents duplicate income/debt and gives retained cash an explicit home. |
 | A5 | Section 17.4.2 approves mandatory shortfalls, proportional partial payments, arrears, simple principal interest, private outcomes, and cash recovery. Collateral, bankruptcy/write-offs, broader transfers, equity issuance, cost basis and consent remain OPEN. | The table continues while unpaid claims remain explicit and collectible. |
 | A6     | Define reservation, cancellation, inspection costs, expiry, and the atomic close of linked funding plus asset purchase.                                                  | Prevents double-spending offers or leaving the buyer with an unintended loan when an acquisition fails.           |
 

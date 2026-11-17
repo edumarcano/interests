@@ -103,7 +103,7 @@ export function createPlayerSnapshot(
   let unpaidInterestReceivableCents = 0;
 
   for (const loan of Object.values(state.finance.loansById)) {
-    if (loan.borrowerPlayerId === playerId)
+    if (loan.kind !== "company-loan" && loan.borrowerPlayerId === playerId)
       unpaidObligationsCents = safeAdd(
         unpaidObligationsCents,
         loan.unpaidInterestCents,

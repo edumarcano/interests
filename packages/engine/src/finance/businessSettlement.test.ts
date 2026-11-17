@@ -187,10 +187,9 @@ describe("retained-profit-v1", () => {
     const { state, settlements, opportunity, buyer } = journey;
     expect(
       settlements.map((r) =>
-        r.settlementOutcome.businesses.map((x) => [
-          x.operatingCashCents,
-          x.closingCashCents,
-        ]),
+        r.settlementOutcome.businesses
+          .filter((x) => x.assetId === opportunity.assetId)
+          .map((x) => [x.operatingCashCents, x.closingCashCents]),
       ),
     ).toEqual([
       [],
@@ -199,7 +198,7 @@ describe("retained-profit-v1", () => {
       [[375_000, 225_000]],
     ]);
     expect(settlements.map((r) => r.state.finance.cashByPlayer[buyer])).toEqual(
-      [447_500, 475_582, 503_875, 532_379],
+      [721_950, 1_026_541, 1_333_416, 1_642_592],
     );
     expect(state.currentQuarter).toBe(5);
     const company = state.finance.assetsById[opportunity.assetId];
@@ -217,22 +216,22 @@ describe("retained-profit-v1", () => {
     expect(
       projectPlayerGameState(state, buyer).self.lastSettlement
         ?.businessDistributions,
-    ).toEqual([{ assetId: company.id, amountCents: 300_000 }]);
+    ).toContainEqual({ assetId: company.id, amountCents: 300_000 });
     for (const asset of Object.values(state.finance.assetsById))
       if (
         asset.kind === "business" &&
-        asset.cashPolicyId === "legacy-owner-income-v1"
+        asset.cashPolicyId === "starting-company-v1"
       )
-        expect([asset.cashCents, asset.operatingArrearsCents]).toEqual([0, 0]);
+        expect(asset.workCompensation?.arrearsCents).toBe(0);
     expect(financedJourney(3)).toEqual(journey);
   });
 
-  it("continues through a genuine Q3 shortfall despite business payouts and recovers the matured loan in Q4", () => {
+  it("repays the shorter loan without default after starting-company income normalization", () => {
     const { state, settlements } = financedJourney(2);
     const missed = settlements[2]?.settlementOutcome.loanPayments.filter(
       (p) => p.paidCents < p.dueCents,
     );
-    expect(missed?.length).toBeGreaterThan(0);
+    expect(missed).toEqual([]);
     expect(settlements[2]?.state.currentQuarter).toBe(4);
     expect(state.currentQuarter).toBe(5);
     const loan = Object.values(state.finance.loansById).find(

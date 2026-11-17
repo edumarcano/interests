@@ -231,6 +231,8 @@ export function applyQuarterSettlement(
     }
 
     const businesses: BusinessSettlementOutcome[] = [];
+    const loansById: Record<LoanId, Loan> = { ...state.finance.loansById };
+    const loanPayments: LoanPaymentOutcome[] = [];
     for (const assetId of (
       Object.keys(state.finance.quarterStartBasis.businessesById) as AssetId[]
     ).sort()) {
@@ -241,10 +243,13 @@ export function applyQuarterSettlement(
         asset,
         required(state.finance.quarterStartBasis.businessesById[assetId]),
         quarter,
+        loansById,
       );
       if (!plan) continue;
       for (const posting of plan.postings) planPosting(posting);
       businesses.push(plan.outcome);
+      Object.assign(loansById, plan.loansById);
+      loanPayments.push(...plan.loanPayments);
     }
 
     const livingByPlayer = {} as Record<PlayerId, LivingPaymentOutcome>;
@@ -290,7 +295,7 @@ export function applyQuarterSettlement(
     const obligations = {} as Record<LoanId, LoanObligation>;
     for (const loanId of loanIds) {
       const loan = state.finance.loansById[loanId];
-      if (!loan) continue;
+      if (!loan || loan.kind === "company-loan") continue;
       const obligation = calculateLoanObligation(loan, quarter);
       if (obligation) obligations[loanId] = obligation;
     }
@@ -301,9 +306,12 @@ export function applyQuarterSettlement(
       let totalDue = new FinanceDecimal(0);
       for (const loanId of loanIds) {
         const due = obligations[loanId];
+        const candidate = state.finance.loansById[loanId];
         if (
           due &&
-          state.finance.loansById[loanId]?.borrowerPlayerId === playerId
+          candidate &&
+          candidate.kind !== "company-loan" &&
+          candidate.borrowerPlayerId === playerId
         ) {
           weights[loanId] = due.amountDueCents;
           totalDue = totalDue.plus(due.amountDueCents);
@@ -314,12 +322,10 @@ export function applyQuarterSettlement(
         : cents(totalDue.toNumber());
       Object.assign(allocated, allocateWeightedCents(payable, weights));
     }
-    const loansById: Record<LoanId, Loan> = { ...state.finance.loansById };
-    const loanPayments: LoanPaymentOutcome[] = [];
     for (const loanId of loanIds) {
       const due = obligations[loanId];
       const loan = loansById[loanId];
-      if (!due || !loan) continue;
+      if (!due || !loan || loan.kind === "company-loan") continue;
       const applied = applyLoanPaymentAllocation(
         loan,
         due,
@@ -413,6 +419,14 @@ export function applyQuarterSettlement(
         [asset.id]: {
           ...asset,
           operatingArrearsCents: business.closingOperatingArrearsCents,
+          ...(asset.workCompensation && business.workCompensation
+            ? {
+                workCompensation: {
+                  ...asset.workCompensation,
+                  arrearsCents: business.workCompensation.closingArrearsCents,
+                },
+              }
+            : {}),
         },
       };
     }

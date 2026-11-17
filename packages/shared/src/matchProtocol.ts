@@ -122,7 +122,9 @@ export interface MatchSelfBusinessAssetView {
   readonly equityValueCents?: number;
   readonly expectedPayoutCents?: number | null;
   readonly payoutQuarter?: number | null;
-  readonly incomeTreatment?: "included-owner-income" | "business-distribution";
+  readonly incomeTreatment?: "work-and-ownership" | "business-distribution";
+  readonly expectedWorkPayCents?: number | null;
+  readonly workCompensationArrearsCents?: number;
   readonly id: string;
   readonly kind: "business";
   readonly annualRevenueCents: number;
@@ -135,7 +137,7 @@ export interface MatchSelfBusinessAssetView {
 export interface MatchSelfLoanView {
   readonly id: string;
   readonly kind: string;
-  readonly role: "borrower" | "lender";
+  readonly role: "borrower" | "lender" | "company-borrower";
   readonly counterpartyNickname: string;
   readonly originalPrincipalCents: number;
   readonly outstandingPrincipalCents: number;
@@ -149,6 +151,12 @@ export interface MatchSelfLoanView {
 }
 
 export interface SelfSettlementView {
+  readonly workCompensation?: readonly {
+    readonly assetId: string;
+    readonly dueCents: number;
+    readonly paidCents: number;
+    readonly unpaidCents: number;
+  }[];
   readonly businessDistributions?: readonly {
     readonly assetId: string;
     readonly amountCents: number;
@@ -159,7 +167,7 @@ export interface SelfSettlementView {
   readonly livingArrearsCents: number;
   readonly loanPayments: readonly {
     readonly loanId: string;
-    readonly role: "borrower" | "lender";
+    readonly role: "borrower" | "lender" | "company-borrower";
     readonly dueCents: number;
     readonly paidCents: number;
     readonly principalPaidCents: number;
