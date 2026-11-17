@@ -124,8 +124,9 @@ export function PublicMarketsPanel({
     >
       <h3 id="public-markets-title">Public markets</h3>
       <p>
-        Buy, sell or rebalance in one spotlight action. Each trade costs 0.25%.
-        Current-quarter dividends use opening holdings.
+        Buy, sell or rebalance in one spotlight action. Each trade costs{" "}
+        {(funds[0]?.tradeFeeBps ?? 0) / 100}%. Current-quarter dividends use
+        opening holdings.
       </p>
       <div style={{ display: "grid", gap: "1rem" }}>
         {funds.map((fund) => (

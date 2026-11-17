@@ -1,3 +1,5 @@
+import { TRANSACTION_FEES_BPS } from "./completion";
+
 export const PUBLIC_MARKET_INSTRUMENT_IDS = [
   "broad-market-fund",
   "growth-fund",
@@ -58,4 +60,5 @@ export function isPublicMarketInstrumentId(
   );
 }
 
-export const PUBLIC_MARKET_TRADE_FEE_BPS = 25 as const;
+export const PUBLIC_MARKET_TRADE_FEE_BPS =
+  TRANSACTION_FEES_BPS.publicMarket.purchase;
