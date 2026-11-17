@@ -4,6 +4,8 @@ import type {
   GetMatchResponse,
   GetRoomResponse,
   JoinRoomResponse,
+  PublicMarketTradeLeg,
+  PublicMarketTradePreview,
   RecoverRoomResponse,
   RotateRecoveryCodeResponse,
   RuntimeInfoResponse,
@@ -135,4 +137,21 @@ export async function getRuntimeInfo(): Promise<RuntimeInfoResponse> {
     credentials: "include",
   });
   return handleResponse<RuntimeInfoResponse>(res);
+}
+
+export async function previewPublicMarkets(
+  roomCode: string,
+  trades: readonly PublicMarketTradeLeg[],
+): Promise<PublicMarketTradePreview> {
+  const res = await fetch(
+    `/api/rooms/${encodeURIComponent(roomCode)}/public-market-preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ trades }),
+    },
+  );
+  return (await handleResponse<{ preview: PublicMarketTradePreview }>(res))
+    .preview;
 }

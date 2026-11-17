@@ -59,7 +59,35 @@ export interface CancelActiveTransactionCommandPayload {
   readonly transactionId: string;
 }
 
+export interface PublicMarketTradeLeg {
+  readonly instrumentId: string;
+  readonly buyCents: number;
+  readonly sellCents: number;
+}
+export interface TradePublicMarketsCommandPayload {
+  readonly type: "TRADE_PUBLIC_MARKETS";
+  readonly trades: readonly PublicMarketTradeLeg[];
+}
+export interface PublicMarketTradePreview {
+  readonly revision: number;
+  readonly feeRateBps: number;
+  readonly trades: readonly {
+    readonly instrumentId: string;
+    readonly buyCents: number;
+    readonly sellCents: number;
+    readonly feeCents: number;
+    readonly removedBasisCents: number;
+    readonly realizedGainCents: number;
+    readonly resultingValueCents: number;
+    readonly resultingBasisCents: number;
+  }[];
+  readonly totalFeesCents: number;
+  readonly cashImpactCents: number;
+  readonly resultingCashCents: number;
+}
+
 export type PlayerCommand =
+  | TradePublicMarketsCommandPayload
   | ChooseObjectiveCommandPayload
   | BeginRoundCommandPayload
   | PassSpotlightCommandPayload
@@ -199,6 +227,9 @@ export interface MatchSelfFinancialDetailsView {
   readonly completedObservationQuarters: number;
   readonly publicMarkets: readonly {
     readonly id: string;
+    readonly name: string;
+    readonly annualDividendYieldBps: number;
+    readonly tradeFeeBps: number;
     readonly valueCents: number;
     readonly basisCents: number;
   }[];

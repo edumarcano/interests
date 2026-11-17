@@ -87,6 +87,7 @@ export function createProgress(
             realizedGainsCents: cents(0),
             financingInterestReceivedCents: cents(0),
             disposals: [],
+            publicMarketDisposals: [],
             profitableDisposalAssetIds: [],
           },
         ];

@@ -1,5 +1,11 @@
 import type { ObjectiveId } from "@interests/rules";
-import type { OpportunityId, PlayerId, TransactionId } from "@interests/shared";
+import type {
+  OpportunityId,
+  PlayerId,
+  TradePublicMarketsCommandPayload,
+  TransactionId,
+} from "@interests/shared";
+import { tradePublicMarketsAndAdvanceSpotlight } from "../finance/publicMarketTrading.js";
 import type { GameState } from "../model/gameState.js";
 import {
   investigatePrivateBusinessPurchaseOpportunity,
@@ -72,6 +78,7 @@ export interface WireCancelActiveTransactionCommand {
 }
 
 export type WirePlayerCommand =
+  | TradePublicMarketsCommandPayload
   | WireChooseObjectiveCommand
   | WireBeginRoundCommand
   | WirePassSpotlightCommand
@@ -120,6 +127,12 @@ export function applyPlayerCommand(
     return { ok: false, state, code: "WRONG_PHASE", journalEntries: [] };
 
   switch (wireCommand.type) {
+    case "TRADE_PUBLIC_MARKETS":
+      return tradePublicMarketsAndAdvanceSpotlight(
+        state,
+        actorPlayerId,
+        wireCommand.trades,
+      );
     case "CHOOSE_OBJECTIVE": {
       if (typeof wireCommand.objectiveId !== "string") {
         return {

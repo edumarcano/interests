@@ -178,6 +178,7 @@ export const App: React.FC = () => {
           />
         ) : realtimeState.match ? (
           <MatchView
+            roomCode={currentRoomCode}
             match={realtimeState.match}
             presence={realtimeState.presence}
             pauseReasons={realtimeState.pauseReasons}

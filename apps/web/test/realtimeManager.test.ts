@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import {
+  type PlayerCommand,
   SOCKET_CLIENT_EVENTS,
   SOCKET_PROTOCOL_VERSION,
   SOCKET_SERVER_EVENTS,
@@ -193,48 +194,56 @@ describe("RealtimeManager unit tests", () => {
     expect(manager.getPendingCommand()).toBeNull();
   });
 
-  it("calling sendCommand with the same command after timeout reuses the exact same envelope and commandId", async () => {
-    const manager = new RealtimeManager();
-    manager.connect("ROOM1");
-
-    // First attempt times out
-    const timeoutResult = await manager.sendCommand(
-      { type: "CHOOSE_OBJECTIVE", objectiveId: "founder" },
-      10,
-    );
-    expect(timeoutResult.ok).toBe(false);
-    expect(timeoutResult.error.code).toBe("TIMEOUT");
-
-    const pending = manager.getPendingCommand();
-    expect(pending).not.toBeNull();
-    const firstCommandId = pending?.commandId;
-
-    // Second attempt via standard sendCommand (as normal UI component does on retry)
-    let secondSentEnvelope: any = null;
-    fakeSocket.on(
-      SOCKET_CLIENT_EVENTS.COMMAND,
-      (envelope: any, ack?: Function) => {
-        secondSentEnvelope = envelope;
-        if (ack) {
-          ack({
-            ok: true,
-            commandId: envelope.commandId,
-            outcome: "ACCEPTED",
-            revision: 1,
-          });
-        }
+  it.each<readonly [string, PlayerCommand]>([
+    ["objective", { type: "CHOOSE_OBJECTIVE", objectiveId: "founder" }],
+    [
+      "market basket",
+      {
+        type: "TRADE_PUBLIC_MARKETS",
+        trades: [
+          { instrumentId: "growth-fund", buyCents: 10_000, sellCents: 0 },
+        ],
       },
-    );
+    ],
+  ])(
+    "calling sendCommand with the same %s after timeout reuses the exact envelope",
+    async (_name, command) => {
+      const manager = new RealtimeManager();
+      manager.connect("ROOM1");
 
-    const secondResult = await manager.sendCommand({
-      type: "CHOOSE_OBJECTIVE",
-      objectiveId: "founder",
-    });
-    expect(secondResult.ok).toBe(true);
-    expect(secondResult.commandId).toBe(firstCommandId);
-    expect(secondSentEnvelope.commandId).toBe(firstCommandId);
-    expect(manager.getPendingCommand()).toBeNull();
-  });
+      // First attempt times out
+      const timeoutResult = await manager.sendCommand(command, 10);
+      expect(timeoutResult.ok).toBe(false);
+      expect(timeoutResult.error.code).toBe("TIMEOUT");
+
+      const pending = manager.getPendingCommand();
+      expect(pending).not.toBeNull();
+      const firstCommandId = pending?.commandId;
+
+      // Second attempt via standard sendCommand (as normal UI component does on retry)
+      let secondSentEnvelope: any = null;
+      fakeSocket.on(
+        SOCKET_CLIENT_EVENTS.COMMAND,
+        (envelope: any, ack?: Function) => {
+          secondSentEnvelope = envelope;
+          if (ack) {
+            ack({
+              ok: true,
+              commandId: envelope.commandId,
+              outcome: "ACCEPTED",
+              revision: 1,
+            });
+          }
+        },
+      );
+
+      const secondResult = await manager.sendCommand(structuredClone(command));
+      expect(secondResult.ok).toBe(true);
+      expect(secondResult.commandId).toBe(firstCommandId);
+      expect(secondSentEnvelope.commandId).toBe(firstCommandId);
+      expect(manager.getPendingCommand()).toBeNull();
+    },
+  );
 
   it("calling sendCommand with a different command after timeout generates a new envelope", async () => {
     const manager = new RealtimeManager();

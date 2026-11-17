@@ -2,6 +2,8 @@ import {
   BUSINESS_CASH_POLICIES,
   OBJECTIVE_TARGETS,
   PUBLIC_MARKET_INSTRUMENT_IDS,
+  PUBLIC_MARKET_INSTRUMENTS,
+  PUBLIC_MARKET_TRADE_FEE_BPS,
 } from "@interests/rules";
 import type {
   MatchId,
@@ -425,6 +427,10 @@ export function projectPlayerGameState(
         id,
         valueCents: state.finance.publicMarketsByPlayer[playerId]![id],
         basisCents: progress.publicMarketBasis[id],
+        name: PUBLIC_MARKET_INSTRUMENTS[id].name,
+        annualDividendYieldBps:
+          PUBLIC_MARKET_INSTRUMENTS[id].annualDividendYieldBps,
+        tradeFeeBps: PUBLIC_MARKET_TRADE_FEE_BPS,
       })),
       properties: Object.values(state.finance.assetsById)
         .filter(

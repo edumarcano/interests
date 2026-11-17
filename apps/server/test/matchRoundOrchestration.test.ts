@@ -242,6 +242,145 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     return { roomCode, cookies, clients, matchId };
   }
 
+  it("quotes authenticated private market baskets and persists a final trade, fees and settlement exactly once", async () => {
+    const { clients, roomCode, cookies, matchId } =
+      await setupMatchAtRoundStart();
+    const trades = [
+      { instrumentId: "growth-fund", buyCents: 10_000, sellCents: 0 },
+    ];
+    const request = (
+      cookie?: string,
+      payload: Record<string, unknown> = { trades },
+      origin?: string,
+    ) =>
+      server.fastify.inject({
+        method: "POST",
+        url: `/api/rooms/${roomCode}/public-market-preview`,
+        cookies: cookie ? { interests_session: cookie } : {},
+        payload,
+        headers: origin ? { origin } : {},
+      });
+    expect((await request()).statusCode).toBe(401);
+    expect(
+      (await request(cookies[0], { trades }, "https://unrelated.example"))
+        .statusCode,
+    ).toBe(403);
+    expect(
+      (await request(cookies[0], { trades, actorPlayerId: "player-4" }))
+        .statusCode,
+    ).toBe(400);
+    expect((await request("invalid-session")).statusCode).toBe(403);
+    const before = matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson;
+    const offturn = await request(cookies[3]);
+    expect(offturn.statusCode).toBe(200);
+    expect(offturn.headers["cache-control"]).toBe("no-store");
+    const quote = JSON.parse(offturn.body).preview;
+    expect(quote).toMatchObject({
+      revision: 4,
+      totalFeesCents: 25,
+      cashImpactCents: -10_025,
+    });
+    expect(Object.keys(JSON.parse(offturn.body))).toEqual(["preview"]);
+    expect(matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson).toBe(
+      before,
+    );
+    expect(
+      await sendCommand(clients[0]!.socket, {
+        commandId: randomUUID(),
+        expectedRevision: 4,
+        command: { type: "BEGIN_ROUND" },
+      }),
+    ).toMatchObject({ ok: true, revision: 5 });
+    for (let index = 0; index < 3; index++) {
+      expect(
+        await sendCommand(clients[index]!.socket, {
+          commandId: randomUUID(),
+          expectedRevision: 5 + index,
+          command: { type: "PASS_SPOTLIGHT" },
+        }),
+      ).toMatchObject({ ok: true, revision: 6 + index });
+    }
+    const privateViewsBefore = await Promise.all(
+      cookies.map(
+        async (cookie) =>
+          JSON.parse(
+            (
+              await server.fastify.inject({
+                method: "GET",
+                url: `/api/rooms/${roomCode}/match`,
+                cookies: { interests_session: cookie },
+              })
+            ).body,
+          ).match,
+      ),
+    );
+    const snapshotBefore = JSON.parse(
+      matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson,
+    ) as GameState;
+    const fourth = snapshotBefore.playerOrder[3]!;
+    const envelope = {
+      commandId: randomUUID(),
+      expectedRevision: 8,
+      command: { type: "TRADE_PUBLIC_MARKETS", trades },
+    };
+    const accepted = await sendCommand(clients[3]!.socket, envelope);
+    expect(accepted).toMatchObject({ ok: true, revision: 9 });
+    const committed =
+      matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson;
+    const snapshot = JSON.parse(committed) as GameState;
+    expect(snapshot.currentQuarter).toBe(2);
+    expect(snapshot.lastSettledQuarter).toBe(1);
+    expect(snapshot.counters.settlement).toBe(
+      snapshotBefore.counters.settlement + 1,
+    );
+    expect(
+      snapshot.progress.byPlayer[fourth]!.publicMarketBasis["growth-fund"],
+    ).toBe(10_025);
+    expect(await sendCommand(clients[3]!.socket, envelope)).toEqual(accepted);
+    expect(matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson).toBe(
+      committed,
+    );
+    const receipt = matchRepo.findCommandReceipt(
+      matchId as MatchId,
+      fourth,
+      envelope.commandId,
+    );
+    const events = db
+      .prepare(
+        "SELECT event_kind, payload_json FROM match_events WHERE match_id = ? AND command_sequence = ? ORDER BY event_index ASC",
+      )
+      .all(matchId, receipt!.acceptedSequence) as {
+      event_kind: string;
+      payload_json: string;
+    }[];
+    expect(
+      events.filter((event) => event.event_kind === "settlement-outcome"),
+    ).toHaveLength(1);
+    const journals = events
+      .filter((event) => event.event_kind === "journal-entry")
+      .map((event) => JSON.parse(event.payload_json));
+    expect(
+      journals.slice(0, 2).map((entry) => [entry.reason, entry.amountCents]),
+    ).toEqual([
+      ["public-market-purchase", 10_000],
+      ["public-market-trade-fee", 25],
+    ]);
+    for (let index = 0; index < 3; index++) {
+      const view = privateViewsBefore[index];
+      expect(view.self.playerId).not.toBe(fourth);
+      expect(
+        view.self.financialDetails.publicMarkets.find(
+          (fund: { id: string }) => fund.id === "growth-fund",
+        ).valueCents,
+      ).toBe(0);
+      expect(
+        view.players.every(
+          (player: object) => !Object.hasOwn(player, "publicMarkets"),
+        ),
+      ).toBe(true);
+    }
+  });
+
   it("1. Host can send durable BEGIN_ROUND", async () => {
     const { clients, roomCode, cookies } = await setupMatchAtRoundStart();
     const hostSocket = clients[0]!.socket;

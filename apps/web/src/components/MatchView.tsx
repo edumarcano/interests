@@ -14,6 +14,7 @@ import { RoundStartView } from "./RoundStartView.js";
 import { SpotlightView } from "./SpotlightView.js";
 
 interface Props {
+  roomCode?: string;
   match: MatchPlayerView;
   presence: RoomPresencePayload | null;
   pauseReasons: readonly PauseReason[];
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export const MatchView: React.FC<Props> = ({
+  roomCode,
   match,
   presence,
   pauseReasons,
@@ -59,6 +61,7 @@ export const MatchView: React.FC<Props> = ({
 
       {match.round?.stage === "round-start" && (
         <RoundStartView
+          roomCode={roomCode}
           match={match}
           isHost={isHost}
           isPaused={isPaused}
@@ -68,6 +71,7 @@ export const MatchView: React.FC<Props> = ({
 
       {match.round?.stage === "spotlight" && (
         <SpotlightView
+          roomCode={roomCode}
           match={match}
           isPaused={isPaused}
           onSendCommand={onSendCommand}

@@ -1,3 +1,4 @@
+import { PUBLIC_MARKET_INSTRUMENT_IDS } from "@interests/rules";
 import { z } from "zod";
 
 export const ChooseObjectivePayloadSchema = z
@@ -81,7 +82,30 @@ export const CancelActiveTransactionPayloadSchema = z
   })
   .strict();
 
+export const PublicMarketTradesSchema = z
+  .array(
+    z
+      .object({
+        instrumentId: z.enum(PUBLIC_MARKET_INSTRUMENT_IDS),
+        buyCents: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+        sellCents: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+      })
+      .strict(),
+  )
+  .min(1)
+  .max(3);
+export const PublicMarketPreviewSchema = z
+  .object({ trades: PublicMarketTradesSchema })
+  .strict();
+export const TradePublicMarketsPayloadSchema = z
+  .object({
+    type: z.literal("TRADE_PUBLIC_MARKETS"),
+    trades: PublicMarketTradesSchema,
+  })
+  .strict();
+
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
+  TradePublicMarketsPayloadSchema,
   ChooseObjectivePayloadSchema,
   BeginRoundPayloadSchema,
   PassSpotlightPayloadSchema,

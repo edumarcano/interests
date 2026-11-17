@@ -3,6 +3,7 @@ import {
   applyPlayerCommand,
   createGame,
   type GameState,
+  previewPublicMarketTrade,
 } from "@interests/engine";
 import {
   asMatchId,
@@ -10,6 +11,8 @@ import {
   type CommandAckResult,
   type MatchPlayerView,
   type PlayerId,
+  type PublicMarketTradeLeg,
+  type PublicMarketTradePreview,
   type RoomMemberId,
 } from "@interests/shared";
 import type { Socket } from "socket.io";
@@ -285,6 +288,32 @@ export class MatchService {
       matchMembers: matchWithMembers.members,
       hostMemberId: roomInfo.room.hostMemberId,
     });
+  }
+
+  previewPublicMarkets(params: {
+    roomCode: string;
+    sessionToken: string;
+    trades: readonly PublicMarketTradeLeg[];
+  }): PublicMarketTradePreview {
+    const recipient = this.getMatchView(params).self.playerId;
+    const match = this.matchRepository.findMatchByRoomCode(params.roomCode);
+    if (!match)
+      throw new MatchError("NO_ACTIVE_MATCH", "No active match found", 404);
+    const room = this.matchRepository.findRoomWithMembers(params.roomCode);
+    if (!room) throw new MatchError("ROOM_NOT_FOUND", "Room not found", 404);
+    const state = this.validatePersistedMatchOrFault(
+      params.roomCode,
+      match,
+      room.members,
+    );
+    const result = previewPublicMarketTrade(state, recipient, params.trades);
+    if (!result.ok)
+      throw new MatchError(
+        result.code,
+        "Public-market basket cannot be executed",
+        400,
+      );
+    return result.preview;
   }
 
   getMatchViewForMember(params: {

@@ -794,3 +794,22 @@ Implement packet 2 of ARCH-040 before exposing new transaction families. Canonic
 | Lifecycle | Model objective-victory/safety-draw results, validate terminal shapes, and reject gameplay commands on a finished state. Actual finale execution, Q32 termination and FINISHED operational persistence follow in packet 8. |
 
 Compatibility identifiers become engine `0.0.7`, rules `0.0.5`, shared `0.0.9`, persistence `0.0.6`. Existing snapshots need their compatible build. Synthetic accounting fixtures explicitly stage opening metadata; they are not evidence of ordinary objective reachability. No bank/NPC origination, market/career command or recurring content generator is activated by this packet.
+
+## ARCH-042 - Atomic public-market baskets and private quotes
+
+**Status:** Accepted
+**Date:** November 17, 2026
+
+Packet 3 executes public-market trading using the existing value-balance representation. No shares, unit prices, tax lots or asset entities are introduced.
+
+| Boundary | Implementation |
+| --- | --- |
+| Command | `TRADE_PUBLIC_MARKETS` accepts one to three distinct instrument legs, each a positive safe-integer buy or sell amount. Execution requires the actor's spotlight and no active transaction. Sales fund purchases within the same atomic basket. |
+| Fees and basis | Charge 25 BPS of each leg's gross value with Decimal HALF_UP rounding. Add buy fees to weighted basis; remove proportional basis on a partial sale, all remaining basis on full disposal. Signed realized gain is gross proceeds less sale fee and removed basis. |
+| Evidence | Keep instrument, sale quarter, gross proceeds, fee, removed basis, realized gain/loss and opening exposure value in private canonical disposal records. Raw realization does not itself award objective progress; packet 8 applies seasoning and other measurement safeguards. Sale principal never becomes recurring income. |
+| Journals and rounds | Post gross sales then sale fees, followed by purchases and buy fees, in canonical instrument order within each group. Preview checks intermediate cash overflow as well as net affordability. Compose the basket with existing spotlight advancement; final settlement failure rejects every trade effect, RNG/counter change and journal. |
+| Quote privacy | An authenticated, origin-checked read-only POST returns only the recipient's basket fees, resulting values/basis and cash impact at the current revision. Off-turn planning respects cash reservations. Execution independently revalidates and uses ordinary command receipts. |
+| Entitlements | Preserve opening cash/fund dividend snapshots during trades. Quarterly price movements use closing holdings; the next quarter snapshots those resulting holdings. |
+| Browser | Parse dollar input into cents, request authoritative financial previews, and invalidate confirmation after draft or revision changes. Show holdings, basis, yields, per-leg fees and total cash impact. On timeout, reuse the original command ID for the same canonical command so the server can replay the existing receipt. |
+
+Compatibility identifiers become engine `0.0.8`, rules `0.0.6`, shared `0.0.10`, persistence `0.0.7`. Existing snapshots remain associated with their compatible build; no conversion occurs.

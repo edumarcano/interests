@@ -1,7 +1,8 @@
-import type {
-  CommandAckResult,
-  PlayerCommand,
-  PlayerCommandEnvelope,
+import {
+  type CommandAckResult,
+  canonicalJsonStringify,
+  type PlayerCommand,
+  type PlayerCommandEnvelope,
 } from "@interests/shared";
 
 /**
@@ -45,55 +46,7 @@ export function isSameLogicalCommand(
   a: PlayerCommand,
   b: PlayerCommand,
 ): boolean {
-  if (a.type !== b.type) return false;
-  switch (a.type) {
-    case "CHOOSE_OBJECTIVE":
-      return b.type === "CHOOSE_OBJECTIVE" && a.objectiveId === b.objectiveId;
-    case "BEGIN_ROUND":
-    case "PASS_SPOTLIGHT":
-      return true;
-    case "INVESTIGATE_OPPORTUNITY":
-      return (
-        b.type === "INVESTIGATE_OPPORTUNITY" &&
-        a.opportunityId === b.opportunityId
-      );
-    case "PURSUE_BUSINESS_CASH":
-      return (
-        b.type === "PURSUE_BUSINESS_CASH" && a.opportunityId === b.opportunityId
-      );
-    case "PURSUE_BUSINESS_WITH_PLAYER_LOAN":
-      return (
-        b.type === "PURSUE_BUSINESS_WITH_PLAYER_LOAN" &&
-        a.opportunityId === b.opportunityId &&
-        a.buyerCashContributionCents === b.buyerCashContributionCents &&
-        a.requestedPrincipalCents === b.requestedPrincipalCents
-      );
-    case "SUBMIT_PLAYER_LOAN_OFFER":
-      return (
-        b.type === "SUBMIT_PLAYER_LOAN_OFFER" &&
-        a.transactionId === b.transactionId &&
-        a.annualRateBps === b.annualRateBps &&
-        a.termQuarters === b.termQuarters
-      );
-    case "ACCEPT_PLAYER_LOAN_OFFER":
-      return (
-        b.type === "ACCEPT_PLAYER_LOAN_OFFER" &&
-        a.transactionId === b.transactionId &&
-        a.expectedTermsRevision === b.expectedTermsRevision
-      );
-    case "CLOSE_BUSINESS_PURCHASE":
-      return (
-        b.type === "CLOSE_BUSINESS_PURCHASE" &&
-        a.transactionId === b.transactionId
-      );
-    case "CANCEL_ACTIVE_TRANSACTION":
-      return (
-        b.type === "CANCEL_ACTIVE_TRANSACTION" &&
-        a.transactionId === b.transactionId
-      );
-    default:
-      return false;
-  }
+  return canonicalJsonStringify(a) === canonicalJsonStringify(b);
 }
 
 export function createCommandEnvelope(

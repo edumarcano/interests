@@ -1,5 +1,6 @@
 export * from "./matchProtocol.js";
+export * from "./primitives/canonicalJson.js";
 export * from "./primitives/ids.js";
 export * from "./transportProtocol.js";
 
-export const SHARED_VERSION = "0.0.9";
+export const SHARED_VERSION = "0.0.10";

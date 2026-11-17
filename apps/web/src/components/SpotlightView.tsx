@@ -6,16 +6,19 @@ import type {
 import type React from "react";
 import { useState } from "react";
 import { OpportunityCard } from "./OpportunityCard.js";
+import { PublicMarketsPanel } from "./PublicMarketsPanel.js";
 import { SelfFinanceSummary } from "./SelfFinanceSummary.js";
 import { TransactionPanel } from "./TransactionPanel.js";
 
 interface Props {
+  roomCode?: string;
   match: MatchPlayerView;
   isPaused: boolean;
   onSendCommand: (command: PlayerCommand) => Promise<CommandAckResult>;
 }
 
 export const SpotlightView: React.FC<Props> = ({
+  roomCode,
   match,
   isPaused,
   onSendCommand,
@@ -119,6 +122,15 @@ export const SpotlightView: React.FC<Props> = ({
 
       {/* Self Finances Summary */}
       <SelfFinanceSummary self={match.self} />
+
+      {roomCode && (
+        <PublicMarketsPanel
+          roomCode={roomCode}
+          match={match}
+          isPaused={isPaused}
+          onSendCommand={onSendCommand}
+        />
+      )}
 
       {/* Private Opportunity Card (Target Buyer, unpursued or investigating) */}
       {match.self.opportunity && !match.activeTransaction && (
