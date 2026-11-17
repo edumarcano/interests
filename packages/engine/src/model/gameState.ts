@@ -78,6 +78,7 @@ export interface QuarterStartFinanceBasis {
 }
 
 export interface BusinessQuarterBasis {
+  readonly annualManagementCostCents?: Cents;
   readonly cashPolicyId: BusinessCashPolicyId;
   readonly workCompensation?: {
     readonly playerId: PlayerId;
@@ -147,6 +148,7 @@ export interface WorkCompensation {
 }
 
 export interface BusinessAsset {
+  readonly annualManagementCostCents?: Cents;
   readonly cashPolicyId: BusinessCashPolicyId;
   readonly cashCents: Cents;
   readonly operatingArrearsCents: Cents;

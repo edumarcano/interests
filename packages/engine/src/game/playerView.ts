@@ -1,5 +1,8 @@
 import {
   BUSINESS_CASH_POLICIES,
+  OBJECTIVE_COMMON_INSTRUCTIONS,
+  OBJECTIVE_INSTRUCTIONS,
+  OBJECTIVE_INSTRUCTIONS_VERSION,
   OBJECTIVE_TARGETS,
   PUBLIC_MARKET_INSTRUMENT_IDS,
   PUBLIC_MARKET_INSTRUMENTS,
@@ -23,6 +26,7 @@ import {
   getAvailableCashCents,
   getReservedCashCents,
 } from "../transactions/reservations.js";
+import { currentAnnualLaborCompensation, getCareerOffers } from "./career";
 import { getActiveSpotlightPlayerId, getSpotlightOrder } from "./round.js";
 
 export interface PurePlayerSummary {
@@ -56,6 +60,7 @@ export interface PureBusinessAssetView {
   readonly incomeTreatment: "work-and-ownership" | "business-distribution";
   readonly expectedWorkPayCents: number | null;
   readonly workCompensationArrearsCents: number;
+  readonly annualManagementCostCents: number;
   readonly id: string;
   readonly kind: "business";
   readonly annualRevenueCents: number;
@@ -243,6 +248,12 @@ export function projectPlayerGameState(
                 ? opening
                 : {
                     cashPolicyId: asset.cashPolicyId,
+                    ...(asset.annualManagementCostCents !== undefined
+                      ? {
+                          annualManagementCostCents:
+                            asset.annualManagementCostCents,
+                        }
+                      : {}),
                     ...(asset.workCompensation
                       ? {
                           workCompensation: {
@@ -272,12 +283,17 @@ export function projectPlayerGameState(
           }
         }
         ownedAssets.push({
+          annualManagementCostCents: asset.annualManagementCostCents ?? 0,
           companyCashCents: asset.cashCents,
           operatingArrearsCents: asset.operatingArrearsCents,
           equityValueCents: equity.equityValueCents,
-          incomeTreatment: asset.workCompensation
-            ? "work-and-ownership"
-            : "business-distribution",
+          incomeTreatment:
+            asset.workCompensation &&
+            (asset.workCompensation.annualCompensationCents > 0 ||
+              (eligibleNow &&
+                (opening.workCompensation?.annualCompensationCents ?? 0) > 0))
+              ? "work-and-ownership"
+              : "business-distribution",
           expectedWorkPayCents,
           workCompensationArrearsCents:
             asset.workCompensation?.arrearsCents ?? 0,
@@ -410,6 +426,11 @@ export function projectPlayerGameState(
     state.finance.quarterStartBasis.recurringByPlayer[playerId]!;
   const self: PureSelfView = {
     financialDetails: {
+      careerOffers: getCareerOffers(state, playerId),
+      annualLaborCompensationCents: currentAnnualLaborCompensation(
+        state,
+        playerId,
+      ),
       quarterlyIncomeCents: currentRecurring.quarterlyIncomeCents,
       quarterlyLivingExpenseCents: currentRecurring.quarterlyLivingExpenseCents,
       entitledQuarterlyIncomeCents: entitledRecurring.quarterlyIncomeCents,
@@ -419,7 +440,16 @@ export function projectPlayerGameState(
         progress.labor.kind === "owner-work"
           ? { kind: "owner-work", assetId: progress.labor.assetId }
           : progress.labor.kind === "employment"
-            ? { kind: "employment", role: progress.labor.role }
+            ? {
+                kind: "employment",
+                role: progress.labor.role,
+                ...(progress.labor.ownershipPositionAssetId
+                  ? {
+                      ownershipPositionAssetId:
+                        progress.labor.ownershipPositionAssetId,
+                    }
+                  : {}),
+              }
             : { kind: "not-working" },
       focus: progress.focus,
       completedObservationQuarters: progress.quarters.length,
@@ -453,6 +483,11 @@ export function projectPlayerGameState(
       objectiveRequirements: selfPlayer.offeredObjectiveIds.map(
         (objectiveId) => ({
           objectiveId,
+          instructionsVersion: OBJECTIVE_INSTRUCTIONS_VERSION,
+          instructions: [
+            ...OBJECTIVE_INSTRUCTIONS[objectiveId],
+            ...OBJECTIVE_COMMON_INSTRUCTIONS,
+          ],
           targets: { ...OBJECTIVE_TARGETS[objectiveId] },
         }),
       ),

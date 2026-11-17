@@ -1,7 +1,9 @@
 import type { ObjectiveId } from "@interests/rules";
 import type {
+  AcceptCareerOfferCommandPayload,
   OpportunityId,
   PlayerId,
+  ResignLaborCommandPayload,
   TradePublicMarketsCommandPayload,
   TransactionId,
 } from "@interests/shared";
@@ -17,6 +19,7 @@ import {
   submitPlayerLoanFinancingOffer,
 } from "../transactions/cashBusinessPurchase.js";
 import { type ActionResult, applyAction } from "./actions.js";
+import { applyCareerCommand } from "./career";
 import {
   advanceSpotlight,
   beginRound,
@@ -79,6 +82,8 @@ export interface WireCancelActiveTransactionCommand {
 
 export type WirePlayerCommand =
   | TradePublicMarketsCommandPayload
+  | AcceptCareerOfferCommandPayload
+  | ResignLaborCommandPayload
   | WireChooseObjectiveCommand
   | WireBeginRoundCommand
   | WirePassSpotlightCommand
@@ -133,6 +138,12 @@ export function applyPlayerCommand(
         actorPlayerId,
         wireCommand.trades,
       );
+    case "ACCEPT_CAREER_OFFER":
+      if (typeof wireCommand.offerId !== "string" || !wireCommand.offerId)
+        return { ok: false, state, code: "INVALID_ACTION", journalEntries: [] };
+      return applyCareerCommand(state, actorPlayerId, wireCommand.offerId);
+    case "RESIGN_LABOR":
+      return applyCareerCommand(state, actorPlayerId, null);
     case "CHOOSE_OBJECTIVE": {
       if (typeof wireCommand.objectiveId !== "string") {
         return {

@@ -53,8 +53,33 @@ export function assertCompletionState(state: GameState): void {
     } else if (progress.labor.kind === "employment") {
       if (!["professional", "executive"].includes(progress.labor.role))
         throw new Error("Invalid employment role");
+      if (progress.labor.ownershipPositionAssetId !== undefined) {
+        const owned =
+          state.finance.assetsById[progress.labor.ownershipPositionAssetId];
+        if (
+          progress.labor.role !== "executive" ||
+          owned?.kind !== "business" ||
+          !(owned.ownershipByPlayerPpm[playerId]! > 0)
+        )
+          throw new Error("Invalid executive ownership position");
+      }
     } else if (progress.labor.kind !== "not-working")
       throw new Error("Invalid labor lifecycle");
+    if (
+      progress.labor.kind !== "employment" &&
+      state.finance.recurringByPlayer[playerId]!.quarterlyIncomeCents !== 0
+    )
+      throw new Error("Inactive employment cannot earn current salary");
+    for (const asset of Object.values(state.finance.assetsById)) {
+      if (
+        asset.kind === "business" &&
+        asset.workCompensation?.playerId === playerId &&
+        asset.workCompensation.annualCompensationCents > 0 &&
+        (progress.labor.kind !== "owner-work" ||
+          progress.labor.assetId !== asset.id)
+      )
+        throw new Error("Active owner work must match the single labor role");
+    }
     keys(progress.publicMarketBasis, PUBLIC_MARKET_INSTRUMENT_IDS);
     for (const cost of Object.values(progress.publicMarketBasis)) integer(cost);
     record(progress.assetsById);

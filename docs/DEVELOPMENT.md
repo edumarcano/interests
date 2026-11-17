@@ -38,14 +38,14 @@ The default Windows test run again hit fork-worker exit code 3221226505; a bound
 
 ## M7 completion delivery
 
-ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The active runtime implements the financial foundations and public-fund trading described below. Careers, recurring content, objective evaluation and winner execution remain pending.
+ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The local runtime implements financial foundations, public-fund trading and career/labor choices. Recurring content, objective evaluation and winner execution remain pending.
 
 | Packet | Deliverable | Current state |
 | --- | --- | --- |
 | 1 | Canonical completion policy and immutable rule data | Delivered in open [PR #36](https://github.com/edumarcano/interests/pull/36), `codex/m7-completion-policies`; both Remora review axes passed; unmerged; runtime activation unchanged |
 | 2 | Entitlements, basis/history, career/focus, financing and terminal contracts | Implemented on `codex/m7-state-foundations`; delivered in open [PR #37](https://github.com/edumarcano/interests/pull/37), stacked on #36; both Remora axes passed; unmerged |
 | 3 | Public-fund buy/sell/rebalance, fees and browser controls | Delivered in open [PR #38](https://github.com/edumarcano/interests/pull/38), `codex/m7-public-markets`, stacked on #37; both Remora review axes passed; unmerged |
-| 4 | Careers, executive ownership, resignation and equal-cost management conversion | In progress on `codex/m7-career-labor` in `tmp/worktrees/m7-career` |
+| 4 | Careers, executive ownership, resignation and equal-cost management conversion | Implemented locally on `codex/m7-career-labor`, rebased on packet 3; independent integrated review/publication pending; unmerged |
 | 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | In progress on `codex/m7-bank-property` in `tmp/worktrees/m7-property` |
 | 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Pending |
 | 7 | Operating economy, recurring private/public content and non-player alternatives | Pending; remove Q1 demonstration windfall from ordinary setup |
@@ -79,6 +79,16 @@ Focused tests cover weighted basis, HALF_UP fees, cash-funded rebalancing, losse
 Typecheck, lint, the production build and all six browser scenarios passed. Separate Remora specification and engineering reviews found no blockers after correcting preview rejection for unsafe intermediate cash postings and checking snapshot validation against the room membership. A reproduced timeout bug then led to shared canonical command comparison between browser and server: the browser reuses the original market command ID on retry. All 705 tests and the production four-browser market journey passed with that fix. The quote and execution agree on the trade itself; the final spotlight can still reject the basket if quarter settlement cannot commit. These checks do not establish objective reachability or balance.
 
 PR #38 is open and unmerged. Hosted CI run #114 passed at `cb0cd5b`; the subsequent timeout fix passed local verification.
+
+### Packet 4 verification
+
+Persistent current-capacity career quotes, acceptance, resignation and owner-work conversion are implemented through authenticated commands and browser controls. Employment replaces the previous labor role; current-quarter earned rights and unpaid worker claims survive. Executive ownership requires a funded secondary investment with no duplicate company cash. ARCH-043 owns the contracts and prototype authored terms.
+
+Private finance displays include current and earned income/living costs, funds and basis, properties, company management costs and exact owner-only objective instructions. The instructions include control, protected living costs, source grouping and income exclusions; this packet does not calculate finale eligibility or declare a winner.
+
+Local verification uses the already-installed executables directly because invoking pnpm in the isolated worktree triggers its package-manager downloader. All six package/app TypeScript projects and the production build pass. All 697 unit/integration tests and six browser scenarios pass; lint passes with 685 warnings and three infos. Remora local manifest/hash consistency passes; trusted-source provenance is not checked. The browser career journey uses four ordinary clients and a 320-pixel phone viewport, verifies authoritative HTTP amounts and recipient privacy, advances to Q2 once, reloads, and preserves compensation through a real process restart. Existing financial/recovery browser journeys remain passing. A stricter single-labor-role invariant required correcting an explicitly synthetic arrears fixture that previously assigned two active owner-work contracts; its original company now has equal-cost management.
+
+Engine tests cover stable/no-RNG quotes, objective/profile neutrality, funded executive equity and basis, affordability/stale/offturn rejection, one-action spotlight advancement, fourth-action settlement rollback, three starting-owner conversions, partial management payables and retained worker arrears. An ordinary production-command journey reaches a funded executive ownership position without injected wealth. Component tests cover command payloads, timing, disabled/error states and private requirements. Synthetic liquidity/shortfall fixtures are labeled separately from the ordinary career browser journey. Independent split-axis integration review and PR publication remain pending; no merge or deployment has occurred.
 
 ## M7 completion and M8 handoff
 

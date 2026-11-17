@@ -34,6 +34,8 @@ export interface BusinessSettlementOutcome {
   readonly retainedFromSurplusCents: Cents;
   readonly closingCashCents: Cents;
   readonly cashBeforeCompensationCents?: Cents;
+  readonly managementPaidCents?: Cents;
+  readonly managementDueCents?: Cents;
   readonly companyDebtPaidCents?: Cents;
   readonly workCompensation?: {
     readonly playerId: PlayerId;
@@ -57,6 +59,9 @@ export function captureBusinessBasis(
     if (asset?.kind === "business")
       result[id] = {
         cashPolicyId: asset.cashPolicyId,
+        ...(asset.annualManagementCostCents !== undefined
+          ? { annualManagementCostCents: asset.annualManagementCostCents }
+          : {}),
         ...(asset.workCompensation
           ? {
               workCompensation: {
@@ -219,8 +224,14 @@ function planStartingCompany(
       .toNumber(),
   );
   cents(currentDueCents + work.arrearsCents);
+  const managementDueCents = cents(
+    new FinanceDecimal(basis.annualManagementCostCents ?? 0)
+      .div(4)
+      .round()
+      .toNumber(),
+  );
   const cashBeforeCompensationCents = cents(
-    operatingCashCents + currentDueCents,
+    operatingCashCents + currentDueCents + managementDueCents,
   );
   if (
     Math.max(0, cashBeforeCompensationCents) >
@@ -265,6 +276,12 @@ function planStartingCompany(
     externalCashAccount("business-operating-costs"),
     "business-operating-cost-payment",
   );
+  const managementPaidCents = cents(Math.min(cash, managementDueCents));
+  transfer(
+    managementPaidCents,
+    externalCashAccount("business-management"),
+    "business-management-payment",
+  );
   const currentPaidCents = cents(Math.min(cash, currentDueCents));
   transfer(
     currentPaidCents,
@@ -291,7 +308,9 @@ function planStartingCompany(
   );
   const closingOperatingArrearsCents = cents(
     cents(asset.operatingArrearsCents - old.operations) +
-      cents(currentOperatingDue - currentOperatingPaid),
+      cents(currentOperatingDue - currentOperatingPaid) +
+      managementDueCents -
+      managementPaidCents,
   );
   const closingWorkArrears = cents(
     cents(work.arrearsCents - old.work) +
@@ -404,10 +423,14 @@ function planStartingCompany(
       openingOperatingArrearsCents: asset.operatingArrearsCents,
       operatingCashCents,
       cashBeforeCompensationCents,
+      managementPaidCents,
+      managementDueCents,
       operatingDueCents: cents(
-        asset.operatingArrearsCents + currentOperatingDue,
+        asset.operatingArrearsCents + currentOperatingDue + managementDueCents,
       ),
-      operatingPaidCents: cents(currentOperatingPaid + old.operations),
+      operatingPaidCents: cents(
+        currentOperatingPaid + old.operations + managementPaidCents,
+      ),
       closingOperatingArrearsCents,
       companyDebtPaidCents,
       retainedFromSurplusCents,

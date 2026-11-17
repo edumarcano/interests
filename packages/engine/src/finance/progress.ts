@@ -51,7 +51,8 @@ export function createProgress(
         const working = owned.find(
           (asset) =>
             asset.kind === "business" &&
-            asset.workCompensation?.playerId === playerId,
+            asset.workCompensation?.playerId === playerId &&
+            asset.workCompensation.annualCompensationCents > 0,
         );
         return [
           playerId,
