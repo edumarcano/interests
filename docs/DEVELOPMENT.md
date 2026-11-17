@@ -43,7 +43,7 @@ ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. T
 | Packet | Deliverable | Current state |
 | --- | --- | --- |
 | 1 | Canonical completion policy and immutable rule data | Delivered in open [PR #36](https://github.com/edumarcano/interests/pull/36), `codex/m7-completion-policies`; both Remora review axes passed; unmerged; runtime activation unchanged |
-| 2 | Entitlements, basis/history, career/focus, financing and terminal contracts | Implemented on `codex/m7-state-foundations`; both Remora review axes passed; publication pending |
+| 2 | Entitlements, basis/history, career/focus, financing and terminal contracts | Implemented on `codex/m7-state-foundations`; delivered in open [PR #37](https://github.com/edumarcano/interests/pull/37), stacked on #36; both Remora axes passed; unmerged |
 | 3 | Public-fund buy/sell/rebalance, fees and browser controls | Pending |
 | 4 | Careers, executive ownership, resignation and equal-cost management conversion | Pending |
 | 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Pending |
@@ -64,7 +64,7 @@ Typecheck and all 657 tests passed. Lint exited successfully with the existing 5
 
 Quarter-start property and recurring income/living entitlements, acquisition/disposal evidence, labor/focus state, four-quarter observations and private finance/requirement projections are implemented. The state includes terminal contracts and command rejection; production victory/draw execution remains packet 8. ARCH-041 records ownership and compatibility details.
 
-All 676 tests and typecheck passed. Lint passed with 584 warnings and three infos; build passed. Both independent Remora axes approved after fixing public-close overflow rejection and ownership/basis snapshot reconciliation. Real command execution reached Q6 with exactly Q2-Q5 retained for all four players; repeated output matched. The six financial acceptance scenarios still reach Q5 and repeat identically. All five browser scenarios passed, including ordinary and synthetic distress paths, seat recovery and process restart. Publication is pending; no PR has been merged.
+All 676 tests and typecheck passed. Lint passed with 584 warnings and three infos; build passed. Both independent Remora axes approved after fixing public-close overflow rejection and ownership/basis snapshot reconciliation. Real command execution reached Q6 with exactly Q2-Q5 retained for all four players; repeated output matched. The six financial acceptance scenarios still reach Q5 and repeat identically. All five browser scenarios passed, including ordinary and synthetic distress paths, seat recovery and process restart. PR #37 is open and unmerged; hosted CI is pending. No PR has been merged.
 
 ## M7 completion and M8 handoff
 
