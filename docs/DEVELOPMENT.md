@@ -2,7 +2,7 @@
 
 **Updated:** 2026-11-17
 **Active milestone:** 7, full gameplay rules and content  
-**Current focus:** Integrate career/labor and bank/property on the public-markets PR; prepare multiplayer capital. No PRs merged.
+**Current focus:** Build multiplayer business capital on the reviewed bank/property PR. Operating economy and objective measurement are in progress on separate branches. No PRs merged.
 
 ## Milestone 6: physical playtest outcome
 
@@ -46,10 +46,10 @@ ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. T
 | 2 | Entitlements, basis/history, career/focus, financing and terminal contracts | Implemented on `codex/m7-state-foundations`; delivered in open [PR #37](https://github.com/edumarcano/interests/pull/37), stacked on #36; both Remora axes passed; unmerged |
 | 3 | Public-fund buy/sell/rebalance, fees and browser controls | Delivered in open [PR #38](https://github.com/edumarcano/interests/pull/38), `codex/m7-public-markets`, stacked on #37; both Remora review axes passed; unmerged |
 | 4 | Careers, executive ownership, resignation and equal-cost management conversion | Delivered in open [PR #39](https://github.com/edumarcano/interests/pull/39), `codex/m7-career-labor`, stacked on #38; unmerged |
-| 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Implemented and reviewed on `codex/m7-bank-property`, stacked on #39; unmerged |
+| 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Delivered in open [PR #40](https://github.com/edumarcano/interests/pull/40), stacked on #39; both Remora review axes passed; unmerged |
 | 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | In progress on `codex/m7-business-capital`; sole-owner expansion and stake arithmetic verified locally |
-| 7 | Operating economy, recurring private/public content and non-player alternatives | Pending; remove Q1 demonstration windfall from ordinary setup |
-| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Pending |
+| 7 | Operating economy, recurring private/public content and non-player alternatives | Operating rules in progress on `codex/m7-operating-economy` in `tmp/worktrees/m7-economy`; recurring content and removal of the Q1 demonstration windfall pending |
+| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Measurement in progress on `codex/m7-objectives` in `tmp/worktrees/m7-objectives`; finale commands and persistence pending |
 | 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | Pending |
 
 Each packet requires relevant behavior tests, typecheck, lint, tests and Remora split-axis review. Browser-facing changes also require build and applicable E2E proof. Record actual PR/head/check state here as delivery changes; leave every PR unmerged unless the user explicitly approves merging.
@@ -98,7 +98,9 @@ Standalone on the packet 2 foundations, the 694-test suite passed with loopback 
 
 ### Packet 6 checkpoint
 
-The local `EXPAND_BUSINESS` engine path spends a sole owner's company reserves, keeps the current quarter's operating inputs and activates the profit increase at the following quarter boundary. A fixed-seed command test spends $4,000 in company cash for $1,000 more annual profit. Q1 personal receipts match the no-expansion control, and Q2 records $250 more operating profit. Invalid or unfunded requests and final-spotlight settlement failure leave the original state unchanged. Separate stake helpers transfer and dilute exact ownership shares and preserve proportional cost and acquisition dates when disposing of a position. The helpers still need wiring into the transaction lifecycle; browser controls, shared-company consent, financing slots and public bidding remain open. This branch starts from packet 3 and must be rebased onto packet 5 before publication.
+The local `EXPAND_BUSINESS` engine path spends a sole owner's company reserves, keeps the current quarter's operating inputs and activates the profit increase at the following quarter boundary. A fixed-seed command test spends $4,000 in company cash for $1,000 more annual profit. Q1 personal receipts match the no-expansion control, and Q2 records $250 more operating profit. Invalid or unfunded requests and final-spotlight settlement failure leave the original state unchanged. The capital accounting checkpoint posts seller consideration and fees, or issues new stakes against company cash. It preserves exact ownership and dated basis without redirecting current-quarter earnings. The work is stacked on #40. The command lifecycle, consent, financing slots, public bids and browser controls are still pending.
+
+Policy gaps to settle before activation: consent for shared-company expansion, sealed-bid closing and tie rules, property occupancy targets, business sensitivity assignments and non-labor cost behavior, and the qualitative objective safeguards where no numerical definition exists. Continue the approved transaction, operating and measurement work independently. Record any approved policy in GAME_DESIGN and DECISIONS before activating it.
 
 ## M7 completion and M8 handoff
 
