@@ -1,9 +1,10 @@
 import { asAssetId, asPlayerId, asTransactionId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
+import { stageOpeningFixture } from "../../test/openingFixture";
 import { captureBusinessBasis } from "../finance/businessSettlement";
-
 import { cents } from "../finance/money";
 import { createSoleOwnership } from "../finance/ownership";
+import { createProgress } from "../finance/progress";
 import { applyQuarterSettlement, settleQuarter } from "../finance/settlement";
 import { assertGameState } from "../invariants/assertGameState";
 import type { BusinessAsset, GameState } from "../model/gameState";
@@ -322,7 +323,7 @@ describe("Section 17: Required Engine Tests", () => {
       ownershipByPlayerPpm: createSoleOwnership(pB),
     };
 
-    const stateWithBiz: GameState = {
+    let stateWithBiz: GameState = {
       ...beginRes.state,
       finance: {
         ...beginRes.state.finance,
@@ -344,6 +345,10 @@ describe("Section 17: Required Engine Tests", () => {
       },
     };
 
+    stateWithBiz = {
+      ...stateWithBiz,
+      progress: createProgress(stateWithBiz.finance, stateWithBiz.playerOrder),
+    };
     const openTx = openCashBusinessPurchaseTransaction(stateWithBiz, {
       buyerPlayerId: pA,
       sellerPlayerId: pB,
@@ -580,7 +585,7 @@ describe("Section 17: Required Engine Tests", () => {
       ownershipByPlayerPpm: createSoleOwnership(pB),
     };
 
-    const stateWithBiz: GameState = {
+    let stateWithBiz: GameState = {
       ...readyState,
       finance: {
         ...readyState.finance,
@@ -602,6 +607,10 @@ describe("Section 17: Required Engine Tests", () => {
       },
     };
 
+    stateWithBiz = {
+      ...stateWithBiz,
+      progress: createProgress(stateWithBiz.finance, stateWithBiz.playerOrder),
+    };
     const openTx = openCashBusinessPurchaseTransaction(stateWithBiz, {
       buyerPlayerId: pA,
       sellerPlayerId: pB,
@@ -634,7 +643,7 @@ describe("Section 17: Required Engine Tests", () => {
       ownershipByPlayerPpm: createSoleOwnership(pA),
     };
 
-    const stateWithBiz: GameState = {
+    let stateWithBiz: GameState = {
       ...spotlightState,
       finance: {
         ...spotlightState.finance,
@@ -657,6 +666,10 @@ describe("Section 17: Required Engine Tests", () => {
     };
 
     // pB tries to buy while pA is active spotlight
+    stateWithBiz = {
+      ...stateWithBiz,
+      progress: createProgress(stateWithBiz.finance, stateWithBiz.playerOrder),
+    };
     const openTx = openCashBusinessPurchaseTransaction(stateWithBiz, {
       buyerPlayerId: pB,
       sellerPlayerId: pA,
@@ -688,7 +701,7 @@ describe("Section 17: Required Engine Tests", () => {
       ownershipByPlayerPpm: createSoleOwnership(pB),
     };
 
-    const stateWithBiz: GameState = {
+    let stateWithBiz: GameState = {
       ...spotlightState,
       finance: {
         ...spotlightState.finance,
@@ -710,6 +723,10 @@ describe("Section 17: Required Engine Tests", () => {
       },
     };
 
+    stateWithBiz = {
+      ...stateWithBiz,
+      progress: createProgress(stateWithBiz.finance, stateWithBiz.playerOrder),
+    };
     const openTx = openCashBusinessPurchaseTransaction(stateWithBiz, {
       buyerPlayerId: pA,
       sellerPlayerId: pB,
@@ -741,7 +758,7 @@ describe("Section 17: Required Engine Tests", () => {
       ownershipByPlayerPpm: createSoleOwnership(pB),
     };
 
-    const stateWithBiz: GameState = {
+    let stateWithBiz: GameState = {
       ...spotlightState,
       finance: {
         ...spotlightState.finance,
@@ -763,6 +780,10 @@ describe("Section 17: Required Engine Tests", () => {
       },
     };
 
+    stateWithBiz = {
+      ...stateWithBiz,
+      progress: createProgress(stateWithBiz.finance, stateWithBiz.playerOrder),
+    };
     const open1 = openCashBusinessPurchaseTransaction(stateWithBiz, {
       buyerPlayerId: pA,
       sellerPlayerId: pB,
@@ -904,7 +925,7 @@ describe("Orchestration Composition: Terminal Transactions & Spotlight Completio
       ownershipByPlayerPpm: createSoleOwnership(sellerPlayerId),
     };
 
-    const stateWithBiz: GameState = {
+    let stateWithBiz: GameState = {
       ...state,
       finance: {
         ...state.finance,
@@ -926,6 +947,10 @@ describe("Orchestration Composition: Terminal Transactions & Spotlight Completio
       },
     };
 
+    stateWithBiz = {
+      ...stateWithBiz,
+      progress: createProgress(stateWithBiz.finance, stateWithBiz.playerOrder),
+    };
     const openTx = openCashBusinessPurchaseTransaction(stateWithBiz, {
       buyerPlayerId,
       sellerPlayerId,
@@ -1200,7 +1225,7 @@ describe("Orchestration Composition: Terminal Transactions & Spotlight Completio
 
   it("final close advances once while recording another player's living shortfall", () => {
     const { state, buyerPlayerId, bizId, txId } = setupSpotlightWithBusiness(3);
-    const short: GameState = {
+    const short: GameState = stageOpeningFixture({
       ...state,
       finance: {
         ...state.finance,
@@ -1212,7 +1237,7 @@ describe("Orchestration Composition: Terminal Transactions & Spotlight Completio
           },
         },
       },
-    };
+    });
     const result = closeCashBusinessPurchaseAndAdvanceSpotlight(
       short,
       buyerPlayerId,

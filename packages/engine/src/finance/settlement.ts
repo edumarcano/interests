@@ -46,6 +46,11 @@ import {
 } from "./obligations";
 import { allocateProportionalCents } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
+import {
+  capturePropertyBasis,
+  captureRecurringBasis,
+  recordQuarterObservations,
+} from "./progress";
 import { calculatePropertyCashFlow } from "./property";
 
 export interface SettleQuarterRequest {
@@ -204,16 +209,16 @@ export function applyQuarterSettlement(
     for (const playerId of playerIds) {
       inflow(
         playerId,
-        required(state.finance.recurringByPlayer[playerId])
+        required(state.finance.quarterStartBasis.recurringByPlayer[playerId])
           .quarterlyIncomeCents,
         "recurring-personal-income",
         "personal-earned-income",
       );
     }
     for (const assetId of (
-      Object.keys(state.finance.assetsById) as AssetId[]
+      Object.keys(state.finance.quarterStartBasis.propertiesById) as AssetId[]
     ).sort()) {
-      const asset = state.finance.assetsById[assetId];
+      const asset = state.finance.quarterStartBasis.propertiesById[assetId];
       if (!asset || asset.kind !== "property") continue;
       const allocations = allocateProportionalCents(
         calculatePropertyCashFlow(asset).netOperatingIncomeCents,
@@ -256,7 +261,7 @@ export function applyQuarterSettlement(
     const livingArrearsByPlayer = {} as Record<PlayerId, Cents>;
     for (const playerId of playerIds) {
       const currentDue = required(
-        state.finance.recurringByPlayer[playerId],
+        state.finance.quarterStartBasis.recurringByPlayer[playerId],
       ).quarterlyLivingExpenseCents;
       const oldDue = required(state.finance.livingArrearsByPlayer[playerId]);
       cents(currentDue + oldDue);
@@ -432,6 +437,11 @@ export function applyQuarterSettlement(
     }
     const nextState: GameState = {
       ...state,
+      progress: recordQuarterObservations(
+        state,
+        settlementOutcome,
+        journalEntries,
+      ),
       currentQuarter: quarter + 1,
       lastSettledQuarter: quarter,
       finance: {
@@ -443,6 +453,8 @@ export function applyQuarterSettlement(
         publicMarketsByPlayer: revaluedMarketsByPlayer,
         quarterStartBasis: {
           businessesById: captureBusinessBasis(assetsById),
+          propertiesById: capturePropertyBasis(assetsById),
+          recurringByPlayer: captureRecurringBasis(finance.recurringByPlayer),
           quarter: quarter + 1,
           cashByPlayer: { ...finance.cashByPlayer },
           publicMarketsByPlayer: { ...revaluedMarketsByPlayer },

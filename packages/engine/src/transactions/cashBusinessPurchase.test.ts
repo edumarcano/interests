@@ -1,13 +1,13 @@
 import { asAssetId, asPlayerId, asTransactionId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
 import { captureBusinessBasis } from "../finance/businessSettlement";
-
 import { basisPoints, cents } from "../finance/money";
 import {
   createSoleOwnership,
   ownershipPpm,
   TOTAL_OWNERSHIP_PPM,
 } from "../finance/ownership";
+import { createProgress } from "../finance/progress";
 import { settleQuarter } from "../finance/settlement";
 import { applyAction } from "../game/actions";
 import { createGame } from "../game/createGame";
@@ -95,7 +95,7 @@ function createTransactionFixture(): {
     ownershipByPlayerPpm: createSoleOwnership(p2), // seller owns 100%
   };
 
-  const state: GameState = {
+  let state: GameState = {
     ...base,
     finance: {
       ...base.finance,
@@ -118,6 +118,10 @@ function createTransactionFixture(): {
     },
   };
 
+  state = {
+    ...state,
+    progress: createProgress(state.finance, state.playerOrder),
+  };
   assertGameState(state);
   return { state, businessAssetId };
 }

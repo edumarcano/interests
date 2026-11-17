@@ -775,3 +775,22 @@ The user approved the M7 completion plan and its gameplay decisions. GAME_DESIGN
 Persistent claims/cash cure remain the V1 default model. Overdue borrowers cannot take new credit or complete finales. Whole-asset sale/refinance clears bank liens; foreclosure, bankruptcy, write-offs and secured player loans are deferred. This does not erase any canonical claim.
 
 M7 completion requires ordinary production-command routes for all eight objectives, a real four-client match to a valid winner, terminal restart proof and a Q32 draw journey. Synthetic eligibility fixtures alone are insufficient. Strategy policies, empirical balance/variant fairness, numerical tuning from findings and human playtest campaigns remain M8; policy approval establishes none of those results.
+
+## ARCH-041 - M7 entitlement and measurement foundations
+
+**Status:** Accepted
+**Date:** November 16, 2026
+
+Implement packet 2 of ARCH-040 before exposing new transaction families. Canonical state adds `progress.byPlayer` and `result`; current gameplay still has no victory/draw producer.
+
+| Contract | Implementation |
+| --- | --- |
+| Earned entitlement | Snapshot property operating inputs/ownership and recurring income/living costs alongside existing business, fund and cash bases. Settlement consumes the opening snapshots, then captures the next quarter. |
+| Measurements | Retain four actual settlement observations per player, including living costs owed, debt service owed/paid, labor receipts, source-grouped recurring receipts and company operating profit. Missing quarters stay absent. |
+| Financing income | Preserve cumulative interest actually received separately from recurring current-period interest. Returned principal never becomes income; collecting old interest remains a receipt without becoming fresh recurring income. |
+| Asset basis | Initialize opening reference costs; update buyer/seller evidence atomically with existing business closes. Retain actual disposal cost/proceeds/reference/counterparty/category facts for later objective safeguards. Borrowing creates no disposal gain. |
+| Snapshot integrity | Require matching basis for every current ownership stake and reject nonowner records. Fail closed on missing progress/results or incompatible versions; never invent history during load. |
+| Views | Expose only the recipient's funds, property, labor/focus, entitled/current recurring amounts and offered objective thresholds. Public result DTOs contain no hidden objective. |
+| Lifecycle | Model objective-victory/safety-draw results, validate terminal shapes, and reject gameplay commands on a finished state. Actual finale execution, Q32 termination and FINISHED operational persistence follow in packet 8. |
+
+Compatibility identifiers become engine `0.0.7`, rules `0.0.5`, shared `0.0.9`, persistence `0.0.6`. Existing snapshots need their compatible build. Synthetic accounting fixtures explicitly stage opening metadata; they are not evidence of ordinary objective reachability. No bank/NPC origination, market/career command or recurring content generator is activated by this packet.

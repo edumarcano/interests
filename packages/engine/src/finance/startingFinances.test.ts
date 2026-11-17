@@ -14,6 +14,7 @@ import {
   type PlayerId,
 } from "@interests/shared";
 import { describe, expect, it } from "vitest";
+import { stageOpeningFixture } from "../../test/openingFixture";
 import { applyAction } from "../game/actions";
 import { createGame } from "../game/createGame";
 import { assertGameState } from "../invariants/assertGameState";
@@ -35,6 +36,7 @@ import { captureBusinessBasis } from "./businessSettlement";
 import { applyScheduledPlayerLoanPayment } from "./loans";
 import { basisPoints, cents } from "./money";
 import { ownershipPpm } from "./ownership";
+import { capturePropertyBasis, createProgress } from "./progress";
 import { calculatePropertyCashFlow } from "./property";
 import { settleQuarter } from "./settlement";
 
@@ -274,13 +276,15 @@ function createSyntheticProfileGame(profileId: ProfileId): {
   };
 
   const quarterStartBasis: QuarterStartFinanceBasis = {
+    propertiesById: capturePropertyBasis(assetsById),
+    recurringByPlayer,
     businessesById: captureBusinessBasis(assetsById),
     quarter: 1,
     cashByPlayer: { ...cashByPlayer },
     publicMarketsByPlayer: { ...publicMarketsByPlayer },
   };
 
-  const state: GameState = {
+  let state: GameState = {
     ...base,
     opportunitiesById: {},
     finance: {
@@ -294,6 +298,10 @@ function createSyntheticProfileGame(profileId: ProfileId): {
     },
   };
 
+  state = {
+    ...state,
+    progress: createProgress(state.finance, state.playerOrder),
+  };
   assertGameState(state);
   return {
     state,
@@ -1056,7 +1064,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
       // Also give p2 Corporate Climber recurring finance and debt
       const sboFinances = STARTING_FINANCES_BY_PROFILE["corporate-climber"];
       const p2PersonalLoanId = asLoanId("loan-p2-personal-debt");
-      const updatedState: GameState = {
+      const updatedState: GameState = stageOpeningFixture({
         ...state,
         finance: {
           ...state.finance,
@@ -1100,7 +1108,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
             },
           },
         },
-      };
+      });
 
       const result = settleQuarter(updatedState, { quarter: 1 });
       expect(result.ok).toBe(true);
@@ -1236,7 +1244,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
       );
 
       // Artificially zero out cash and inflate living expenses so player is insolvent
-      const insolventState: GameState = {
+      const insolventState: GameState = stageOpeningFixture({
         ...state,
         finance: {
           ...state.finance,
@@ -1252,7 +1260,7 @@ describe("Standard V1 Starting Finances and Quarter-1 Settlement", () => {
             },
           },
         },
-      };
+      });
 
       const result = settleQuarter(insolventState, { quarter: 1 });
       expect(result.ok).toBe(true);

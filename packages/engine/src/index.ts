@@ -30,7 +30,7 @@ export * from "./transactions/cashBusinessPurchase";
 export * from "./transactions/model";
 export * from "./transactions/reservations";
 
-export const ENGINE_VERSION = "0.0.6";
+export const ENGINE_VERSION = "0.0.7";
 
 export const WORKSPACE_COMPATIBILITY = {
   engine: ENGINE_VERSION,
@@ -43,3 +43,5 @@ export type {
   LoanPaymentOutcome,
   SettlementOutcome,
 } from "./finance/obligations";
+export * from "./finance/progress";
+export * from "./model/completionState";

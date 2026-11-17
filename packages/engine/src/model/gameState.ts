@@ -21,6 +21,7 @@ import type { OwnershipPpm } from "../finance/ownership";
 import type { Opportunity } from "../opportunities/model";
 import type { RandomState } from "../random/prng";
 import type { ActiveTransaction } from "../transactions/model";
+import type { MatchResult, ProgressState } from "./completionState";
 
 export type {
   BusinessPurchaseDueDiligence,
@@ -35,7 +36,10 @@ export type {
   CashReservation,
 } from "../transactions/model";
 
-export type GamePhase = "objective-choosing" | "ready-for-first-round";
+export type GamePhase =
+  | "objective-choosing"
+  | "ready-for-first-round"
+  | "finished";
 
 export type RoundStage = "round-start" | "spotlight";
 
@@ -61,6 +65,10 @@ export type PublicMarketPortfolio = Readonly<
 >;
 
 export interface QuarterStartFinanceBasis {
+  readonly propertiesById: Readonly<Record<AssetId, PropertyAsset>>;
+  readonly recurringByPlayer: Readonly<
+    Record<PlayerId, RecurringPersonalFinance>
+  >;
   readonly businessesById: Readonly<Record<AssetId, BusinessQuarterBasis>>;
   readonly quarter: number;
   readonly cashByPlayer: Readonly<Record<PlayerId, Cents>>;
@@ -196,6 +204,8 @@ export interface EconomyState {
 }
 
 export interface GameState {
+  readonly progress: ProgressState;
+  readonly result: MatchResult | null;
   readonly gameId: GameId;
   readonly modeId: "standard-v1";
   readonly revision: number;

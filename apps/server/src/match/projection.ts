@@ -167,6 +167,7 @@ export function buildMatchPlayerView(params: {
       : null;
 
   return {
+    result: pureProjection.result,
     matchId: pureProjection.matchId,
     modeId: pureProjection.modeId,
     revision: pureProjection.revision,

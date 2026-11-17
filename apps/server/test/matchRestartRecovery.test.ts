@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   applyAction,
   assertGameState,
+  createProgress,
   createSoleOwnership,
   openCashBusinessPurchaseTransaction,
 } from "@interests/engine";
@@ -467,6 +468,10 @@ describe("Match Crash and Restart Recovery", () => {
           },
         },
       },
+    };
+    state = {
+      ...state,
+      progress: createProgress(state.finance, state.playerOrder),
     };
     assertGameState(state);
 

@@ -8,6 +8,7 @@ import {
   basisPoints,
   captureBusinessBasis,
   cents,
+  createProgress,
   type GameState,
   getActiveSpotlightPlayerId,
   ownershipPpm,
@@ -871,9 +872,26 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
         },
       },
     };
-    assertGameState(changed);
+    let openingChanged = {
+      ...changed,
+      finance: {
+        ...changed.finance,
+        quarterStartBasis: {
+          ...changed.finance.quarterStartBasis,
+          recurringByPlayer: changed.finance.recurringByPlayer,
+        },
+      },
+    };
+    openingChanged = {
+      ...openingChanged,
+      progress: createProgress(
+        openingChanged.finance,
+        openingChanged.playerOrder,
+      ),
+    };
+    assertGameState(openingChanged);
     db.prepare("UPDATE matches SET snapshot_json = ? WHERE id = ?").run(
-      JSON.stringify(changed),
+      JSON.stringify(openingChanged),
       matchId,
     );
     const broadcastViews = clients.map(

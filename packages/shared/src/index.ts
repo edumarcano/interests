@@ -2,4 +2,4 @@ export * from "./matchProtocol.js";
 export * from "./primitives/ids.js";
 export * from "./transportProtocol.js";
 
-export const SHARED_VERSION = "0.0.8";
+export const SHARED_VERSION = "0.0.9";

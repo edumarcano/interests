@@ -22,6 +22,7 @@ import type { GameState } from "../model/gameState";
 import { isValidRandomState } from "../random/prng";
 import { assertBusinessCashState } from "./assertBusinessCashState";
 import { assertCompanyLoan } from "./assertCompanyLoan";
+import { assertCompletionState } from "./assertCompletionState";
 import { assertSettlementState } from "./assertSettlementState";
 
 export function assertGameState(state: GameState): void {
@@ -1430,4 +1431,5 @@ function assertOpportunitiesState(state: GameState): void {
       }
     }
   }
+  assertCompletionState(state);
 }

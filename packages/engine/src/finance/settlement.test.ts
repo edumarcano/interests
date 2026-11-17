@@ -6,6 +6,7 @@ import {
 } from "@interests/rules";
 import { asAssetId, asLoanId, asPlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
+import { stageOpeningFixture } from "../../test/openingFixture";
 import { applyAction } from "../game/actions";
 import { createGame } from "../game/createGame";
 import { assertGameState } from "../invariants/assertGameState";
@@ -30,6 +31,7 @@ import {
 import { basisPoints, cents } from "./money";
 import { type OwnershipPpm, ownershipPpm } from "./ownership";
 import { postCash } from "./posting";
+import { capturePropertyBasis, createProgress } from "./progress";
 import { settleQuarter } from "./settlement";
 
 const p1 = asPlayerId("player-1");
@@ -159,7 +161,7 @@ function buildSyntheticFixture(options?: {
 
   const zeroPortfolio = createZeroPublicMarketPortfolio();
 
-  const state: GameState = {
+  let state: GameState = {
     ...base,
     opportunitiesById: {},
     finance: {
@@ -189,6 +191,16 @@ function buildSyntheticFixture(options?: {
         [p4]: zeroPortfolio,
       },
       quarterStartBasis: {
+        propertiesById: capturePropertyBasis({ [propertyId]: property }),
+        recurringByPlayer: Object.fromEntries(
+          [p1, p2, p3, p4].map((id) => [
+            id,
+            {
+              quarterlyIncomeCents: cents(0),
+              quarterlyLivingExpenseCents: cents(0),
+            },
+          ]),
+        ),
         businessesById: captureBusinessBasis({ [businessId]: business }),
         quarter: 1,
         cashByPlayer: {
@@ -212,6 +224,10 @@ function buildSyntheticFixture(options?: {
     },
   };
 
+  state = {
+    ...state,
+    progress: createProgress(state.finance, state.playerOrder),
+  };
   assertGameState(state);
   return { state, property, business, loan };
 }
@@ -509,7 +525,7 @@ describe("quarter settlement foundation", () => {
 
     const zeroPortfolio = createZeroPublicMarketPortfolio();
 
-    const isolatedBase: GameState = {
+    const isolatedBase: GameState = stageOpeningFixture({
       ...base,
       opportunitiesById: {},
       finance: {
@@ -539,6 +555,16 @@ describe("quarter settlement foundation", () => {
           [p4]: zeroPortfolio,
         },
         quarterStartBasis: {
+          propertiesById: {},
+          recurringByPlayer: Object.fromEntries(
+            [p1, p2, p3, p4].map((id) => [
+              id,
+              {
+                quarterlyIncomeCents: cents(0),
+                quarterlyLivingExpenseCents: cents(0),
+              },
+            ]),
+          ),
           businessesById: {},
           quarter: 1,
           cashByPlayer: {
@@ -557,7 +583,7 @@ describe("quarter settlement foundation", () => {
         loansById: {},
         assetsById: {},
       },
-    };
+    });
 
     // Empty asset registry settles cleanly
     const emptyResult = settleQuarter(isolatedBase, { quarter: 1 });
@@ -584,7 +610,7 @@ describe("quarter settlement foundation", () => {
       },
     };
 
-    const stateWithZeroProp: GameState = {
+    const stateWithZeroProp: GameState = stageOpeningFixture({
       ...isolatedBase,
       finance: {
         ...isolatedBase.finance,
@@ -592,7 +618,7 @@ describe("quarter settlement foundation", () => {
           [zeroProperty.id]: zeroProperty,
         },
       },
-    };
+    });
 
     const zeroResult = settleQuarter(stateWithZeroProp, { quarter: 1 });
     expect(zeroResult.ok).toBe(true);
@@ -639,7 +665,7 @@ describe("quarter settlement foundation", () => {
     });
 
     // State A: insert prop2 before prop1
-    const stateA: GameState = {
+    const stateA: GameState = stageOpeningFixture({
       ...base,
       opportunitiesById: {},
       finance: {
@@ -658,7 +684,7 @@ describe("quarter settlement foundation", () => {
           [prop1Id]: prop1,
         },
       },
-    };
+    });
 
     // State B: insert prop1 before prop2, and prop1 owners reversed
     const prop1Reversed: PropertyAsset = {
@@ -669,7 +695,7 @@ describe("quarter settlement foundation", () => {
       },
     };
 
-    const stateB: GameState = {
+    const stateB: GameState = stageOpeningFixture({
       ...base,
       opportunitiesById: {},
       finance: {
@@ -688,7 +714,7 @@ describe("quarter settlement foundation", () => {
           [prop2Id]: prop2,
         },
       },
-    };
+    });
 
     const resultA = settleQuarter(stateA, { quarter: 1 });
     const resultB = settleQuarter(stateB, { quarter: 1 });

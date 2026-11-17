@@ -1,13 +1,13 @@
 import { asAssetId, asOpportunityId, asPlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
 import { captureBusinessBasis } from "../finance/businessSettlement";
-
 import { cents } from "../finance/money";
 import {
   createSoleOwnership,
   ownershipPpm,
   TOTAL_OWNERSHIP_PPM,
 } from "../finance/ownership";
+import { createProgress } from "../finance/progress";
 import { settleQuarter } from "../finance/settlement";
 import { applyAction } from "../game/actions";
 import { createGame } from "../game/createGame";
@@ -103,7 +103,7 @@ function createOpportunityFixture(): {
     ownershipByPlayerPpm: createSoleOwnership(sellerId),
   };
 
-  const state: GameState = {
+  let state: GameState = {
     ...base,
     opportunitiesById: {},
     counters: {
@@ -131,6 +131,10 @@ function createOpportunityFixture(): {
     },
   };
 
+  state = {
+    ...state,
+    progress: createProgress(state.finance, state.playerOrder),
+  };
   assertGameState(state);
   return { state, businessAssetId };
 }
@@ -771,7 +775,7 @@ describe("first private business-purchase opportunity lifecycle", () => {
         },
       };
 
-      const alteredState: GameState = {
+      let alteredState: GameState = {
         ...stateWithOp,
         finance: {
           ...stateWithOp.finance,
@@ -780,6 +784,13 @@ describe("first private business-purchase opportunity lifecycle", () => {
             [businessAssetId]: alteredAsset,
           },
         },
+      };
+      alteredState = {
+        ...alteredState,
+        progress: createProgress(
+          alteredState.finance,
+          alteredState.playerOrder,
+        ),
       };
       assertGameState(alteredState);
 
@@ -885,7 +896,7 @@ describe("first private business-purchase opportunity lifecycle", () => {
         ownershipByPlayerPpm: createSoleOwnership(otherPlayer3),
       };
 
-      const stateWithTwoBiz: GameState = {
+      let stateWithTwoBiz: GameState = {
         ...initial,
         finance: {
           ...initial.finance,
@@ -901,6 +912,13 @@ describe("first private business-purchase opportunity lifecycle", () => {
             [secondBizId]: secondBiz,
           },
         },
+      };
+      stateWithTwoBiz = {
+        ...stateWithTwoBiz,
+        progress: createProgress(
+          stateWithTwoBiz.finance,
+          stateWithTwoBiz.playerOrder,
+        ),
       };
       assertGameState(stateWithTwoBiz);
 

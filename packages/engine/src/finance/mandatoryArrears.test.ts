@@ -1,5 +1,6 @@
 import { asLoanId, asPlayerId, type PlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
+import { stageOpeningFixture } from "../../test/openingFixture";
 import { createGame } from "../game/createGame";
 import { applyPlayerCommand } from "../game/playerCommand";
 import { projectPlayerGameState } from "../game/playerView";
@@ -9,6 +10,7 @@ import { allocateWeightedCents } from "./allocation";
 import { createZeroPublicMarketPortfolio } from "./markets";
 import { basisPoints, cents } from "./money";
 import { calculateLoanObligation } from "./obligations";
+import { capturePropertyBasis, createProgress } from "./progress";
 import { settleQuarter } from "./settlement";
 
 const [a, b, c, d] = ["a", "b", "c", "d"].map(asPlayerId) as [
@@ -58,6 +60,16 @@ function fixture(): GameState {
       ),
       publicMarketsByPlayer: portfolios,
       quarterStartBasis: {
+        propertiesById: {},
+        recurringByPlayer: Object.fromEntries(
+          ids.map((id) => [
+            id,
+            {
+              quarterlyIncomeCents: cents(0),
+              quarterlyLivingExpenseCents: cents(0),
+            },
+          ]),
+        ),
         businessesById: {},
         quarter: 1,
         cashByPlayer: cash,
@@ -65,9 +77,23 @@ function fixture(): GameState {
       },
     },
   };
-  return advance(state);
+  return advance({
+    ...state,
+    progress: createProgress(state.finance, state.playerOrder),
+  });
 }
 function advance(state: GameState): GameState {
+  // These synthetic cases stage obligations at the opening of each tested quarter.
+  state = {
+    ...state,
+    finance: {
+      ...state.finance,
+      quarterStartBasis: {
+        ...state.finance.quarterStartBasis,
+        recurringByPlayer: state.finance.recurringByPlayer,
+      },
+    },
+  };
   const result = settleQuarter(state, { quarter: state.currentQuarter });
   if (!result.ok) throw new Error(result.code);
   return result.state;
@@ -216,7 +242,7 @@ describe("mandatory-arrears-v1", () => {
     const base = fixture();
     const first = playerLoan("first", a, b, 20_000);
     const second = playerLoan("second", b, a, 20_000);
-    const state: GameState = {
+    const state: GameState = stageOpeningFixture({
       ...base,
       finance: {
         ...base.finance,
@@ -229,7 +255,7 @@ describe("mandatory-arrears-v1", () => {
           },
         },
       },
-    };
+    });
     const result = settleQuarter(state, { quarter: 2 });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.code);

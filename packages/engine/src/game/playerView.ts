@@ -1,6 +1,12 @@
-import { BUSINESS_CASH_POLICIES } from "@interests/rules";
+import {
+  BUSINESS_CASH_POLICIES,
+  OBJECTIVE_TARGETS,
+  PUBLIC_MARKET_INSTRUMENT_IDS,
+} from "@interests/rules";
 import type {
   MatchId,
+  MatchResultView,
+  MatchSelfFinancialDetailsView,
   PlayerId,
   SelfSettlementView,
   TransactionId,
@@ -9,6 +15,7 @@ import { calculatePlayerLoanSchedule } from "../finance/amortization";
 import { calculateBusinessEquity } from "../finance/business";
 import { planBusinessSettlement } from "../finance/businessSettlement";
 import { calculateLoanObligation } from "../finance/obligations";
+import { calculatePropertyCashFlow } from "../finance/property";
 import type { GameState } from "../model/gameState.js";
 import {
   getAvailableCashCents,
@@ -73,6 +80,7 @@ export interface PureLoanView {
 }
 
 export interface PureSelfView {
+  readonly financialDetails: MatchSelfFinancialDetailsView;
   readonly livingExpenseArrearsCents: number;
   readonly lastSettlement: SelfSettlementView | null;
   readonly playerId: PlayerId;
@@ -127,6 +135,7 @@ export interface PureRoundView {
 }
 
 export interface PurePlayerProjection {
+  readonly result: MatchResultView | null;
   readonly matchId: MatchId;
   readonly modeId: string;
   readonly revision: number;
@@ -393,7 +402,55 @@ export function projectPlayerGameState(
         }
       : null;
 
+  const progress = state.progress.byPlayer[playerId]!;
+  const currentRecurring = state.finance.recurringByPlayer[playerId]!;
+  const entitledRecurring =
+    state.finance.quarterStartBasis.recurringByPlayer[playerId]!;
   const self: PureSelfView = {
+    financialDetails: {
+      quarterlyIncomeCents: currentRecurring.quarterlyIncomeCents,
+      quarterlyLivingExpenseCents: currentRecurring.quarterlyLivingExpenseCents,
+      entitledQuarterlyIncomeCents: entitledRecurring.quarterlyIncomeCents,
+      entitledQuarterlyLivingExpenseCents:
+        entitledRecurring.quarterlyLivingExpenseCents,
+      labor:
+        progress.labor.kind === "owner-work"
+          ? { kind: "owner-work", assetId: progress.labor.assetId }
+          : progress.labor.kind === "employment"
+            ? { kind: "employment", role: progress.labor.role }
+            : { kind: "not-working" },
+      focus: progress.focus,
+      completedObservationQuarters: progress.quarters.length,
+      publicMarkets: PUBLIC_MARKET_INSTRUMENT_IDS.map((id) => ({
+        id,
+        valueCents: state.finance.publicMarketsByPlayer[playerId]![id],
+        basisCents: progress.publicMarketBasis[id],
+      })),
+      properties: Object.values(state.finance.assetsById)
+        .filter(
+          (asset) =>
+            asset.kind === "property" &&
+            (asset.ownershipByPlayerPpm[playerId] ?? 0) > 0,
+        )
+        .map((asset) => {
+          if (asset.kind !== "property") throw new Error("Expected property");
+          return {
+            id: asset.id,
+            ownershipPpm: asset.ownershipByPlayerPpm[playerId]!,
+            marketValueCents: asset.marketValueCents,
+            scheduledQuarterlyRentCents: asset.scheduledQuarterlyRentCents,
+            occupancyBps: asset.occupancyBps,
+            quarterlyNoiCents:
+              calculatePropertyCashFlow(asset).netOperatingIncomeCents,
+          };
+        }),
+      objectiveRequirements: selfPlayer.offeredObjectiveIds.map(
+        (objectiveId) => ({
+          objectiveId,
+          targets: { ...OBJECTIVE_TARGETS[objectiveId] },
+        }),
+      ),
+    },
     livingExpenseArrearsCents:
       state.finance.livingArrearsByPlayer[playerId] ?? 0,
     lastSettlement,
@@ -507,6 +564,18 @@ export function projectPlayerGameState(
       : null;
 
   return {
+    result: state.result
+      ? state.result.kind === "objective-victory"
+        ? {
+            kind: "objective-victory",
+            winnerPlayerId: state.result.winnerPlayerId,
+            completedQuarter: state.result.completedQuarter,
+          }
+        : {
+            kind: "safety-draw",
+            completedQuarter: state.result.completedQuarter,
+          }
+      : null,
     matchId: state.gameId as unknown as MatchId,
     modeId: state.modeId,
     revision: state.revision,
