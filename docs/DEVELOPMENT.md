@@ -1,6 +1,6 @@
 # Development status
 
-**Updated:** 2026-11-16
+**Updated:** 2026-11-17
 **Active milestone:** 7, full gameplay rules and content  
 **Current focus:** Parallel packets 3-5 (markets, career/labor, bank/property) from the verified PR #37 foundation; no PRs merged
 
@@ -38,13 +38,13 @@ The default Windows test run again hit fork-worker exit code 3221226505; a bound
 
 ## M7 completion delivery
 
-ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The active runtime still implements the financial slice described above. Policy approval does not supply executable markets, careers, recurring content, objective evaluation or a winner.
+ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The active runtime implements the financial foundations and public-fund trading described below. Careers, recurring content, objective evaluation and winner execution remain pending.
 
 | Packet | Deliverable | Current state |
 | --- | --- | --- |
 | 1 | Canonical completion policy and immutable rule data | Delivered in open [PR #36](https://github.com/edumarcano/interests/pull/36), `codex/m7-completion-policies`; both Remora review axes passed; unmerged; runtime activation unchanged |
 | 2 | Entitlements, basis/history, career/focus, financing and terminal contracts | Implemented on `codex/m7-state-foundations`; delivered in open [PR #37](https://github.com/edumarcano/interests/pull/37), stacked on #36; both Remora axes passed; unmerged |
-| 3 | Public-fund buy/sell/rebalance, fees and browser controls | In progress on `codex/m7-public-markets` in `tmp/worktrees/m7-markets` |
+| 3 | Public-fund buy/sell/rebalance, fees and browser controls | Verified on `codex/m7-public-markets`, stacked on packet 2; PR publication pending |
 | 4 | Careers, executive ownership, resignation and equal-cost management conversion | In progress on `codex/m7-career-labor` in `tmp/worktrees/m7-career` |
 | 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | In progress on `codex/m7-bank-property` in `tmp/worktrees/m7-property` |
 | 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Pending |
@@ -64,9 +64,19 @@ Typecheck and all 657 tests passed. Lint exited successfully with the existing 5
 
 Quarter-start property and recurring income/living entitlements, acquisition/disposal evidence, labor/focus state, four-quarter observations and private finance/requirement projections are implemented. The state includes terminal contracts and command rejection; production victory/draw execution remains packet 8. ARCH-041 records ownership and compatibility details.
 
-All 676 tests and typecheck passed. Lint passed with 584 warnings and three infos; build passed. Both independent Remora axes approved after fixing public-close overflow rejection and ownership/basis snapshot reconciliation. Real command execution reached Q6 with exactly Q2-Q5 retained for all four players; repeated output matched. The six financial acceptance scenarios still reach Q5 and repeat identically. All five browser scenarios passed, including ordinary and synthetic distress paths, seat recovery and process restart. PR #37 is open and unmerged; hosted CI run 110 passed on `09b304a`. No PR has been merged.
+All 676 tests and typecheck passed. Lint passed with 584 warnings and three infos; build passed. Both independent Remora axes approved after fixing public-close overflow rejection and ownership/basis snapshot reconciliation. Real command execution reached Q6 with exactly Q2-Q5 retained for all four players; repeated output matched. The six financial acceptance scenarios still reach Q5 and repeat identically. All five browser scenarios passed, including ordinary and synthetic distress paths, seat recovery and process restart. PR #37 is open and unmerged; hosted CI run 111 passed on `32b0282`. No PR has been merged.
 
 The three isolated feature worktrees begin at `09b304a`. Integrate and publish in markets → career → bank/property order, rebasing descendants and resolving shared contracts before each verification/review checkpoint. Worktree dependencies reuse local installed packages; invoke their local `node_modules/.bin` tools directly because pnpm's automatic worktree restoration attempts an uncached registry install. No dependencies or lockfile changed.
+
+### Packet 3 verification
+
+`TRADE_PUBLIC_MARKETS` buys, sells or rebalances the three value-balance funds atomically. The engine quotes 25 BPS fees per instrument, capitalizes purchase fees, removes weighted cost basis on sales and retains signed disposal evidence. Cash journals distinguish purchases, sale principal and fees. Opening holdings still determine dividends; closing holdings receive the current quarter's price return. A successful basket finishes the spotlight and the fourth basket settles exactly once.
+
+The browser displays private holdings, basis, yields and server-calculated previews during round start and spotlights. The read-only preview endpoint authenticates the room cookie, derives the recipient, validates origin and respects reserved cash. Confirmation uses the existing revision/idempotency command path and revalidates affordability. Paired projections keep other players' basis and disposal evidence private.
+
+Focused tests cover weighted basis, HALF_UP fees, cash-funded rebalancing, losses, unsafe/malformed inputs, cash reservations, transient posting overflow, journal exhaustion, opening dividends after liquidation and final-settlement rollback. HTTP/socket/SQLite tests persist the last-spotlight trade, journals and settlement once, including receipt retry. A production-build four-browser journey bought Growth Fund for all four players, sold $50 and bought $40 in Q2 with 23 cents in fees and $9.77 net cash received, checked a 320px preview and preserved holdings on reload.
+
+Typecheck, all 704 tests, lint (650 warnings and three infos), the production build and all six browser scenarios passed. Separate Remora specification and engineering reviews found no blockers after correcting preview rejection for unsafe intermediate cash postings and checking snapshot validation against the room membership. The quote and execution agree on the trade itself; the final spotlight can still reject the basket if quarter settlement cannot commit. These checks do not establish objective reachability or balance.
 
 ## M7 completion and M8 handoff
 

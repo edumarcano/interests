@@ -57,3 +57,5 @@ export function isPublicMarketInstrumentId(
     PUBLIC_MARKET_INSTRUMENT_IDS.includes(value as PublicMarketInstrumentId)
   );
 }
+
+export const PUBLIC_MARKET_TRADE_FEE_BPS = 25 as const;

@@ -6,9 +6,11 @@ import type {
 import type React from "react";
 import { useState } from "react";
 import { OpportunityCard } from "./OpportunityCard.js";
+import { PublicMarketsPanel } from "./PublicMarketsPanel.js";
 import { SelfFinanceSummary } from "./SelfFinanceSummary.js";
 
 interface Props {
+  roomCode?: string;
   match: MatchPlayerView;
   isHost: boolean;
   isPaused: boolean;
@@ -16,6 +18,7 @@ interface Props {
 }
 
 export const RoundStartView: React.FC<Props> = ({
+  roomCode,
   match,
   isHost,
   isPaused,
@@ -90,6 +93,14 @@ export const RoundStartView: React.FC<Props> = ({
 
       {/* Self Finances Summary */}
       <SelfFinanceSummary self={match.self} />
+      {roomCode && (
+        <PublicMarketsPanel
+          roomCode={roomCode}
+          match={match}
+          isPaused={isPaused}
+          onSendCommand={onSendCommand}
+        />
+      )}
 
       {/* Private Opportunity Card (Target Buyer Only) */}
       {match.self.opportunity && (

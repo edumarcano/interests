@@ -1,4 +1,5 @@
 import {
+  isPublicMarketInstrumentId,
   OBJECTIVE_MEASUREMENT_RULES,
   PUBLIC_MARKET_INSTRUMENT_IDS,
 } from "@interests/rules";
@@ -86,6 +87,28 @@ export function assertCompletionState(state: GameState): void {
     }
     integer(progress.realizedGainsCents, -Number.MAX_SAFE_INTEGER);
     integer(progress.financingInterestReceivedCents);
+    if (!Array.isArray(progress.publicMarketDisposals))
+      throw new Error("Invalid market disposal evidence");
+    for (const disposal of progress.publicMarketDisposals) {
+      record(disposal);
+      if (!isPublicMarketInstrumentId(disposal.instrumentId))
+        throw new Error("Invalid market disposal instrument");
+      integer(disposal.soldQuarter, 1);
+      if (disposal.soldQuarter > state.currentQuarter)
+        throw new Error("Invalid market disposal quarter");
+      integer(disposal.tradeValueCents, 1);
+      integer(disposal.feeCents);
+      integer(disposal.removedBasisCents);
+      integer(disposal.quarterStartValueCents);
+      integer(disposal.realizedGainCents, -Number.MAX_SAFE_INTEGER);
+      if (
+        disposal.realizedGainCents !==
+        disposal.tradeValueCents -
+          disposal.feeCents -
+          disposal.removedBasisCents
+      )
+        throw new Error("Invalid market disposal gain");
+    }
     if (!Array.isArray(progress.disposals))
       throw new Error("Invalid disposal evidence");
     for (const disposal of progress.disposals) {

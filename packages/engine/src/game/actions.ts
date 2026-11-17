@@ -19,6 +19,8 @@ export interface ChooseObjectiveAction {
 export type GameAction = ChooseObjectiveAction;
 
 export type ActionErrorCode =
+  | "INVALID_MARKET_TRADE"
+  | "INSUFFICIENT_HOLDINGS"
   | "INVALID_ACTION"
   | "UNKNOWN_PLAYER"
   | "WRONG_PHASE"

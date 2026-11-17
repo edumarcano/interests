@@ -50,6 +50,15 @@ export interface PlayerProgress {
   readonly assetsById: Readonly<Record<AssetId, AssetAcquisitionBasis>>;
   readonly quarters: readonly QuarterObservation[];
   readonly realizedGainsCents: Cents;
+  readonly publicMarketDisposals: readonly {
+    readonly instrumentId: PublicMarketInstrumentId;
+    readonly soldQuarter: number;
+    readonly tradeValueCents: Cents;
+    readonly feeCents: Cents;
+    readonly removedBasisCents: Cents;
+    readonly realizedGainCents: Cents;
+    readonly quarterStartValueCents: Cents;
+  }[];
   readonly financingInterestReceivedCents: Cents;
   readonly disposals: readonly {
     readonly assetId: AssetId;
