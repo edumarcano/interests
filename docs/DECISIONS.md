@@ -752,3 +752,26 @@ The user approved the integrated fixture checkpoint and implementation of the re
 4. **Payment sequence:** Net current non-owner operations, current fixed owner work pay, proportional older operating/work claims, proportional due company-loan claims, then 80% distribution / 20% retention of remaining current operating surplus. Company reserves may fund obligations but are not automatically distributed. Unpaid compensation remains payable to the worker; no personal guarantee, automatic cash injection or discretionary salary extraction is introduced.
 5. **Contracts and privacy:** Keep worker outcomes and company-finance views recipient-specific. Starting work-dependent companies remain outside the simple transfer contract, including after debt payoff; labor exit and contract reassignment require separate rules. Existing managed debt-free fixture transfers remain supported.
 6. **Evidence:** The checkpoint reconciled three 28-quarter schedules and deterministic fixed-cost revenue sensitivities. These are accounting calibration evidence, not proof of balanced strategies or enjoyment. Production, persistence, privacy and browser evidence must accompany each functional PR. Incompatible saved matches remain intact and require a compatible build.
+
+## ARCH-040 - Standard V1 M7 completion policies and delivery
+
+**Status:** Accepted; functional activation pending
+**Date:** November 16, 2026
+
+The user approved the M7 completion plan and its gameplay decisions. GAME_DESIGN sections 6-7 and 14-19 own numerical policies. This record supersedes unresolved-policy descriptions in ARCHITECTURE section 22 and earlier decisions only for the approved completion scope. The first packet records policy and immutable rule data without changing active engine behavior or compatibility identifiers.
+
+| Boundary | Accepted implementation direction |
+| --- | --- |
+| Accounting | Extend quarter-start property/employment/work entitlements, acquisition basis and bounded four-quarter measurements before exposing transfers. Earned payments must survive ownership changes without duplication. |
+| Finance | Add new asset-borrower mortgages and fixed business bank loans, underwriting, reserves and performing/no-cash-out refinancing. Preserve opening legacy schedules until actual payoff. No automatic personal guarantees. |
+| Contracts | Distinguish issuance from secondary sales. Confirm every contributor and required owner consent against one terms revision; invalidate stale acceptance and release cancelled reservations. Reuse the single active transaction boundary. |
+| Operations/content | Use versioned macro/performance/growth data; recurring objective-neutral opportunities and non-player alternatives. Isolate the provisional Q1 giveaway as a named diagnostic fixture. |
+| Objectives | Engine-owned measurements, private requirements/progress, all eight finale routes and post-close checks. Only the spotlight initiator may win through an explicitly pursued finale. |
+| Termination | Valid finale victory is immediate after closing effects and before spotlight advancement, including the fourth spotlight. Otherwise settle Q32 once, update histories, record a draw and generate no Q33 content or RNG. |
+| Persistence/privacy | Atomically persist terminal result, FINISHED operational status, command receipt and journals. Terminal matches stay authenticated/viewable, reject gameplay and avoid active-match pause/recovery controls. Extend recipient-specific projections with paired-state privacy tests. |
+| Compatibility | Functional packets bump changed engine/rules/protocol/persistence identifiers. Preserve old snapshots for their compatible builds; no silent conversion or replay reinterpretation. |
+| Delivery | Nine bounded packets tracked in DEVELOPMENT.md; stabilize shared contracts before parallel feature work. Run Remora implementation/checkpoint and split-axis review for each PR. Deliver PRs without automatic merging. |
+
+Persistent claims/cash cure remain the V1 default model. Overdue borrowers cannot take new credit or complete finales. Whole-asset sale/refinance clears bank liens; foreclosure, bankruptcy, write-offs and secured player loans are deferred. This does not erase any canonical claim.
+
+M7 completion requires ordinary production-command routes for all eight objectives, a real four-client match to a valid winner, terminal restart proof and a Q32 draw journey. Synthetic eligibility fixtures alone are insufficient. Strategy policies, empirical balance/variant fairness, numerical tuning from findings and human playtest campaigns remain M8; policy approval establishes none of those results.

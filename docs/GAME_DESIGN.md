@@ -4,13 +4,15 @@
 
 Agreed game systems, prototype financial rules, and implementation handoff.
 
-> **Version:** 0.4  
-> **Date:** September 8, 2026  
-> **Status:** Pre-implementation baseline
+> **Version:** 0.5
+>
+> **Date:** November 16, 2026
+>
+> **Status:** Financial foundation implemented; full M7 policies approved, activation pending
 
 ### Purpose
 
-This specification is the source of truth for the game. The core design is established; numerical values form the first prototype baseline. Balance, duration, and unresolved implementation rules require validation before release.
+This specification is the source of truth for the game. The core design is established; numerical values form the first prototype baseline. Balance and human session duration require validation before release. Approved M7 completion policies below are requirements, not claims of implemented behavior; `DEVELOPMENT.md` tracks activation and evidence.
 
 ### Design guardrail
 
@@ -299,6 +301,20 @@ V1 should favor reusable templates rather than hundreds of bespoke code paths. A
 | **Outcome formula**              | Maps choice plus economy/player state into consequences. |
 | **Duration**                     | Controls expiry and urgency.                             |
 
+### 6.5.1 Approved M7 recurring content and contracts [PROTOTYPE]
+
+| Rule | Policy |
+| --- | --- |
+| Cadence | One private opportunity per player each quarter; persistent markets, career, asset management/sale, refinancing and eligible finales alongside it. |
+| Weighting | Objective-neutral; matching focus ×3, ownership relevance ×2, recent repeated category ×0.5. |
+| Expiry | An unused card expires when its owner's spotlight ends; active commitments are transaction-scoped. |
+| Investigation | One optional property/business information level; 0.25% of asking price, minimum $100, maximum $1,000; facts generated once. |
+| Cancellation | Release funding reservations; investigation fees remain spent. |
+| Consent | Every binding contribution/consent uses the same terms revision; changed terms invalidate affected acceptances. No recursive borrowing chains. |
+| Availability | Larger-deal weights rise from Q9; quick choices remain the majority. Cover every objective route and useful trade-off rather than require 60-80 templates. |
+
+Targeted/open offers and scarce public bids remain within one active transaction. Primary equity puts cash into the company; secondary sales pay the owner. No human refusal may block every route. Remove the M6 Q1 free-company fixture from ordinary finished Standard setup; retain it as an explicitly named diagnostic scenario. Production generation must never grant one seat that demonstration windfall.
+
 # 7. Economic simulation [LOCKED]
 
 The economy should be deep enough to create coherent consequences and changing strategy, but simple enough that players can understand the current environment at a glance.
@@ -330,7 +346,17 @@ The Standard V1 engine uses the following approved prototype transition matrix (
 | Recession      | 0%        | 0%          | 10%      | 55%      | 35%      |
 | Recovery       | 45%       | 0%          | 5%       | 0%       | 50%      |
 
-In this slice, the base interest rate remains fixed at 4.5% (450 BPS). Stochastic base-rate movement, inflation indexing, and credit-environment transitions remain deferred.
+The approved M7 completion policy uses these next-quarter targets. The currently executable financial slice still holds the base rate at 4.5%; activation belongs to the operating-economy packet.
+
+| Regime | Base-rate target | Annual inflation | Credit |
+| --- | ---: | ---: | --- |
+| Expansion | 4.50% | 2.50% | Normal |
+| Overheating | 6.00% | 4.50% | Tight |
+| Slowdown | 5.00% | 3.00% | Tight |
+| Recession | 3.00% | 1.00% | Severe |
+| Recovery | 4.00% | 2.00% | Easy |
+
+Retain the transition matrix. After transition, move the base rate at most 50 BPS toward the next regime's target; use its inflation and credit conditions for the upcoming quarter. Living costs and rents index by annual inflation / 4 with HALF_UP cents rounding; salaries change through career choices. Generate upcoming content during initialization or the preceding quarter's settlement, not through `BEGIN_ROUND`.
 
 > **SIMULATION RULE** Next economy = current state + momentum + bounded randomness + event effects. Randomness creates uncertainty; state continuity makes planning meaningful.
 
@@ -459,7 +485,7 @@ Reassess after relevant transactions and economic changes. High income can suppo
 
 Culminating moves reuse the same opportunity, financing, reaction, and transaction engines. Objective eligibility gives the player the right to seek a finale; random availability must not leave an otherwise qualified player waiting indefinitely for a card.
 
-IMPLEMENTATION CHECK How discovery recognizes plausible external finance without guaranteeing cooperation or leaking other players' private balances remains to be specified in section 19.
+IMPLEMENTATION CHECK Discovery uses current capacity and supported financing routes, never rival exact balances or unconfirmed promises. Closing must revalidate fully confirmed funding under section 17.
 
 # 9. Hidden objectives and victory [LOCKED]
 
@@ -536,7 +562,7 @@ Every objective follows the same high-level structure: build the required positi
 
 - Eligibility: sustainable non-employment income comfortably exceeds core expenses; income comes from more than one source; liquidity and debt position remain healthy.
 
-- Culmination: formally leave employment or active self-employment; recalculate finances without labor-dependent earnings. Award victory only if the required independent position remains. The equivalent confirmation for a player already not working remains to be specified.
+- Culmination: formally leave employment or active self-employment; recalculate finances without labor-dependent earnings. Award victory only if the required independent position remains. A player already not working may explicitly confirm independence under the same no-labor income, debt and reserve checks (section 18.5).
 
 - Exploit guard: players cannot manufacture eligibility through a one-period income spike or an artificial last-second expense cut.
 
@@ -653,13 +679,13 @@ The initial prototype scoring policy resolves algorithm steps 4 and 5 as follows
 
 4. **Selection**: Select uniformly from that high-quality subset using the engine PRNG adapter with an unbiased bounded-integer helper based on rejection sampling.
 
-This scoring model is a prototype balance rule. Consistency register item G7 remains OPEN pending variant audits, balance simulations, and human playtesting.
+This scoring model is a prototype balance rule. G7 retains variant fairness, strategy comparisons and human playtesting as M8 validation; approved Standard setup remains unchanged.
 
 ## 9.7 Victory and game length
 
-The game should not end simply because a fixed number of rounds has elapsed, and it should not show a visible countdown that makes the finish administrative. Instead, the game should have a controlled duration with an unpredictable ending.
+The ordinary ending requires an earned objective finale; no fixed-round ranking awards victory. The approved M7 failsafe settles Quarter 32 exactly once and records a draw if no finale has already won. No Quarter 33 content or gameplay RNG draws occur. Do not present a countdown to an administrative winner.
 
-- Early play establishes positions; later conditions make objective requirements increasingly reachable and major opportunities more consequential.
+- Early play establishes positions. From Q9, increase larger-deal availability while keeping quick opportunities the majority. This changes availability, not objective thresholds or automatic wealth.
 
 - A player can quietly become eligible, then initiate a visible culminating move. This preserves surprise while still creating a tense closing sequence rather than an accidental instant win.
 
@@ -797,7 +823,7 @@ Annual cash yield = max(0.5%, base rate minus 1.5 percentage points). The openin
 | Public-market purchase or sale | 0.25% of trade value                                         |
 | Player cash or loan contract   | No automatic platform fee; negotiated interest still applies |
 
-APPLICATION Asset transaction costs still apply when the counterparty is another player. Free cash/loan-contract processing is not an exemption from property, business, or market transfer costs. Refinancing and equity-issuance cost treatment remains open.
+APPLICATION Asset transaction costs apply with player and non-player counterparties, including secondary stake sales using their transaction price. Refinancing costs 1% of new principal; primary equity issuance has no platform fee. Free cash/loan processing does not exempt asset transfers from their fees.
 
 # 15. Starting-profile financial baselines
 
@@ -913,7 +939,7 @@ Starting businesses use `starting-company-v1`: fixed owner work compensation, ca
 | Growth business          | 5%-18%                                   | 4x-7x normalized annual operating profit |
 | Owner-dependent practice | Not governed by the mature-business band | 0.5x-1.2x owner earnings                 |
 
-Owner-dependent earnings compensate the player's labor. They are not automatically passive income and must not qualify for Independent merely because payment comes from a business. The approved distribution policy is in section 16.3.1. Further performance normalization and explicit growth-investment effects remain open.
+Owner-dependent earnings compensate the player's labor. They are not automatically passive income and must not qualify for Independent merely because payment comes from a business. The approved distribution policy is in section 16.3.1. Section 16.4 defines approved performance normalization and explicit growth-investment effects; their execution remains pending.
 
 The integrated starting-company fixtures in section 16.3.2 replace bundled owner income and balance-sheet-only business debt. Profit is stated after necessary labor, including the working owner's compensation. Operating EV excludes company cash; company equity includes it once and deducts company claims once.
 
@@ -932,13 +958,13 @@ Retain HALF_UP(surplus * 2,000 / 10,000) and distribute the exact remainder by q
 | Company loses $1,000 with $250 reserves | Pay $250 and record $750 operating payable; no dividend |
 | Company is bought in Q3 | Q3's opening seller receives Q3's distribution; buyer begins in Q4 |
 
-Operating enterprise value excludes company cash. Company equity includes cash once and subtracts loan principal, unpaid interest, and operating payables once; signed company equity remains supported. Retained cash stays with the company on a supported whole-business transfer at the agreed price. The existing sole-owner, debt-free transaction does not support companies with payables or arrears. Partial sales, debt-bearing transfers, and liability assumptions need separate contract rules.
+Operating enterprise value excludes company cash. Company equity includes cash once and subtracts loan principal, unpaid interest, and operating payables once; signed company equity remains supported. Retained cash stays with the company on a supported whole-business transfer at the agreed price. The existing sole-owner, debt-free transaction does not support companies with payables or arrears. The approved M7 broader contract distinguishes secondary sales (cash to seller) from primary issuance (cash to company). Dilution and whole-asset sales require every owner's consent. Close all related funding, fees, debt payoff and ownership changes atomically; no unrepresented liability assumption is permitted.
 
 Reserves absorb losses and may fund later explicitly supported investment opportunities. Accumulating reserves alone does not increase operating profit, revenue, or capacity.
 
 ### 16.3.2 Unified starting-business fixtures [PROTOTYPE]
 
-The permanent model separates compensation for work from ownership distributions. Working-owner compensation is an operating cost and is paid once from accounted business cash. When the owner stops working, their compensation ends; necessary replacement labor remains a cost before passive returns. Managed-company earnings already include management costs. V1 needs a working-owner/managed distinction, not an employee or working-hours simulation. Further labor-exit and management-conversion actions remain separately scoped.
+The permanent model separates compensation for work from ownership distributions. Working-owner compensation is an operating cost and is paid once from accounted business cash. When the owner stops working, their compensation ends; necessary replacement labor remains a cost before passive returns. Managed-company earnings already include management costs. V1 needs a working-owner/managed distinction, not an employee or working-hours simulation. Approved M7 labor exit replaces owner compensation with equal-cost management, preserving after-labor profit and unpaid worker claims. Accepting a job replaces the prior labor role. Neither action creates passive profit by deleting necessary labor. Quarter-start work entitlement remains earned; future labor income stops.
 
 Opening company debt uses 8.00% fixed nominal APR and seven-year quarterly amortization (28 quarters) as its prototype calibration basis, with APR / 4, HALF_UP rounding, and final-cent cleanup. Interest is an expense; principal repayment reduces debt. Both consume cash before distributions. These terms do not replace new-loan underwriting or the negotiated player-loan 2-8-quarter limit.
 
@@ -973,7 +999,7 @@ Starting companies operate from Q1, with their opening loans first due in Q1 and
 
 Net current non-owner operations settle first, then fixed current work pay, older operating/compensation claims proportionally, company-loan claims proportionally, then dividends. A partial or unpaid work payment is a company liability to that worker, not personal income received or an external payable. Salary cannot be changed by a player to bypass a lender. The engine may post net non-owner operating cash plus explicit compensation rather than every customer receipt and supplier expense; compensation is deducted exactly once.
 
-Working-owner company transfers and labor-exit actions remain unsupported, including after company debt payoff. Replacement labor remains a necessary cost in any future passive-return calculation. Physical-device and strategy/family playtests are still required for balance and enjoyment; reconciled accounting alone does not establish them.
+Working-owner transfers and labor exit are approved M7 work but are not activated by this policy checkpoint. Replacement labor remains a necessary cost and conversion creates no instant valuation gain. Physical-device and strategy/family playtests remain M8 validation; reconciled accounting does not establish balance or enjoyment.
 
 ## 16.4 Business performance by economy [PROTOTYPE]
 
@@ -985,7 +1011,9 @@ Working-owner company transfers and labor-exit actions remain unsupported, inclu
 | Recession           | -4.0%                                           |
 | Recovery            | +2.0%                                           |
 
-Low-sensitivity companies take approximately half the regime effect; high-sensitivity companies take about 1.5x. Typical company-specific revenue noise is around +/-2%, +/-3.5%, and +/-5% for low, medium, and high sensitivity respectively. Large deviations require explicit events. Exact random distributions, caps, margin movement, capacity growth, and valuation-multiple changes remain to be parameterized.
+Low/medium/high sensitivity uses 0.5x/1x/1.5x the regime revenue effect and inclusive uniform integer-BPS noise of ±200/350/500 BPS. Cap combined quarterly revenue movement at ±1,000 BPS. Preserve necessary fixed labor costs and compatible valuation multiples; falling revenue may produce losses. Normalize performance from actual operating quarters, without inventing historical objective income or reinterpreting the opening practice valuation basis.
+
+Company expansion spends $4 of company cash for $1 additional annual operating profit from the next quarter. Confirmed equity or owner capital may fund the company first. Spent reserves cannot also remain in equity as cash. Preserve quarter-start operating inputs and ownership for current-quarter results.
 
 ## 16.5 Three public-market instruments [PROTOTYPE]
 
@@ -1027,7 +1055,7 @@ Every player holding an instrument shares the exact same quarterly return. Draws
 3. **Economy transition:** Transitions the authoritative regime to the next-quarter regime via the prototype matrix.
 4. **Next-quarter basis roll:** Captures the revalued closing holdings into `quarterStartBasis` for Quarter $N+1$.
 
-Public-market trading, transaction fees, order books, individual stocks, property revaluation, and business performance movement remain deferred.
+Public-market buy/sell/rebalance with section 14.4 fees, property revaluation, and business performance movement are approved M7 work. They are not activated by the policy-only checkpoint. Order books and individual stocks remain outside this V1 model.
 
 ## 16.6 Property valuation movement [PROTOTYPE]
 
@@ -1039,7 +1067,9 @@ Public-market trading, transaction fees, order books, individual stocks, propert
 | Recession   | -1.5%                          | -3.0%                         |
 | Recovery    | +1.0%                          | +1.5%                         |
 
-Proposed ordinary property-specific noise is about +/-0.75% residential and +/-1.25% commercial. Rate changes also affect value, with greater commercial sensitivity. Exact rate coefficients, rent/occupancy updates, bounds, and event interactions remain open. Avoid independently applying both a full price shock and an equivalent already-counted rate effect.
+Use inclusive uniform noise ±75 BPS residential and ±125 BPS commercial. Incremental rate sensitivity is −2/−3 BPS of residential/commercial value return per +1 BPS base-rate change, applied once. Occupancy moves at most one percentage point per quarter toward regime targets. Rent follows inflation. Do not apply an already-counted shock again.
+
+A one-time renovation costs 5% of current value, minimum $10,000. It adds 5% scheduled rent, up to five occupancy percentage points (never over 100%), and value equal to 80% of expenditure. Operating changes take effect next quarter. Capture quarter-start property ownership/inputs so a transfer cannot redirect an earned quarter's income.
 
 ## 16.7 Other opportunity ranges and deal mix [PROTOTYPE]
 
@@ -1058,7 +1088,14 @@ The hidden opportunity-generation mix is provisionally 5% Exceptional, 20% Stron
 
 ## 17.1 Borrower strength and pricing [PROTOTYPE]
 
-Credit is recalculated from current liquid reserves, debt burden, and income stability, not assigned permanently by profile. Qualifying liquidity = cash + 80% of public-market investment value. Property/business equity is not immediately liquid; count it only through a supported sale or finance transaction. Stable salary counts fully in the proposed underwriting model; owner-dependent income receives a stability haircut whose value remains open.
+Credit is recalculated from current liquid reserves, debt burden, and income stability, not assigned permanently by profile. Qualifying liquidity = cash + 80% of public-market investment value. Property/business equity is not immediately liquid; count it only through a supported sale or finance transaction. Count employment income fully, other positive recurring income at 50%, and negative flows fully. Unreserved cash is available; pledged cash, loan principal and sale proceeds are not recurring income.
+
+| Grade | Liquidity covers personal living/debt obligations | Personal debt service / qualifying income |
+| --- | ---: | ---: |
+| Excellent | At least 4 quarters | At most 25% |
+| Good | At least 2 quarters | At most 35% |
+| Moderate | At least 1 quarter | At most 45% |
+| Limited | Otherwise | Project underwriting and reserves still apply |
 
 | **Borrower strength** | **Spread above base rate** |
 |-----------------------|----------------------------|
@@ -1067,7 +1104,7 @@ Credit is recalculated from current liquid reserves, debt burden, and income sta
 | Moderate              | 3.00 percentage points     |
 | Limited               | 4.25 percentage points     |
 
-Variable property rate = current base rate + borrower spread. Fixed property rate at origination = base rate + borrower spread + 0.50 percentage points. At the 4.5% opening base, an Excellent borrower gets 6.25% variable or 6.75% fixed. The spread is fixed for that variable loan; base-rate movement changes its rate. Exact reset and payment-recalculation timing remains open.
+Variable property rate = current base rate + borrower spread. Fixed property rate at origination = base rate + borrower spread + 0.50 percentage points. At the 4.5% opening base, an Excellent borrower gets 6.25% variable or 6.75% fixed. The spread is fixed for that variable loan; base-rate movement changes its rate. New property loans amortize over 120 quarters and first pay in the quarter after origination, using APR / 4 and existing annuity/final-cent rounding. Variable loans reset to next-quarter base plus their original spread and recalculate over the original remaining term; neither maturity nor arrears resets. Performing asset loans may refinance without cash-out: pay old principal, unpaid and earned current-quarter interest, charge 1% of new principal, and originate the replacement atomically. No prepayment penalty applies. Never charge the same quarter's interest twice.
 
 ## 17.2 Property underwriting [PROTOTYPE]
 
@@ -1080,24 +1117,24 @@ Variable property rate = current base rate + borrower spread. Fixed property rat
 
 LTV = property loan balance / qualifying property value. DSCR = qualifying annual NOI / annual debt service. Both constraints apply: a nominal 75% loan still fails when income coverage is too low. The lead buyer's credit sets primary bank terms; investor equity helps fund the acquisition but does not create a multi-borrower credit engine in V1.
 
-The proposed post-closing reserve is one quarter of the lead buyer's living costs plus one quarter of property debt service. The scope for existing properties, property operating cash, and partner funds must be specified. Starting loans may reflect earlier terms; the 77.27% Property Starter mortgage ($255,000 at 5.50% APR) is explicitly approved and grandfathered as a legacy bank loan and does not weaken or alter new-loan underwriting constraints.
+The lead buyer retains one quarter of personal living and existing personal-debt obligations in unreserved cash. The asset retains one quarter of new debt service; partners may fund that reserve but not the lead's personal reserve. New mortgages belong to the asset, whose operations and debt settle before pro-rata owner distributions. Lead credit prices the loan without a personal guarantee. Starting loans may reflect earlier terms; the 77.27% Property Starter mortgage ($255,000 at 5.50% APR) is explicitly approved and grandfathered as a legacy bank loan and does not weaken or alter new-loan underwriting constraints.
 
 ## 17.3 Business acquisition lending [PROTOTYPE]
 
-| **Parameter**     | **Current baseline**                                  |
-|-------------------|-------------------------------------------------------|
-| Bank-funded share | 60% Easy; 50% Normal; 40% Tight; Severe not yet set   |
-| Amortization      | 7 years for new business-acquisition loans            |
-| Rate              | Base + borrower spread + 1.50 percentage points       |
-| Minimum DSCR      | 1.35x baseline; environmental adjustments not yet set |
+| Credit environment | Maximum bank-funded share | Minimum DSCR |
+| --- | ---: | ---: |
+| Easy | 60% | 1.25x |
+| Normal | 50% | 1.35x |
+| Tight | 40% | 1.50x |
+| Severe | 25% | 1.75x |
 
-Buyer cash and supported partner equity/player loans can bridge the remainder. Seller financing was discussed as another possible route, but its lien priority and V1 contract scope are not yet resolved. No arrangement may silently count the same collateral or funding twice. Existing-business fixtures need their own documented opening debt schedules.
+New business loans use 28 quarters, fixed APR = base + borrower spread + 1.50 percentage points, and first payment next quarter. Buyer cash and confirmed partner equity/player loans bridge remaining costs. Preserve opening-company schedules in section 16.3.2. No collateral or funding may be counted twice; seller financing and complex conditional contracts are deferred.
 
 ## 17.4 Player loan contracts [PROTOTYPE]
 
-V1 supports principal, fixed annual interest rate, a 2-8 quarter term, quarterly fully amortizing repayments, and optional collateral. The rate is negotiated; there is no automatic platform fee or bank-style price optimization. The interface calculates payments and requires confirmation from the parties. Variable player loans, convertibles, payment waterfalls, and contingent clauses are deferred.
+V1 player loans are unsecured, with principal, fixed annual interest rate, a 2-8 quarter term and quarterly fully amortizing repayments. The rate is negotiated; there is no automatic platform fee or bank-style price optimization. The interface calculates payments and requires confirmation from the parties. Variable player loans, convertibles, payment waterfalls, and contingent clauses are deferred.
 
-The loan system must separate principal from interest: repayment of principal is not financing profit. A loan creates cash and a matching liability for the borrower and a receivable for the lender; it does not create net wealth by itself. The game enforces the contract rules, but insufficient cash requires an explicit default/recovery rule, not invented funds. Initial mandatory-payment defaults and cash recovery follow section 17.4.2. Collateral priority, forced recovery, and formal insolvency remain open.
+The loan system must separate principal from interest: repayment of principal is not financing profit. A loan creates cash and a matching liability for the borrower and a receivable for the lender; it does not create net wealth by itself. The game enforces the contract rules, but insufficient cash requires an explicit default/recovery rule, not invented funds. Initial mandatory-payment defaults and cash recovery follow section 17.4.2. Secured player loans, forced recovery, bankruptcy and write-offs are deferred beyond this V1 completion policy. Associated bank liens must be paid at whole-asset sale/refinance; overdue borrowers cannot obtain new credit or complete a finale.
 
 ### 17.4.1 Approved Player-Loan Calculation Policy [PROTOTYPE]
 
@@ -1125,7 +1162,8 @@ For V1 fixed-rate player-to-player loans:
 12. **Prepayment:** No prepayment or early payoff mechanic is supported in this slice.
 13. **Insufficient cash:** Mandatory quarterly payments follow section 17.4.2: pay affordable amounts, record arrears, and continue the quarter. Discretionary funding/purchases remain all-or-nothing; insufficient cash does not authorize negative balances or emergency funding.
 
-> **Decision Scope:** This policy resolves only the fixed player-loan calculation subset of A2. A2 remains **OPEN** for opening personal-debt schedules, the Property Starter mortgage, new bank-loan period conventions, variable-rate resets, and refinancing rules. Opening company debt follows the approved fixtures in section 16.3.2. Section 17.4.2 resolves the initial mandatory-payment/default subset of A5. Collateral, lien priority, formal bankruptcy, and write-offs remain **OPEN**.
+> **Decision Scope:** Fixed player-loan arithmetic remains unchanged. Sections 17.1-17.3 resolve new bank terms and resets; sections 15-16 retain approved opening debt fixtures. Section 17.4.2 retains mandatory shortfall/cash recovery. The broader M7 policies require separately versioned activation; no silent save conversion occurs.
+
 
 ### 17.4.2 Mandatory payments, default, and cash recovery [PROTOTYPE]
 
@@ -1155,7 +1193,7 @@ Ordinary simple interest continues on outstanding principal, including after mat
 
 Exact amounts are private to the debtor and affected lender; company details go to entitled owners. Lenders see their own actual receipts and nominal unpaid claims, not the borrower's full budget. Unreceived interest is not realized financing profit. No public default announcement or new public distress band is introduced. Distressed players retain ordinary spotlight participation.
 
-Later settlements recover arrears automatically under the same rules. Forced sales, collateral enforcement, formal bankruptcy, write-offs, lien priority, equity issuance and broader ownership consent remain unresolved A5 work. No promise, missing player, or shortfall creates money or cancels a claim.
+Later settlements recover arrears automatically under the same rules. Forced sales, collateral enforcement, bankruptcy, write-offs and secured player loans are deferred. New borrowing and finales are blocked while the relevant borrower is overdue. Voluntary whole-asset sales/refinancing clear bank liens; equity and consent follow sections 16.3.1 and 6.5.1. No promise, missing player, or shortfall creates money or cancels a claim.
 
 ## 17.5 Calculation and ledger guardrails
 
@@ -1195,58 +1233,77 @@ The eight objective identities and the two-choice, unique-objective setup remain
 | Executive Owner  | Executive career tier; employment income at least \$180k/year; productive ownership equity at least \$500k; recurring non-salary income at least \$30k/year; liquidity at least \$75k.                       | Take an executive ownership position worth or requiring approximately \$100k+ in equity exposure. |
 | Wealth Architect | Net worth at least \$1.0M; liquid capital at least \$150k; annual recurring surplus at least \$70k; at least three productive asset classes; debt/assets no more than 45%; no holding over 50% of net worth. | Reallocate or deploy \$200k+ while remaining eligible.                                            |
 
-## 18.5 Shared measurement and finale rules
+## 18.5 Shared measurement and finale rules [PROTOTYPE]
 
-A material holding or transaction initially means at least \$50,000. Productive asset categories are real estate, operating/private business ownership, public markets, and financing/credit investments. Cash alone is not a productive asset class. Material-income-source tests and look-through diversification require explicit definitions; token stakes and split contracts cannot manufacture qualification.
+| Measurement | Approved M7 definition |
+| --- | --- |
+| Recurring income/surplus | Four completed quarters; missing quarters contribute zero. Founder separately needs two consecutive positive-profit quarters. |
+| Current position | Use current assets, ownership, debt and liquidity; future projected returns cannot qualify. |
+| Material holding | At least $50,000 attributable equity; group split interests in one underlying asset. |
+| Meaningful income source | At least max($1,000 annually, 10% of protected living costs); group by underlying asset or borrower. |
+| Control | More than 50%; Founder tests its qualifying company, Magnate requires three qualifying controlled properties. |
+| Productive categories | Real estate, operating/private businesses, public markets and financing. Cash alone supplies no productive category. |
+| Investment income | Exclude labor income, returned principal, unpaid interest, capital/sale proceeds and circular transactions. |
+| Gains | Acquisition basis includes fees; net losses reduce progress. A disposal needs one settled quarter of exposure. Bound player-to-player gain credit by independent quotes; genuine non-player bargains retain actual cost. |
+| Bad debt | Overdue lending carries zero objective asset value until cured; canonical claims and borrower liabilities persist. |
 
-Ordinary bank or computer-controlled market counterparties must provide viable alternatives so a player cannot be permanently blocked by every human refusing to cooperate. Partner deals may be preferable, but no objective requires another player's consent in principle. The actual non-player lending and exit opportunities still need authored templates.
+Protected annual living costs are the greater of current annual living cost and living cost owed over the last four completed quarters; missing quarters contribute zero. This prevents a last-second expense reduction from manufacturing qualification. Token splits cannot create extra holdings or income sources. Every objective must have viable non-player acquisition, financing, employment or exit routes; no human can veto every route.
 
-A qualifying player may seek the finale directly during an authorized spotlight; no random-card wait is required. The existing transaction system handles investigation, financing, reactions, and resolution. Recheck the required resulting position, except where the finale legitimately removes an eligibility asset, such as a Founder exit. That exception needs explicit post-exit criteria before code can award victory.
+| Objective | Exact finale minimum and resulting-position rule |
+| --- | --- |
+| Founder | $300,000 expansion/acquisition while retaining eligibility; or entire qualifying stake exit yielding at least $1,000,000 net after related debt/fees and a clean resulting balance sheet. The exit replaces continued ownership tests. |
+| Property Magnate | $600,000 landmark acquisition; retain required portfolio tests. |
+| Independent | Leave employment/owner work and pass no-labor income, debt and reserve checks. Already-not-working players explicitly confirm independence under the same checks. Replacement labor costs remain. |
+| Capital Allocator | $150,000 strategic investment; retain eligibility. |
+| Financier | $150,000 genuinely funded transaction; retain performing-book/liquidity requirements. |
+| Deal Maker | $400,000 transformative transaction; retain wealth/gain/history requirements. |
+| Executive Owner | $100,000 executive ownership exposure; retain career/financial requirements. |
+| Wealth Architect | $200,000 deployment/reallocation, counting each dollar once; retain eligibility. |
 
-The finale is a visible transaction, not a public disclosure of the hidden objective or its exact progress. Exact checks for simultaneous eligibility, end-of-round triggers, and a participant completing their own conditions through someone else's deal remain open. Future financial exposure should not be mistaken for already-resolved risk when victory immediately ends the match.
+Only the spotlight initiator's explicitly sought finale may award victory. Other participants gain ordinary progress and may pursue their own finale on a later spotlight. Recheck after all closing costs, accrued interest and immediate effects; a valid finale ends the match before spotlight advancement or further quarter settlement, including in the fourth spotlight. Ordinary eligibility or ordinary closing never automatically wins. Finales remain visible economic transactions without exposing hidden objectives or exact private progress.
 
-BALANCE CHECKS Re-test Deal Maker and Wealth Architect for overlap and exploits; test the funding hurdle for Financier, the already-unemployed Independent, and slow growth from starting capital to these thresholds. No completion-time or win-rate results have been established.
+If no finale wins, settle Q32 once, update measurements and persist a draw, generating no Q33 content or RNG. Future exposure is not an already-earned return. No win-rate, reachability or human-duration result is established by this policy checkpoint.
 
 # 19. Consistency and validation register
 
 The core design is established, but the following rules must be resolved or verified before the baseline can serve as an executable release specification. Numeric fixtures and generation ranges are not a substitute for complete transition rules.
 
-## 19.1 Accounting and transaction decisions [OPEN]
+## 19.1 Accounting and transaction policy status
 
-| **ID** | **Decision to settle**                                                                                                                                                   | **Why it matters**                                                                                                |
-|--------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
-| A1     | Quarter-start recurring entitlement convention [PROTOTYPE]. Entitlement for Quarter N is determined by position at start of Quarter N (future cash interest uses quarter-start cash; future dividends use quarter-start holdings). Actual implementation of market dividends, cash yield, and exact annual-to-quarter conversion remains deferred. | Prevents double payment, late-round capture of unearned income, and first/last-spotlight advantage.               |
-| A2     | Opening personal debts use 8.00% fixed APR, quarterly payment = 3 × monthly fixture, fixed-payment amortization with final cleanup [PROTOTYPE subset]. Opening business loans use section 16.3.2's approved 8% / 28-quarter Q1 schedule. New bank loans and rate resets remain OPEN. | Current income/surplus fixtures imply payments but do not define complete debt schedules. Fixed player loans (Section 17.4.1) and opening personal debts are resolved as prototype. |
-| A3     | Property Starter mortgage grandfathered [PROTOTYPE]. \$255k at 5.50% APR, \$4,335.37 quarterly payment, 77.27% LTV accepted as legacy loan without new-loan underwriting. | Choose explicit legacy-loan treatment or adjust the fixture; do not silently bypass underwriting. Resolved as grandfathered legacy loan. |
-| A4 | Sections 16.3.1-16.3.2 approve 80/20 retained-profit settlement, quarter-start entitlement, entity cash/losses, temporary legacy owner income, and unified calibration direction. Starting-company fixtures and loan/work settlement are approved in section 16.3.2; further performance normalization remains OPEN. | Prevents duplicate income/debt and gives retained cash an explicit home. |
-| A5 | Section 17.4.2 approves mandatory shortfalls, proportional partial payments, arrears, simple principal interest, private outcomes, and cash recovery. Collateral, bankruptcy/write-offs, broader transfers, equity issuance, cost basis and consent remain OPEN. | The table continues while unpaid claims remain explicit and collectible. |
-| A6     | Define reservation, cancellation, inspection costs, expiry, and the atomic close of linked funding plus asset purchase.                                                  | Prevents double-spending offers or leaving the buyer with an unintended loan when an acquisition fails.           |
+| ID | Approved policy | Remaining gate |
+| --- | --- | --- |
+| A1 | Quarter-start recurring entitlement; nominal APR/yield divided by four; sections 14-16. | Extend property, employment and work-change entitlement before transfers. |
+| A2 | Opening schedules retained; new 120-quarter property / 28-quarter business loans; resets/refinancing in section 17. | Versioned bank implementation and exact regression fixtures. |
+| A3 | Opening Property Starter mortgage remains grandfathered. | Preserve until repayment/refinancing; new underwriting never bypassed. |
+| A4 | Company cash, labor, 80/20 surplus, growth and performance in section 16. | Implement operating changes and labor/ownership actions. |
+| A5 | Claims/cash cure, ownership consent, lien discharge; forced recovery/insolvency/secured player loans deferred. | Atomic multi-party contracts and privacy regressions. |
+| A6 | Fees in 14.4; diligence, cancellation and expiry in 6.5.1. | Execute matching lifecycle and reservation-release tests. |
 
-## 19.2 Progression, victory, and pacing decisions [OPEN]
+## 19.2 Progression, victory and pacing status
 
-| **ID** | **Decision to settle**                                                                                                                                     | **Validation target**                                                                                        |
-|--------|------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
-| G1     | LOCKED for Standard V1: deterministic rotating spotlight order (`rotating-seat-v1`), continuous off-spotlight background preparation without mandatory planning phase, spotlight-exclusive major transaction initiation, single unresolved transaction concurrency boundary, and quarterly settlement after the 4th spotlight. | Deterministic turn progression, no deadlock, equal spotlight entitlement, and preserved reaction capabilities. |
-| G2     | Specify capacity cutoffs, income haircuts, credit grades, partner-discovery plausibility, and closing reserves.                                            | No permanent profile powers, no private-balance leaks, no execution based on an unconfirmed promise.         |
-| G3     | Define economic transition probabilities, momentum, distributions/caps, cross-asset shocks, rents/margins, growth investment effects, and exact fee bases. | Coherent economic paths and genuine growth potential without counting one shock twice.                       |
-| G4     | Define objective lookback windows, attributable/control tests, materiality, realized gains net of fees/losses, bad-debt treatment, and finale exceptions.  | No circular-trade progress, double-counted principal, fake diversification, or instant expense manipulation. |
-| G5     | Set finale/winner check timing and the no-employment Independent route; resolve joint-transaction completion cases.                                        | Unambiguous wins without requiring human cooperation or a random final card.                                 |
-| G6     | Specify duration pressure and a finite failsafe; measure human decision time as well as simulated quarters.                                                | Controlled session length without a visible countdown. No 60-90 minute promise or proven maximum yet.        |
-| G7     | Audit all feasible profile/objective deals, variants, and revised starting net worth, then test strategy policies and human play.                          | Compatibility ratings and the fairness of filtered profile sets must be demonstrated, not presumed.          |
+| ID | Approved policy | Remaining gate |
+| --- | --- | --- |
+| G1 | Rotating seat spotlights; one active transaction; immediate valid finale takes precedence over advancement. | Preserve reaction scope and once-only settlement. |
+| G2 | Credit grades/haircuts/reserves in section 17; objective-neutral current-capacity discovery. | Executable eligibility without rival balance leaks. |
+| G3 | Regime targets, bounded performance, growth and fee bases in sections 7, 14 and 16. | Versioned operating/content implementation. |
+| G4 | Four-quarter evidence, materiality, control and gain/debt safeguards in 18.5. | All eight measurement and exploit regressions. |
+| G5 | Own-spotlight pre/post finale checks; Founder exit and jobless Independent routes in 18.5. | All finale commands and durable terminal outcomes. |
+| G6 | Larger-deal pressure from Q9; Q32 safety draw. | Execute terminal ordering; human-time tuning belongs to M8. |
+| G7 | Keep approved setup compatibility/dealing policy. | M7 proves ordinary legal objective routes; strategy fairness, variants and family playtests remain M8 validation. |
 
 ## 19.3 Supersession and numerical hygiene
 
 The latest property generation bands are 9%-12% residential and 10%-13.5% commercial scheduled annual rent/value, replacing the earlier 6%-10% sketch. The later mature-business range is 3x-5x profit, replacing the earlier 2.5x-5x sketch. Business enterprise and equity values are explicitly separated in sections 15-16. The quarter-end full-period settlement replaces the reference round's earlier upfront recurring payout.
 
-Quiet-quarter arithmetic is not a balance simulation. There is no established win-rate distribution, objective reachability curve, or guarantee against very long games. Automated policies will test mechanical behavior, but human negotiation, learning time, refusals, and play pace still require family playtests.
+Quiet-quarter arithmetic is not a balance simulation. There is no established win-rate distribution, objective reachability curve, or human session-length guarantee. The approved Q32 draw bounds game quarters once implemented. Automated policies will test mechanical behavior, but human negotiation, learning time, refusals, and play pace still require family playtests.
 
 # 20. Implementation handoff
 
-## 20.1 Next phase and technical status
+## 20.1 Current technical status
 
-Proceed next to repository and technical architecture, followed by the deterministic headless engine and tests. The implementation must preserve a separation between simulation rules, presentation, content, and network/session handling. Financial state transitions should not depend on a particular UI framework.
+The modular TypeScript repository, deterministic financial engine, authoritative LAN server, SQLite recovery and four-client browser slice exist. `ARCHITECTURE.md` and accepted decisions own their boundaries. `DEVELOPMENT.md` records current delivery and verification.
 
-An all-TypeScript monorepo was proposed, with apps/web and apps/server plus packages for engine, rules/content, shared types, and simulation, alongside docs and tests. This remains a technical proposal, not a locked stack or an already-created repository. Architecture selection is the next conversation, not a completed design decision.
+M7 completion policy is approved in this specification and ARCH-040. Policy approval does not activate new rules. Remaining work covers state/accounting foundations, markets, careers, bank/property transactions, business/partnership actions, operating economy/content, objectives/finales, and complete-match acceptance. Preserve incompatible saved matches for their compatible build.
 
 ## 20.2 Implementation sequence [TENTATIVE]
 
@@ -1265,7 +1322,7 @@ For the same seed, setup, versions, and ordered accepted actions, replay must pr
 
 Exercise insufficient cash, declined offers, cancelled purchases, partner exits, defaults, falling asset values, objective loss, and final-move exceptions. Public requests must not expose hidden balances, bids beyond their visibility rules, or objectives. A game should remain playable for a financially distressed player under an explicit recovery rule.
 
-Balance tests should compare profiles and objectives across economic paths and more than one decision policy. Report stalled or censored games, not just completed winners. Combine simulated round counts with measured spotlight/reaction time before claiming a session-length range. No repository creation, deployment, or production-ready implementation is implied by this document.
+Balance tests should compare profiles and objectives across economic paths and more than one decision policy. Report stalled or censored games, not just completed winners. Combine simulated round counts with measured spotlight/reaction time before claiming a session-length range. Those balance comparisons and human sessions belong to M8. M7 completion requires production-command objective routes and four-client victory/draw acceptance, not a balance claim.
 
 # 21. Post-V1 possibilities [POST-V1]
 
@@ -1299,5 +1356,6 @@ The initial extension would focus on salary rather than uncertain rent, business
 | **0.2**     | September 5, 2026 | Locked the eight hidden objectives and their culmination rules; locked eight random starting profiles; changed setup to two private objective choices; guaranteed unique objectives by dealing all eight once; added the S/V/T compatibility matrix and objective-dealing algorithm.                                                                       |
 | **0.3**     | September 5, 2026 | Added capacity-based progression, discovery/execution eligibility, full-quarter settlement, fixed versus seeded numbers, starting financial fixtures, asset/economic calibration, lending, numeric objectives/finales, Income Acceleration deferral, and implementation handoff. Reconciled business equity and recorded outstanding validation decisions. |
 | **0.4**     | September 8, 2026 | Locked G1 round flow and deterministic rotating spotlight policy (`rotating-seat-v1`) for Standard V1: no mandatory synchronous planning phase, continuous off-spotlight background preparation, spotlight-exclusive major transaction initiation, single unresolved transaction concurrency boundary, and quarterly settlement after the 4th spotlight. Broader reaction mechanics preserved. |
+| **0.5** | November 16, 2026 | Approved M7 completion policies for bank/ownership contracts, coherent operations and recurring content, objective measurement/finales, immediate victory and Q32 safety draw. Functional activation remains pending; M8 retains empirical balance and human playtests. |
 
-Canonical checkpoint v0.4: locked G1 round rhythm and rotating spotlight policy for Standard V1 alongside existing baseline objectives, setup, and accounting foundations.
+Canonical checkpoint v0.5: approved M7 completion policies alongside the implemented financial foundation; functional activation and complete-match evidence remain pending.
