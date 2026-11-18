@@ -335,7 +335,9 @@ describe("quarter settlement foundation", () => {
     expect(result.state.counters.journal).toBe(initialCounters.journal + 2);
     expect(result.state.counters.asset).toBe(initialCounters.asset);
     expect(result.state.counters.loan).toBe(initialCounters.loan);
-    expect(result.state.counters.opportunity).toBe(initialCounters.opportunity);
+    expect(result.state.counters.opportunity).toBe(
+      initialCounters.opportunity + state.playerOrder.length,
+    );
     expect(result.state.counters.contract).toBe(initialCounters.contract);
 
     // 5. Loan state unchanged (regression check)

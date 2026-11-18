@@ -2,7 +2,7 @@ import { PROFILES } from "@interests/rules";
 import { asPlayerId, type PlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
 import { type Cents, cents } from "../finance/money";
-import { createGame } from "../game/createGame";
+import { createQ1BusinessDiagnosticGame } from "../game/createGame";
 import { FEASIBLE_PROFILE_COMBINATIONS } from "../game/setup";
 import { createRandomState } from "../random/prng";
 import {
@@ -25,7 +25,7 @@ describe("Section 14: Q1 Business Opportunity Fixture", () => {
   ];
 
   it("1 & 2. Q1 fixture is generated exactly once at initialization and keeps revision 0", () => {
-    const state = createGame({
+    const state = createQ1BusinessDiagnosticGame({
       gameId: "test-game",
       seed: "deterministic-seed-1",
       playerIds,
@@ -66,12 +66,12 @@ describe("Section 14: Q1 Business Opportunity Fixture", () => {
 
   it("3. Fixture generation consumes no extra RNG compared with equivalent setup progression", () => {
     // Create game with fixed seed twice
-    const state1 = createGame({
+    const state1 = createQ1BusinessDiagnosticGame({
       gameId: "test-game-1",
       seed: "fixed-prng-seed",
       playerIds,
     });
-    const state2 = createGame({
+    const state2 = createQ1BusinessDiagnosticGame({
       gameId: "test-game-2",
       seed: "fixed-prng-seed",
       playerIds,
@@ -121,7 +121,7 @@ describe("Section 14: Q1 Business Opportunity Fixture", () => {
   });
 
   it("6. Fixture seller owns the debt-free business 100%", () => {
-    const state = createGame({
+    const state = createQ1BusinessDiagnosticGame({
       gameId: "test-game",
       seed: "deterministic-seed-6",
       playerIds,
@@ -138,7 +138,7 @@ describe("Section 14: Q1 Business Opportunity Fixture", () => {
   });
 
   it("7. Opportunity facts match asset facts and begin hidden/uninvestigated", () => {
-    const state = createGame({
+    const state = createQ1BusinessDiagnosticGame({
       gameId: "test-game",
       seed: "deterministic-seed-7",
       playerIds,

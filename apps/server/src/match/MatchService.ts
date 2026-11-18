@@ -38,6 +38,9 @@ export class MatchService {
     private readonly matchRepository: MatchRepository,
     private readonly lobbyRepository: LobbyRepository,
     private coordinator?: RoomConnectionCoordinator,
+    private readonly setupScenario:
+      | "standard-v1"
+      | "q1-business-diagnostic" = "standard-v1",
   ) {}
 
   setCoordinator(coordinator: RoomConnectionCoordinator): void {
@@ -162,11 +165,13 @@ export class MatchService {
       // Pure engine setup
       const initialGameState = createGame({
         gameId: matchId,
+        setupScenario: this.setupScenario,
         seed,
         playerIds,
       });
 
       const initializationManifest: MatchInitializationManifest = {
+        setupScenario: this.setupScenario,
         gameId: matchId,
         modeId: "standard-v1",
         seed,

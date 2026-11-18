@@ -32,6 +32,7 @@ import { assertCompanyLoan } from "./assertCompanyLoan";
 import { assertCompletionState } from "./assertCompletionState";
 import { assertNpcLoan } from "./assertNpcLoan";
 import { assertOperatingEconomyState } from "./assertOperatingEconomyState";
+import { assertRecurringContentState } from "./assertRecurringContentState";
 import { assertSettlementState } from "./assertSettlementState";
 
 export function assertGameState(state: GameState): void {
@@ -1027,6 +1028,7 @@ export function assertGameState(state: GameState): void {
   assertSettlementState(state);
   assertBusinessCashState(state);
   assertOperatingEconomyState(state);
+  assertRecurringContentState(state);
 }
 
 function assertEconomyState(state: GameState): void {

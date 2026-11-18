@@ -1,6 +1,6 @@
 import { asLoanId, asPlayerId, type PlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
-import { createGame } from "../game/createGame";
+import { createQ1BusinessDiagnosticGame } from "../game/createGame";
 import { applyPlayerCommand } from "../game/playerCommand";
 import { getActiveSpotlightPlayerId } from "../game/round";
 import { assertGameState } from "../invariants/assertGameState";
@@ -23,7 +23,11 @@ import { settleQuarter } from "./settlement";
 
 const ids = ["a", "b", "c", "d"].map(asPlayerId);
 function ready(seed = "progress-test"): GameState {
-  let state = createGame({ gameId: "progress-test", seed, playerIds: ids });
+  let state = createQ1BusinessDiagnosticGame({
+    gameId: "progress-test",
+    seed,
+    playerIds: ids,
+  });
   for (const id of ids) {
     const result = applyPlayerCommand(state, id, {
       type: "CHOOSE_OBJECTIVE",

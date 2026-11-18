@@ -23,6 +23,7 @@ import type {
   PropertyAcquisitionView,
   PropertyManagementView,
   PropertyOfferView,
+  RecurringOpportunityView,
   SelfSettlementView,
   TransactionId,
 } from "@interests/shared";
@@ -47,6 +48,7 @@ import {
   canOfferBusinessLoan,
   loanRequests,
 } from "../transactions/businessLoanOffers";
+import { projectRecurringOpportunity } from "../opportunities/recurring";
 import {
   jointPropertyCashRequired,
   jointPropertyParticipants,
@@ -119,6 +121,7 @@ export interface PureLoanView {
 export interface PureSelfView {
   readonly propertyOffers: readonly PropertyOfferView[];
   readonly propertyManagement: readonly PropertyManagementView[];
+  readonly recurringOpportunity: RecurringOpportunityView | null;
   readonly financialDetails: MatchSelfFinancialDetailsView;
   readonly livingExpenseArrearsCents: number;
   readonly lastSettlement: SelfSettlementView | null;
@@ -490,6 +493,7 @@ export function projectPlayerGameState(
   const self: PureSelfView = {
     propertyOffers: offers,
     propertyManagement: management,
+    recurringOpportunity: projectRecurringOpportunity(state, playerId),
     financialDetails: {
       formerWorkClaims: Object.values(state.finance.assetsById).flatMap(
         (asset) =>

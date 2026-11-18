@@ -1,6 +1,6 @@
 import { asAssetId, asPlayerId, type PlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
-import { createGame } from "../game/createGame";
+import { createQ1BusinessDiagnosticGame } from "../game/createGame";
 import {
   applyPlayerCommand,
   type WirePlayerCommand,
@@ -59,7 +59,7 @@ function companyFixture(
   },
 ): GameState {
   const base = selectObjectives(
-    createGame({
+    createQ1BusinessDiagnosticGame({
       gameId: "company-fixture",
       seed: "company-fixture",
       playerIds: ids,
@@ -125,7 +125,7 @@ function companyFixture(
 }
 function financedJourney(term: number) {
   let state = selectObjectives(
-    createGame({
+    createQ1BusinessDiagnosticGame({
       gameId: "financed-m7",
       seed: "m7-planning-1",
       playerIds: ids,

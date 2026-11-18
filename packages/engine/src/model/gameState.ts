@@ -22,6 +22,7 @@ import type {
 } from "../finance/obligations";
 import type { OwnershipPpm } from "../finance/ownership";
 import type { Opportunity } from "../opportunities/model";
+import type { RecurringContentState } from "../opportunities/recurring";
 import type { RandomState } from "../random/prng";
 import type { ActiveTransaction } from "../transactions/model";
 import type { MatchResult, ProgressState } from "./completionState";
@@ -303,6 +304,7 @@ export interface EconomyState {
 }
 
 export interface GameState {
+  readonly content: RecurringContentState;
   readonly progress: ProgressState;
   readonly result: MatchResult | null;
   readonly gameId: GameId;

@@ -26,6 +26,7 @@ export * from "./model/gameState";
 export * from "./opportunities/model";
 export * from "./opportunities/privateBusinessPurchase";
 export * from "./opportunities/q1Fixture";
+export * from "./opportunities/recurring";
 export * from "./opportunities/view";
 export * from "./random/prng";
 export * from "./transactions/cashBusinessPurchase";

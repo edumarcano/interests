@@ -6,8 +6,8 @@ import {
   capturePropertyBasis,
   captureRecurringBasis,
   cents,
-  createGame,
   createProgress,
+  createQ1BusinessDiagnosticGame,
   type GameState,
   getActiveSpotlightPlayerId,
   type JournalEntry,
@@ -37,7 +37,7 @@ export type FinanceScenarioName = (typeof FINANCE_SCENARIO_NAMES)[number];
 
 function ready(seed = "m7-planning-1"): GameState {
   return completePassiveBaselineSetup(
-    createGame({
+    createQ1BusinessDiagnosticGame({
       gameId: "m7-finance-acceptance",
       seed,
       playerIds: STANDARD_SIMULATION_PLAYER_IDS,
@@ -312,7 +312,7 @@ export function runFinanceScenario(name: FinanceScenarioName) {
     scenario: name,
     initialization:
       name === "financed-acquisition"
-        ? "player-journey"
+        ? "q1-business-diagnostic"
         : "synthetic-diagnostic",
     injections:
       name === "post-maturity-recovery"

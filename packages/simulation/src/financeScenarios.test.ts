@@ -137,7 +137,7 @@ describe("financial acceptance scenarios", () => {
 
   it("continues the original financed purchase with actual work pay and separate loan receipts", () => {
     const result = runFinanceScenario("financed-acquisition");
-    expect(result.initialization).toBe("player-journey");
+    expect(result.initialization).toBe("q1-business-diagnostic");
     expect(
       result.checkpoints.every((c) => c.finance.missedLoanPayments === 0),
     ).toBe(true);

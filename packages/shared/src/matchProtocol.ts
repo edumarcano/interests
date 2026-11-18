@@ -429,6 +429,60 @@ export interface PropertyAcquisitionView {
   readonly confirmedPlayerIds: readonly string[];
 }
 
+export interface SetFocusCommandPayload {
+  readonly type: "SET_FOCUS";
+  readonly focus:
+    | "general"
+    | "business"
+    | "property"
+    | "career"
+    | "markets"
+    | "financing";
+}
+export type RecurringOpportunityFacts =
+  | {
+      readonly kind: "business";
+      readonly annualRevenueCents: number;
+      readonly annualOperatingProfitCents: number;
+      readonly enterpriseValueCents: number;
+      readonly debtPrincipalCents: number;
+    }
+  | {
+      readonly kind: "property";
+      readonly marketValueCents: number;
+      readonly scheduledQuarterlyRentCents: number;
+      readonly occupancyBps: number;
+      readonly operatingExpenseRatioBps: number;
+    };
+
+export interface RecurringOpportunityView {
+  readonly id: string;
+  readonly templateId: string;
+  readonly name: string;
+  readonly category:
+    | "business"
+    | "property"
+    | "career"
+    | "markets"
+    | "financing";
+  readonly intensity: "quick" | "standard" | "major";
+  readonly summary: string;
+  readonly action:
+    | "career"
+    | "markets"
+    | "business-management"
+    | "property-management"
+    | "npc-business-purchase"
+    | "npc-property-purchase"
+    | "npc-financing";
+  readonly createdQuarter: number;
+  readonly status: "available" | "expired";
+  readonly askingPriceCents: number;
+  readonly investigationFeeCents: number;
+  readonly investigated: boolean;
+  readonly facts?: RecurringOpportunityFacts;
+}
+
 export type PlayerCommand =
   | PropertyAcquisitionCommand
   | BusinessAuctionCommand
@@ -436,6 +490,7 @@ export type PlayerCommand =
   | BusinessCapitalCommand
   | PropertyCommand
   | ExpandBusinessCommandPayload
+  | SetFocusCommandPayload
   | TradePublicMarketsCommandPayload
   | AcceptCareerOfferCommandPayload
   | ResignLaborCommandPayload
@@ -615,6 +670,7 @@ export interface MatchSelfFinancialDetailsView {
 export interface MatchSelfView {
   readonly propertyOffers?: readonly PropertyOfferView[];
   readonly propertyManagement?: readonly PropertyManagementView[];
+  readonly recurringOpportunity?: RecurringOpportunityView | null;
   readonly financialDetails: MatchSelfFinancialDetailsView;
   readonly playerId: PlayerId;
   readonly profileId: string;

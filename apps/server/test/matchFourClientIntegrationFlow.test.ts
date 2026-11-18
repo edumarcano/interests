@@ -229,8 +229,8 @@ describe("Full Four-Client Match Integration Flow (PR #19 Lifecycle Verification
           if (!otherView) throw new Error(`Missing other view for index ${j}`);
           const otherOffers = otherView.self.offeredObjectiveIds;
           const viewStr = JSON.stringify(view);
-          expect(viewStr).not.toContain(otherOffers[0]);
-          expect(viewStr).not.toContain(otherOffers[1]);
+          expect(viewStr).not.toContain(JSON.stringify(otherOffers[0]));
+          expect(viewStr).not.toContain(JSON.stringify(otherOffers[1]));
         }
       }
     }

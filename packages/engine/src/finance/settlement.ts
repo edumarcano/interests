@@ -1,6 +1,7 @@
 import {
   calculateCashYieldBps,
   OPERATING_RULES,
+  OBJECTIVE_MEASUREMENT_RULES,
   PUBLIC_MARKET_INSTRUMENT_IDS,
   PUBLIC_MARKET_INSTRUMENTS,
 } from "@interests/rules";
@@ -17,6 +18,7 @@ import type {
   Loan,
   PublicMarketPortfolio,
 } from "../model/gameState";
+import { generateRecurringContent } from "../opportunities/recurring";
 import {
   type CashAccount,
   externalCashAccount,
@@ -72,7 +74,8 @@ export type SettleQuarterErrorCode =
   | "MARKET_VALUE_OVERFLOW"
   | "OBLIGATION_OVERFLOW"
   | "JOURNAL_ID_EXHAUSTED"
-  | "SETTLEMENT_ID_EXHAUSTED";
+  | "SETTLEMENT_ID_EXHAUSTED"
+  | "OPPORTUNITY_ID_EXHAUSTED";
 export type SettleQuarterResult =
   | {
       readonly ok: true;
@@ -546,7 +549,7 @@ export function applyQuarterSettlement(
     );
     assetsById = operating.assetsById;
     const nextRecurring = operating.recurringByPlayer;
-    const nextState: GameState = {
+    const operatingState: GameState = {
       ...state,
       progress: recordQuarterObservations(
         state,
@@ -588,6 +591,15 @@ export function applyQuarterSettlement(
         ? { stage: "round-start", spotlightsCompleted: 0 }
         : null,
     };
+    if (
+      operatingState.content.scenario === "standard-v1" &&
+      operatingState.currentQuarter <=
+        OBJECTIVE_MEASUREMENT_RULES.safetyDrawQuarter &&
+      operatingState.counters.opportunity >
+        Number.MAX_SAFE_INTEGER - operatingState.playerOrder.length
+    )
+      throw new SettlementPlanningError("OPPORTUNITY_ID_EXHAUSTED");
+    const nextState = generateRecurringContent(operatingState);
     assertGameState(nextState);
     return {
       ok: true,

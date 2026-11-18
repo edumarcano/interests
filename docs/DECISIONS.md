@@ -910,3 +910,21 @@ Packet 6 uses engine `0.0.11`, rules `0.0.9`, shared `0.0.13` and persistence `0
 | Diagnostics and templates | Preserve the named Q1 acquisition diagnostic and explicit constant-loss accounting scenarios. Calibrated starting companies run the new dynamics; unmanaged/managed authored companies without explicit fixed-labor calibration remain outside this activation. Their calibrated content is a subsequent template responsibility. |
 
 Property transaction/renovation integration follows the ordered stack: apply effective renovations before capturing the next opening basis, reset variable loans against the new base rate, classify catalogue properties, and exclude already sold records. Q32 terminal settlement must skip next-quarter preparation and all further operating/market draws. Recurring content and terminal execution remain separate packets.
+
+## ARCH-048 - Recurring private discovery and explicit diagnostic setup
+
+**Status:** Accepted implementation checkpoint; NPC closing and card UI integration pending
+**Date:** November 17, 2026
+
+| Boundary | Implementation |
+| --- | --- |
+| Ordinary setup | `createGame` creates the documented opening profiles and one private recurring card per player. It does not grant the M6 demonstration company. `createQ1BusinessDiagnosticGame` and the explicit server setting `INTERESTS_SETUP_SCENARIO=q1-business-diagnostic` retain the old vertical slice; initialization manifests and snapshots record the scenario. |
+| Randomness | Persist a separate engine content stream seeded `${seed}:recurring-content-v1`. Iterate canonical player order and draw template choice, asking-price variation and facts variation once per player. Refresh, projections, focus changes and investigations do not reroll facts or consume content randomness. |
+| Candidates | Immutable authored templates own names, categories, intensity, base weights, asking price, cash/ownership gates, action references and typed business/property diligence facts. Ordinary selection never reads selected/offered objectives. Current gates are deliberately cash-only; bank/partner-supported discovery remains an integration requirement. |
+| Weights | Matching focus multiplies weight by three, ownership relevance by two, and a category seen in the last two generated cards halves it. At Q9, the authored major-company candidate doubles its weight. Quick templates retain the majority of weight. These authored prototype choices are not balance findings. |
+| Lifecycle | Generate exactly once per quarter. Keep only the current card and two recent categories per player. Successful spotlight completion expires its unused card; final settlement either commits expiry and next-quarter generation together or rejects everything. Generate no Q33 content and no content for finished matches. Transaction commitments stay in the transaction subsystem. |
+| Diligence | Reuse `INVESTIGATE_OPPORTUNITY` with recipient-derived access. Property/business investigation charges HALF_UP(asking price × 25 BPS), bounded to $100–$1,000, from available cash. One journal identifies the opportunity; repeated inspection rejects without another payment. Facts existed at generation and become visible only to the owner. |
+| Focus | `SET_FOCUS` is a private background preparation command after objective selection. It changes future weighting, consumes one revision and no spotlight/RNG/IDs, and leaves the current card unchanged. |
+| Views | `self.recurringOpportunity` allowlists the recipient's card metadata and authoritative fee. Facts use a shared business/property discriminant and remain absent until paid investigation. Other cards, raw content state and content RNG never enter HTTP/socket/bootstrap views. |
+
+Template IDs `local-service-company`, `regional-company`, `residential-rental` and `working-capital-loan` identify later NPC closing routes. `career-review`, `fund-allocation`, `company-review` and `property-review` point at persistent action families. Discovery itself creates no asset, loan or cash proceeds. NPC acquisition/funding execution, transaction binding, financing-supported eligibility and ordinary card controls are not delivered by this checkpoint; no enabled placeholder closing action is introduced.

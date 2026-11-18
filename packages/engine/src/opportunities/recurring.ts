@@ -1,0 +1,343 @@
+import {
+  OBJECTIVE_MEASUREMENT_RULES,
+  RECURRING_CONTENT_RULES,
+  RECURRING_CONTENT_TEMPLATES,
+  type RecurringCategory,
+  type RecurringContentTemplate,
+} from "@interests/rules";
+import type {
+  OpportunityId,
+  PlayerId,
+  RecurringOpportunityFacts,
+  RecurringOpportunityView,
+} from "@interests/shared";
+import { externalCashAccount, playerCashAccount } from "../finance/account";
+import { FinanceDecimal } from "../finance/decimal";
+import { type Cents, cents } from "../finance/money";
+import { postCash } from "../finance/posting";
+import type { ActionResult } from "../game/actions";
+import { nextDeterministicId } from "../game/deterministicIds";
+import { assertGameState } from "../invariants/assertGameState";
+import { FOCUS_AREAS, type FocusArea } from "../model/completionState";
+import type { GameState } from "../model/gameState";
+import { drawBoundedInt, type RandomState } from "../random/prng";
+import { getAvailableCashCents } from "../transactions/reservations";
+
+export interface RecurringOpportunity {
+  readonly id: OpportunityId;
+  readonly targetPlayerId: PlayerId;
+  readonly templateId: string;
+  readonly category: RecurringCategory;
+  readonly createdQuarter: number;
+  readonly status: "available" | "expired";
+  readonly askingPriceCents: Cents;
+  readonly investigationFeeCents: Cents;
+  readonly investigated: boolean;
+  readonly facts: RecurringOpportunityFacts | null;
+}
+export interface RecurringContentState {
+  readonly scenario: "standard-v1" | "q1-business-diagnostic";
+  readonly random: RandomState;
+  readonly generatedQuarter: number;
+  readonly cardsByPlayer: Readonly<
+    Record<PlayerId, RecurringOpportunity | null>
+  >;
+  readonly recentCategoriesByPlayer: Readonly<
+    Record<PlayerId, readonly RecurringCategory[]>
+  >;
+}
+
+function ownsCategory(
+  state: GameState,
+  player: PlayerId,
+  category: RecurringCategory,
+) {
+  if (category === "business" || category === "property")
+    return Object.values(state.finance.assetsById).some(
+      (asset) =>
+        asset.kind === category &&
+        (asset.ownershipByPlayerPpm[player] ?? 0) > 0,
+    );
+  if (category === "markets")
+    return Object.values(
+      state.finance.publicMarketsByPlayer[player] ?? {},
+    ).some((value) => value > 0);
+  if (category === "financing")
+    return Object.values(state.finance.loansById).some(
+      (loan) =>
+        loan.kind === "player-loan" &&
+        loan.lenderPlayerId === player &&
+        loan.outstandingPrincipalCents > 0,
+    );
+  return false;
+}
+
+/** Current owned resources and personal focus only; selected/offered objectives are never read. */
+export function recurringCandidateWeights(state: GameState, player: PlayerId) {
+  if (!state.players[player]) throw new RangeError("Unknown content recipient");
+  const cash = getAvailableCashCents(state, player);
+  const focus = state.progress.byPlayer[player]?.focus;
+  const recent = state.content.recentCategoriesByPlayer[player] ?? [];
+  return RECURRING_CONTENT_TEMPLATES.flatMap((template) => {
+    if (
+      cash < template.minimumCashCents ||
+      (template.requiredOwnership &&
+        !ownsCategory(state, player, template.requiredOwnership))
+    )
+      return [];
+    let weight = template.baseWeight * 2;
+    if (focus === template.category)
+      weight *= RECURRING_CONTENT_RULES.focusWeightMultiplier;
+    if (ownsCategory(state, player, template.category))
+      weight *= RECURRING_CONTENT_RULES.ownershipWeightMultiplier;
+    if (recent.includes(template.category))
+      weight /= RECURRING_CONTENT_RULES.recentCategoryWeightDivisor;
+    if (
+      state.currentQuarter >= RECURRING_CONTENT_RULES.pressureStartsQuarter &&
+      template.intensity === "major"
+    )
+      weight *= 2;
+    return [{ template, weight }];
+  });
+}
+
+export function recurringInvestigationFeeCents(priceCents: number): Cents {
+  if (!Number.isSafeInteger(priceCents) || priceCents < 0)
+    throw new RangeError("Invalid asking price");
+  const percentage = new FinanceDecimal(priceCents)
+    .times(RECURRING_CONTENT_RULES.investigationFeeBps)
+    .dividedBy(10_000)
+    .round()
+    .toNumber();
+  return cents(
+    Math.max(
+      RECURRING_CONTENT_RULES.investigationMinimumCents,
+      Math.min(RECURRING_CONTENT_RULES.investigationMaximumCents, percentage),
+    ),
+  );
+}
+
+/** Generate once at a quarter boundary; reads no hidden objective and creates no player asset. */
+export function generateRecurringContent(state: GameState): GameState {
+  if (
+    state.content.scenario !== "standard-v1" ||
+    state.phase === "finished" ||
+    state.currentQuarter > OBJECTIVE_MEASUREMENT_RULES.safetyDrawQuarter ||
+    state.content.generatedQuarter === state.currentQuarter
+  )
+    return state;
+  if (state.content.generatedQuarter !== state.currentQuarter - 1)
+    throw new Error("Skipped recurring content quarter");
+  if (
+    state.counters.opportunity >
+    Number.MAX_SAFE_INTEGER - state.playerOrder.length
+  )
+    throw new RangeError("Opportunity counter exhausted");
+  let random = state.content.random;
+  let counters = state.counters;
+  const cardsByPlayer = { ...state.content.cardsByPlayer };
+  const recentCategoriesByPlayer = {
+    ...state.content.recentCategoriesByPlayer,
+  };
+  for (const player of state.playerOrder) {
+    const candidates = recurringCandidateWeights(state, player);
+    const total = candidates.reduce(
+      (sum, candidate) => sum + candidate.weight,
+      0,
+    );
+    const choice = drawBoundedInt(random, total);
+    random = choice.nextState;
+    let remaining = choice.value;
+    let selected: RecurringContentTemplate | undefined;
+    for (const candidate of candidates) {
+      if (remaining < candidate.weight) {
+        selected = candidate.template;
+        break;
+      }
+      remaining -= candidate.weight;
+    }
+    if (!selected) throw new Error("No recurring content candidate");
+    const priceNoise = drawBoundedInt(random, 501);
+    random = priceNoise.nextState;
+    const factNoise = drawBoundedInt(random, 1001);
+    random = factNoise.nextState;
+    const price = cents(
+      new FinanceDecimal(selected.askingPriceCents)
+        .times(10_000 + priceNoise.value - 250)
+        .dividedBy(10_000)
+        .round()
+        .toNumber(),
+    );
+    const facts = selected.facts ? { ...selected.facts } : null;
+    if (facts?.kind === "business")
+      facts.annualOperatingProfitCents = cents(
+        new FinanceDecimal(facts.annualOperatingProfitCents)
+          .times(10_000 + factNoise.value - 500)
+          .dividedBy(10_000)
+          .round()
+          .toNumber(),
+      );
+    const next = nextDeterministicId("opportunity", counters);
+    counters = next.counters;
+    cardsByPlayer[player] = {
+      id: next.id,
+      targetPlayerId: player,
+      templateId: selected.id,
+      category: selected.category,
+      createdQuarter: state.currentQuarter,
+      status: "available",
+      askingPriceCents: price,
+      investigationFeeCents: facts
+        ? recurringInvestigationFeeCents(price)
+        : cents(0),
+      investigated: false,
+      facts,
+    };
+    recentCategoriesByPlayer[player] = [
+      ...(recentCategoriesByPlayer[player] ?? []),
+      selected.category,
+    ].slice(-RECURRING_CONTENT_RULES.recentCategoryLookback);
+  }
+  return {
+    ...state,
+    counters,
+    content: {
+      ...state.content,
+      random,
+      generatedQuarter: state.currentQuarter,
+      cardsByPlayer,
+      recentCategoriesByPlayer,
+    },
+  };
+}
+
+/** Called only after spotlight legality succeeds; an unused card never survives that spotlight. */
+export function expireRecurringOpportunity(
+  state: GameState,
+  player: PlayerId,
+): GameState {
+  const card = state.content.cardsByPlayer[player];
+  if (!card || card.status !== "available") return state;
+  return {
+    ...state,
+    content: {
+      ...state.content,
+      cardsByPlayer: {
+        ...state.content.cardsByPlayer,
+        [player]: { ...card, status: "expired" },
+      },
+    },
+  };
+}
+
+export function projectRecurringOpportunity(
+  state: GameState,
+  player: PlayerId,
+): RecurringOpportunityView | null {
+  const card = state.content.cardsByPlayer[player];
+  if (!card || card.targetPlayerId !== player) return null;
+  const template = RECURRING_CONTENT_TEMPLATES.find(
+    (candidate) => candidate.id === card.templateId,
+  );
+  if (!template) throw new Error("Unknown content template");
+  return {
+    id: card.id,
+    templateId: card.templateId,
+    name: template.name,
+    category: card.category,
+    intensity: template.intensity,
+    summary: template.summary,
+    action: template.action,
+    createdQuarter: card.createdQuarter,
+    status: card.status,
+    askingPriceCents: card.askingPriceCents,
+    investigationFeeCents: card.investigationFeeCents,
+    investigated: card.investigated,
+    ...(card.investigated && card.facts ? { facts: { ...card.facts } } : {}),
+  };
+}
+
+export function setPlayerFocus(
+  state: GameState,
+  player: PlayerId,
+  focus: string,
+): ActionResult {
+  const reject = (
+    code: "WRONG_PHASE" | "UNKNOWN_PLAYER" | "INVALID_ACTION",
+  ): ActionResult => ({ ok: false, state, code, journalEntries: [] });
+  if (state.phase !== "ready-for-first-round") return reject("WRONG_PHASE");
+  if (!state.players[player]) return reject("UNKNOWN_PLAYER");
+  if (!FOCUS_AREAS.includes(focus as FocusArea))
+    return reject("INVALID_ACTION");
+  const progress = state.progress.byPlayer[player];
+  if (!progress || progress.focus === focus) return reject("INVALID_ACTION");
+  const next: GameState = {
+    ...state,
+    revision: state.revision + 1,
+    progress: {
+      ...state.progress,
+      byPlayer: {
+        ...state.progress.byPlayer,
+        [player]: { ...progress, focus: focus as FocusArea },
+      },
+    },
+  };
+  assertGameState(next);
+  return { ok: true, state: next, journalEntries: [] };
+}
+
+export function investigateRecurringOpportunity(
+  state: GameState,
+  player: PlayerId,
+  id: string,
+): ActionResult {
+  const reject = (
+    code:
+      | "WRONG_PHASE"
+      | "NOT_FOUND_OR_NOT_VISIBLE"
+      | "OPPORTUNITY_NOT_AVAILABLE"
+      | "ALREADY_INVESTIGATED"
+      | "INVALID_ACTION"
+      | "INSUFFICIENT_AVAILABLE_CASH"
+      | "JOURNAL_ID_EXHAUSTED",
+  ): ActionResult => ({ ok: false, state, code, journalEntries: [] });
+  if (state.phase !== "ready-for-first-round") return reject("WRONG_PHASE");
+  const card = state.content.cardsByPlayer[player];
+  if (!card || card.id !== id || card.targetPlayerId !== player)
+    return reject("NOT_FOUND_OR_NOT_VISIBLE");
+  if (
+    card.status !== "available" ||
+    card.createdQuarter !== state.currentQuarter
+  )
+    return reject("OPPORTUNITY_NOT_AVAILABLE");
+  if (card.investigated) return reject("ALREADY_INVESTIGATED");
+  if (!card.facts) return reject("INVALID_ACTION");
+  if (getAvailableCashCents(state, player) < card.investigationFeeCents)
+    return reject("INSUFFICIENT_AVAILABLE_CASH");
+  if (state.counters.journal >= Number.MAX_SAFE_INTEGER)
+    return reject("JOURNAL_ID_EXHAUSTED");
+  const posted = postCash(state.finance, state.counters, {
+    source: playerCashAccount(player),
+    destination: externalCashAccount("market"),
+    amountCents: card.investigationFeeCents,
+    reason: "opportunity-investigation",
+    relatedOpportunityId: card.id,
+    quarter: state.currentQuarter,
+  });
+  if (!posted.ok) return reject("INSUFFICIENT_AVAILABLE_CASH");
+  const next: GameState = {
+    ...state,
+    revision: state.revision + 1,
+    finance: posted.finance,
+    counters: posted.counters,
+    content: {
+      ...state.content,
+      cardsByPlayer: {
+        ...state.content.cardsByPlayer,
+        [player]: { ...card, investigated: true },
+      },
+    },
+  };
+  assertGameState(next);
+  return { ok: true, state: next, journalEntries: [posted.entry] };
+}

@@ -1,6 +1,7 @@
 import {
   applyAction,
   createGame,
+  createQ1BusinessDiagnosticGame,
   ENGINE_VERSION,
   settleQuarter,
   totalPublicMarketValueCents,
@@ -26,7 +27,7 @@ import { SIMULATION_VERSION } from "./version";
 
 describe("passive baseline simulation", () => {
   it("reports actual business distributions separately from company reserves and recurring owner income", () => {
-    const initial = createGame({
+    const initial = createQ1BusinessDiagnosticGame({
       gameId: "distribution-report",
       seed: "m7-planning-1",
       playerIds: STANDARD_SIMULATION_PLAYER_IDS,

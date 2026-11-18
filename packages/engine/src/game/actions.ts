@@ -48,6 +48,7 @@ export type ActionErrorCode =
   | "OBLIGATION_OVERFLOW"
   | "JOURNAL_ID_EXHAUSTED"
   | "SETTLEMENT_ID_EXHAUSTED"
+  | "OPPORTUNITY_ID_EXHAUSTED"
   | TransactionErrorCode
   | InvestigateOpportunityErrorCode
   | PursueOpportunityErrorCode;

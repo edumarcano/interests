@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const ServerConfigSchema = z.object({
+  setupScenario: z.enum(["standard-v1", "q1-business-diagnostic"]).optional(),
   host: z.string().trim().min(1, "Host cannot be empty").default("0.0.0.0"),
   port: z.coerce
     .number()
@@ -33,6 +34,8 @@ export function parseServerConfig(
   env: Record<string, string | undefined> = process.env,
 ): ServerConfig {
   const raw: Record<string, unknown> = {};
+  if (env.INTERESTS_SETUP_SCENARIO !== undefined)
+    raw.setupScenario = env.INTERESTS_SETUP_SCENARIO;
 
   if (env.INTERESTS_HOST !== undefined) {
     raw.host = env.INTERESTS_HOST;

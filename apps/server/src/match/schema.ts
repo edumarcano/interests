@@ -188,6 +188,19 @@ const BusinessCapitalTermsSchema = z.discriminatedUnion("kind", [
     })
     .strict(),
 ]);
+export const SetFocusPayloadSchema = z
+  .object({
+    type: z.literal("SET_FOCUS"),
+    focus: z.enum([
+      "general",
+      "business",
+      "property",
+      "career",
+      "markets",
+      "financing",
+    ]),
+  })
+  .strict();
 
 const JointPropertyTermsSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("sale") }).strict(),
@@ -452,6 +465,7 @@ export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
       amountCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
     })
     .strict(),
+  SetFocusPayloadSchema,
   ChooseObjectivePayloadSchema,
   BeginRoundPayloadSchema,
   PassSpotlightPayloadSchema,

@@ -10,6 +10,7 @@ import type {
   PropertyAcquisitionCommand,
   PropertyCommand,
   ResignLaborCommandPayload,
+  SetFocusCommandPayload,
   TradePublicMarketsCommandPayload,
   TransactionId,
 } from "@interests/shared";
@@ -24,6 +25,10 @@ import {
 } from "../opportunities/privateBusinessPurchase.js";
 import { applyBusinessAuctionCommand } from "../transactions/businessAuction";
 import { applyBusinessCapitalCommand } from "../transactions/businessCapital";
+import {
+  investigateRecurringOpportunity,
+  setPlayerFocus,
+} from "../opportunities/recurring";
 import {
   acceptPlayerLoanFinancingOffer,
   submitPlayerLoanFinancingOffer,
@@ -99,6 +104,7 @@ export type WirePlayerCommand =
   | BusinessCapitalCommand
   | PropertyCommand
   | ExpandBusinessCommandPayload
+  | SetFocusCommandPayload
   | TradePublicMarketsCommandPayload
   | AcceptCareerOfferCommandPayload
   | ResignLaborCommandPayload
@@ -191,6 +197,8 @@ export function applyPlayerCommand(
         actorPlayerId,
         wireCommand,
       );
+    case "SET_FOCUS":
+      return setPlayerFocus(state, actorPlayerId, wireCommand.focus);
     case "TRADE_PUBLIC_MARKETS":
       return tradePublicMarketsAndAdvanceSpotlight(
         state,
@@ -239,6 +247,15 @@ export function applyPlayerCommand(
           journalEntries: [],
         };
       }
+      if (
+        state.content.cardsByPlayer[actorPlayerId]?.id ===
+        wireCommand.opportunityId
+      )
+        return investigateRecurringOpportunity(
+          state,
+          actorPlayerId,
+          wireCommand.opportunityId,
+        );
       const res = investigatePrivateBusinessPurchaseOpportunity(
         state,
         wireCommand.opportunityId as OpportunityId,

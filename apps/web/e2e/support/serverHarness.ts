@@ -30,7 +30,9 @@ export interface TestServerHarness {
   cleanup: () => Promise<void>;
 }
 
-export async function startTestServer(): Promise<TestServerHarness> {
+export async function startTestServer(
+  options: { setupScenario?: "standard-v1" | "q1-business-diagnostic" } = {},
+): Promise<TestServerHarness> {
   const port = await getFreePort();
   const origin = `http://127.0.0.1:${port}`;
   const runId = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
@@ -55,6 +57,7 @@ export async function startTestServer(): Promise<TestServerHarness> {
     return new Promise((resolve, reject) => {
       const env = {
         ...process.env,
+        INTERESTS_SETUP_SCENARIO: options.setupScenario ?? "standard-v1",
         INTERESTS_HOST: "127.0.0.1",
         INTERESTS_PORT: String(port),
         INTERESTS_DB_PATH: dbPath,
