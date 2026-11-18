@@ -913,7 +913,7 @@ Property transaction/renovation integration follows the ordered stack: apply eff
 
 ## ARCH-048 - Recurring private discovery and explicit diagnostic setup
 
-**Status:** Accepted implementation checkpoint; NPC closing and card UI integration pending
+**Status:** Accepted implementation checkpoint; NPC closing integration pending
 **Date:** November 17, 2026
 
 | Boundary | Implementation |
@@ -926,5 +926,7 @@ Property transaction/renovation integration follows the ordered stack: apply eff
 | Diligence | Reuse `INVESTIGATE_OPPORTUNITY` with recipient-derived access. Property/business investigation charges HALF_UP(asking price × 25 BPS), bounded to $100–$1,000, from available cash. One journal identifies the opportunity; repeated inspection rejects without another payment. Facts existed at generation and become visible only to the owner. |
 | Focus | `SET_FOCUS` is a private background preparation command after objective selection. It changes future weighting, consumes one revision and no spotlight/RNG/IDs, and leaves the current card unchanged. |
 | Views | `self.recurringOpportunity` allowlists the recipient's card metadata and authoritative fee. Facts use a shared business/property discriminant and remain absent until paid investigation. Other cards, raw content state and content RNG never enter HTTP/socket/bootstrap views. |
+| Browser | Render the private card, expiry, fixed paid facts and future-focus controls. The browser sends card ID or focus only, formats engine amounts, handles pause/rejection/retry and links quick prompts to persistent actions. Purchase/funding buttons await functional closing routes. |
+| Acquisition handoff | Trusted engine callers use `getRecurringAcquisitionTerms(state, authenticatedPlayer, cardId)` to resolve stored price/facts, rule-owned purchase fee, cash total and affordability. This result includes undisclosed facts and is not a client projection. Business terms preserve after-labor profit and total operating costs; their un-authored annual labor split remains explicit `null`. The current rental template is residential. |
 
-Template IDs `local-service-company`, `regional-company`, `residential-rental` and `working-capital-loan` identify later NPC closing routes. `career-review`, `fund-allocation`, `company-review` and `property-review` point at persistent action families. Discovery itself creates no asset, loan or cash proceeds. NPC acquisition/funding execution, transaction binding, financing-supported eligibility and ordinary card controls are not delivered by this checkpoint; no enabled placeholder closing action is introduced.
+Template IDs `local-service-company`, `regional-company`, `residential-rental` and `working-capital-loan` identify later NPC closing routes. `career-review`, `fund-allocation`, `company-review` and `property-review` point at persistent action families. Discovery itself creates no asset, loan or cash proceeds. NPC acquisition/funding execution, transaction binding and financing-supported eligibility remain integration work. Closing must recheck spotlight/transaction legality, post cash/fees atomically, create basis and ownership, and preserve next-quarter earning entitlement. No labor calibration is inferred from aggregate profit.

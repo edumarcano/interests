@@ -47,6 +47,7 @@ export function CareerPanel({
   }
   return (
     <section
+      id="career-and-labor"
       aria-label="Career and labor"
       style={{ marginBlock: "1rem", overflowWrap: "anywhere" }}
     >

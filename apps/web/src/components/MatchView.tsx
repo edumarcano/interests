@@ -12,6 +12,7 @@ import { CareerPanel } from "./CareerPanel";
 import { ObjectiveRequirements } from "./ObjectiveRequirements";
 import { ObjectiveSelection } from "./ObjectiveSelection.js";
 import { PauseBanner } from "./PauseBanner.js";
+import { RecurringOpportunityPanel } from "./RecurringOpportunityPanel";
 import { RoundStartView } from "./RoundStartView.js";
 import { SpotlightView } from "./SpotlightView.js";
 
@@ -61,6 +62,12 @@ export const MatchView: React.FC<Props> = ({
         <ObjectiveSelection match={match} onSendCommand={onSendCommand} />
       )}
 
+      <RecurringOpportunityPanel
+        key={match.self.recurringOpportunity?.id ?? "no-recurring-card"}
+        match={match}
+        isPaused={isPaused}
+        onSendCommand={onSendCommand}
+      />
       <ObjectiveRequirements self={match.self} />
       {match.phase === "ready-for-first-round" && (
         <CareerPanel

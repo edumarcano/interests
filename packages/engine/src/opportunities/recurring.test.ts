@@ -15,6 +15,7 @@ import {
   recurringCandidateWeights,
   recurringInvestigationFeeCents,
 } from "./recurring";
+import { getRecurringAcquisitionTerms } from "./recurringAcquisition";
 
 const players = ["a", "b", "c", "d"].map(asPlayerId);
 function game(seed = "recurring-content") {
@@ -332,6 +333,112 @@ describe("ordinary objective-neutral recurring generation", () => {
     });
     expect(result.state).toBe(exhausted);
     expect(JSON.stringify(exhausted)).toBe(before);
+  });
+});
+
+describe("authoritative recurring acquisition terms", () => {
+  it("resolves typed stored facts and fees without changing state or inventing a labor split", () => {
+    const { state, owner } = investigationFixture();
+    const card = state.content.cardsByPlayer[owner]!;
+    const before = JSON.stringify(state);
+    const result = getRecurringAcquisitionTerms(state, owner, card.id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.code);
+    expect(result.terms.facts).toEqual(card.facts);
+    expect(result.terms.askingPriceCents).toBe(card.askingPriceCents);
+    expect(result.terms.totalCashRequiredCents).toBe(
+      card.askingPriceCents + result.terms.purchaseFeeCents,
+    );
+    if (result.terms.kind === "business") {
+      expect(result.terms.necessaryLabor).toEqual({
+        kind: "included-in-after-labor-profit",
+        explicitAnnualCostCents: null,
+      });
+      expect(
+        result.terms.annualTotalOperatingCostsCents +
+          result.terms.facts.annualOperatingProfitCents,
+      ).toBe(result.terms.facts.annualRevenueCents);
+    } else expect(result.terms.marketKind).toBe("residential");
+    expect(JSON.stringify(state)).toBe(before);
+    expect(
+      getRecurringAcquisitionTerms(
+        state,
+        players.find((player) => player !== owner)!,
+        card.id,
+      ),
+    ).toEqual({ ok: false, code: "NOT_FOUND_OR_NOT_VISIBLE" });
+  });
+  it("prepares residential cash-purchase terms with exact rule-owned fees", () => {
+    const { state, owner } = investigationFixture();
+    const original = state.content.cardsByPlayer[owner]!;
+    const template = RECURRING_CONTENT_TEMPLATES.find(
+      (candidate) => candidate.id === "residential-rental",
+    )!;
+    const property = {
+      ...state,
+      content: {
+        ...state.content,
+        cardsByPlayer: {
+          ...state.content.cardsByPlayer,
+          [owner]: {
+            ...original,
+            templateId: template.id,
+            category: template.category,
+            askingPriceCents: cents(15_000_000),
+            investigationFeeCents: cents(37_500),
+            facts: template.facts,
+          },
+        },
+      },
+    };
+    assertGameState(property);
+    const result = getRecurringAcquisitionTerms(property, owner, original.id);
+    expect(result).toMatchObject({
+      ok: true,
+      terms: {
+        kind: "property",
+        marketKind: "residential",
+        askingPriceCents: 15_000_000,
+        purchaseFeeCents: 300_000,
+        totalCashRequiredCents: 15_300_000,
+        cashAffordable: true,
+      },
+    });
+  });
+  it("rejects expired terms and overflowing purchase totals atomically", () => {
+    const { state, owner } = investigationFixture();
+    const card = state.content.cardsByPlayer[owner]!;
+    const expired = {
+      ...state,
+      content: {
+        ...state.content,
+        cardsByPlayer: {
+          ...state.content.cardsByPlayer,
+          [owner]: { ...card, status: "expired" as const },
+        },
+      },
+    };
+    expect(getRecurringAcquisitionTerms(expired, owner, card.id)).toEqual({
+      ok: false,
+      code: "OPPORTUNITY_NOT_AVAILABLE",
+    });
+    const unsafe = {
+      ...state,
+      content: {
+        ...state.content,
+        cardsByPlayer: {
+          ...state.content.cardsByPlayer,
+          [owner]: {
+            ...card,
+            askingPriceCents: cents(Number.MAX_SAFE_INTEGER),
+          },
+        },
+      },
+    };
+    expect(getRecurringAcquisitionTerms(unsafe, owner, card.id)).toEqual({
+      ok: false,
+      code: "DESTINATION_OVERFLOW",
+    });
   });
 });
 
