@@ -394,3 +394,52 @@ input:focus {
   color: var(--text-primary);
   font-weight: 600;
 }
+
+.property-panel {
+  margin: 1.5rem 0;
+  min-width: 0;
+}
+.property-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  gap: 1rem;
+}
+.property-card,
+.property-review {
+  padding: 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow-wrap: anywhere;
+}
+.property-card p,
+.property-review p {
+  margin: 0.75rem 0;
+}
+.property-card h5 {
+  margin: 1rem 0 0.25rem;
+  text-transform: capitalize;
+}
+.property-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.property-panel button {
+  max-width: 100%;
+  white-space: normal;
+}
+.property-review {
+  margin-bottom: 1rem;
+  border-color: var(--accent-gold);
+}
+
+.property-panel summary {
+  cursor: pointer;
+  padding: 0.75rem 0;
+  color: var(--accent-gold);
+  font-weight: 600;
+}
+.property-panel summary:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 3px;
+}

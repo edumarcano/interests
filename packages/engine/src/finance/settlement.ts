@@ -1,5 +1,6 @@
 import {
   calculateCashYieldBps,
+  OPERATING_RULES,
   PUBLIC_MARKET_INSTRUMENT_IDS,
   PUBLIC_MARKET_INSTRUMENTS,
 } from "@interests/rules";
@@ -22,6 +23,7 @@ import {
   playerCashAccount,
 } from "./account";
 import { allocateWeightedCents } from "./allocation";
+import { isAssetBorrower, resetVariableAssetLoan, roundedRatio } from "./bank";
 import {
   BusinessCashOverflowError,
   type BusinessSettlementOutcome,
@@ -35,7 +37,7 @@ import {
   calculateQuarterlyYieldCents,
   revaluePublicMarketPortfolio,
 } from "./markets";
-import { type Cents, cents } from "./money";
+import { basisPoints, type Cents, cents } from "./money";
 import {
   applyLoanPaymentAllocation,
   calculateLoanObligation,
@@ -52,6 +54,7 @@ import {
   recordQuarterObservations,
 } from "./progress";
 import { calculatePropertyCashFlow } from "./property";
+import { planPropertySettlement } from "./propertySettlement";
 
 export interface SettleQuarterRequest {
   readonly quarter: number;
@@ -125,17 +128,17 @@ export function applyQuarterSettlement(
     const balances: Record<PlayerId, Cents> = { ...state.finance.cashByPlayer };
     const businessBalances: Record<AssetId, Cents> = {};
     for (const asset of Object.values(state.finance.assetsById))
-      if (asset.kind === "business")
-        businessBalances[asset.id] = asset.cashCents;
+      if (asset.kind === "business" || asset.kind === "property")
+        businessBalances[asset.id] = asset.cashCents ?? cents(0);
     const balanceOf = (account: CashAccount): Cents =>
       account.kind === "player"
         ? required(balances[account.playerId])
-        : account.kind === "business"
+        : account.kind === "business" || account.kind === "property"
           ? required(businessBalances[account.assetId])
           : cents(0);
     const writeBalance = (account: CashAccount, amount: Cents) => {
       if (account.kind === "player") balances[account.playerId] = amount;
-      else if (account.kind === "business")
+      else if (account.kind === "business" || account.kind === "property")
         businessBalances[account.assetId] = amount;
     };
     const planPosting = (request: CashPostingRequest) => {
@@ -215,11 +218,21 @@ export function applyQuarterSettlement(
         "personal-earned-income",
       );
     }
+    const loansById: Record<LoanId, Loan> = { ...state.finance.loansById };
+    const loanPayments: LoanPaymentOutcome[] = [];
     for (const assetId of (
       Object.keys(state.finance.quarterStartBasis.propertiesById) as AssetId[]
     ).sort()) {
       const asset = state.finance.quarterStartBasis.propertiesById[assetId];
       if (!asset || asset.kind !== "property") continue;
+      const current = state.finance.assetsById[assetId];
+      if (current?.kind === "property" && current.cashCents !== undefined) {
+        const plan = planPropertySettlement(current, asset, quarter, loansById);
+        for (const posting of plan.postings) planPosting(posting);
+        Object.assign(loansById, plan.loansById);
+        loanPayments.push(...plan.loanPayments);
+        continue;
+      }
       const allocations = allocateProportionalCents(
         calculatePropertyCashFlow(asset).netOperatingIncomeCents,
         asset.ownershipByPlayerPpm,
@@ -236,8 +249,6 @@ export function applyQuarterSettlement(
     }
 
     const businesses: BusinessSettlementOutcome[] = [];
-    const loansById: Record<LoanId, Loan> = { ...state.finance.loansById };
-    const loanPayments: LoanPaymentOutcome[] = [];
     for (const assetId of (
       Object.keys(state.finance.quarterStartBasis.businessesById) as AssetId[]
     ).sort()) {
@@ -300,7 +311,7 @@ export function applyQuarterSettlement(
     const obligations = {} as Record<LoanId, LoanObligation>;
     for (const loanId of loanIds) {
       const loan = state.finance.loansById[loanId];
-      if (!loan || loan.kind === "company-loan") continue;
+      if (!loan || isAssetBorrower(loan)) continue;
       const obligation = calculateLoanObligation(loan, quarter);
       if (obligation) obligations[loanId] = obligation;
     }
@@ -315,7 +326,7 @@ export function applyQuarterSettlement(
         if (
           due &&
           candidate &&
-          candidate.kind !== "company-loan" &&
+          !isAssetBorrower(candidate) &&
           candidate.borrowerPlayerId === playerId
         ) {
           weights[loanId] = due.amountDueCents;
@@ -330,7 +341,7 @@ export function applyQuarterSettlement(
     for (const loanId of loanIds) {
       const due = obligations[loanId];
       const loan = loansById[loanId];
-      if (!due || !loan || loan.kind === "company-loan") continue;
+      if (!due || !loan || isAssetBorrower(loan)) continue;
       const applied = applyLoanPaymentAllocation(
         loan,
         due,
@@ -432,6 +443,49 @@ export function applyQuarterSettlement(
                 },
               }
             : {}),
+        },
+      };
+    }
+    for (const loan of Object.values(loansById))
+      if (loan.kind === "asset-bank-loan")
+        loansById[loan.id] = resetVariableAssetLoan(
+          loan,
+          state.economy.baseRateBps,
+          quarter + 1,
+        );
+    for (const asset of Object.values(assetsById)) {
+      if (
+        asset.kind !== "property" ||
+        !asset.renovationPending ||
+        asset.renovationPending.effectiveQuarter !== quarter + 1
+      )
+        continue;
+      const { renovationPending, ...property } = asset;
+      assetsById = {
+        ...assetsById,
+        [asset.id]: {
+          ...property,
+          marketValueCents: cents(
+            asset.marketValueCents +
+              roundedRatio(
+                renovationPending.costCents,
+                OPERATING_RULES.renovationValuePerCostBps,
+              ),
+          ),
+          scheduledQuarterlyRentCents: cents(
+            asset.scheduledQuarterlyRentCents +
+              roundedRatio(
+                asset.scheduledQuarterlyRentCents,
+                OPERATING_RULES.renovationRentIncreaseBps,
+              ),
+          ),
+          occupancyBps: basisPoints(
+            Math.min(
+              10_000,
+              asset.occupancyBps +
+                OPERATING_RULES.renovationOccupancyIncreaseBps,
+            ),
+          ),
         },
       };
     }

@@ -118,6 +118,44 @@ export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
   TradePublicMarketsPayloadSchema,
   AcceptCareerOfferPayloadSchema,
   ResignLaborPayloadSchema,
+  z
+    .object({
+      type: z.literal("BUY_PROPERTY"),
+      catalogueId: z.string().min(1).max(64),
+      principalCents: z
+        .number()
+        .int()
+        .nonnegative()
+        .max(Number.MAX_SAFE_INTEGER),
+      rateKind: z.enum(["fixed", "variable"]),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("SELL_PROPERTY"),
+      assetId: z.string().min(1).max(64),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("RENOVATE_PROPERTY"),
+      assetId: z.string().min(1).max(64),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("REFINANCE_PROPERTY"),
+      assetId: z.string().min(1).max(64),
+      rateKind: z.enum(["fixed", "variable"]),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("FUND_PROPERTY_RESERVE"),
+      assetId: z.string().min(1).max(64),
+      amountCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    })
+    .strict(),
   ChooseObjectivePayloadSchema,
   BeginRoundPayloadSchema,
   PassSpotlightPayloadSchema,

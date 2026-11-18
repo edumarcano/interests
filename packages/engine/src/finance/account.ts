@@ -17,6 +17,7 @@ export type ExternalAccount = (typeof EXTERNAL_ACCOUNTS)[number];
 
 export type CashAccount =
   | { readonly kind: "business"; readonly assetId: AssetId }
+  | { readonly kind: "property"; readonly assetId: AssetId }
   | { readonly kind: "player"; readonly playerId: PlayerId }
   | { readonly kind: "external"; readonly account: ExternalAccount };
 
@@ -39,7 +40,13 @@ export function businessCashAccount(assetId: AssetId): CashAccount {
   return { kind: "business", assetId };
 }
 
+export function propertyCashAccount(assetId: AssetId): CashAccount {
+  return { kind: "property", assetId };
+}
+
 export function isSameCashAccount(a: CashAccount, b: CashAccount): boolean {
+  if (a.kind === "property" && b.kind === "property")
+    return a.assetId === b.assetId;
   if (a.kind === "business" && b.kind === "business")
     return a.assetId === b.assetId;
   if (a.kind === "player" && b.kind === "player") {

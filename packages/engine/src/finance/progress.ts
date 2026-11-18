@@ -24,7 +24,7 @@ export function capturePropertyBasis(
 ): Record<AssetId, PropertyAsset> {
   const result: Record<AssetId, PropertyAsset> = {};
   for (const asset of Object.values(assets))
-    if (asset.kind === "property")
+    if (asset.kind === "property" && asset.disposition !== "sold")
       result[asset.id] = {
         ...asset,
         ownershipByPlayerPpm: { ...asset.ownershipByPlayerPpm },
@@ -197,6 +197,18 @@ export function recordQuarterObservations(
           "financing",
           currentInterestPaid,
         );
+      }
+    }
+    if (state.finance.prepaidAssetInterest?.quarter === outcome.quarter) {
+      for (const [id, evidence] of Object.entries(
+        state.finance.prepaidAssetInterest.byAssetId,
+      )) {
+        const share =
+          allocateProportionalCents(
+            evidence.interestCents,
+            evidence.ownershipByPlayerPpm,
+          )[playerId] ?? 0;
+        add(`asset:${id}`, "property", 0, share);
       }
     }
     const observation: QuarterObservation = {
