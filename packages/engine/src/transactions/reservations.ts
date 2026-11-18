@@ -2,6 +2,7 @@ import type { PlayerId } from "@interests/shared";
 
 import { type Cents, cents, subtractCents } from "../finance/money";
 import type { GameState } from "../model/gameState";
+import { reservedAuctionCash } from "./businessAuctionTerms";
 import { planBusinessCapital } from "./businessCapitalTerms";
 import { reservedBusinessLoanCash } from "./businessLoanOffers";
 
@@ -17,6 +18,7 @@ export function getReservedCashCents(
   if (tx === null) {
     return cents(0);
   }
+  if (tx.kind === "business-auction") return reservedAuctionCash(tx, playerId);
   if (tx.kind === "business-capital") {
     const offers = reservedBusinessLoanCash(tx, playerId);
     if (!tx.confirmedPlayerIds.includes(playerId)) return cents(offers);

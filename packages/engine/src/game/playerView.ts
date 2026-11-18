@@ -9,6 +9,7 @@ import {
   PUBLIC_MARKET_TRADE_FEE_BPS,
 } from "@interests/rules";
 import type {
+  BusinessAuctionView,
   BusinessCapitalView,
   BusinessLoanInvitationView,
   MatchId,
@@ -28,6 +29,7 @@ import { calculateLoanObligation } from "../finance/obligations";
 import { calculatePropertyCashFlow } from "../finance/property";
 import { propertyManagement, propertyOffers } from "../finance/propertyActions";
 import type { GameState } from "../model/gameState.js";
+import { projectBusinessAuction } from "../transactions/businessAuctionTerms";
 import { planBusinessCapital } from "../transactions/businessCapitalTerms";
 import {
   businessLoanOfferViews,
@@ -168,6 +170,7 @@ export interface PurePlayerProjection {
   readonly activeTransaction: PureActiveTransactionSummary | null;
   readonly businessCapital: BusinessCapitalView | null;
   readonly businessLoanInvitation: BusinessLoanInvitationView | null;
+  readonly businessAuction: BusinessAuctionView | null;
 }
 
 /**
@@ -721,5 +724,9 @@ export function projectPlayerGameState(
     activeTransaction,
     businessCapital,
     businessLoanInvitation,
+    businessAuction:
+      capital?.kind === "business-auction"
+        ? projectBusinessAuction(capital, playerId)
+        : null,
   };
 }

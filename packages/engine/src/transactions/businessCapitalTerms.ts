@@ -1,15 +1,17 @@
-import { OPERATING_RULES, TRANSACTION_FEES_BPS } from "@interests/rules";
+import { OPERATING_RULES } from "@interests/rules";
 import {
   asPlayerId,
   type BusinessLoanRequest,
   type PlayerId,
 } from "@interests/shared";
-import type { BusinessCapitalConsideration } from "../finance/businessCapitalAccounting";
+import {
+  type BusinessCapitalConsideration,
+  businessStakePurchaseTotalCents,
+} from "../finance/businessCapitalAccounting";
 import {
   diluteBusinessOwnership,
   transferBusinessStake,
 } from "../finance/businessStakes";
-import { FinanceDecimal } from "../finance/decimal";
 import { type Cents, cents, isNonNegativeCents } from "../finance/money";
 import type { BusinessAsset, GameState } from "../model/gameState";
 import { assertBusinessLoanOffers, loanRequests } from "./businessLoanOffers";
@@ -101,12 +103,7 @@ export function planBusinessCapital(
           return null;
         participants.add(seller);
         participants.add(buyer);
-        const fee = new FinanceDecimal(terms.priceCents)
-          .times(TRANSACTION_FEES_BPS.business.purchase)
-          .div(10_000)
-          .round()
-          .toNumber();
-        const upfront = cents(terms.priceCents + fee);
+        const upfront = businessStakePurchaseTotalCents(terms.priceCents);
         let totalPrincipal = 0;
         let loanRequests: BusinessLoanRequest[] | undefined;
         if (terms.loanRequests !== undefined) {

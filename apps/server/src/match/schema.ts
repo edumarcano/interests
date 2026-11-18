@@ -176,6 +176,21 @@ const BusinessCapitalTermsSchema = z.discriminatedUnion("kind", [
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
   z
     .object({
+      type: z.literal("OPEN_BUSINESS_AUCTION"),
+      assetId: transactionKey,
+      ownershipPpm: ownershipUnits,
+      minimumBidCents: positiveCents,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("RESPOND_BUSINESS_AUCTION"),
+      transactionId: transactionKey,
+      bidCents: positiveCents.nullable(),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("OFFER_BUSINESS_LOAN"),
       ...termsBinding,
       slot: loanSlot,

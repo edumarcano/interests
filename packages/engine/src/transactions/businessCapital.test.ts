@@ -402,3 +402,107 @@ describe("business capital lifecycle", () => {
     ).toEqual([20_000, 30_000]);
   });
 });
+
+describe("sealed stake auction", () => {
+  it("keeps rival bids sealed, waits for three responses and closes an exact tie at the first bid", () => {
+    const { state, owner, asset, buyer, second, rival } = start();
+    const opened = send(state, owner, {
+      type: "OPEN_BUSINESS_AUCTION",
+      assetId: asset.id,
+      ownershipPpm: 250_000,
+      minimumBidCents: 100_000,
+    }).state;
+    const tx = opened.activeTransaction;
+    if (tx?.kind !== "business-auction")
+      throw new Error("Expected sealed auction");
+    const response = (bidCents: number | null) =>
+      ({
+        type: "RESPOND_BUSINESS_AUCTION",
+        transactionId: tx.id,
+        bidCents,
+      }) as const;
+    const first = send(opened, buyer, response(120_000)).state;
+    expect(getReservedCashCents(first, buyer)).toBe(122_400);
+    const otherAmount = send(opened, buyer, response(121_000)).state;
+    for (const spectator of [owner, second, rival])
+      expect(projectPlayerGameState(first, spectator)).toEqual(
+        projectPlayerGameState(otherAmount, spectator),
+      );
+    expect(
+      projectPlayerGameState(first, buyer).businessAuction?.ownResponse,
+    ).toEqual({ kind: "bid", amountCents: 120_000 });
+    expect(applyPlayerCommand(first, buyer, response(123_000))).toMatchObject({
+      ok: false,
+      code: "AUCTION_ALREADY_RESPONDED",
+      state: first,
+    });
+    const tied = send(first, second, response(120_000)).state;
+    expect(tied.finance).toBe(opened.finance);
+    expect(getReservedCashCents(tied, second)).toBe(122_400);
+    const restored = JSON.parse(JSON.stringify(tied)) as GameState;
+    assertGameState(restored);
+    const closed = send(restored, rival, response(null));
+    expect(closed.state.revision).toBe(tied.revision + 1);
+    expect(closed.state.activeTransaction).toBeNull();
+    expect(getReservedCashCents(closed.state, second)).toBe(0);
+    expect(
+      closed.state.finance.assetsById[asset.id]?.ownershipByPlayerPpm,
+    ).toEqual({ [owner]: 750_000, [buyer]: 250_000 });
+    expect(
+      closed.journalEntries
+        .filter((entry) => entry.relatedTransactionId === tx.id)
+        .map((entry) => entry.amountCents),
+    ).toEqual([120_000, 2_400, 3_600]);
+  });
+
+  it("rejects a bid without fee cash and lets only the listing owner cancel and release the reserves", () => {
+    const { state, owner, asset, buyer, second } = start();
+    const opened = send(state, owner, {
+      type: "OPEN_BUSINESS_AUCTION",
+      assetId: asset.id,
+      ownershipPpm: 250_000,
+      minimumBidCents: 100_000,
+    }).state;
+    const tx = opened.activeTransaction;
+    if (tx?.kind !== "business-auction")
+      throw new Error("Expected sealed auction");
+    const buyerWallet = opened.finance.cashByPlayer[buyer];
+    if (buyerWallet === undefined) throw new Error("Expected bid cash");
+    expect(
+      applyPlayerCommand(opened, buyer, {
+        type: "RESPOND_BUSINESS_AUCTION",
+        transactionId: tx.id,
+        bidCents: buyerWallet,
+      }),
+    ).toMatchObject({
+      ok: false,
+      code: "INSUFFICIENT_AVAILABLE_CASH",
+      state: opened,
+    });
+    const active = send(opened, buyer, {
+      type: "RESPOND_BUSINESS_AUCTION",
+      transactionId: tx.id,
+      bidCents: 100_000,
+    }).state;
+    const cancel = {
+      type: "CANCEL_ACTIVE_TRANSACTION",
+      transactionId: tx.id,
+    } as const;
+    expect(applyPlayerCommand(active, second, cancel)).toMatchObject({
+      ok: false,
+      code: "NOT_ACTIVE_SPOTLIGHT",
+      state: active,
+    });
+    const cancelled = send(active, owner, cancel);
+    expect(cancelled.state.activeTransaction).toBeNull();
+    expect(getReservedCashCents(cancelled.state, buyer)).toBe(0);
+    expect(
+      cancelled.state.finance.assetsById[asset.id]?.ownershipByPlayerPpm,
+    ).toEqual({ [owner]: 1_000_000 });
+    expect(
+      cancelled.journalEntries.some(
+        (entry) => entry.relatedTransactionId === tx.id,
+      ),
+    ).toBe(false);
+  });
+});

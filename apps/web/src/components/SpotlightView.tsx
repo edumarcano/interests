@@ -5,6 +5,7 @@ import type {
 } from "@interests/shared";
 import type React from "react";
 import { useState } from "react";
+import { BusinessAuctionPanel } from "./BusinessAuctionPanel";
 import { BusinessCapitalPanel } from "./BusinessCapitalPanel";
 import { BusinessLendingPanel } from "./BusinessLendingPanel";
 import { OpportunityCard } from "./OpportunityCard.js";
@@ -125,6 +126,11 @@ export const SpotlightView: React.FC<Props> = ({
 
       {/* Self Finances Summary */}
       <SelfFinanceSummary self={match.self} />
+      <BusinessAuctionPanel
+        match={match}
+        isPaused={isPaused}
+        onSendCommand={onSendCommand}
+      />
       <BusinessCapitalPanel
         match={match}
         isPaused={isPaused}
@@ -152,7 +158,8 @@ export const SpotlightView: React.FC<Props> = ({
       {/* Private Opportunity Card (Target Buyer, unpursued or investigating) */}
       {match.self.opportunity &&
         !match.activeTransaction &&
-        !match.businessCapital && (
+        !match.businessCapital &&
+        !match.businessAuction && (
           <OpportunityCard
             opportunity={match.self.opportunity}
             isPaused={isPaused}
@@ -271,27 +278,29 @@ export const SpotlightView: React.FC<Props> = ({
             >
               It's your spotlight!
             </p>
-            {!match.activeTransaction && !match.businessCapital && (
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={handlePassSpotlight}
-                disabled={isPaused || submitting}
-                style={{
-                  minWidth: 200,
-                  fontSize: "1.05rem",
-                  padding: "0.8rem 2rem",
-                }}
-                id="pass-spotlight-btn"
-                data-testid="pass-spotlight-btn"
-              >
-                {submitting
-                  ? "Passing..."
-                  : error
-                    ? "Retry Pass Spotlight"
-                    : "Pass Spotlight"}
-              </button>
-            )}
+            {!match.activeTransaction &&
+              !match.businessCapital &&
+              !match.businessAuction && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handlePassSpotlight}
+                  disabled={isPaused || submitting}
+                  style={{
+                    minWidth: 200,
+                    fontSize: "1.05rem",
+                    padding: "0.8rem 2rem",
+                  }}
+                  id="pass-spotlight-btn"
+                  data-testid="pass-spotlight-btn"
+                >
+                  {submitting
+                    ? "Passing..."
+                    : error
+                      ? "Retry Pass Spotlight"
+                      : "Pass Spotlight"}
+                </button>
+              )}
           </div>
         ) : (
           <p

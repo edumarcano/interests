@@ -2,11 +2,14 @@ import type { MatchPlayerView } from "@interests/shared";
 import { expect, type Page, test } from "@playwright/test";
 import { startTestServer } from "./support/serverHarness";
 
-for (const financed of [false, true]) {
+for (const mode of ["cash", "financed", "auction"] as const) {
+  const financed = mode === "financed";
   test(
     financed
       ? "a buyer selects one of two private offers and the chosen loan survives restart"
-      : "a private stake sale survives process restart and closes at the confirmed price",
+      : mode === "auction"
+        ? "a sealed stake auction hides bid amounts and settles a tie after restart"
+        : "a private stake sale survives process restart and closes at the confirmed price",
     async ({ browser }) => {
       test.setTimeout(90_000);
       const server = await startTestServer();
@@ -79,6 +82,64 @@ for (const financed of [false, true]) {
           );
           if (!active) throw new Error("Missing spotlight player");
           await active.page.getByTestId("pass-spotlight-btn").click();
+        }
+        if (mode === "auction") {
+          const assetId = seller.view.self.ownedAssets?.find(
+            (asset) => asset.ownershipPpm === 1_000_000,
+          )?.id;
+          if (!assetId) throw new Error("Missing auction stake");
+          const auction = (page: Page) =>
+            page.getByRole("region", { name: "Public stake auction" });
+          const listing = auction(seller.page);
+          await listing.getByText("List a business stake at auction").click();
+          await listing.getByLabel("Auction business").selectOption(assetId);
+          await listing.getByLabel("Stake to auction (%)").fill("25");
+          await listing.getByLabel("Minimum bid ($)").fill("1000");
+          await listing
+            .getByRole("button", { name: "Open stake auction" })
+            .click();
+          const submit = async (page: Page) => {
+            await auction(page).getByLabel("Sealed bid ($)").fill("1200");
+            await auction(page)
+              .getByRole("button", { name: "Submit sealed bid" })
+              .click();
+            await expect(auction(page)).toContainText(
+              "Your sealed bid: $1,200.00",
+            );
+          };
+          await submit(rival.page);
+          await expect(listing).toContainText("1 of 3 seats have responded");
+          const publicListing = (await view(seller.page)).businessAuction;
+          expect(publicListing?.ownResponse).toBeNull();
+          expect(JSON.stringify(publicListing)).not.toContain("120000");
+          expect((await view(rival.page)).self.reservedCashCents).toBe(122_400);
+          await submit(buyer.page);
+          await server.restart();
+          for (const page of pages) await page.reload();
+          await expect(host.getByTestId("resume-match-btn")).toBeEnabled();
+          await host.getByTestId("resume-match-btn").click();
+          await expect(auction(alternative.page)).toContainText(
+            "2 of 3 seats have responded",
+          );
+          await auction(alternative.page)
+            .getByRole("button", { name: "Pass on auction" })
+            .click();
+          await expect
+            .poll(
+              async () =>
+                (await view(rival.page)).self.ownedAssets?.find(
+                  (asset) => asset.id === assetId,
+                )?.ownershipPpm,
+            )
+            .toBe(250_000);
+          const loser = await view(buyer.page);
+          expect(loser.self.reservedCashCents).toBe(0);
+          expect(
+            loser.self.ownedAssets?.some((asset) => asset.id === assetId) ??
+              false,
+          ).toBe(false);
+          expect(loser.businessAuction).toBeNull();
+          return;
         }
         const sellerPanel = seller.page.getByRole("region", {
           name: "Business capital",

@@ -52,6 +52,7 @@ export function PropertyPanel({
     pending ||
     match.activeTransaction !== null ||
     !!match.businessCapital ||
+    !!match.businessAuction ||
     match.round?.activeSpotlightPlayerId !== match.self.playerId;
   async function confirm() {
     if (!review || disabled) return;

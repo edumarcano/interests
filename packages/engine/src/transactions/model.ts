@@ -8,6 +8,7 @@ import type {
 import type { JournalEntry } from "../finance/journal";
 import type { BasisPoints, Cents } from "../finance/money";
 import type { GameState } from "../model/gameState";
+import type { SealedAuction } from "./sealedAuction";
 
 export type CashReservationPurpose = "purchase-price" | "player-loan-funding";
 
@@ -69,7 +70,17 @@ export interface BusinessLoanOffer {
 
 export type ActiveTransaction =
   | CashBusinessPurchaseTransaction
-  | BusinessCapitalTransaction;
+  | BusinessCapitalTransaction
+  | BusinessAuctionTransaction;
+
+export interface BusinessAuctionTransaction extends SealedAuction {
+  readonly id: TransactionId;
+  readonly kind: "business-auction";
+  readonly assetId: AssetId;
+  readonly sellerPlayerId: PlayerId;
+  readonly createdQuarter: number;
+  readonly ownershipPpm: number;
+}
 
 export interface OpenCashBusinessPurchaseInput {
   readonly buyerPlayerId: PlayerId;
@@ -93,6 +104,9 @@ export interface SubmitPlayerLoanFinancingOfferInput {
 }
 
 export type TransactionErrorCode =
+  | "AUCTION_SEAT_INELIGIBLE"
+  | "AUCTION_ALREADY_RESPONDED"
+  | "AUCTION_BID_TOO_LOW"
   | "INVALID_CAPITAL_CONSIDERATION"
   | "CAPITAL_PARTICIPANT_REQUIRED"
   | "CAPITAL_CONFIRMATIONS_REQUIRED"

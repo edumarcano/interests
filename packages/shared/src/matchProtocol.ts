@@ -236,6 +236,19 @@ export type BusinessCapitalCommand =
       readonly lenderPlayerId: string;
     };
 
+export type BusinessAuctionCommand =
+  | {
+      readonly type: "OPEN_BUSINESS_AUCTION";
+      readonly assetId: string;
+      readonly ownershipPpm: number;
+      readonly minimumBidCents: number;
+    }
+  | {
+      readonly type: "RESPOND_BUSINESS_AUCTION";
+      readonly transactionId: string;
+      readonly bidCents: number | null;
+    };
+
 export interface BusinessLoanRequest {
   readonly principalCents: number;
   readonly invitedLenderId?: string;
@@ -250,6 +263,7 @@ export interface BusinessLoanOfferView {
 }
 
 export type PlayerCommand =
+  | BusinessAuctionCommand
   | BusinessCapitalCommand
   | PropertyCommand
   | ExpandBusinessCommandPayload
@@ -504,6 +518,21 @@ export interface MatchPlayerView {
   readonly activeTransaction: ActiveTransactionSummaryView | null;
   readonly businessCapital?: BusinessCapitalView | null;
   readonly businessLoanInvitation?: BusinessLoanInvitationView | null;
+  readonly businessAuction?: BusinessAuctionView | null;
+}
+
+export interface BusinessAuctionView {
+  readonly id: string;
+  readonly assetId: string;
+  readonly sellerPlayerId: string;
+  readonly ownershipPpm: number;
+  readonly minimumBidCents: number;
+  readonly responsesReceived: number;
+  readonly responsesRequired: number;
+  readonly ownResponse:
+    | { readonly kind: "pass" }
+    | { readonly kind: "bid"; readonly amountCents: number }
+    | null;
 }
 
 export interface BusinessLoanInvitationView {

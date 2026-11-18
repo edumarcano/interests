@@ -105,6 +105,13 @@ function fee(priceCents: number, bps: number): Cents {
   );
 }
 
+export function businessStakePurchaseTotalCents(priceCents: number): Cents {
+  return addCents(
+    cents(priceCents),
+    fee(priceCents, TRANSACTION_FEES_BPS.business.purchase),
+  );
+}
+
 function salePosting(
   state: GameState,
   asset: BusinessAsset,

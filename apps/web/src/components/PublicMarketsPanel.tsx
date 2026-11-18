@@ -50,6 +50,7 @@ export function PublicMarketsPanel({
     !isPaused &&
     !match.activeTransaction &&
     !match.businessCapital &&
+    !match.businessAuction &&
     match.round?.activeSpotlightPlayerId === match.self.playerId;
   const change = (
     id: string,

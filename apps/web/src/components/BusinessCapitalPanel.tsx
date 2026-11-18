@@ -5,6 +5,7 @@ import type {
   PlayerCommand,
 } from "@interests/shared";
 import { useRef, useState } from "react";
+import { scaledInput } from "./capitalInput";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -12,22 +13,6 @@ const money = new Intl.NumberFormat("en-US", {
 });
 const usd = (cents: number) => money.format(cents / 100);
 const percent = (units: number) => `${units / 10_000}%`;
-function scaledInput(
-  value: string,
-  scale: number,
-  precision: number,
-): number | null {
-  const [whole, fraction = ""] = value.trim().split(".");
-  if (
-    !/^\d+$/.test(whole ?? "") ||
-    !/^\d*$/.test(fraction) ||
-    fraction.length > precision ||
-    value.split(".").length > 2
-  )
-    return null;
-  const units = Number(whole) * scale + Number(fraction.padEnd(precision, "0"));
-  return Number.isSafeInteger(units) && units > 0 ? units : null;
-}
 
 interface Props {
   readonly match: MatchPlayerView;
@@ -74,7 +59,13 @@ export function BusinessCapitalPanel({
   const canClose =
     tx?.participantIds.every((id) => tx.confirmedPlayerIds.includes(id)) ??
     false;
-  if (!tx && (!isMySpotlight || !companies.length || match.activeTransaction))
+  if (
+    !tx &&
+    (!isMySpotlight ||
+      !companies.length ||
+      match.activeTransaction ||
+      match.businessAuction)
+  )
     return null;
 
   async function send(command: PlayerCommand) {
