@@ -117,12 +117,18 @@ export function planBusinessSettlement(
   const closingOperatingArrearsCents = cents(
     operatingDueCents - operatingPaidCents,
   );
+  const debt = planCompanyDebt(
+    asset.id,
+    loansById,
+    quarter,
+    cents(available - operatingPaidCents),
+  );
   const surplus =
-    closingOperatingArrearsCents > 0
+    closingOperatingArrearsCents > 0 || debt.hasArrears
       ? 0
       : Math.min(
-          available - operatingPaidCents,
-          Math.max(0, operatingCashCents - operatingPaidCents),
+          debt.closingCashCents,
+          Math.max(0, operatingCashCents - operatingPaidCents - debt.paidCents),
         );
   const retainedFromSurplusCents = cents(
     new FinanceDecimal(surplus)
@@ -132,13 +138,16 @@ export function planBusinessSettlement(
       .toNumber(),
   );
   const payout = cents(surplus - retainedFromSurplusCents);
-  const closingCashCents = cents(available - operatingPaidCents - payout);
+  const closingCashCents = cents(debt.closingCashCents - payout);
   try {
-    calculateBusinessEquity({
-      ...asset,
-      cashCents: closingCashCents,
-      operatingArrearsCents: closingOperatingArrearsCents,
-    });
+    calculateBusinessEquity(
+      {
+        ...asset,
+        cashCents: closingCashCents,
+        operatingArrearsCents: closingOperatingArrearsCents,
+      },
+      { ...loansById, ...debt.loansById },
+    );
   } catch (error) {
     if (!(error instanceof RangeError)) throw error;
     throw new BusinessCashOverflowError(
@@ -168,6 +177,7 @@ export function planBusinessSettlement(
       reason: "business-operating-cost-payment",
       relatedAssetId: asset.id,
     });
+  postings.push(...debt.postings);
   for (const playerId of (
     Object.keys(distributionsByPlayer) as PlayerId[]
   ).sort()) {
@@ -184,8 +194,8 @@ export function planBusinessSettlement(
   }
   return {
     postings,
-    loansById: {},
-    loanPayments: [],
+    loansById: debt.loansById,
+    loanPayments: debt.loanPayments,
     outcome: {
       assetId: asset.id,
       openingCashCents: asset.cashCents,
@@ -194,6 +204,9 @@ export function planBusinessSettlement(
       operatingDueCents,
       operatingPaidCents,
       closingOperatingArrearsCents,
+      ...(debt.loanPayments.length
+        ? { companyDebtPaidCents: debt.paidCents }
+        : {}),
       retainedFromSurplusCents,
       closingCashCents,
       distributionsByPlayer,
@@ -316,64 +329,16 @@ function planStartingCompany(
     cents(work.arrearsCents - old.work) +
       cents(currentDueCents - currentPaidCents),
   );
-  const updatedLoans: Record<LoanId, Loan> = {};
-  const loanPayments: LoanPaymentOutcome[] = [];
-  const dueById: Record<
-    LoanId,
-    NonNullable<ReturnType<typeof calculateLoanObligation>>
-  > = {};
-  for (const id of (Object.keys(loans) as LoanId[]).sort()) {
-    const loan = loans[id];
-    if (loan?.kind !== "company-loan" || loan.borrowerAssetId !== asset.id)
-      continue;
-    const due = calculateLoanObligation(loan, quarter);
-    if (due) dueById[id] = due;
-  }
-  const totalDue = Object.values(dueById).reduce(
-    (sum, due) => sum.plus(due.amountDueCents),
-    new FinanceDecimal(0),
-  );
-  const allocation = allocateWeightedCents(
-    cents(totalDue.greaterThan(cash) ? cash : totalDue.toNumber()),
-    Object.fromEntries(
-      Object.entries(dueById).map(([id, due]) => [id, due.amountDueCents]),
-    ),
-  );
-  let companyDebtPaidCents = cents(0);
-  for (const id of Object.keys(dueById) as LoanId[]) {
-    const loan = loans[id];
-    const due = dueById[id];
-    if (!loan || !due) throw new Error("Missing planned company loan");
-    const payment = applyLoanPaymentAllocation(
-      loan,
-      due,
-      allocation[id]!,
-      quarter,
-    );
-    updatedLoans[id] = payment.loan;
-    loanPayments.push(payment.outcome);
-    companyDebtPaidCents = cents(
-      companyDebtPaidCents + payment.outcome.paidCents,
-    );
-    transfer(
-      payment.outcome.paidCents,
-      externalCashAccount("bank"),
-      "company-loan-payment",
-      {
-        relatedLoanId: id,
-        loanPayment: {
-          principalCents: payment.outcome.principalPaidCents,
-          interestCents: payment.outcome.interestPaidCents,
-        },
-      },
-    );
-  }
+  const debt = planCompanyDebt(asset.id, loans, quarter, cash);
+  const updatedLoans = debt.loansById;
+  const loanPayments = debt.loanPayments;
+  const companyDebtPaidCents = debt.paidCents;
+  cash = debt.closingCashCents;
+  postings.push(...debt.postings);
   const hasArrears =
     closingOperatingArrearsCents > 0 ||
     closingWorkArrears > 0 ||
-    Object.values(updatedLoans).some(
-      (loan) => loan.pastDuePrincipalCents > 0 || loan.unpaidInterestCents > 0,
-    );
+    debt.hasArrears;
   const surplus = hasArrears
     ? 0
     : Math.min(
@@ -445,5 +410,89 @@ function planStartingCompany(
         closingArrearsCents: closingWorkArrears,
       },
     },
+  };
+}
+
+function isCompanyDebt(
+  loan: Loan,
+  assetId: AssetId,
+): loan is Extract<Loan, { kind: "company-loan" | "asset-bank-loan" }> {
+  return (
+    (loan.kind === "company-loan" ||
+      (loan.kind === "asset-bank-loan" &&
+        loan.purpose === "business-acquisition")) &&
+    loan.borrowerAssetId === assetId
+  );
+}
+
+/** Equal-priority bank claims consume company cash, never an owner's wallet. */
+function planCompanyDebt(
+  assetId: AssetId,
+  loans: FinanceState["loansById"],
+  quarter: number,
+  budget: Cents,
+) {
+  const rows = Object.values(loans)
+    .filter((loan) => isCompanyDebt(loan, assetId))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .flatMap((loan) => {
+      const due = calculateLoanObligation(loan, quarter);
+      return due ? [{ loan, due }] : [];
+    });
+  const totalDue = rows.reduce(
+    (sum, row) => sum.plus(row.due.amountDueCents),
+    new FinanceDecimal(0),
+  );
+  const allocation = allocateWeightedCents(
+    cents(totalDue.greaterThan(budget) ? budget : totalDue.toNumber()),
+    Object.fromEntries(
+      rows.map((row) => [row.loan.id, row.due.amountDueCents]),
+    ),
+  );
+  const loansById: Record<LoanId, Loan> = {};
+  const loanPayments: LoanPaymentOutcome[] = [];
+  const postings: CashPostingRequest[] = [];
+  let paidCents = cents(0);
+  for (const { loan, due } of rows) {
+    const applied = applyLoanPaymentAllocation(
+      loan,
+      due,
+      allocation[loan.id]!,
+      quarter,
+    );
+    loansById[loan.id] = applied.loan;
+    loanPayments.push(applied.outcome);
+    paidCents = cents(paidCents + applied.outcome.paidCents);
+    if (applied.outcome.paidCents > 0)
+      postings.push({
+        source: businessCashAccount(assetId),
+        destination: externalCashAccount("bank"),
+        amountCents: applied.outcome.paidCents,
+        quarter,
+        reason:
+          loan.kind === "company-loan"
+            ? "company-loan-payment"
+            : "asset-bank-loan-payment",
+        relatedAssetId: assetId,
+        relatedLoanId: loan.id,
+        loanPayment: {
+          principalCents: applied.outcome.principalPaidCents,
+          interestCents: applied.outcome.interestPaidCents,
+        },
+      });
+  }
+  const hasArrears = Object.values(loans).some(
+    (loan) =>
+      isCompanyDebt(loan, assetId) &&
+      ((loansById[loan.id] ?? loan).pastDuePrincipalCents > 0 ||
+        (loansById[loan.id] ?? loan).unpaidInterestCents > 0),
+  );
+  return {
+    loansById,
+    loanPayments,
+    postings,
+    paidCents,
+    closingCashCents: cents(budget - paidCents),
+    hasArrears,
   };
 }

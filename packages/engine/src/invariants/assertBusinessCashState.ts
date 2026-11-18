@@ -191,6 +191,24 @@ export function assertBusinessCashState(state: GameState): void {
       throw new Error("Invalid management payment");
     const debtPaid = business.companyDebtPaidCents ?? 0;
     requireMoney(debtPaid);
+    const actualDebtPaid = cents(
+      outcome.loanPayments
+        .filter((payment) => payment.borrowerAssetId === asset.id)
+        .reduce((sum, payment) => sum + payment.paidCents, 0),
+    );
+    if (actualDebtPaid !== debtPaid)
+      throw new Error(
+        "Game invariant failed: company debt outcome does not reconcile",
+      );
+    const hasLoanArrears = Object.values(state.finance.loansById).some(
+      (loan) =>
+        (loan.kind === "company-loan" ||
+          (loan.kind === "asset-bank-loan" &&
+            loan.purpose === "business-acquisition")) &&
+        loan.borrowerAssetId === asset.id &&
+        (loan.pastDuePrincipalCents > 0 || loan.unpaidInterestCents > 0),
+    );
+    // Later contributions may change current cash; the historical closing sum still reconciles.
     const historicalWorkPaid = work?.arrearsPaidCents ?? 0;
     if (
       business.operatingDueCents !==
@@ -208,15 +226,16 @@ export function assertBusinessCashState(state: GameState): void {
           debtPaid -
           distributed ||
       business.retainedFromSurplusCents + distributed !==
-        Math.max(
-          0,
-          business.operatingCashCents +
-            (business.managementPaidCents ?? 0) -
-            business.operatingPaidCents -
-            historicalWorkPaid -
-            debtPaid,
-        ) ||
-      business.closingCashCents !== asset.cashCents ||
+        (hasLoanArrears
+          ? 0
+          : Math.max(
+              0,
+              business.operatingCashCents +
+                (business.managementPaidCents ?? 0) -
+                business.operatingPaidCents -
+                historicalWorkPaid -
+                debtPaid,
+            )) ||
       business.closingOperatingArrearsCents !== asset.operatingArrearsCents
     ) {
       throw new Error(
