@@ -11,6 +11,7 @@ import {
 import type {
   BusinessAuctionView,
   BusinessCapitalView,
+  BusinessEquityInvitationView,
   BusinessLoanInvitationView,
   MatchId,
   MatchResultView,
@@ -31,6 +32,11 @@ import { propertyManagement, propertyOffers } from "../finance/propertyActions";
 import type { GameState } from "../model/gameState.js";
 import { projectBusinessAuction } from "../transactions/businessAuctionTerms";
 import { planBusinessCapital } from "../transactions/businessCapitalTerms";
+import {
+  businessEquityOfferViews,
+  canOfferBusinessEquity,
+  equityRequests,
+} from "../transactions/businessEquityOffers";
 import {
   businessLoanOfferViews,
   canOfferBusinessLoan,
@@ -170,6 +176,7 @@ export interface PurePlayerProjection {
   readonly activeTransaction: PureActiveTransactionSummary | null;
   readonly businessCapital: BusinessCapitalView | null;
   readonly businessLoanInvitation: BusinessLoanInvitationView | null;
+  readonly businessEquityInvitation: BusinessEquityInvitationView | null;
   readonly businessAuction: BusinessAuctionView | null;
 }
 
@@ -646,6 +653,7 @@ export function projectPlayerGameState(
 
   let businessCapital: BusinessCapitalView | null = null;
   let businessLoanInvitation: BusinessLoanInvitationView | null = null;
+  let businessEquityInvitation: BusinessEquityInvitationView | null = null;
   const capital = state.activeTransaction;
   if (capital?.kind === "business-capital") {
     const asset = state.finance.assetsById[capital.assetId];
@@ -654,18 +662,21 @@ export function projectPlayerGameState(
         ? planBusinessCapital(state, asset, capital)
         : null;
     const requests = loanRequests(capital);
-    const readyToConfirm =
-      requests.length === (capital.selectedLoans ?? []).length;
+    const equity = equityRequests(capital);
+    const readyToConfirm = plan?.ready ?? false;
+    const isCurrentOwner = (asset?.ownershipByPlayerPpm[playerId] ?? 0) > 0;
     const isDirectParty =
-      capital.terms.kind !== "secondary-stake-sale" ||
-      capital.terms.buyerPlayerId === playerId ||
-      capital.terms.sellerPlayerId === playerId;
+      capital.terms.kind === "request-equity"
+        ? isCurrentOwner
+        : capital.terms.kind !== "secondary-stake-sale" ||
+          capital.terms.buyerPlayerId === playerId ||
+          capital.terms.sellerPlayerId === playerId;
     if (isDirectParty && plan?.participants.includes(playerId)) {
       businessCapital = {
         id: capital.id,
         assetId: capital.assetId,
         initiatorPlayerId: capital.initiatorPlayerId,
-        terms: plan.action,
+        terms: plan.terms,
         termsRevision: capital.termsRevision,
         participantIds: plan.participants,
         confirmedPlayerIds: capital.confirmedPlayerIds,
@@ -676,7 +687,36 @@ export function projectPlayerGameState(
               readyToConfirm,
             }
           : {}),
+        ...(equity.length
+          ? {
+              equityOffers: businessEquityOfferViews(
+                capital,
+                playerId,
+                isCurrentOwner,
+              ),
+              readyToConfirm,
+            }
+          : {}),
       };
+    }
+    if (equity.length) {
+      const slots = equity.flatMap((request, slot) =>
+        canOfferBusinessEquity(capital, playerId, slot)
+          ? [{ slot, amountCents: request.amountCents }]
+          : [],
+      );
+      if (slots.length) {
+        businessEquityInvitation = {
+          transactionId: capital.id,
+          issuerPlayerId: capital.initiatorPlayerId,
+          termsRevision: capital.termsRevision,
+          slots,
+          ownOffers: businessEquityOfferViews(capital, playerId, false),
+          confirmed: capital.confirmedPlayerIds.includes(playerId),
+          readyToConfirm,
+          mustConfirmThroughOwnerView: isCurrentOwner,
+        };
+      }
     }
     if (capital.terms.kind === "secondary-stake-sale" && requests.length) {
       const slots = requests.flatMap((request, slot) =>
@@ -724,6 +764,7 @@ export function projectPlayerGameState(
     activeTransaction,
     businessCapital,
     businessLoanInvitation,
+    businessEquityInvitation,
     businessAuction:
       capital?.kind === "business-auction"
         ? projectBusinessAuction(capital, playerId)

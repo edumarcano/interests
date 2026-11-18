@@ -1,5 +1,6 @@
 import { asPlayerId, type PlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
+import { cents } from "../finance/money";
 import { createGame } from "../game/createGame";
 import {
   applyPlayerCommand,
@@ -62,6 +63,126 @@ function binding(state: GameState) {
 }
 
 describe("business capital lifecycle", () => {
+  it("lets the issuer choose among funded equity offers and settles only confirmed allocations into company cash", () => {
+    const { state, owner, asset, buyer, second, rival } = start();
+    let current = send(state, owner, {
+      type: "OPEN_BUSINESS_CAPITAL",
+      assetId: asset.id,
+      terms: {
+        kind: "request-equity",
+        requests: [
+          { amountCents: 50_000 },
+          { amountCents: 60_000, invitedInvestorId: second },
+        ],
+      },
+    }).state;
+    const assertOffer = (slot: number, postMoneyOwnershipPpm: number) =>
+      ({
+        type: "OFFER_BUSINESS_EQUITY",
+        ...binding(current),
+        slot,
+        postMoneyOwnershipPpm,
+      }) as const;
+    current = send(current, buyer, assertOffer(0, 175_000)).state;
+    current = send(current, rival, assertOffer(0, 100_000)).state;
+    expect(
+      applyPlayerCommand(current, rival, assertOffer(1, 100_000)),
+    ).toMatchObject({ ok: false, code: "CAPITAL_PARTICIPANT_REQUIRED" });
+    current = send(current, second, assertOffer(0, 200_000)).state;
+    const limited = {
+      ...current,
+      finance: {
+        ...current.finance,
+        cashByPlayer: {
+          ...current.finance.cashByPlayer,
+          [second]: cents(100_000),
+        },
+      },
+    };
+    expect(
+      applyPlayerCommand(limited, second, assertOffer(1, 910_000)),
+    ).toEqual({
+      ok: false,
+      code: "INSUFFICIENT_AVAILABLE_CASH",
+      state: limited,
+      journalEntries: [],
+    });
+    current = send(current, second, assertOffer(1, 910_000)).state;
+    expect(getReservedCashCents(current, second)).toBe(110_000);
+    const privateOffer = projectPlayerGameState(
+      current,
+      buyer,
+    ).businessEquityInvitation;
+    expect(privateOffer?.slots).toEqual([{ slot: 0, amountCents: 50_000 }]);
+    expect(privateOffer?.ownOffers).toEqual([
+      {
+        investorPlayerId: buyer,
+        slot: 0,
+        postMoneyOwnershipPpm: 175_000,
+        selected: false,
+      },
+    ]);
+    expect(projectPlayerGameState(current, buyer).businessCapital).toBeNull();
+    expect(
+      projectPlayerGameState(current, owner).businessCapital?.equityOffers,
+    ).toHaveLength(4);
+    const choose = (slot: number, investorPlayerId: PlayerId) =>
+      ({
+        type: "SELECT_BUSINESS_EQUITY",
+        ...binding(current),
+        slot,
+        investorPlayerId,
+      }) as const;
+    current = send(current, owner, choose(0, rival)).state;
+    expect(applyPlayerCommand(current, owner, choose(1, second))).toEqual({
+      ok: false,
+      code: "INVALID_CAPITAL_CONSIDERATION",
+      state: current,
+      journalEntries: [],
+    });
+    const withdraw = {
+      type: "WITHDRAW_BUSINESS_EQUITY",
+      ...binding(current),
+      slot: 1,
+      investorPlayerId: second,
+    } as const;
+    current = send(current, second, withdraw).state;
+    current = send(current, second, assertOffer(1, 125_000)).state;
+    const stale = binding(current);
+    current = send(current, owner, choose(1, second)).state;
+    expect(
+      applyPlayerCommand(current, rival, {
+        type: "CONFIRM_BUSINESS_CAPITAL",
+        ...stale,
+      }),
+    ).toMatchObject({ ok: false, code: "STALE_TERMS_REVISION" });
+    const exact = binding(current);
+    for (const participant of [owner, rival, second])
+      current = send(current, participant, {
+        type: "CONFIRM_BUSINESS_CAPITAL",
+        ...exact,
+      }).state;
+    expect(getReservedCashCents(current, second)).toBe(110_000);
+    const closed = send(current, owner, {
+      type: "CLOSE_BUSINESS_CAPITAL",
+      ...exact,
+    });
+    expect(closed.state.finance.assetsById[asset.id]).toMatchObject({
+      ownershipByPlayerPpm: {
+        [owner]: 775_000,
+        [rival]: 100_000,
+        [second]: 125_000,
+      },
+    });
+    expect(
+      closed.journalEntries
+        .filter((entry) => entry.relatedTransactionId === exact.transactionId)
+        .map((entry) => entry.amountCents)
+        .sort((a, b) => a - b),
+    ).toEqual([50_000, 60_000]);
+    expect(closed.state.activeTransaction).toBeNull();
+    expect(getReservedCashCents(closed.state, buyer)).toBe(0);
+  });
   it("reserves competing and targeted player loan offers and originates only the final selections", () => {
     const { state, owner, asset, buyer, second, rival } = start();
     let draft = send(state, owner, {

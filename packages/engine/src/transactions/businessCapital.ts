@@ -16,6 +16,13 @@ import { assertGameState } from "../invariants/assertGameState";
 import type { GameState } from "../model/gameState";
 import { planBusinessCapital } from "./businessCapitalTerms";
 import {
+  canOfferBusinessEquity,
+  equityRequests,
+  isEquitySelection,
+  reservedBusinessEquityCash,
+  validEquityOffer,
+} from "./businessEquityOffers";
+import {
   borrowerHasArrears,
   canOfferBusinessLoan,
   fundBusinessSaleWithPlayerLoans,
@@ -79,7 +86,7 @@ export function applyBusinessCapitalCommand(
     return save(
       {
         ...proposal,
-        terms: plan.action,
+        terms: plan.terms,
         kind: "business-capital",
         id,
         assetId: asset.id,
@@ -104,17 +111,83 @@ export function applyBusinessCapitalCommand(
   const offers = tx.loanOffers ?? [];
   const selected = tx.selectedLoans ?? [];
   const financingChange = (
-    changes: Pick<BusinessCapitalTransaction, "loanOffers" | "selectedLoans">,
+    changes: Partial<
+      Pick<
+        BusinessCapitalTransaction,
+        "loanOffers" | "selectedLoans" | "equityOffers" | "selectedEquity"
+      >
+    >,
   ) => {
     if (tx.termsRevision >= Number.MAX_SAFE_INTEGER)
       return reject("COUNTER_EXHAUSTED");
-    return save({
+    const next = {
       ...tx,
       ...changes,
       termsRevision: tx.termsRevision + 1,
       confirmedPlayerIds: [],
-    });
+    };
+    if (!planBusinessCapital(state, asset, next))
+      return reject("INVALID_CAPITAL_CONSIDERATION");
+    return save(next);
   };
+  if (command.type === "OFFER_BUSINESS_EQUITY") {
+    const offer = {
+      investorPlayerId: actor,
+      slot: command.slot,
+      postMoneyOwnershipPpm: command.postMoneyOwnershipPpm,
+    };
+    if (!canOfferBusinessEquity(tx, actor, command.slot))
+      return reject("CAPITAL_PARTICIPANT_REQUIRED");
+    if (!validEquityOffer(tx, offer))
+      return reject("INVALID_CAPITAL_CONSIDERATION");
+    const offers = tx.equityOffers ?? [];
+    if (
+      offers.some(
+        (row) => row.investorPlayerId === actor && row.slot === command.slot,
+      )
+    )
+      return reject("OFFER_ALREADY_EXISTS");
+    if (
+      (equityRequests(tx)[command.slot]?.amountCents ?? 0) >
+      (state.finance.cashByPlayer[actor] ?? 0) -
+        reservedBusinessEquityCash(tx, actor)
+    )
+      return reject("INSUFFICIENT_AVAILABLE_CASH");
+    return save({ ...tx, equityOffers: [...offers, offer] });
+  }
+  if (command.type === "WITHDRAW_BUSINESS_EQUITY") {
+    if (command.investorPlayerId !== actor)
+      return reject("CAPITAL_PARTICIPANT_REQUIRED");
+    const offer = tx.equityOffers?.find(
+      (row) => row.slot === command.slot && row.investorPlayerId === actor,
+    );
+    if (!offer) return reject("NO_OFFER");
+    const remaining = tx.equityOffers?.filter((row) => row !== offer) ?? [];
+    return isEquitySelection(tx, offer)
+      ? financingChange({
+          equityOffers: remaining,
+          selectedEquity:
+            tx.selectedEquity?.filter((row) => row.slot !== command.slot) ?? [],
+        })
+      : save({ ...tx, equityOffers: remaining });
+  }
+  if (command.type === "SELECT_BUSINESS_EQUITY") {
+    if (tx.initiatorPlayerId !== actor || tx.terms.kind !== "request-equity")
+      return reject("CAPITAL_PARTICIPANT_REQUIRED");
+    const offer = tx.equityOffers?.find(
+      (row) =>
+        row.slot === command.slot &&
+        row.investorPlayerId === command.investorPlayerId,
+    );
+    if (!offer) return reject("NO_OFFER");
+    if (isEquitySelection(tx, offer)) return reject("OFFER_ALREADY_ACCEPTED");
+    return financingChange({
+      selectedEquity: [
+        ...(tx.selectedEquity ?? []).filter((row) => row.slot !== offer.slot),
+        { slot: offer.slot, investorPlayerId: offer.investorPlayerId },
+      ],
+    });
+  }
   if (command.type === "OFFER_BUSINESS_LOAN") {
     if (
       tx.terms.kind !== "secondary-stake-sale" ||
@@ -202,6 +275,8 @@ export function applyBusinessCapitalCommand(
         confirmedPlayerIds: [],
         loanOffers: [],
         selectedLoans: [],
+        equityOffers: [],
+        selectedEquity: [],
       };
       const next = planBusinessCapital(state, asset, revised);
       if (!next) return reject("INVALID_CAPITAL_CONSIDERATION");
@@ -211,11 +286,10 @@ export function applyBusinessCapitalCommand(
         borrowerHasArrears(state, asPlayerId(revised.terms.buyerPlayerId))
       )
         return reject("FINANCING_NOT_READY");
-      return save({ ...revised, terms: next.action });
+      return save({ ...revised, terms: next.terms });
     }
     case "CONFIRM_BUSINESS_CAPITAL": {
-      if (selected.length !== requests.length)
-        return reject("FINANCING_NOT_READY");
+      if (!plan.ready) return reject("FINANCING_NOT_READY");
       if (tx.confirmedPlayerIds.includes(actor))
         return reject("CAPITAL_ALREADY_CONFIRMED");
       if (
@@ -237,6 +311,7 @@ export function applyBusinessCapitalCommand(
       });
     case "CLOSE_BUSINESS_CAPITAL":
       if (tx.initiatorPlayerId !== actor) return reject("NOT_ACTIVE_SPOTLIGHT");
+      if (!plan.ready) return reject("FINANCING_NOT_READY");
       if (plan.participants.some((id) => !tx.confirmedPlayerIds.includes(id)))
         return reject("CAPITAL_CONFIRMATIONS_REQUIRED");
       return resolveTerminalTransactionAndAdvanceSpotlight(state, actor, () => {

@@ -59,6 +59,17 @@ export interface BusinessCapitalTransaction {
     readonly slot: number;
     readonly lenderPlayerId: PlayerId;
   }[];
+  readonly equityOffers?: readonly BusinessEquityOffer[];
+  readonly selectedEquity?: readonly {
+    readonly slot: number;
+    readonly investorPlayerId: PlayerId;
+  }[];
+}
+
+export interface BusinessEquityOffer {
+  readonly investorPlayerId: PlayerId;
+  readonly slot: number;
+  readonly postMoneyOwnershipPpm: number;
 }
 
 export interface BusinessLoanOffer {

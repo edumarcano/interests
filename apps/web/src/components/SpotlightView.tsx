@@ -7,6 +7,7 @@ import type React from "react";
 import { useState } from "react";
 import { BusinessAuctionPanel } from "./BusinessAuctionPanel";
 import { BusinessCapitalPanel } from "./BusinessCapitalPanel";
+import { BusinessEquityPanel } from "./BusinessEquityPanel";
 import { BusinessLendingPanel } from "./BusinessLendingPanel";
 import { OpportunityCard } from "./OpportunityCard.js";
 import { PropertyPanel } from "./PropertyPanel.js";
@@ -140,6 +141,15 @@ export const SpotlightView: React.FC<Props> = ({
         <BusinessLendingPanel
           key={match.businessLoanInvitation.transactionId}
           invitation={match.businessLoanInvitation}
+          match={match}
+          isPaused={isPaused}
+          onSendCommand={onSendCommand}
+        />
+      )}
+      {match.businessEquityInvitation && (
+        <BusinessEquityPanel
+          key={match.businessEquityInvitation.transactionId}
+          invitation={match.businessEquityInvitation}
           match={match}
           isPaused={isPaused}
           onSendCommand={onSendCommand}

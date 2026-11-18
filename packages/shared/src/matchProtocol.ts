@@ -184,6 +184,10 @@ export interface ExpandBusinessCommandPayload {
 export type BusinessCapitalTerms =
   | { readonly kind: "company-expansion"; readonly investmentCents: number }
   | {
+      readonly kind: "request-equity";
+      readonly requests: readonly BusinessEquityRequest[];
+    }
+  | {
       readonly kind: "secondary-stake-sale";
       readonly sellerPlayerId: string;
       readonly buyerPlayerId: string;
@@ -234,7 +238,33 @@ export type BusinessCapitalCommand =
       readonly expectedTermsRevision: number;
       readonly slot: number;
       readonly lenderPlayerId: string;
+    }
+  | {
+      readonly type: "OFFER_BUSINESS_EQUITY";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly slot: number;
+      readonly postMoneyOwnershipPpm: number;
+    }
+  | {
+      readonly type: "SELECT_BUSINESS_EQUITY" | "WITHDRAW_BUSINESS_EQUITY";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly slot: number;
+      readonly investorPlayerId: string;
     };
+
+export interface BusinessEquityRequest {
+  readonly amountCents: number;
+  readonly invitedInvestorId?: string;
+}
+
+export interface BusinessEquityOfferView {
+  readonly investorPlayerId: string;
+  readonly slot: number;
+  readonly postMoneyOwnershipPpm: number;
+  readonly selected: boolean;
+}
 
 export type BusinessAuctionCommand =
   | {
@@ -518,7 +548,22 @@ export interface MatchPlayerView {
   readonly activeTransaction: ActiveTransactionSummaryView | null;
   readonly businessCapital?: BusinessCapitalView | null;
   readonly businessLoanInvitation?: BusinessLoanInvitationView | null;
+  readonly businessEquityInvitation?: BusinessEquityInvitationView | null;
   readonly businessAuction?: BusinessAuctionView | null;
+}
+
+export interface BusinessEquityInvitationView {
+  readonly transactionId: string;
+  readonly issuerPlayerId: string;
+  readonly termsRevision: number;
+  readonly slots: readonly {
+    readonly slot: number;
+    readonly amountCents: number;
+  }[];
+  readonly ownOffers: readonly BusinessEquityOfferView[];
+  readonly confirmed: boolean;
+  readonly readyToConfirm: boolean;
+  readonly mustConfirmThroughOwnerView: boolean;
 }
 
 export interface BusinessAuctionView {
@@ -559,6 +604,7 @@ export interface BusinessCapitalView {
   readonly confirmedPlayerIds: readonly string[];
   readonly yourContributionCents: number;
   readonly loanOffers?: readonly BusinessLoanOfferView[];
+  readonly equityOffers?: readonly BusinessEquityOfferView[];
   readonly readyToConfirm?: boolean;
 }
 

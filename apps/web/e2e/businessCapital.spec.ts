@@ -2,14 +2,16 @@ import type { MatchPlayerView } from "@interests/shared";
 import { expect, type Page, test } from "@playwright/test";
 import { startTestServer } from "./support/serverHarness";
 
-for (const mode of ["cash", "financed", "auction"] as const) {
+for (const mode of ["cash", "financed", "auction", "equity"] as const) {
   const financed = mode === "financed";
   test(
     financed
       ? "a buyer selects one of two private offers and the chosen loan survives restart"
-      : mode === "auction"
-        ? "a sealed stake auction hides bid amounts and settles a tie after restart"
-        : "a private stake sale survives process restart and closes at the confirmed price",
+      : mode === "equity"
+        ? "a company chooses between competing equity offers and closes the selected issuance"
+        : mode === "auction"
+          ? "a sealed stake auction hides bid amounts and settles a tie after restart"
+          : "a private stake sale survives process restart and closes at the confirmed price",
     async ({ browser }) => {
       test.setTimeout(90_000);
       const server = await startTestServer();
@@ -147,6 +149,84 @@ for (const mode of ["cash", "financed", "auction"] as const) {
         const buyerPanel = buyer.page.getByRole("region", {
           name: "Business capital",
         });
+        if (mode === "equity") {
+          const assetId = seller.view.self.ownedAssets?.[0]?.id;
+          if (!assetId) throw new Error("Missing issuing company");
+          await sellerPanel
+            .getByRole("button", { name: "Invite equity offers" })
+            .first()
+            .click();
+          await sellerPanel
+            .getByRole("button", { name: "Add an investment request" })
+            .click();
+          await sellerPanel.getByLabel("Investment 1 amount ($)").fill("600");
+          await sellerPanel
+            .getByRole("button", { name: "Send business proposal" })
+            .click();
+          const invitation = (page: Page) =>
+            page.getByRole("region", {
+              name: "Company investment invitations",
+            });
+          for (const [investor, stake] of [
+            [buyer, "12"],
+            [rival, "8"],
+          ] as const) {
+            await invitation(investor.page)
+              .getByLabel("Investment 1 stake (%)")
+              .fill(stake);
+            await invitation(investor.page)
+              .getByRole("button", { name: "Offer investment 1" })
+              .click();
+            await expect(invitation(investor.page)).toContainText(
+              `Your offer: ${stake}%`,
+            );
+            expect((await view(investor.page)).self.reservedCashCents).toBe(
+              60_000,
+            );
+          }
+          await expect(invitation(buyer.page)).not.toContainText("8%");
+          const rivalName = (await view(seller.page)).players.find(
+            (player) => player.playerId === rival.view.self.playerId,
+          )?.nickname;
+          await sellerPanel
+            .getByRole("button", {
+              name: `Select ${rivalName} for investment 1`,
+            })
+            .click();
+          await expect(invitation(rival.page)).toContainText(
+            "Selected for confirmation.",
+          );
+          await invitation(rival.page)
+            .getByRole("button", { name: "Confirm selected investment" })
+            .click();
+          await expect(sellerPanel).toContainText("1 of 2 confirmed");
+          await sellerPanel
+            .getByRole("button", { name: "Confirm these terms" })
+            .click();
+          await expect(sellerPanel).toContainText("2 of 2 confirmed");
+          await server.restart();
+          for (const page of pages) await page.reload();
+          await expect(host.getByTestId("resume-match-btn")).toBeEnabled();
+          await host.getByTestId("resume-match-btn").click();
+          await sellerPanel
+            .getByRole("button", { name: "Close business deal" })
+            .click();
+          await expect
+            .poll(
+              async () =>
+                (await view(rival.page)).self.ownedAssets?.find(
+                  (asset) => asset.id === assetId,
+                )?.ownershipPpm,
+            )
+            .toBe(80_000);
+          expect(
+            (await view(seller.page)).self.ownedAssets?.find(
+              (asset) => asset.id === assetId,
+            )?.ownershipPpm,
+          ).toBe(920_000);
+          expect((await view(buyer.page)).self.reservedCashCents).toBe(0);
+          return;
+        }
         await sellerPanel
           .getByRole("button", { name: "Offer a stake" })
           .first()

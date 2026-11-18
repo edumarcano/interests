@@ -6,6 +6,7 @@ import type {
 } from "@interests/shared";
 import { useRef, useState } from "react";
 import { scaledInput } from "./capitalInput";
+import { type FundingDraft, FundingSlotEditor } from "./FundingSlotEditor";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -22,12 +23,6 @@ interface Props {
 
 type Mode = BusinessCapitalTerms["kind"];
 type DraftRow = { readonly amount: string; readonly stake: string };
-type LoanDraft = {
-  readonly id: number;
-  readonly amount: string;
-  readonly lender: string;
-};
-
 export function BusinessCapitalPanel({
   match,
   isPaused,
@@ -47,8 +42,10 @@ export function BusinessCapitalPanel({
   const [stake, setStake] = useState("");
   const [buyer, setBuyer] = useState("");
   const [rows, setRows] = useState<Record<string, DraftRow>>({});
-  const [loanDrafts, setLoanDrafts] = useState<readonly LoanDraft[]>([]);
-  const nextLoanDraftId = useRef(0);
+  const [fundingDrafts, setFundingDrafts] = useState<readonly FundingDraft[]>(
+    [],
+  );
+  const nextFundingDraftId = useRef(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const disabled = pending || isPaused;
@@ -88,11 +85,31 @@ export function BusinessCapitalPanel({
     setStake("");
     setBuyer("");
     setRows({});
-    setLoanDrafts([]);
+    setFundingDrafts([]);
     setDraft({ assetId, mode });
   }
 
+  function addFundingSlot() {
+    setFundingDrafts([
+      ...fundingDrafts,
+      { id: nextFundingDraftId.current++, amount: "", invitedId: "" },
+    ]);
+  }
+
   function makeTerms(mode: Mode): BusinessCapitalTerms | null {
+    if (mode === "request-equity") {
+      const requests = [];
+      for (const row of fundingDrafts) {
+        const amountCents = scaledInput(row.amount, 100, 2);
+        if (!amountCents) return null;
+        requests.push({
+          amountCents,
+          ...(row.invitedId ? { invitedInvestorId: row.invitedId } : {}),
+        });
+      }
+      return requests.length ? { kind: mode, requests } : null;
+    }
+
     if (mode === "primary-issuance") {
       const contributions = [];
       for (const player of match.players) {
@@ -120,12 +137,12 @@ export function BusinessCapitalPanel({
       return { kind: mode, investmentCents: amountCents };
     const ownershipPpm = scaledInput(stake, 10_000, 4);
     const loanRequests = [];
-    for (const row of loanDrafts) {
+    for (const row of fundingDrafts) {
       const principalCents = scaledInput(row.amount, 100, 2);
-      if (!principalCents || row.lender === buyer) return null;
+      if (!principalCents || row.invitedId === buyer) return null;
       loanRequests.push({
         principalCents,
-        ...(row.lender ? { invitedLenderId: row.lender } : {}),
+        ...(row.invitedId ? { invitedLenderId: row.invitedId } : {}),
       });
     }
     return buyer && ownershipPpm && ownershipPpm <= 1_000_000
@@ -158,7 +175,8 @@ export function BusinessCapitalPanel({
       {tx && binding && (
         <div>
           <h4>
-            {tx.terms.kind === "primary-issuance"
+            {tx.terms.kind === "primary-issuance" ||
+            tx.terms.kind === "request-equity"
               ? "Raise company capital"
               : tx.terms.kind === "company-expansion"
                 ? "Expand the company"
@@ -168,6 +186,63 @@ export function BusinessCapitalPanel({
             Proposal from {name(tx.initiatorPlayerId)}. Terms version{" "}
             {tx.termsRevision}.
           </p>
+          {tx.terms.kind === "request-equity" && (
+            <section aria-label="Company investment offers">
+              <h5>Company investment offers</h5>
+              <p>
+                New investment goes to company cash. Existing stakes shrink
+                proportionally; every current owner and selected investor must
+                agree.
+              </p>
+              {tx.terms.requests.map((request, slot) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: Frozen funding slots are identified by their position.
+                <div key={slot}>
+                  <p>
+                    Investment {slot + 1}: {usd(request.amountCents)} from{" "}
+                    {request.invitedInvestorId
+                      ? name(request.invitedInvestorId)
+                      : "any eligible investor"}
+                    .
+                  </p>
+                  {(tx.equityOffers ?? [])
+                    .filter((offer) => offer.slot === slot)
+                    .map((offer) => (
+                      <div key={offer.investorPlayerId}>
+                        <p>
+                          {name(offer.investorPlayerId)} asks for{" "}
+                          {percent(offer.postMoneyOwnershipPpm)} after issuance.{" "}
+                          {offer.selected && "Selected."}
+                        </p>
+                        {tx.initiatorPlayerId === ownId && !offer.selected && (
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={disabled}
+                            onClick={() =>
+                              void send({
+                                type: "SELECT_BUSINESS_EQUITY",
+                                ...binding,
+                                slot,
+                                investorPlayerId: offer.investorPlayerId,
+                              })
+                            }
+                          >
+                            Select {name(offer.investorPlayerId)} for investment{" "}
+                            {slot + 1}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              ))}
+              {tx.readyToConfirm === false && (
+                <p>
+                  Select an offer for every investment before requesting
+                  confirmation.
+                </p>
+              )}
+            </section>
+          )}
           {tx.terms.kind === "secondary-stake-sale" && (
             <p>
               {name(tx.terms.sellerPlayerId)} sells{" "}
@@ -341,6 +416,15 @@ export function BusinessCapitalPanel({
               type="button"
               className="btn-secondary"
               disabled={disabled}
+              onClick={() => startDraft(asset.id, "request-equity")}
+            >
+              Invite equity offers
+            </button>
+
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={disabled}
               onClick={() => startDraft(asset.id, "company-expansion")}
             >
               Expand this business
@@ -352,7 +436,23 @@ export function BusinessCapitalPanel({
           <legend>
             {tx ? "Revise business deal" : "Prepare business proposal"}
           </legend>
-          {draft.mode === "primary-issuance" ? (
+          {draft.mode === "request-equity" ? (
+            <>
+              <p>
+                Set the amount you want to raise in each investment. Interested
+                players will propose the percentage they require.
+              </p>
+              <FundingSlotEditor
+                kind="equity"
+                players={match.players.filter(
+                  (player) => player.playerId !== ownId,
+                )}
+                drafts={fundingDrafts}
+                onChange={setFundingDrafts}
+                onAdd={addFundingSlot}
+              />
+            </>
+          ) : draft.mode === "primary-issuance" ? (
             match.players.map((player) => (
               <fieldset key={player.playerId}>
                 <legend>{player.nickname}</legend>
@@ -437,81 +537,16 @@ export function BusinessCapitalPanel({
                 Request player loans only for the portion the buyer needs to
                 finance. The buyer compares and selects the offers.
               </p>
-              {loanDrafts.map((row, slot) => (
-                <fieldset key={row.id}>
-                  <legend>Loan {slot + 1}</legend>
-                  <label>
-                    Loan principal ($)
-                    <input
-                      aria-label={`Loan ${slot + 1} principal ($)`}
-                      inputMode="decimal"
-                      value={row.amount}
-                      onChange={(event) =>
-                        setLoanDrafts(
-                          loanDrafts.map((item, index) =>
-                            index === slot
-                              ? { ...item, amount: event.target.value }
-                              : item,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                  <label>
-                    Lender invitation
-                    <select
-                      aria-label={`Loan ${slot + 1} lender invitation`}
-                      value={row.lender}
-                      onChange={(event) =>
-                        setLoanDrafts(
-                          loanDrafts.map((item, index) =>
-                            index === slot
-                              ? { ...item, lender: event.target.value }
-                              : item,
-                          ),
-                        )
-                      }
-                    >
-                      <option value="">Any eligible lender</option>
-                      {match.players
-                        .filter(
-                          (player) =>
-                            player.playerId !== ownId &&
-                            player.playerId !== buyer,
-                        )
-                        .map((player) => (
-                          <option key={player.playerId} value={player.playerId}>
-                            {player.nickname}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() =>
-                      setLoanDrafts(
-                        loanDrafts.filter((_, index) => index !== slot),
-                      )
-                    }
-                  >
-                    Remove loan {slot + 1}
-                  </button>
-                </fieldset>
-              ))}
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={loanDrafts.length >= 4}
-                onClick={() =>
-                  setLoanDrafts([
-                    ...loanDrafts,
-                    { id: nextLoanDraftId.current++, amount: "", lender: "" },
-                  ])
-                }
-              >
-                Request a player loan
-              </button>
+              <FundingSlotEditor
+                kind="loan"
+                players={match.players.filter(
+                  (player) =>
+                    player.playerId !== ownId && player.playerId !== buyer,
+                )}
+                drafts={fundingDrafts}
+                onChange={setFundingDrafts}
+                onAdd={addFundingSlot}
+              />
             </>
           )}
           <button

@@ -155,6 +155,9 @@ export function applyPlayerCommand(
     case "OFFER_BUSINESS_LOAN":
     case "SELECT_BUSINESS_LOAN":
     case "WITHDRAW_BUSINESS_LOAN":
+    case "OFFER_BUSINESS_EQUITY":
+    case "SELECT_BUSINESS_EQUITY":
+    case "WITHDRAW_BUSINESS_EQUITY":
       return applyBusinessCapitalCommand(state, actorPlayerId, wireCommand);
     case "BUY_PROPERTY":
     case "SELL_PROPERTY":

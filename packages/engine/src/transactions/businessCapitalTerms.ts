@@ -1,25 +1,39 @@
 import { OPERATING_RULES } from "@interests/rules";
 import {
   asPlayerId,
+  type BusinessCapitalTerms,
+  type BusinessEquityRequest,
   type BusinessLoanRequest,
   type PlayerId,
 } from "@interests/shared";
 import {
   type BusinessCapitalConsideration,
   businessStakePurchaseTotalCents,
+  type PrimaryContribution,
 } from "../finance/businessCapitalAccounting";
 import {
   diluteBusinessOwnership,
   transferBusinessStake,
 } from "../finance/businessStakes";
-import { type Cents, cents, isNonNegativeCents } from "../finance/money";
+import {
+  addCents,
+  type Cents,
+  cents,
+  isNonNegativeCents,
+} from "../finance/money";
 import type { BusinessAsset, GameState } from "../model/gameState";
-import { assertBusinessLoanOffers, loanRequests } from "./businessLoanOffers";
+import {
+  assertBusinessEquityOffers,
+  isEquitySelection,
+} from "./businessEquityOffers";
+import { assertBusinessLoanOffers } from "./businessLoanOffers";
 import type { BusinessCapitalTransaction } from "./model";
 
 type BusinessCapitalPlan = {
   readonly participants: readonly PlayerId[];
   readonly cashContributions: ReadonlyMap<PlayerId, Cents>;
+  readonly terms: BusinessCapitalTerms;
+  readonly ready: boolean;
   readonly action:
     | (BusinessCapitalConsideration & {
         readonly loanRequests?: readonly BusinessLoanRequest[];
@@ -32,7 +46,11 @@ export function planBusinessCapital(
   asset: BusinessAsset,
   tx: Pick<
     BusinessCapitalTransaction,
-    "terms" | "initiatorPlayerId" | "selectedLoans"
+    | "terms"
+    | "initiatorPlayerId"
+    | "selectedLoans"
+    | "equityOffers"
+    | "selectedEquity"
   >,
 ): BusinessCapitalPlan | null {
   const { terms, initiatorPlayerId } = tx;
@@ -44,6 +62,8 @@ export function planBusinessCapital(
       if (asset.ownershipByPlayerPpm[playerId]) participants.add(playerId);
   };
   let action: BusinessCapitalPlan["action"];
+  let canonicalTerms: BusinessCapitalTerms | undefined;
+  let ready = true;
   try {
     switch (terms.kind) {
       case "company-expansion": {
@@ -141,6 +161,7 @@ export function planBusinessCapital(
         cashContributions.set(buyer, cents(upfront - totalPrincipal));
         for (const choice of tx.selectedLoans ?? [])
           participants.add(choice.lenderPlayerId);
+        ready = (tx.selectedLoans ?? []).length === (loanRequests?.length ?? 0);
         action = {
           kind: terms.kind,
           sellerPlayerId: seller,
@@ -149,6 +170,74 @@ export function planBusinessCapital(
           priceCents: terms.priceCents,
           ...(loanRequests ? { loanRequests } : {}),
         };
+        break;
+      }
+      case "request-equity": {
+        if (
+          !asset.ownershipByPlayerPpm[initiatorPlayerId] ||
+          !Array.isArray(terms.requests) ||
+          !terms.requests.length ||
+          terms.requests.length > 4
+        )
+          return null;
+        includeOwners();
+        const requests: BusinessEquityRequest[] = [];
+        let closingCashCents = asset.cashCents;
+        for (const request of terms.requests) {
+          if (
+            !request ||
+            !isNonNegativeCents(request.amountCents) ||
+            !request.amountCents
+          )
+            return null;
+          const invited = request.invitedInvestorId;
+          if (
+            invited !== undefined &&
+            (typeof invited !== "string" ||
+              invited === initiatorPlayerId ||
+              !Object.hasOwn(state.players, invited))
+          )
+            return null;
+          requests.push({
+            amountCents: request.amountCents,
+            ...(invited === undefined ? {} : { invitedInvestorId: invited }),
+          });
+          closingCashCents = addCents(closingCashCents, request.amountCents);
+        }
+        const selected = new Map<PlayerId, PrimaryContribution>();
+        for (const offer of tx.equityOffers ?? []) {
+          if (!isEquitySelection(tx, offer)) continue;
+          const request = requests[offer.slot];
+          if (!request) return null;
+          const prior = selected.get(offer.investorPlayerId);
+          selected.set(offer.investorPlayerId, {
+            playerId: offer.investorPlayerId,
+            amountCents: addCents(
+              cents(prior?.amountCents ?? 0),
+              cents(request.amountCents),
+            ),
+            postMoneyOwnershipPpm:
+              (prior?.postMoneyOwnershipPpm ?? 0) + offer.postMoneyOwnershipPpm,
+          });
+          participants.add(offer.investorPlayerId);
+        }
+        if (selected.size)
+          diluteBusinessOwnership(
+            asset.ownershipByPlayerPpm,
+            Object.fromEntries(
+              [...selected.values()].map((item) => [
+                item.playerId,
+                item.postMoneyOwnershipPpm,
+              ]),
+            ),
+          );
+        // Equity cash is already reserved by each offer, including the selected ones.
+        action = {
+          kind: "primary-issuance",
+          contributions: [...selected.values()],
+        };
+        canonicalTerms = { kind: terms.kind, requests };
+        ready = (tx.selectedEquity ?? []).length === requests.length;
         break;
       }
       case "primary-issuance": {
@@ -208,6 +297,8 @@ export function planBusinessCapital(
   return {
     participants: state.playerOrder.filter((id) => participants.has(id)),
     cashContributions,
+    terms: canonicalTerms ?? action,
+    ready,
     action,
   };
 }
@@ -229,8 +320,7 @@ export function assertBusinessCapitalTransaction(
     !Number.isSafeInteger(tx.termsRevision) ||
     tx.termsRevision < 1 ||
     !Array.isArray(tx.confirmedPlayerIds) ||
-    (tx.confirmedPlayerIds.length > 0 &&
-      loanRequests(tx).length !== (tx.selectedLoans ?? []).length) ||
+    (tx.confirmedPlayerIds.length > 0 && !plan.ready) ||
     new Set(tx.confirmedPlayerIds).size !== tx.confirmedPlayerIds.length ||
     !tx.confirmedPlayerIds.every(
       (id) =>
@@ -242,4 +332,5 @@ export function assertBusinessCapitalTransaction(
     throw new Error("Invalid active business capital transaction");
   }
   assertBusinessLoanOffers(state, tx);
+  assertBusinessEquityOffers(state, tx);
 }

@@ -129,6 +129,22 @@ const termsBinding = {
 const BusinessCapitalTermsSchema = z.discriminatedUnion("kind", [
   z
     .object({
+      kind: z.literal("request-equity"),
+      requests: z
+        .array(
+          z
+            .object({
+              amountCents: positiveCents,
+              invitedInvestorId: transactionKey.optional(),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(4),
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal("company-expansion"),
       investmentCents: positiveCents,
     })
@@ -174,6 +190,30 @@ const BusinessCapitalTermsSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("OFFER_BUSINESS_EQUITY"),
+      ...termsBinding,
+      slot: loanSlot,
+      postMoneyOwnershipPpm: ownershipUnits,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("SELECT_BUSINESS_EQUITY"),
+      ...termsBinding,
+      slot: loanSlot,
+      investorPlayerId: transactionKey,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("WITHDRAW_BUSINESS_EQUITY"),
+      ...termsBinding,
+      slot: loanSlot,
+      investorPlayerId: transactionKey,
+    })
+    .strict(),
   z
     .object({
       type: z.literal("OPEN_BUSINESS_AUCTION"),
