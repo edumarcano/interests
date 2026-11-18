@@ -137,6 +137,7 @@ function salePosting(
     !isNonNegativeCents(priceCents) ||
     priceCents === 0 ||
     (asset.workCompensation?.playerId === sellerPlayerId &&
+      asset.workCompensation.annualCompensationCents > 0 &&
       asset.ownershipByPlayerPpm[sellerPlayerId] === soldPpm)
   ) {
     throw new RangeError("Unsupported secondary stake sale");

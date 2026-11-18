@@ -49,7 +49,8 @@ export function assertBusinessCashState(state: GameState): void {
       if (
         !work ||
         !state.playerOrder.includes(work.playerId) ||
-        (asset.ownershipByPlayerPpm[work.playerId] ?? 0) <= 0
+        (work.annualCompensationCents > 0 &&
+          (asset.ownershipByPlayerPpm[work.playerId] ?? 0) <= 0)
       )
         throw new Error("Game invariant failed: invalid company work party");
       requireMoney(work.annualCompensationCents);

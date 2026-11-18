@@ -473,6 +473,20 @@ export function projectPlayerGameState(
     propertyOffers: offers,
     propertyManagement: management,
     financialDetails: {
+      formerWorkClaims: Object.values(state.finance.assetsById).flatMap(
+        (asset) =>
+          asset.kind === "business" &&
+          !asset.ownershipByPlayerPpm[playerId] &&
+          asset.workCompensation?.playerId === playerId &&
+          asset.workCompensation.arrearsCents > 0
+            ? [
+                {
+                  assetId: asset.id,
+                  amountCents: asset.workCompensation.arrearsCents,
+                },
+              ]
+            : [],
+      ),
       careerOffers: getCareerOffers(state, playerId),
       annualLaborCompensationCents: currentAnnualLaborCompensation(
         state,

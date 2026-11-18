@@ -429,6 +429,10 @@ export type MatchResultView =
     }
   | { readonly kind: "safety-draw"; readonly completedQuarter: number };
 export interface MatchSelfFinancialDetailsView {
+  readonly formerWorkClaims?: readonly {
+    readonly assetId: string;
+    readonly amountCents: number;
+  }[];
   readonly careerOffers: readonly CareerOfferView[];
   readonly annualLaborCompensationCents: number | null;
   readonly quarterlyIncomeCents: number;

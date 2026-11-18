@@ -63,6 +63,124 @@ function binding(state: GameState) {
 }
 
 describe("business capital lifecycle", () => {
+  it("keeps a former employee's work contract while selling the rest of their stake", () => {
+    const { state, owner, asset, buyer, second, rival } = start();
+    const advanceToOwner = (initial: GameState, quarter: number) => {
+      let current = initial;
+      while (
+        current.currentQuarter !== quarter ||
+        getActiveSpotlightPlayerId(current) !== owner
+      ) {
+        if (current.currentQuarter > quarter)
+          throw new Error("Missed owner spotlight");
+        const active = getActiveSpotlightPlayerId(current);
+        current = active
+          ? send(current, active, { type: "PASS_SPOTLIGHT" }).state
+          : send(current, players[0]!, { type: "BEGIN_ROUND" }).state;
+      }
+      return current;
+    };
+    let current = send(state, owner, {
+      type: "OPEN_BUSINESS_CAPITAL",
+      assetId: asset.id,
+      terms: {
+        kind: "primary-issuance",
+        contributions: [
+          {
+            playerId: buyer,
+            amountCents: 50_000,
+            postMoneyOwnershipPpm: 100_000,
+          },
+          {
+            playerId: second,
+            amountCents: 50_000,
+            postMoneyOwnershipPpm: 100_000,
+          },
+        ],
+      },
+    }).state;
+    const issue = binding(current);
+    for (const participant of [owner, buyer, second])
+      current = send(current, participant, {
+        type: "CONFIRM_BUSINESS_CAPITAL",
+        ...issue,
+      }).state;
+    current = send(current, owner, {
+      type: "CLOSE_BUSINESS_CAPITAL",
+      ...issue,
+    }).state;
+    const q2 = advanceToOwner(current, 2);
+    const terms = {
+      kind: "secondary-stake-sale",
+      sellerPlayerId: owner,
+      buyerPlayerId: buyer,
+      ownershipPpm: 800_000,
+      priceCents: 100_000,
+    } as const;
+    const open = {
+      type: "OPEN_BUSINESS_CAPITAL",
+      assetId: asset.id,
+      terms,
+    } as const;
+    expect(applyPlayerCommand(q2, owner, open)).toMatchObject({
+      ok: false,
+      code: "INVALID_CAPITAL_CONSIDERATION",
+    });
+    const retired = send(q2, owner, { type: "RESIGN_LABOR" }).state;
+    const q3 = advanceToOwner(retired, 3);
+    const formerContract = q3.finance.assetsById[asset.id];
+    if (formerContract?.kind !== "business") throw new Error("Missing company");
+    expect(formerContract.workCompensation).toMatchObject({
+      playerId: owner,
+      annualCompensationCents: 0,
+    });
+    let exit = send(q3, owner, open).state;
+    const closing = binding(exit);
+    for (const participant of [owner, buyer])
+      exit = send(exit, participant, {
+        type: "CONFIRM_BUSINESS_CAPITAL",
+        ...closing,
+      }).state;
+    const sold = send(exit, owner, {
+      type: "CLOSE_BUSINESS_CAPITAL",
+      ...closing,
+    });
+    expect(sold.state.finance.assetsById[asset.id]).toMatchObject({
+      ownershipByPlayerPpm: { [buyer]: 900_000, [second]: 100_000 },
+      workCompensation: formerContract.workCompensation,
+      annualManagementCostCents: formerContract.annualManagementCostCents,
+    });
+    expect(
+      sold.state.progress.byPlayer[owner]?.assetsById[asset.id],
+    ).toBeUndefined();
+    const transferred = sold.state.finance.assetsById[asset.id];
+    if (transferred?.kind !== "business" || !transferred.workCompensation)
+      throw new Error("Expected preserved former worker claim record");
+    // Synthetic claim variation for projection only; the sale used ordinary setup funds.
+    const outstanding = {
+      ...sold.state,
+      finance: {
+        ...sold.state.finance,
+        assetsById: {
+          ...sold.state.finance.assetsById,
+          [asset.id]: {
+            ...transferred,
+            workCompensation: {
+              ...transferred.workCompensation,
+              arrearsCents: cents(12_345),
+            },
+          },
+        },
+      },
+    };
+    expect(
+      projectPlayerGameState(outstanding, owner).self.financialDetails
+        .formerWorkClaims,
+    ).toEqual([{ assetId: asset.id, amountCents: 12_345 }]);
+    expect(projectPlayerGameState(outstanding, rival)).toEqual(
+      projectPlayerGameState(sold.state, rival),
+    );
+  });
   it("lets the issuer choose among funded equity offers and settles only confirmed allocations into company cash", () => {
     const { state, owner, asset, buyer, second, rival } = start();
     let current = send(state, owner, {

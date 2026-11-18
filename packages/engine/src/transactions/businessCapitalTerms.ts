@@ -99,6 +99,7 @@ export function planBusinessCapital(
           !terms.priceCents ||
           (initiatorPlayerId !== seller && initiatorPlayerId !== buyer) ||
           (asset.workCompensation?.playerId === seller &&
+            asset.workCompensation.annualCompensationCents > 0 &&
             asset.ownershipByPlayerPpm[seller] === terms.ownershipPpm)
         )
           return null;
