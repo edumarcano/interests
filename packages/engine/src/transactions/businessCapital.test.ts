@@ -208,4 +208,74 @@ describe("business capital lifecycle", () => {
       ),
     ).toBe(false);
   });
+
+  it("keeps an agreed issuance intact when final-spotlight settlement fails", () => {
+    const { state, owner, asset, buyer, second } = start();
+    let current = state;
+    while (
+      getActiveSpotlightPlayerId(current) !== owner ||
+      current.round?.spotlightsCompleted !== 3
+    ) {
+      if (current.currentQuarter > 4)
+        throw new Error("Expected a last spotlight");
+      const active = getActiveSpotlightPlayerId(current);
+      current = active
+        ? send(current, active, { type: "PASS_SPOTLIGHT" }).state
+        : send(current, players[0]!, { type: "BEGIN_ROUND" }).state;
+    }
+    let confirmed = send(current, owner, {
+      type: "OPEN_BUSINESS_CAPITAL",
+      assetId: asset.id,
+      terms: {
+        kind: "primary-issuance",
+        contributions: [
+          {
+            playerId: buyer,
+            amountCents: 20_000,
+            postMoneyOwnershipPpm: 100_000,
+          },
+          {
+            playerId: second,
+            amountCents: 30_000,
+            postMoneyOwnershipPpm: 150_000,
+          },
+        ],
+      },
+    }).state;
+    const args = binding(confirmed);
+    for (const player of [owner, buyer, second])
+      confirmed = send(confirmed, player, {
+        type: "CONFIRM_BUSINESS_CAPITAL",
+        ...args,
+      }).state;
+    const close = { type: "CLOSE_BUSINESS_CAPITAL", ...args } as const;
+    const exhausted = {
+      ...confirmed,
+      counters: { ...confirmed.counters, settlement: Number.MAX_SAFE_INTEGER },
+    };
+    const rejected = applyPlayerCommand(exhausted, owner, close);
+    expect(rejected).toEqual({
+      ok: false,
+      state: exhausted,
+      code: "SETTLEMENT_ID_EXHAUSTED",
+      journalEntries: [],
+    });
+    expect(rejected.state).toBe(exhausted);
+    expect(getReservedCashCents(rejected.state, second)).toBe(30_000);
+    const posted = send(confirmed, owner, close);
+    expect(posted.state.currentQuarter).toBe(confirmed.currentQuarter + 1);
+    expect(
+      posted.state.finance.assetsById[asset.id]?.ownershipByPlayerPpm,
+    ).toEqual({
+      [owner]: 750_000,
+      [buyer]: 100_000,
+      [second]: 150_000,
+    });
+    expect(
+      posted.journalEntries
+        .filter((entry) => entry.relatedTransactionId === args.transactionId)
+        .map((entry) => entry.amountCents)
+        .sort((a, b) => a - b),
+    ).toEqual([20_000, 30_000]);
+  });
 });
