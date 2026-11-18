@@ -860,3 +860,21 @@ Compatibility identifiers become engine `0.0.10`, rules `0.0.8`, shared `0.0.12`
 GAME_DESIGN sections 6.5.1, 16.4, 16.6 and 18.5 record the approved defaults. Require unanimous same-terms consent for shared expansion and the specified jointly owned property actions. Resolve scarce sealed auctions after all eligible bidders respond, reserving cash and using server acceptance order for ties. Use the occupancy targets and business sensitivity and cost rules in section 16. Apply the $50,000 material-deal and disposal rules and the post-debt Independent coverage test in section 18.5.
 
 These are prototype choices for a playable, understandable economic game. M7 validates deterministic accounting, legal routes and complete matches. M8 retains automated balance work and real human playtests to assess pacing, enjoyment, clarity and whether the tradeoffs feel plausible.
+
+## ARCH-046 - M7 consent, competitive funding and stake auctions
+
+**Status:** Accepted implementation of ARCH-040 and ARCH-045
+**Date:** November 18, 2026
+
+The rotating spotlight owns at most one deal. Explicit confirmations bind the current deal terms revision. Changing terms or a selected contribution releases or invalidates the affected commitments. Closing uses the ordinary deterministic journal and settlement path; a failed closing or final-spotlight settlement leaves the original proposal and cash holds intact.
+
+| Contract | Implementation |
+| --- | --- |
+| Stake sale | Allocate the sold share from dated acquisition slices. Pay secondary consideration to the seller, charge both approved fees, and record actual costs, proceeds and independent reference equity. The opening period's income belongs to the opening owners. |
+| Equity | Direct named contributions and open or targeted competitive invitations issue new ownership. Each investor proposes the stake they require. Funding goes to company cash without a platform fee. Existing owners are diluted proportionally; all current owners and selected investors confirm the final terms. |
+| Player loans | Buyers choose one offer per requested loan amount. Reserve every live offer and the buyer's confirmed cash contribution; never reuse the same cash. Only selected confirmed loans fund the close, tied to the funded transaction. Do not originate new personal credit for an overdue borrower. |
+| Public auction | A seller lists a stake and minimum bid for the other seats. Each seat bids once with cash covering the bid and buyer fee, or passes. The last response settles the auction at the winner's bid; submission order breaks exact ties. Only each bidder sees their own bid. Cancellation or completion releases losing holds. |
+| Expansion and labor | Expansion spends company cash against next-quarter profit, preserving earned input. Shared expansion requires unanimous confirmation. A paid worker must retain an ownership position; after resignation the former worker can transfer their remaining stake while replacement management and unpaid work claims continue. |
+| Business bank debt | Fixed business debt settles from company cash before distributions. The trusted origination helper requires an actual funded closing draft, approved underwriting, retained personal and company reserves, and a matching closing gap. Recurring business acquisition uses this helper in packet 7. |
+
+Packet 6 uses engine `0.0.11`, rules `0.0.9`, shared `0.0.13` and persistence `0.0.10`. Older snapshots continue to require a compatible build.
