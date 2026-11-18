@@ -851,3 +851,12 @@ Compatibility identifiers become engine `0.0.9`, rules `0.0.7`, shared `0.0.11`,
 | Persistent choices | Three fully disclosed authored NPC listings provide stable acquisition routes before packet 7 recurring generation. Facts never reroll. Initial balances and the Q1 business fixture remain unchanged. Macro rate activation and multiplayer capital stay in later packets. |
 
 Compatibility identifiers become engine `0.0.10`, rules `0.0.8`, shared `0.0.12`, persistence `0.0.9` in the ordered M7 stack. Older snapshots require their compatible build; no silent conversion occurs.
+
+## ARCH-045 - M7 prototype decisions for shared deals, operations and objective safeguards
+
+**Status:** Accepted
+**Date:** November 17, 2026
+
+GAME_DESIGN sections 6.5.1, 16.4, 16.6 and 18.5 record the approved defaults. Require unanimous same-terms consent for shared expansion and the specified jointly owned property actions. Resolve scarce sealed auctions after all eligible bidders respond, reserving cash and using server acceptance order for ties. Use the occupancy targets and business sensitivity and cost rules in section 16. Apply the $50,000 material-deal and disposal rules and the post-debt Independent coverage test in section 18.5.
+
+These are prototype choices for a playable, understandable economic game. M7 validates deterministic accounting, legal routes and complete matches. M8 retains automated balance work and real human playtests to assess pacing, enjoyment, clarity and whether the tradeoffs feel plausible.

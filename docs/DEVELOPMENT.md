@@ -100,7 +100,7 @@ Standalone on the packet 2 foundations, the 694-test suite passed with loopback 
 
 The local `EXPAND_BUSINESS` engine path spends a sole owner's company reserves, keeps the current quarter's operating inputs and activates the profit increase at the following quarter boundary. A fixed-seed command test spends $4,000 in company cash for $1,000 more annual profit. Q1 personal receipts match the no-expansion control, and Q2 records $250 more operating profit. Invalid or unfunded requests and final-spotlight settlement failure leave the original state unchanged. The capital accounting checkpoint posts seller consideration and fees, or issues new stakes against company cash. It preserves exact ownership and dated basis without redirecting current-quarter earnings. The work is stacked on #40. The command lifecycle, consent, financing slots, public bids and browser controls are still pending.
 
-Policy gaps to settle before activation: consent for shared-company expansion, sealed-bid closing and tie rules, property occupancy targets, business sensitivity assignments and non-labor cost behavior, and the qualitative objective safeguards where no numerical definition exists. Continue the approved transaction, operating and measurement work independently. Record any approved policy in GAME_DESIGN and DECISIONS before activating it.
+The user approved the shared-asset consent, sealed-auction, occupancy, operating-cost and objective safeguard defaults now recorded in GAME_DESIGN and ARCH-045. They are ready for implementation in packets 6–8. Balance, enjoyment and pacing remain to be assessed in M8.
 
 ## M7 completion and M8 handoff
 
