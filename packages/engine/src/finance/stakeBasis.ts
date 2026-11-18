@@ -94,6 +94,21 @@ function allocateUnits(
   return entries.map((entry) => entry.floor);
 }
 
+/** Allocate a sale's gross price or reference value across its disposed slices. */
+export function allocateStakeSliceCents(
+  total: Cents,
+  slices: readonly StakeBasisSlice[],
+): readonly Cents[] {
+  requireBook(slices);
+  if (!isNonNegativeCents(total))
+    throw new RangeError("Invalid stake amount to allocate");
+  return allocateUnits(
+    total,
+    slices.map((slice) => slice.ownershipPpm),
+    slices,
+  ).map(cents);
+}
+
 /** Append raw acquisition evidence without merging dates or changing existing costs. */
 export function addStakeAcquisitionSlice(
   slices: readonly StakeBasisSlice[],
