@@ -981,3 +981,21 @@ The same approved regime performance rules apply to newly acquired managed compa
 | Established service group | $360,000 | Medium | $1,170,000 |
 
 These are authored prototype content costs within the approved local/mature operating rules, not owner salaries or balance findings. Operating EV retains its closing rational multiple of actual after-labor profit. New `firstOperatingQuarter` is acquisition quarter + 1; before then, the model consumes no operating draw and records no performance history. This keeps fourth-spotlight closing figures unchanged and prevents its zero earned entitlement from becoming invented prehistory. The first earned quarter pays the original stated profit; its close prepares bounded next-quarter revenue with proportional variable costs and fixed necessary labor. Existing net business cash accounting is unchanged. Hidden cost calibration/model history never enters pre-diligence card, financial-quote or rival projections. The named Q1 diagnostic and fixed synthetic cases remain explicit exceptions.
+## ARCH-050 - Terminal settlement and result persistence
+
+**Status:** Accepted implementation; objective finale activation pending
+**Date:** November 18, 2026
+
+The terminal implementation applies the Q32 failsafe in GAME_DESIGN section 18. Terminal persistence also supports explicit objective victories once the finale coordinator is connected.
+
+| Boundary | Implementation |
+| --- | --- |
+| Final quarter | Settle Q32 cash, business/property flows, loan claims, public-market prices and observations exactly once. Keep `currentQuarter` and `lastSettledQuarter` at 32, retain Q32's opening entitlement basis, set `phase: finished`, clear the round and record the public safety-draw result. |
+| RNG and preparation | Q32's three public-market price-noise draws still apply. Do not draw the next-regime roll, capture a Q33 basis or prepare Q33 content. Skip next-quarter rate resets, rent and living-cost indexing, operations/occupancy movement, scheduled renovation/expansion, and the separate operating/content streams. Update normalized company values from actual Q32 operating evidence. |
+| Terminal priority | Round orchestration returns immediately if a separately validated closing transition already produced a terminal result. That preserves future finale priority over fourth-spotlight advancement and the draw; no current command creates a victory through this seam. |
+| Durable commit | Accepted-command transaction writes final snapshot, journals, settlement/result events, receipt, match `FINISHED` status and room `FINISHED` status together. Clear operational pause reasons inside that transaction. A persistence failure rolls back the complete terminal command. |
+| Terminal access | Authenticated HTTP views and socket bootstrap remain available. Existing accepted receipts remain retryable after finishing. New gameplay receives `MATCH_FINISHED`; direct engine commands reject the finished phase. Snapshot validation checks operational status against terminal state and room status where supplied. |
+| Presence and restart | Finished rooms do not arm active-match presence controls or acquire disconnect/replacement/recovery pauses. Startup recovery selects only active matches. Finished matches need no host resume and remain viewable while other members are offline. |
+| Browser | Show the public result and recipient's final financial records. Hide setup, career, trading, pass and resume controls, upcoming business forecasts and statements promising later settlements. A generic public-winner rendering path exists for later victory producers without exposing hidden objectives. |
+
+Compatibility targets for the integrated packet-8 stack are engine `0.0.13`, rules `0.0.11`, shared `0.0.15`, persistence `0.0.12`. Existing snapshots require their compatible builds; no silent conversion occurs.

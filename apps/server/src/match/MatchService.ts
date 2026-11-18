@@ -55,7 +55,11 @@ export class MatchService {
     roomMembers?: readonly { id: RoomMemberId; joinOrder: number }[],
   ): GameState {
     try {
-      return loadAndValidatePersistedMatch(matchWithMembers, roomMembers);
+      return loadAndValidatePersistedMatch(
+        matchWithMembers,
+        roomMembers,
+        this.matchRepository.findRoomWithMembers(roomCode)?.room.status,
+      );
     } catch {
       this.lobbyRepository.addPauseReason({
         roomCode,
@@ -574,6 +578,24 @@ export class MatchService {
         };
       }
 
+      if (currentState.phase === "finished") {
+        this.matchRepository.recordRejectedReceipt({
+          matchId: currentMatch.match.id,
+          actorPlayerId,
+          commandId: validEnvelope.commandId,
+          payloadHash,
+          errorCode: "MATCH_FINISHED",
+          errorMessage: "Match is finished",
+          resultingRevision: currentMatch.match.revision,
+        });
+        return {
+          ok: false,
+          commandId: validEnvelope.commandId,
+          error: { code: "MATCH_FINISHED", message: "Match is finished" },
+          revision: currentMatch.match.revision,
+        };
+      }
+
       // 8. Check pause reasons
       const pauseReasons = this.lobbyRepository.getPauseReasons(roomCode);
       if (pauseReasons.length > 0) {
@@ -682,6 +704,12 @@ export class MatchService {
           payloadJson: JSON.stringify(actionResult.settlementOutcome),
         });
 
+      if (actionResult.state.result)
+        events.push({
+          eventKind: "match-result",
+          payloadJson: JSON.stringify(actionResult.state.result),
+        });
+
       // 11. Atomic SQLite commit
       this.matchRepository.commitAcceptedCommand({
         matchId: currentMatch.match.id,
@@ -700,6 +728,8 @@ export class MatchService {
       if (this.coordinator) {
         try {
           this.coordinator.broadcastMatchView(roomCode);
+          if (actionResult.state.result)
+            this.coordinator.broadcastPresence(roomCode);
         } catch {
           // Suppress post-commit broadcast error; command was committed
         }

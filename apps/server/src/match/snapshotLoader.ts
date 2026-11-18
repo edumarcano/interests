@@ -122,6 +122,7 @@ export function loadAndValidateSnapshot(
 export function loadAndValidatePersistedMatch(
   matchWithMembers: MatchWithMembers,
   roomMembers?: readonly { id: RoomMemberId; joinOrder: number }[],
+  roomStatus?: string,
 ): GameState {
   const versions: MatchVersionMetadata = {
     engineVersion: matchWithMembers.match.engineVersion,
@@ -159,6 +160,26 @@ export function loadAndValidatePersistedMatch(
       500,
     );
   }
+
+  if (
+    (matchWithMembers.match.status === "FINISHED") !==
+    (gameState.phase === "finished")
+  )
+    throw new MatchError(
+      "INVALID_MATCH_ENVELOPE",
+      "Persisted operational status and terminal snapshot disagree",
+      500,
+    );
+
+  if (
+    roomStatus !== undefined &&
+    (roomStatus === "FINISHED") !== (gameState.phase === "finished")
+  )
+    throw new MatchError(
+      "INVALID_MATCH_ENVELOPE",
+      "Room status and terminal snapshot disagree",
+      500,
+    );
 
   // match_members invariants
   if (matchWithMembers.members.length !== 4) {

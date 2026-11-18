@@ -278,11 +278,16 @@ export function projectPlayerGameState(
           opening &&
           (opening.ownershipByPlayerPpm[playerId] ?? 0) > 0 &&
           state.currentQuarter >= firstOperatingQuarter;
-        const payoutQuarter = eligibleNow
-          ? state.currentQuarter
-          : Math.max(state.currentQuarter + 1, firstOperatingQuarter);
-        let expectedWorkPayCents: number | null = 0;
-        let expectedPayoutCents: number | null = 0;
+        const payoutQuarter =
+          state.phase === "finished"
+            ? null
+            : eligibleNow
+              ? state.currentQuarter
+              : Math.max(state.currentQuarter + 1, firstOperatingQuarter);
+        let expectedWorkPayCents: number | null =
+          state.phase === "finished" ? null : 0;
+        let expectedPayoutCents: number | null =
+          state.phase === "finished" ? null : 0;
         if (payoutQuarter !== null) {
           try {
             const forecast = planBusinessSettlement(

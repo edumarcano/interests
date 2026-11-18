@@ -107,6 +107,7 @@ export interface GeneratedQuarterMarketUpdate {
 export function generateQuarterMarketUpdate(input: {
   readonly regime: EconomicRegimeId;
   readonly random: RandomState;
+  readonly prepareNextQuarter?: boolean;
 }): GeneratedQuarterMarketUpdate {
   if (!isEconomicRegimeId(input.regime)) {
     throw new RangeError(`Unknown economic regime: ${String(input.regime)}`);
@@ -132,6 +133,15 @@ export function generateQuarterMarketUpdate(input: {
       );
     }
     returnBpsByInstrument[instrumentId] = totalReturnBps;
+  }
+
+  if (input.prepareNextQuarter === false) {
+    return {
+      returnBpsByInstrument,
+      regimeUsed: input.regime,
+      nextRegime: input.regime,
+      nextRandom: currentRandom,
+    };
   }
 
   // 4. Draw next-regime transition roll (0..99)

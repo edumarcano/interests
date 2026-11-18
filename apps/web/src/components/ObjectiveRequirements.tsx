@@ -7,7 +7,13 @@ function label(key: string) {
     .replace(/([A-Z])/g, " $1")
     .toLowerCase();
 }
-export function ObjectiveRequirements({ self }: { self: MatchSelfView }) {
+export function ObjectiveRequirements({
+  self,
+  isFinal = false,
+}: {
+  self: MatchSelfView;
+  isFinal?: boolean;
+}) {
   const details = self.financialDetails;
   if (!details) return null;
   return (
@@ -18,13 +24,14 @@ export function ObjectiveRequirements({ self }: { self: MatchSelfView }) {
     >
       <h2>Your private finances</h2>
       <p>
-        Employment from next quarter: {money(details.quarterlyIncomeCents)};
-        living costs: {money(details.quarterlyLivingExpenseCents)} per quarter.
+        {isFinal ? "Employment at closing:" : "Employment from next quarter:"}{" "}
+        {money(details.quarterlyIncomeCents)}; living costs:{" "}
+        {money(details.quarterlyLivingExpenseCents)} per quarter.
       </p>
       <p>
-        Earned this quarter: {money(details.entitledQuarterlyIncomeCents)}{" "}
-        employment; {money(details.entitledQuarterlyLivingExpenseCents)} living
-        costs due.
+        {isFinal ? "Final-quarter entitlement:" : "Earned this quarter:"}{" "}
+        {money(details.entitledQuarterlyIncomeCents)} employment;{" "}
+        {money(details.entitledQuarterlyLivingExpenseCents)} living costs due.
       </p>
       {details.formerWorkClaims?.map((claim) => (
         <p key={claim.assetId}>

@@ -126,6 +126,39 @@ export interface QuarterOperatingUpdate {
   readonly nextOperatingRandom: RandomState;
 }
 
+/** Update earned history and normalized value without forecasting or consuming randomness. */
+export function recordBusinessOperatingObservations(
+  assets: GameState["finance"]["assetsById"],
+  quarter: number,
+  businesses: readonly BusinessSettlementOutcome[],
+): Record<AssetId, Asset> {
+  const recorded = { ...assets };
+  for (const outcome of businesses) {
+    const asset = recorded[outcome.assetId];
+    if (asset?.kind !== "business" || !asset.operatingModel) continue;
+    const model = asset.operatingModel;
+    if (quarter < (model.firstOperatingQuarter ?? 1)) continue;
+    const quarters = [
+      ...model.quarters,
+      { quarter, operatingProfitCents: outcome.operatingCashCents },
+    ].slice(-OBJECTIVE_MEASUREMENT_RULES.lookbackQuarters);
+    recorded[asset.id] = {
+      ...asset,
+      enterpriseValueCents: calculateNormalizedBusinessValueCents({
+        openingEnterpriseValueCents: model.openingEnterpriseValueCents,
+        openingValuationEarningsCents: model.openingValuationEarningsCents,
+        basis: model.valuationBasis,
+        fixedAnnualLaborCostsCents: model.fixedAnnualLaborCostsCents,
+        observedQuarterlyOperatingProfitCents: quarters.map(
+          (observed) => observed.operatingProfitCents,
+        ),
+      }),
+      operatingModel: { ...model, quarters },
+    };
+  }
+  return recorded;
+}
+
 /** Pure next-quarter planning; rejected settlement never commits these outputs. */
 export function planQuarterOperatingUpdate(
   state: GameState,
@@ -151,7 +184,11 @@ export function planQuarterOperatingUpdate(
       ),
     };
   }
-  const assetsById = { ...assets };
+  const assetsById = recordBusinessOperatingObservations(
+    assets,
+    state.currentQuarter,
+    businesses,
+  );
   let random = state.economy.operatingRandom;
   for (const id of Object.keys(assetsById).sort() as AssetId[]) {
     const asset = assetsById[id];
@@ -165,16 +202,6 @@ export function planQuarterOperatingUpdate(
       const model = asset.operatingModel;
       if (!model || state.currentQuarter < (model.firstOperatingQuarter ?? 1))
         continue;
-      const outcome = businesses.find((company) => company.assetId === id);
-      const quarters = outcome
-        ? [
-            ...model.quarters,
-            {
-              quarter: state.currentQuarter,
-              operatingProfitCents: outcome.operatingCashCents,
-            },
-          ].slice(-OBJECTIVE_MEASUREMENT_RULES.lookbackQuarters)
-        : model.quarters;
       const movement = generateBusinessRevenueMovement({
         regime: state.economy.currentRegime,
         sensitivity: model.sensitivity,
@@ -194,16 +221,6 @@ export function planQuarterOperatingUpdate(
             .plus(model.annualProfitAdjustmentCents)
             .toNumber(),
         ),
-        enterpriseValueCents: calculateNormalizedBusinessValueCents({
-          openingEnterpriseValueCents: model.openingEnterpriseValueCents,
-          openingValuationEarningsCents: model.openingValuationEarningsCents,
-          basis: model.valuationBasis,
-          fixedAnnualLaborCostsCents: model.fixedAnnualLaborCostsCents,
-          observedQuarterlyOperatingProfitCents: quarters.map(
-            (observed) => observed.operatingProfitCents,
-          ),
-        }),
-        operatingModel: { ...model, quarters },
       };
       continue;
     }

@@ -365,8 +365,10 @@ export function assertCompletionState(state: GameState): void {
         throw new Error("Invalid winner");
     } else if (
       state.result.kind !== "safety-draw" ||
-      state.result.completedQuarter !== 32 ||
-      state.lastSettledQuarter !== 32
+      state.result.completedQuarter !==
+        OBJECTIVE_MEASUREMENT_RULES.safetyDrawQuarter ||
+      state.currentQuarter !== OBJECTIVE_MEASUREMENT_RULES.safetyDrawQuarter ||
+      state.lastSettledQuarter !== OBJECTIVE_MEASUREMENT_RULES.safetyDrawQuarter
     )
       throw new Error("Invalid safety draw");
   } else if (state.result !== null)

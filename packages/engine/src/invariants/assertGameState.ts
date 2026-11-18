@@ -4,6 +4,7 @@ import {
   isPairValid,
   isProfileId,
   OBJECTIVE_IDS,
+  OBJECTIVE_MEASUREMENT_RULES,
   PLAYER_LOAN_MAX_TERM_QUARTERS,
   PLAYER_LOAN_MIN_TERM_QUARTERS,
   PROPERTY_CATALOGUE,
@@ -264,9 +265,17 @@ export function assertGameState(state: GameState): void {
       "Game invariant failed: lastSettledQuarter must be a non-negative safe integer",
     );
   }
-  if (state.lastSettledQuarter !== state.currentQuarter - 1) {
+  const settledTerminalQuarter =
+    state.phase === "finished" && state.result?.kind === "safety-draw";
+  if (state.currentQuarter > OBJECTIVE_MEASUREMENT_RULES.safetyDrawQuarter)
     throw new Error(
-      `Game invariant failed: lastSettledQuarter (${state.lastSettledQuarter}) must equal currentQuarter - 1 (${state.currentQuarter - 1})`,
+      "Game invariant failed: quarter exceeds the safety horizon",
+    );
+  const expectedLastSettledQuarter =
+    state.currentQuarter - (settledTerminalQuarter ? 0 : 1);
+  if (state.lastSettledQuarter !== expectedLastSettledQuarter) {
+    throw new Error(
+      `Game invariant failed: lastSettledQuarter (${state.lastSettledQuarter}) must equal ${expectedLastSettledQuarter}`,
     );
   }
 

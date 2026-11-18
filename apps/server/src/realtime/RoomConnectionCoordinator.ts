@@ -78,9 +78,19 @@ export class RoomConnectionCoordinator {
     return meta;
   }
 
+  private isFinishedRoom(roomCode: string): boolean {
+    return (
+      this.matchRepository?.findMatchByRoomCode(roomCode)?.match.status ===
+      "FINISHED"
+    );
+  }
+
   isRoomArmed(roomCode: string): boolean {
     const normalized = normalizeRoomCode(roomCode);
-    return this.roomMeta.get(normalized)?.presenceArmed ?? false;
+    return (
+      !this.isFinishedRoom(normalized) &&
+      (this.roomMeta.get(normalized)?.presenceArmed ?? false)
+    );
   }
 
   getMemberState(memberId: RoomMemberId): MemberSessionState | undefined {
@@ -162,7 +172,11 @@ export class RoomConnectionCoordinator {
 
     // If the room was already armed and the existing controller was synchronized,
     // replacing it temporarily removes synchronized control, adding DISCONNECTED_MEMBER pause
-    if (roomMeta.presenceArmed && existingState?.synchronized) {
+    if (
+      roomMeta.presenceArmed &&
+      existingState?.synchronized &&
+      !this.isFinishedRoom(normalizedCode)
+    ) {
       this.repository.addPauseReason({
         roomCode: normalizedCode,
         reason: "DISCONNECTED_MEMBER",
@@ -285,7 +299,8 @@ export class RoomConnectionCoordinator {
     if (
       presence.members.length === 4 &&
       presence.allConnected &&
-      presence.allSynchronized
+      presence.allSynchronized &&
+      !this.isFinishedRoom(data.roomCode)
     ) {
       const roomMeta = this.getOrCreateRoomMeta(data.roomCode);
       roomMeta.presenceArmed = true;
@@ -323,7 +338,7 @@ export class RoomConnectionCoordinator {
 
     try {
       const roomMeta = this.getOrCreateRoomMeta(data.roomCode);
-      if (roomMeta.presenceArmed) {
+      if (roomMeta.presenceArmed && !this.isFinishedRoom(data.roomCode)) {
         this.repository.addPauseReason({
           roomCode: data.roomCode,
           reason: "DISCONNECTED_MEMBER",
@@ -379,6 +394,16 @@ export class RoomConnectionCoordinator {
       return;
     }
 
+    if (this.isFinishedRoom(data.roomCode)) {
+      safeAck(ack, {
+        ok: false,
+        error: {
+          code: SOCKET_ERROR_CODES.MATCH_FINISHED,
+          message: "Finished matches do not need resuming",
+        },
+      });
+      return;
+    }
     const presence = this.buildPresencePayload(data.roomCode);
     if (
       presence.members.length !== 4 ||
@@ -415,7 +440,11 @@ export class RoomConnectionCoordinator {
         const roomInfo = this.matchRepository?.findRoomWithMembers(
           data.roomCode,
         );
-        loadAndValidatePersistedMatch(matchWithMembers, roomInfo?.members);
+        loadAndValidatePersistedMatch(
+          matchWithMembers,
+          roomInfo?.members,
+          roomInfo?.room.status,
+        );
       } catch {
         this.repository.addPauseReason({
           roomCode: data.roomCode,
@@ -494,7 +523,7 @@ export class RoomConnectionCoordinator {
     }
 
     const roomMeta = this.getOrCreateRoomMeta(memberState.roomCode);
-    if (roomMeta.presenceArmed) {
+    if (roomMeta.presenceArmed && !this.isFinishedRoom(memberState.roomCode)) {
       this.repository.addPauseReason({
         roomCode: memberState.roomCode,
         reason: "DISCONNECTED_MEMBER",

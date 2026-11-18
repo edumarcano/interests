@@ -9,6 +9,7 @@ import type {
 } from "@interests/shared";
 import type React from "react";
 import { CareerPanel } from "./CareerPanel";
+import { FinishedMatchView } from "./FinishedMatchView";
 import { ObjectiveRequirements } from "./ObjectiveRequirements";
 import { ObjectiveSelection } from "./ObjectiveSelection.js";
 import { PauseBanner } from "./PauseBanner.js";
@@ -35,6 +36,7 @@ export const MatchView: React.FC<Props> = ({
   onSendCommand,
   onResumeRoom,
 }) => {
+  if (match.result) return <FinishedMatchView match={match} />;
   const isPaused = pauseReasons.length > 0;
   const hasSystemFault = pauseReasons.includes("SYSTEM_FAULT");
   const canResume =
