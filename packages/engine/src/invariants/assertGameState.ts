@@ -465,6 +465,18 @@ export function assertGameState(state: GameState): void {
         );
       }
 
+      if (loan.fundedTransactionId !== undefined) {
+        const sequence =
+          typeof loan.fundedTransactionId === "string" &&
+          /^transaction-([1-9]\d*)$/.exec(loan.fundedTransactionId);
+        const ordinal = sequence ? Number(sequence[1]) : Number.NaN;
+        if (
+          !Number.isSafeInteger(ordinal) ||
+          ordinal > state.counters.transaction
+        )
+          throw new Error("Invalid player loan funding transaction reference");
+      }
+
       // Contract terms remain valid even when actual repayments differ.
       try {
         calculatePlayerLoanSchedule({

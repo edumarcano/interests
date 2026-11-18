@@ -178,5 +178,6 @@ export function buildMatchPlayerView(params: {
     self: enrichedSelf,
     activeTransaction,
     businessCapital: pureProjection.businessCapital,
+    businessLoanInvitation: pureProjection.businessLoanInvitation,
   };
 }

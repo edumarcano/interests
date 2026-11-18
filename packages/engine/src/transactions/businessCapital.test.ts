@@ -62,6 +62,129 @@ function binding(state: GameState) {
 }
 
 describe("business capital lifecycle", () => {
+  it("reserves competing and targeted player loan offers and originates only the final selections", () => {
+    const { state, owner, asset, buyer, second, rival } = start();
+    let draft = send(state, owner, {
+      type: "OPEN_BUSINESS_CAPITAL",
+      assetId: asset.id,
+      terms: {
+        kind: "secondary-stake-sale",
+        sellerPlayerId: owner,
+        buyerPlayerId: buyer,
+        ownershipPpm: 250_000,
+        priceCents: 1_000_000,
+        loanRequests: [
+          { principalCents: 300_000 },
+          { principalCents: 200_000, invitedLenderId: second },
+        ],
+      },
+    }).state;
+    const originalBinding = binding(draft);
+    const offer = (slot: number, annualRateBps: number) =>
+      ({
+        type: "OFFER_BUSINESS_LOAN",
+        ...originalBinding,
+        slot,
+        annualRateBps,
+        termQuarters: 4,
+      }) as const;
+    draft = send(draft, second, offer(0, 650)).state;
+    draft = send(draft, rival, offer(0, 700)).state;
+    const insufficient = {
+      ...draft,
+      finance: {
+        ...draft.finance,
+        cashByPlayer: { ...draft.finance.cashByPlayer, [second]: 450_000 },
+      },
+    } as GameState;
+    expect(applyPlayerCommand(insufficient, second, offer(1, 500))).toEqual({
+      ok: false,
+      state: insufficient,
+      code: "INSUFFICIENT_AVAILABLE_CASH",
+      journalEntries: [],
+    });
+    expect(applyPlayerCommand(draft, rival, offer(1, 500))).toMatchObject({
+      ok: false,
+      code: "CAPITAL_PARTICIPANT_REQUIRED",
+    });
+    draft = send(draft, second, offer(1, 500)).state;
+    expect(getReservedCashCents(draft, second)).toBe(500_000);
+    expect(getReservedCashCents(draft, rival)).toBe(300_000);
+    const rivalView = projectPlayerGameState(draft, rival);
+    expect(rivalView.businessCapital).toBeNull();
+    expect(rivalView.businessLoanInvitation?.slots).toEqual([
+      { slot: 0, principalCents: 300_000 },
+    ]);
+    expect(
+      rivalView.businessLoanInvitation?.ownOffers.map(
+        (row) => row.annualRateBps,
+      ),
+    ).toEqual([700]);
+    expect(
+      projectPlayerGameState(draft, owner).businessCapital?.loanOffers,
+    ).toEqual([]);
+    expect(
+      projectPlayerGameState(draft, buyer).businessCapital?.loanOffers,
+    ).toHaveLength(3);
+    expect(
+      applyPlayerCommand(draft, owner, {
+        type: "CONFIRM_BUSINESS_CAPITAL",
+        ...originalBinding,
+      }),
+    ).toMatchObject({ ok: false, code: "FINANCING_NOT_READY" });
+    draft = send(draft, buyer, {
+      type: "SELECT_BUSINESS_LOAN",
+      ...binding(draft),
+      slot: 0,
+      lenderPlayerId: rival,
+    }).state;
+    draft = send(draft, buyer, {
+      type: "SELECT_BUSINESS_LOAN",
+      ...binding(draft),
+      slot: 1,
+      lenderPlayerId: second,
+    }).state;
+    expect(
+      applyPlayerCommand(draft, rival, {
+        type: "CONFIRM_BUSINESS_CAPITAL",
+        ...originalBinding,
+      }),
+    ).toMatchObject({ ok: false, code: "STALE_TERMS_REVISION" });
+    const currentBinding = binding(draft);
+    for (const player of [buyer, second, rival, owner])
+      draft = send(draft, player, {
+        type: "CONFIRM_BUSINESS_CAPITAL",
+        ...currentBinding,
+      }).state;
+    expect(getReservedCashCents(draft, buyer)).toBe(520_000);
+    expect(
+      projectPlayerGameState(draft, second).businessLoanInvitation?.confirmed,
+    ).toBe(true);
+    const posted = send(draft, owner, {
+      type: "CLOSE_BUSINESS_CAPITAL",
+      ...currentBinding,
+    });
+    const funded = Object.values(posted.state.finance.loansById).filter(
+      (loan) =>
+        loan.kind === "player-loan" &&
+        loan.fundedTransactionId === currentBinding.transactionId,
+    );
+    expect(funded.map((loan) => loan.originalPrincipalCents)).toEqual([
+      300_000, 200_000,
+    ]);
+    expect(
+      posted.journalEntries
+        .filter(
+          (entry) =>
+            entry.relatedTransactionId === currentBinding.transactionId,
+        )
+        .map((entry) => entry.amountCents),
+    ).toEqual([300_000, 200_000, 1_000_000, 20_000, 30_000]);
+    expect(getReservedCashCents(posted.state, second)).toBe(0);
+    expect(
+      posted.state.finance.assetsById[asset.id]?.ownershipByPlayerPpm[buyer],
+    ).toBe(250_000);
+  });
   it("binds targeted sale terms, protects funds and privacy, and closes only the initiator's spotlight", () => {
     const { state, owner, asset, buyer, rival } = start();
     const terms = {

@@ -117,6 +117,7 @@ export const ResignLaborPayloadSchema = z
 const transactionKey = z.string().min(1).max(128);
 const positiveCents = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const ownershipUnits = z.number().int().min(1).max(1_000_000);
+const loanSlot = z.number().int().min(0).max(3);
 const termsBinding = {
   transactionId: transactionKey,
   expectedTermsRevision: z
@@ -139,6 +140,18 @@ const BusinessCapitalTermsSchema = z.discriminatedUnion("kind", [
       sellerPlayerId: transactionKey,
       priceCents: positiveCents,
       ownershipPpm: ownershipUnits,
+      loanRequests: z
+        .array(
+          z
+            .object({
+              principalCents: positiveCents,
+              invitedLenderId: transactionKey.optional(),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(4)
+        .optional(),
     })
     .strict(),
   z
@@ -161,6 +174,35 @@ const BusinessCapitalTermsSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("OFFER_BUSINESS_LOAN"),
+      ...termsBinding,
+      slot: loanSlot,
+      annualRateBps: z
+        .number()
+        .int()
+        .nonnegative()
+        .max(Number.MAX_SAFE_INTEGER),
+      termQuarters: z.number().int().min(2).max(8),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("SELECT_BUSINESS_LOAN"),
+      ...termsBinding,
+      slot: loanSlot,
+      lenderPlayerId: transactionKey,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("WITHDRAW_BUSINESS_LOAN"),
+      ...termsBinding,
+      slot: loanSlot,
+      lenderPlayerId: transactionKey,
+    })
+    .strict(),
   z
     .object({
       type: z.literal("OPEN_BUSINESS_CAPITAL"),

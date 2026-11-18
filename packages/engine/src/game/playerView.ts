@@ -10,6 +10,7 @@ import {
 } from "@interests/rules";
 import type {
   BusinessCapitalView,
+  BusinessLoanInvitationView,
   MatchId,
   MatchResultView,
   MatchSelfFinancialDetailsView,
@@ -28,6 +29,11 @@ import { calculatePropertyCashFlow } from "../finance/property";
 import { propertyManagement, propertyOffers } from "../finance/propertyActions";
 import type { GameState } from "../model/gameState.js";
 import { planBusinessCapital } from "../transactions/businessCapitalTerms";
+import {
+  businessLoanOfferViews,
+  canOfferBusinessLoan,
+  loanRequests,
+} from "../transactions/businessLoanOffers";
 import {
   getAvailableCashCents,
   getReservedCashCents,
@@ -161,6 +167,7 @@ export interface PurePlayerProjection {
   readonly self: PureSelfView;
   readonly activeTransaction: PureActiveTransactionSummary | null;
   readonly businessCapital: BusinessCapitalView | null;
+  readonly businessLoanInvitation: BusinessLoanInvitationView | null;
 }
 
 /**
@@ -635,6 +642,7 @@ export function projectPlayerGameState(
       : null;
 
   let businessCapital: BusinessCapitalView | null = null;
+  let businessLoanInvitation: BusinessLoanInvitationView | null = null;
   const capital = state.activeTransaction;
   if (capital?.kind === "business-capital") {
     const asset = state.finance.assetsById[capital.assetId];
@@ -642,7 +650,14 @@ export function projectPlayerGameState(
       asset?.kind === "business"
         ? planBusinessCapital(state, asset, capital)
         : null;
-    if (plan?.participants.includes(playerId)) {
+    const requests = loanRequests(capital);
+    const readyToConfirm =
+      requests.length === (capital.selectedLoans ?? []).length;
+    const isDirectParty =
+      capital.terms.kind !== "secondary-stake-sale" ||
+      capital.terms.buyerPlayerId === playerId ||
+      capital.terms.sellerPlayerId === playerId;
+    if (isDirectParty && plan?.participants.includes(playerId)) {
       businessCapital = {
         id: capital.id,
         assetId: capital.assetId,
@@ -652,7 +667,33 @@ export function projectPlayerGameState(
         participantIds: plan.participants,
         confirmedPlayerIds: capital.confirmedPlayerIds,
         yourContributionCents: plan.cashContributions.get(playerId) ?? 0,
+        ...(requests.length
+          ? {
+              loanOffers: businessLoanOfferViews(capital, playerId),
+              readyToConfirm,
+            }
+          : {}),
       };
+    }
+    if (capital.terms.kind === "secondary-stake-sale" && requests.length) {
+      const slots = requests.flatMap((request, slot) =>
+        canOfferBusinessLoan(capital, playerId, slot)
+          ? [{ slot, principalCents: request.principalCents }]
+          : [],
+      );
+      if (slots.length) {
+        const ownOffers = businessLoanOfferViews(capital, playerId);
+        businessLoanInvitation = {
+          transactionId: capital.id,
+          borrowerPlayerId: capital.terms.buyerPlayerId,
+          termsRevision: capital.termsRevision,
+          slots,
+          ownOffers,
+          readyToConfirm,
+          confirmed: capital.confirmedPlayerIds.includes(playerId),
+          selected: ownOffers.some((offer) => offer.selected),
+        };
+      }
     }
   }
 
@@ -679,5 +720,6 @@ export function projectPlayerGameState(
     self,
     activeTransaction,
     businessCapital,
+    businessLoanInvitation,
   };
 }

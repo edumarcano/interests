@@ -1,5 +1,9 @@
 import { OPERATING_RULES, TRANSACTION_FEES_BPS } from "@interests/rules";
-import { asPlayerId, type PlayerId } from "@interests/shared";
+import {
+  asPlayerId,
+  type BusinessLoanRequest,
+  type PlayerId,
+} from "@interests/shared";
 import type { BusinessCapitalConsideration } from "../finance/businessCapitalAccounting";
 import {
   diluteBusinessOwnership,
@@ -8,20 +12,26 @@ import {
 import { FinanceDecimal } from "../finance/decimal";
 import { type Cents, cents, isNonNegativeCents } from "../finance/money";
 import type { BusinessAsset, GameState } from "../model/gameState";
+import { assertBusinessLoanOffers, loanRequests } from "./businessLoanOffers";
 import type { BusinessCapitalTransaction } from "./model";
 
 type BusinessCapitalPlan = {
   readonly participants: readonly PlayerId[];
   readonly cashContributions: ReadonlyMap<PlayerId, Cents>;
   readonly action:
-    | BusinessCapitalConsideration
+    | (BusinessCapitalConsideration & {
+        readonly loanRequests?: readonly BusinessLoanRequest[];
+      })
     | { readonly kind: "company-expansion"; readonly investmentCents: number };
 };
 
 export function planBusinessCapital(
   state: GameState,
   asset: BusinessAsset,
-  tx: Pick<BusinessCapitalTransaction, "terms" | "initiatorPlayerId">,
+  tx: Pick<
+    BusinessCapitalTransaction,
+    "terms" | "initiatorPlayerId" | "selectedLoans"
+  >,
 ): BusinessCapitalPlan | null {
   const { terms, initiatorPlayerId } = tx;
   if (!terms || typeof terms !== "object") return null;
@@ -96,13 +106,51 @@ export function planBusinessCapital(
           .div(10_000)
           .round()
           .toNumber();
-        cashContributions.set(buyer, cents(terms.priceCents + fee));
+        const upfront = cents(terms.priceCents + fee);
+        let totalPrincipal = 0;
+        let loanRequests: BusinessLoanRequest[] | undefined;
+        if (terms.loanRequests !== undefined) {
+          if (
+            !Array.isArray(terms.loanRequests) ||
+            !terms.loanRequests.length ||
+            terms.loanRequests.length > 4
+          )
+            return null;
+          loanRequests = [];
+          for (const request of terms.loanRequests) {
+            if (
+              !request ||
+              !isNonNegativeCents(request.principalCents) ||
+              !request.principalCents ||
+              request.principalCents > upfront - totalPrincipal
+            )
+              return null;
+            const lenderId = request.invitedLenderId;
+            if (
+              lenderId !== undefined &&
+              (typeof lenderId !== "string" ||
+                !Object.hasOwn(state.players, lenderId) ||
+                lenderId === buyer ||
+                lenderId === seller)
+            )
+              return null;
+            loanRequests.push({
+              principalCents: request.principalCents,
+              ...(lenderId === undefined ? {} : { invitedLenderId: lenderId }),
+            });
+            totalPrincipal += request.principalCents;
+          }
+        }
+        cashContributions.set(buyer, cents(upfront - totalPrincipal));
+        for (const choice of tx.selectedLoans ?? [])
+          participants.add(choice.lenderPlayerId);
         action = {
           kind: terms.kind,
           sellerPlayerId: seller,
           buyerPlayerId: buyer,
           ownershipPpm: terms.ownershipPpm,
           priceCents: terms.priceCents,
+          ...(loanRequests ? { loanRequests } : {}),
         };
         break;
       }
@@ -184,6 +232,8 @@ export function assertBusinessCapitalTransaction(
     !Number.isSafeInteger(tx.termsRevision) ||
     tx.termsRevision < 1 ||
     !Array.isArray(tx.confirmedPlayerIds) ||
+    (tx.confirmedPlayerIds.length > 0 &&
+      loanRequests(tx).length !== (tx.selectedLoans ?? []).length) ||
     new Set(tx.confirmedPlayerIds).size !== tx.confirmedPlayerIds.length ||
     !tx.confirmedPlayerIds.every(
       (id) =>
@@ -194,4 +244,5 @@ export function assertBusinessCapitalTransaction(
   ) {
     throw new Error("Invalid active business capital transaction");
   }
+  assertBusinessLoanOffers(state, tx);
 }

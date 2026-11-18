@@ -3,6 +3,7 @@ import type { PlayerId } from "@interests/shared";
 import { type Cents, cents, subtractCents } from "../finance/money";
 import type { GameState } from "../model/gameState";
 import { planBusinessCapital } from "./businessCapitalTerms";
+import { reservedBusinessLoanCash } from "./businessLoanOffers";
 
 /**
  * Pure helper calculating total reserved cash in cents for a player across active transactions.
@@ -17,12 +18,13 @@ export function getReservedCashCents(
     return cents(0);
   }
   if (tx.kind === "business-capital") {
-    if (!tx.confirmedPlayerIds.includes(playerId)) return cents(0);
+    const offers = reservedBusinessLoanCash(tx, playerId);
+    if (!tx.confirmedPlayerIds.includes(playerId)) return cents(offers);
     const asset = state.finance.assetsById[tx.assetId];
     const plan =
       asset?.kind === "business" ? planBusinessCapital(state, asset, tx) : null;
     if (!plan) throw new Error("Missing business capital reservation terms");
-    return plan.cashContributions.get(playerId) ?? cents(0);
+    return cents(offers + (plan.cashContributions.get(playerId) ?? 0));
   }
   let totalReserved = 0;
   if (tx.reservation.playerId === playerId) {

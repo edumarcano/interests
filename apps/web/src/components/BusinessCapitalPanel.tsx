@@ -4,7 +4,7 @@ import type {
   MatchPlayerView,
   PlayerCommand,
 } from "@interests/shared";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -37,6 +37,11 @@ interface Props {
 
 type Mode = BusinessCapitalTerms["kind"];
 type DraftRow = { readonly amount: string; readonly stake: string };
+type LoanDraft = {
+  readonly id: number;
+  readonly amount: string;
+  readonly lender: string;
+};
 
 export function BusinessCapitalPanel({
   match,
@@ -57,6 +62,8 @@ export function BusinessCapitalPanel({
   const [stake, setStake] = useState("");
   const [buyer, setBuyer] = useState("");
   const [rows, setRows] = useState<Record<string, DraftRow>>({});
+  const [loanDrafts, setLoanDrafts] = useState<readonly LoanDraft[]>([]);
+  const nextLoanDraftId = useRef(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const disabled = pending || isPaused;
@@ -90,6 +97,7 @@ export function BusinessCapitalPanel({
     setStake("");
     setBuyer("");
     setRows({});
+    setLoanDrafts([]);
     setDraft({ assetId, mode });
   }
 
@@ -120,6 +128,15 @@ export function BusinessCapitalPanel({
     if (mode === "company-expansion")
       return { kind: mode, investmentCents: amountCents };
     const ownershipPpm = scaledInput(stake, 10_000, 4);
+    const loanRequests = [];
+    for (const row of loanDrafts) {
+      const principalCents = scaledInput(row.amount, 100, 2);
+      if (!principalCents || row.lender === buyer) return null;
+      loanRequests.push({
+        principalCents,
+        ...(row.lender ? { invitedLenderId: row.lender } : {}),
+      });
+    }
     return buyer && ownershipPpm && ownershipPpm <= 1_000_000
       ? {
           kind: mode,
@@ -127,6 +144,7 @@ export function BusinessCapitalPanel({
           buyerPlayerId: buyer,
           priceCents: amountCents,
           ownershipPpm,
+          ...(loanRequests.length ? { loanRequests } : {}),
         }
       : null;
   }
@@ -166,6 +184,61 @@ export function BusinessCapitalPanel({
               for {usd(tx.terms.priceCents)} before fees. Sale fee: 3%.
             </p>
           )}
+          {tx.terms.kind === "secondary-stake-sale" &&
+            tx.terms.loanRequests && (
+              <section aria-label="Player financing">
+                <h5>Player financing</h5>
+                {tx.terms.loanRequests.map((request, slot) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: Frozen contract slots are identified by their position.
+                  <div key={slot}>
+                    <p>
+                      Loan {slot + 1}: {usd(request.principalCents)} from{" "}
+                      {request.invitedLenderId
+                        ? name(request.invitedLenderId)
+                        : "any eligible lender"}
+                      .
+                    </p>
+                    {(tx.loanOffers ?? [])
+                      .filter((offer) => offer.slot === slot)
+                      .map((offer) => (
+                        <div key={offer.lenderPlayerId}>
+                          <p>
+                            {name(offer.lenderPlayerId)}:{" "}
+                            {(offer.annualRateBps / 100).toFixed(2)}% APR for{" "}
+                            {offer.termQuarters} quarters.{" "}
+                            {offer.selected && "Selected."}
+                          </p>
+                          {tx.terms.kind === "secondary-stake-sale" &&
+                            tx.terms.buyerPlayerId === ownId &&
+                            !offer.selected && (
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                disabled={disabled}
+                                onClick={() =>
+                                  void send({
+                                    type: "SELECT_BUSINESS_LOAN",
+                                    ...binding,
+                                    slot,
+                                    lenderPlayerId: offer.lenderPlayerId,
+                                  })
+                                }
+                              >
+                                Select {name(offer.lenderPlayerId)} for loan{" "}
+                                {slot + 1}
+                              </button>
+                            )}
+                        </div>
+                      ))}
+                  </div>
+                ))}
+                {tx.readyToConfirm === false && (
+                  <p>
+                    Choose an offer for every loan before confirming the deal.
+                  </p>
+                )}
+              </section>
+            )}
           {tx.terms.kind === "primary-issuance" && (
             <ul>
               {tx.terms.contributions.map((item) => (
@@ -199,7 +272,7 @@ export function BusinessCapitalPanel({
           <button
             type="button"
             className="btn-secondary"
-            disabled={disabled}
+            disabled={disabled || tx.readyToConfirm === false}
             onClick={() =>
               void send({
                 type: confirmed
@@ -369,6 +442,85 @@ export function BusinessCapitalPanel({
                   onChange={(event) => setStake(event.target.value)}
                 />
               </label>
+              <p>
+                Request player loans only for the portion the buyer needs to
+                finance. The buyer compares and selects the offers.
+              </p>
+              {loanDrafts.map((row, slot) => (
+                <fieldset key={row.id}>
+                  <legend>Loan {slot + 1}</legend>
+                  <label>
+                    Loan principal ($)
+                    <input
+                      aria-label={`Loan ${slot + 1} principal ($)`}
+                      inputMode="decimal"
+                      value={row.amount}
+                      onChange={(event) =>
+                        setLoanDrafts(
+                          loanDrafts.map((item, index) =>
+                            index === slot
+                              ? { ...item, amount: event.target.value }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    Lender invitation
+                    <select
+                      aria-label={`Loan ${slot + 1} lender invitation`}
+                      value={row.lender}
+                      onChange={(event) =>
+                        setLoanDrafts(
+                          loanDrafts.map((item, index) =>
+                            index === slot
+                              ? { ...item, lender: event.target.value }
+                              : item,
+                          ),
+                        )
+                      }
+                    >
+                      <option value="">Any eligible lender</option>
+                      {match.players
+                        .filter(
+                          (player) =>
+                            player.playerId !== ownId &&
+                            player.playerId !== buyer,
+                        )
+                        .map((player) => (
+                          <option key={player.playerId} value={player.playerId}>
+                            {player.nickname}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() =>
+                      setLoanDrafts(
+                        loanDrafts.filter((_, index) => index !== slot),
+                      )
+                    }
+                  >
+                    Remove loan {slot + 1}
+                  </button>
+                </fieldset>
+              ))}
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={loanDrafts.length >= 4}
+                onClick={() =>
+                  setLoanDrafts([
+                    ...loanDrafts,
+                    { id: nextLoanDraftId.current++, amount: "", lender: "" },
+                  ])
+                }
+              >
+                Request a player loan
+              </button>
             </>
           )}
           <button

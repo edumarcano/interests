@@ -53,6 +53,18 @@ export interface BusinessCapitalTransaction {
   readonly terms: BusinessCapitalTerms;
   readonly termsRevision: number;
   readonly confirmedPlayerIds: readonly PlayerId[];
+  readonly loanOffers?: readonly BusinessLoanOffer[];
+  readonly selectedLoans?: readonly {
+    readonly slot: number;
+    readonly lenderPlayerId: PlayerId;
+  }[];
+}
+
+export interface BusinessLoanOffer {
+  readonly lenderPlayerId: PlayerId;
+  readonly slot: number;
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
 }
 
 export type ActiveTransaction =
@@ -90,6 +102,7 @@ export type TransactionErrorCode =
   | "INVALID_EXPANSION"
   | "COUNTER_EXHAUSTED"
   | "JOURNAL_ID_EXHAUSTED"
+  | "INVALID_QUARTER"
   | "WRONG_PHASE"
   | "WRONG_ROUND_STAGE"
   | "NOT_ACTIVE_SPOTLIGHT"

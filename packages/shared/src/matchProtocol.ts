@@ -189,6 +189,7 @@ export type BusinessCapitalTerms =
       readonly buyerPlayerId: string;
       readonly ownershipPpm: number;
       readonly priceCents: number;
+      readonly loanRequests?: readonly BusinessLoanRequest[];
     }
   | {
       readonly kind: "primary-issuance";
@@ -218,7 +219,35 @@ export type BusinessCapitalCommand =
         | "CLOSE_BUSINESS_CAPITAL";
       readonly transactionId: string;
       readonly expectedTermsRevision: number;
+    }
+  | {
+      readonly type: "OFFER_BUSINESS_LOAN";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly slot: number;
+      readonly annualRateBps: number;
+      readonly termQuarters: number;
+    }
+  | {
+      readonly type: "WITHDRAW_BUSINESS_LOAN" | "SELECT_BUSINESS_LOAN";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly slot: number;
+      readonly lenderPlayerId: string;
     };
+
+export interface BusinessLoanRequest {
+  readonly principalCents: number;
+  readonly invitedLenderId?: string;
+}
+
+export interface BusinessLoanOfferView {
+  readonly lenderPlayerId: string;
+  readonly slot: number;
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
+  readonly selected: boolean;
+}
 
 export type PlayerCommand =
   | BusinessCapitalCommand
@@ -474,6 +503,21 @@ export interface MatchPlayerView {
   readonly self: MatchSelfView;
   readonly activeTransaction: ActiveTransactionSummaryView | null;
   readonly businessCapital?: BusinessCapitalView | null;
+  readonly businessLoanInvitation?: BusinessLoanInvitationView | null;
+}
+
+export interface BusinessLoanInvitationView {
+  readonly transactionId: string;
+  readonly borrowerPlayerId: string;
+  readonly termsRevision: number;
+  readonly slots: readonly {
+    readonly slot: number;
+    readonly principalCents: number;
+  }[];
+  readonly ownOffers: readonly BusinessLoanOfferView[];
+  readonly confirmed: boolean;
+  readonly selected: boolean;
+  readonly readyToConfirm: boolean;
 }
 
 export interface BusinessCapitalView {
@@ -485,6 +529,8 @@ export interface BusinessCapitalView {
   readonly participantIds: readonly string[];
   readonly confirmedPlayerIds: readonly string[];
   readonly yourContributionCents: number;
+  readonly loanOffers?: readonly BusinessLoanOfferView[];
+  readonly readyToConfirm?: boolean;
 }
 
 export interface CommandAckAccepted {

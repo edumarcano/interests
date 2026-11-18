@@ -11,6 +11,7 @@ import type {
   LoanId,
   OpportunityId,
   PlayerId,
+  TransactionId,
 } from "@interests/shared";
 import type { BasisPoints, Cents } from "../finance/money";
 import type {
@@ -99,6 +100,7 @@ export interface PlayerLoan extends LoanPaymentAccounting {
   readonly termQuarters: number;
   readonly installmentsProcessed: number;
   readonly originatedQuarter: number;
+  readonly fundedTransactionId?: TransactionId;
 }
 
 export type LegacyBankLoanPurpose = "personal-debt" | "property-mortgage";
