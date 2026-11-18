@@ -27,6 +27,7 @@ export function CareerPanel({
     match.round?.stage === "spotlight" &&
     match.round.activeSpotlightPlayerId === match.self.playerId &&
     !match.activeTransaction &&
+    !match.businessCapital &&
     !pending;
   async function send(command: PlayerCommand) {
     setPending(true);

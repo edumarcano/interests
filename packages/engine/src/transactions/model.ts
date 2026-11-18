@@ -1,4 +1,9 @@
-import type { AssetId, PlayerId, TransactionId } from "@interests/shared";
+import type {
+  AssetId,
+  BusinessCapitalTerms,
+  PlayerId,
+  TransactionId,
+} from "@interests/shared";
 
 import type { JournalEntry } from "../finance/journal";
 import type { BasisPoints, Cents } from "../finance/money";
@@ -39,7 +44,20 @@ export interface CashBusinessPurchaseTransaction {
   readonly playerLoanFinancing?: PlayerLoanFinancingRequest;
 }
 
-export type ActiveTransaction = CashBusinessPurchaseTransaction;
+export interface BusinessCapitalTransaction {
+  readonly id: TransactionId;
+  readonly kind: "business-capital";
+  readonly assetId: AssetId;
+  readonly initiatorPlayerId: PlayerId;
+  readonly createdQuarter: number;
+  readonly terms: BusinessCapitalTerms;
+  readonly termsRevision: number;
+  readonly confirmedPlayerIds: readonly PlayerId[];
+}
+
+export type ActiveTransaction =
+  | CashBusinessPurchaseTransaction
+  | BusinessCapitalTransaction;
 
 export interface OpenCashBusinessPurchaseInput {
   readonly buyerPlayerId: PlayerId;
@@ -63,6 +81,15 @@ export interface SubmitPlayerLoanFinancingOfferInput {
 }
 
 export type TransactionErrorCode =
+  | "INVALID_CAPITAL_CONSIDERATION"
+  | "CAPITAL_PARTICIPANT_REQUIRED"
+  | "CAPITAL_CONFIRMATIONS_REQUIRED"
+  | "CAPITAL_ALREADY_CONFIRMED"
+  | "CAPITAL_NOT_CONFIRMED"
+  | "INVALID_TRANSACTION_KIND"
+  | "INVALID_EXPANSION"
+  | "COUNTER_EXHAUSTED"
+  | "JOURNAL_ID_EXHAUSTED"
   | "WRONG_PHASE"
   | "WRONG_ROUND_STAGE"
   | "NOT_ACTIVE_SPOTLIGHT"

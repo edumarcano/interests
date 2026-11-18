@@ -301,6 +301,8 @@ export function submitPlayerLoanFinancingOffer(
     return reject("TRANSACTION_ID_MISMATCH");
   }
 
+  if (tx.kind !== "cash-business-purchase")
+    return reject("INVALID_TRANSACTION_KIND");
   if (!tx.playerLoanFinancing) {
     return reject("NO_FINANCING_REQUEST");
   }
@@ -416,6 +418,8 @@ export function acceptPlayerLoanFinancingOffer(
     return reject("TRANSACTION_ID_MISMATCH");
   }
 
+  if (tx.kind !== "cash-business-purchase")
+    return reject("INVALID_TRANSACTION_KIND");
   if (!tx.playerLoanFinancing) {
     return reject("NO_FINANCING_REQUEST");
   }
@@ -560,6 +564,8 @@ export function applyCloseCashBusinessPurchaseTransaction(
     return reject("TRANSACTION_ID_MISMATCH");
   }
 
+  if (tx.kind !== "cash-business-purchase")
+    return reject("INVALID_TRANSACTION_KIND");
   // 2. Parties revalidation
   if (!state.players[tx.buyerPlayerId]) {
     return reject("UNKNOWN_PLAYER");

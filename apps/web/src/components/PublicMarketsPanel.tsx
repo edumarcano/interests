@@ -49,6 +49,7 @@ export function PublicMarketsPanel({
   const canTrade =
     !isPaused &&
     !match.activeTransaction &&
+    !match.businessCapital &&
     match.round?.activeSpotlightPlayerId === match.self.playerId;
   const change = (
     id: string,

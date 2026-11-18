@@ -9,6 +9,7 @@ import {
   PUBLIC_MARKET_TRADE_FEE_BPS,
 } from "@interests/rules";
 import type {
+  BusinessCapitalView,
   MatchId,
   MatchResultView,
   MatchSelfFinancialDetailsView,
@@ -26,6 +27,7 @@ import { calculateLoanObligation } from "../finance/obligations";
 import { calculatePropertyCashFlow } from "../finance/property";
 import { propertyManagement, propertyOffers } from "../finance/propertyActions";
 import type { GameState } from "../model/gameState.js";
+import { planBusinessCapital } from "../transactions/businessCapitalTerms";
 import {
   getAvailableCashCents,
   getReservedCashCents,
@@ -158,6 +160,7 @@ export interface PurePlayerProjection {
   readonly players: readonly PurePlayerSummary[];
   readonly self: PureSelfView;
   readonly activeTransaction: PureActiveTransactionSummary | null;
+  readonly businessCapital: BusinessCapitalView | null;
 }
 
 /**
@@ -536,7 +539,7 @@ export function projectPlayerGameState(
 
   // Role-aware active transaction projection
   let activeTransaction: PureActiveTransactionSummary | null = null;
-  if (state.activeTransaction !== null) {
+  if (state.activeTransaction?.kind === "cash-business-purchase") {
     const tx = state.activeTransaction;
     const isFinanced = Boolean(tx.playerLoanFinancing);
     const financing = tx.playerLoanFinancing;
@@ -631,6 +634,28 @@ export function projectPlayerGameState(
         }
       : null;
 
+  let businessCapital: BusinessCapitalView | null = null;
+  const capital = state.activeTransaction;
+  if (capital?.kind === "business-capital") {
+    const asset = state.finance.assetsById[capital.assetId];
+    const plan =
+      asset?.kind === "business"
+        ? planBusinessCapital(state, asset, capital)
+        : null;
+    if (plan?.participants.includes(playerId)) {
+      businessCapital = {
+        id: capital.id,
+        assetId: capital.assetId,
+        initiatorPlayerId: capital.initiatorPlayerId,
+        terms: plan.action,
+        termsRevision: capital.termsRevision,
+        participantIds: plan.participants,
+        confirmedPlayerIds: capital.confirmedPlayerIds,
+        yourContributionCents: plan.cashContributions.get(playerId) ?? 0,
+      };
+    }
+  }
+
   return {
     result: state.result
       ? state.result.kind === "objective-victory"
@@ -653,5 +678,6 @@ export function projectPlayerGameState(
     players,
     self,
     activeTransaction,
+    businessCapital,
   };
 }

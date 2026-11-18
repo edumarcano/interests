@@ -1,6 +1,7 @@
 import type { ObjectiveId } from "@interests/rules";
 import type {
   AcceptCareerOfferCommandPayload,
+  BusinessCapitalCommand,
   ExpandBusinessCommandPayload,
   OpportunityId,
   PlayerId,
@@ -18,6 +19,7 @@ import {
   pursuePrivateBusinessPurchaseOpportunity,
   pursuePrivateBusinessPurchaseOpportunityWithFinancingRequest,
 } from "../opportunities/privateBusinessPurchase.js";
+import { applyBusinessCapitalCommand } from "../transactions/businessCapital";
 import {
   acceptPlayerLoanFinancingOffer,
   submitPlayerLoanFinancingOffer,
@@ -85,6 +87,7 @@ export interface WireCancelActiveTransactionCommand {
 }
 
 export type WirePlayerCommand =
+  | BusinessCapitalCommand
   | PropertyCommand
   | ExpandBusinessCommandPayload
   | TradePublicMarketsCommandPayload
@@ -138,6 +141,12 @@ export function applyPlayerCommand(
     return { ok: false, state, code: "WRONG_PHASE", journalEntries: [] };
 
   switch (wireCommand.type) {
+    case "OPEN_BUSINESS_CAPITAL":
+    case "REVISE_BUSINESS_CAPITAL":
+    case "CONFIRM_BUSINESS_CAPITAL":
+    case "WITHDRAW_BUSINESS_CAPITAL":
+    case "CLOSE_BUSINESS_CAPITAL":
+      return applyBusinessCapitalCommand(state, actorPlayerId, wireCommand);
     case "BUY_PROPERTY":
     case "SELL_PROPERTY":
     case "REFINANCE_PROPERTY":

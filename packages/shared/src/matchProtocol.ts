@@ -181,7 +181,47 @@ export interface ExpandBusinessCommandPayload {
   readonly investmentCents: number;
 }
 
+export type BusinessCapitalTerms =
+  | { readonly kind: "company-expansion"; readonly investmentCents: number }
+  | {
+      readonly kind: "secondary-stake-sale";
+      readonly sellerPlayerId: string;
+      readonly buyerPlayerId: string;
+      readonly ownershipPpm: number;
+      readonly priceCents: number;
+    }
+  | {
+      readonly kind: "primary-issuance";
+      readonly contributions: readonly {
+        readonly playerId: string;
+        readonly amountCents: number;
+        readonly postMoneyOwnershipPpm: number;
+      }[];
+    };
+
+export type BusinessCapitalCommand =
+  | {
+      readonly type: "OPEN_BUSINESS_CAPITAL";
+      readonly assetId: string;
+      readonly terms: BusinessCapitalTerms;
+    }
+  | {
+      readonly type: "REVISE_BUSINESS_CAPITAL";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly terms: BusinessCapitalTerms;
+    }
+  | {
+      readonly type:
+        | "CONFIRM_BUSINESS_CAPITAL"
+        | "WITHDRAW_BUSINESS_CAPITAL"
+        | "CLOSE_BUSINESS_CAPITAL";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+    };
+
 export type PlayerCommand =
+  | BusinessCapitalCommand
   | PropertyCommand
   | ExpandBusinessCommandPayload
   | TradePublicMarketsCommandPayload
@@ -433,6 +473,18 @@ export interface MatchPlayerView {
   readonly players: readonly MatchPlayerSummaryView[];
   readonly self: MatchSelfView;
   readonly activeTransaction: ActiveTransactionSummaryView | null;
+  readonly businessCapital?: BusinessCapitalView | null;
+}
+
+export interface BusinessCapitalView {
+  readonly id: string;
+  readonly assetId: string;
+  readonly initiatorPlayerId: string;
+  readonly terms: BusinessCapitalTerms;
+  readonly termsRevision: number;
+  readonly participantIds: readonly string[];
+  readonly confirmedPlayerIds: readonly string[];
+  readonly yourContributionCents: number;
 }
 
 export interface CommandAckAccepted {

@@ -1,8 +1,14 @@
 import { OPERATING_RULES } from "@interests/rules";
-import { asAssetId, type PlayerId } from "@interests/shared";
+import {
+  type AssetId,
+  asAssetId,
+  type PlayerId,
+  type TransactionId,
+} from "@interests/shared";
 import type { ActionErrorCode, ActionResult } from "../game/actions";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "../game/round";
 import type { GameState } from "../model/gameState";
+import type { TransactionResult } from "../transactions/model";
 import { businessCashAccount, externalCashAccount } from "./account";
 import { cents } from "./money";
 import { TOTAL_OWNERSHIP_PPM } from "./ownership";
@@ -32,7 +38,33 @@ export function expandBusinessAndAdvanceSpotlight(
   if (stake !== TOTAL_OWNERSHIP_PPM)
     return reject("BUSINESS_EXPANSION_REQUIRES_CONSENT");
 
-  const { investmentCents } = input;
+  const posted = applyCompanyExpansion(state, asset.id, input.investmentCents);
+  if (!posted.ok) return reject(posted.code);
+  const advanced = advanceSpotlight(posted.state, actor);
+  if (!advanced.ok) return reject(advanced.code);
+  return {
+    ...advanced,
+    journalEntries: [...posted.journalEntries, ...advanced.journalEntries],
+  };
+}
+
+/** Draft a company-funded expansion after the participating owners agree. */
+export function applyCompanyExpansion(
+  state: GameState,
+  assetId: AssetId,
+  investmentCents: number,
+  transactionId?: TransactionId,
+): TransactionResult {
+  const reject = (
+    code: Extract<TransactionResult, { ok: false }>["code"],
+  ): TransactionResult => ({
+    ok: false,
+    state,
+    code,
+    journalEntries: [],
+  });
+  const asset = state.finance.assetsById[assetId];
+  if (asset?.kind !== "business") return reject("UNKNOWN_ASSET");
   const ratio = OPERATING_RULES.businessGrowthCostPerAnnualProfitUnit;
   if (
     !Number.isSafeInteger(investmentCents) ||
@@ -55,13 +87,15 @@ export function expandBusinessAndAdvanceSpotlight(
     reason: "business-expansion",
     quarter: state.currentQuarter,
     relatedAssetId: asset.id,
+    ...(transactionId ? { relatedTransactionId: transactionId } : {}),
   });
   if (!posting.ok) return reject("INSUFFICIENT_FUNDS");
   const fundedAsset = posting.finance.assetsById[asset.id];
   if (fundedAsset?.kind !== "business")
     throw new Error("Missing funded company");
-  const advanced = advanceSpotlight(
-    {
+  return {
+    ok: true,
+    state: {
       ...state,
       counters: posting.counters,
       finance: {
@@ -75,11 +109,6 @@ export function expandBusinessAndAdvanceSpotlight(
         },
       },
     },
-    actor,
-  );
-  if (!advanced.ok) return reject(advanced.code);
-  return {
-    ...advanced,
-    journalEntries: [posting.entry, ...advanced.journalEntries],
+    journalEntries: [posting.entry],
   };
 }

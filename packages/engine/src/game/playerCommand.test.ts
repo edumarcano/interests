@@ -1,5 +1,6 @@
 import { asPlayerId, type PlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
+import { legacy } from "../transactions/testLegacyTransaction";
 import { applyAction } from "./actions";
 import { createGame } from "./createGame";
 import { applyPlayerCommand } from "./playerCommand";
@@ -200,12 +201,10 @@ describe("Section 14: Engine Player Command Integration", () => {
     state = lenderOffer.state;
 
     // Offer exists and reserved lender cash
-    expect(state.activeTransaction?.playerLoanFinancing?.offer?.status).toBe(
-      "offered",
+    expect(legacy(state)?.playerLoanFinancing?.offer?.status).toBe("offered");
+    expect(legacy(state)?.playerLoanFinancing?.offer?.lenderPlayerId).toBe(
+      eligibleLender,
     );
-    expect(
-      state.activeTransaction?.playerLoanFinancing?.offer?.lenderPlayerId,
-    ).toBe(eligibleLender);
 
     // 16. Second lender offer rejects while firm offer exists
     const secondOffer = applyPlayerCommand(state, secondLender, {
@@ -267,9 +266,9 @@ describe("Section 14: Engine Player Command Integration", () => {
       expectedTermsRevision: 1,
     });
     expect(acceptRes.ok).toBe(true);
-    expect(
-      acceptRes.state.activeTransaction?.playerLoanFinancing?.offer?.status,
-    ).toBe("accepted");
+    expect(legacy(acceptRes.state)?.playerLoanFinancing?.offer?.status).toBe(
+      "accepted",
+    );
   });
 
   it("19. Cash close uses terminal composition and advances intermediate spotlight with exactly +1 revision", () => {

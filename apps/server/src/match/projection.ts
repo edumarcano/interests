@@ -177,5 +177,6 @@ export function buildMatchPlayerView(params: {
     players,
     self: enrichedSelf,
     activeTransaction,
+    businessCapital: pureProjection.businessCapital,
   };
 }

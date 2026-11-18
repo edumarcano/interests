@@ -114,7 +114,76 @@ export const ResignLaborPayloadSchema = z
   .object({ type: z.literal("RESIGN_LABOR") })
   .strict();
 
+const transactionKey = z.string().min(1).max(128);
+const positiveCents = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+const ownershipUnits = z.number().int().min(1).max(1_000_000);
+const termsBinding = {
+  transactionId: transactionKey,
+  expectedTermsRevision: z
+    .number()
+    .int()
+    .positive()
+    .max(Number.MAX_SAFE_INTEGER),
+};
+const BusinessCapitalTermsSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("company-expansion"),
+      investmentCents: positiveCents,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("secondary-stake-sale"),
+      buyerPlayerId: transactionKey,
+      sellerPlayerId: transactionKey,
+      priceCents: positiveCents,
+      ownershipPpm: ownershipUnits,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("primary-issuance"),
+      contributions: z
+        .array(
+          z
+            .object({
+              playerId: transactionKey,
+              amountCents: positiveCents,
+              postMoneyOwnershipPpm: ownershipUnits,
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(4),
+    })
+    .strict(),
+]);
+
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("OPEN_BUSINESS_CAPITAL"),
+      assetId: transactionKey,
+      terms: BusinessCapitalTermsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("REVISE_BUSINESS_CAPITAL"),
+      ...termsBinding,
+      terms: BusinessCapitalTermsSchema,
+    })
+    .strict(),
+  z
+    .object({ type: z.literal("CONFIRM_BUSINESS_CAPITAL"), ...termsBinding })
+    .strict(),
+  z
+    .object({ type: z.literal("WITHDRAW_BUSINESS_CAPITAL"), ...termsBinding })
+    .strict(),
+  z
+    .object({ type: z.literal("CLOSE_BUSINESS_CAPITAL"), ...termsBinding })
+    .strict(),
   z
     .object({
       type: z.literal("EXPAND_BUSINESS"),

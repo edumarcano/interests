@@ -5,6 +5,7 @@ import type {
 } from "@interests/shared";
 import type React from "react";
 import { useState } from "react";
+import { BusinessCapitalPanel } from "./BusinessCapitalPanel";
 import { OpportunityCard } from "./OpportunityCard.js";
 import { PropertyPanel } from "./PropertyPanel.js";
 import { PublicMarketsPanel } from "./PublicMarketsPanel.js";
@@ -123,6 +124,11 @@ export const SpotlightView: React.FC<Props> = ({
 
       {/* Self Finances Summary */}
       <SelfFinanceSummary self={match.self} />
+      <BusinessCapitalPanel
+        match={match}
+        isPaused={isPaused}
+        onSendCommand={onSendCommand}
+      />
 
       {roomCode && (
         <PublicMarketsPanel
@@ -134,13 +140,15 @@ export const SpotlightView: React.FC<Props> = ({
       )}
 
       {/* Private Opportunity Card (Target Buyer, unpursued or investigating) */}
-      {match.self.opportunity && !match.activeTransaction && (
-        <OpportunityCard
-          opportunity={match.self.opportunity}
-          isPaused={isPaused}
-          onSendCommand={onSendCommand}
-        />
-      )}
+      {match.self.opportunity &&
+        !match.activeTransaction &&
+        !match.businessCapital && (
+          <OpportunityCard
+            opportunity={match.self.opportunity}
+            isPaused={isPaused}
+            onSendCommand={onSendCommand}
+          />
+        )}
 
       <PropertyPanel
         match={match}
@@ -253,7 +261,7 @@ export const SpotlightView: React.FC<Props> = ({
             >
               It's your spotlight!
             </p>
-            {!match.activeTransaction && (
+            {!match.activeTransaction && !match.businessCapital && (
               <button
                 type="button"
                 className="btn-primary"

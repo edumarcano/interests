@@ -13,6 +13,7 @@ import {
   createPrivateBusinessPurchaseOpportunity,
   pursuePrivateBusinessPurchaseOpportunityWithFinancingRequest,
 } from "../opportunities/privateBusinessPurchase";
+import { legacy } from "../transactions/testLegacyTransaction";
 import {
   acceptPlayerLoanFinancingOffer,
   cancelActiveTransaction,
@@ -176,7 +177,7 @@ describe("Section 20: Exact Financed Acquisition Fixture", () => {
     expect(opp?.relatedTransactionId).toBe(transactionId);
 
     // Active transaction state
-    const tx = stateAfterPursue.activeTransaction;
+    const tx = legacy(stateAfterPursue);
     expect(tx).not.toBeNull();
     expect(tx?.id).toBe(transactionId);
     expect(tx?.purchasePriceCents).toBe(6_000_000);
@@ -218,7 +219,7 @@ describe("Section 20: Exact Financed Acquisition Fixture", () => {
     ).filter((l) => l.kind === "player-loan");
     expect(playerLoansBeforeClose).toHaveLength(0);
 
-    const offer = stateAfterOffer.activeTransaction?.playerLoanFinancing?.offer;
+    const offer = legacy(stateAfterOffer)?.playerLoanFinancing?.offer;
     expect(offer).toBeDefined();
     expect(offer?.status).toBe("offered");
     expect(offer?.termsRevision).toBe(1);
@@ -238,9 +239,9 @@ describe("Section 20: Exact Financed Acquisition Fixture", () => {
     if (!acceptResult.ok) return;
 
     const stateAfterAccept = acceptResult.state;
-    expect(
-      stateAfterAccept.activeTransaction?.playerLoanFinancing?.offer?.status,
-    ).toBe("accepted");
+    expect(legacy(stateAfterAccept)?.playerLoanFinancing?.offer?.status).toBe(
+      "accepted",
+    );
 
     // Still no cash moved
     expect(stateAfterAccept.finance.cashByPlayer[buyerId]).toBe(5_000_000);
@@ -958,7 +959,7 @@ describe("Section 29: Close Failure Regressions (Atomicity)", () => {
 
   it("fails atomically when accepted offer has invalid rate at close", () => {
     const { state, transactionId } = setupAcceptedFinancedState();
-    const tx = state.activeTransaction;
+    const tx = legacy(state);
     const financing = tx?.playerLoanFinancing;
     const offer = financing?.offer;
     if (
@@ -996,7 +997,7 @@ describe("Section 29: Close Failure Regressions (Atomicity)", () => {
 
   it("fails atomically when accepted offer has invalid term at close", () => {
     const { state, transactionId } = setupAcceptedFinancedState();
-    const tx = state.activeTransaction;
+    const tx = legacy(state);
     const financing = tx?.playerLoanFinancing;
     const offer = financing?.offer;
     if (
@@ -1034,7 +1035,7 @@ describe("Section 29: Close Failure Regressions (Atomicity)", () => {
 
   it("fails atomically when accepted offer has unsupported amortization terms at close", () => {
     const { state, transactionId } = setupAcceptedFinancedState();
-    const tx = state.activeTransaction;
+    const tx = legacy(state);
     const financing = tx?.playerLoanFinancing;
     const offer = financing?.offer;
     if (
