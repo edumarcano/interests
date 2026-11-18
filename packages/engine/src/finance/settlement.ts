@@ -47,6 +47,7 @@ import {
   type LoanPaymentOutcome,
   type SettlementOutcome,
 } from "./obligations";
+import { planQuarterOperatingUpdate } from "./operatingEconomy";
 import { allocateProportionalCents } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
 import {
@@ -537,6 +538,14 @@ export function applyQuarterSettlement(
         },
       };
     }
+    const operating = planQuarterOperatingUpdate(
+      state,
+      assetsById,
+      marketUpdate.nextRegime,
+      businesses,
+    );
+    assetsById = operating.assetsById;
+    const nextRecurring = operating.recurringByPlayer;
     const nextState: GameState = {
       ...state,
       progress: recordQuarterObservations(
@@ -550,13 +559,14 @@ export function applyQuarterSettlement(
         ...finance,
         loansById,
         assetsById,
+        recurringByPlayer: nextRecurring,
         livingArrearsByPlayer,
         lastSettlement: settlementOutcome,
         publicMarketsByPlayer: revaluedMarketsByPlayer,
         quarterStartBasis: {
           businessesById: captureBusinessBasis(assetsById),
           propertiesById: capturePropertyBasis(assetsById),
-          recurringByPlayer: captureRecurringBasis(finance.recurringByPlayer),
+          recurringByPlayer: captureRecurringBasis(nextRecurring),
           quarter: quarter + 1,
           cashByPlayer: { ...finance.cashByPlayer },
           publicMarketsByPlayer: { ...revaluedMarketsByPlayer },
@@ -564,7 +574,8 @@ export function applyQuarterSettlement(
       },
       economy: {
         currentRegime: marketUpdate.nextRegime,
-        baseRateBps: state.economy.baseRateBps,
+        baseRateBps: basisPoints(operating.nextBaseRateBps),
+        operatingRandom: operating.nextOperatingRandom,
         lastMarketUpdate: {
           quarter,
           regimeUsed: marketUpdate.regimeUsed,

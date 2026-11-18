@@ -37,9 +37,8 @@ describe("passive baseline simulation", () => {
     const result = simulateReadyGame(ready, 4);
     expect(result.failure).toBeNull();
     const expectedByProfile: Record<string, number> = {
-      "small-business-owner": 5_497_800,
-      "self-employed-operator": 1_619_268,
-      "early-stage-entrepreneur": 1_497_800,
+      "small-business-owner": 5_455_148,
+      "early-stage-entrepreneur": 1_561_280,
     };
     for (const playerId of ready.playerOrder) {
       const expected =

@@ -6,6 +6,7 @@ import {
   STANDARD_V1_OPENING_PUBLIC_MARKET_INSTRUMENT_ID,
   STANDARD_V1_PLAYER_COUNT,
   STANDARD_V1_STARTING_REGIME,
+  STARTING_BUSINESS_SENSITIVITY,
 } from "@interests/rules";
 import {
   type AssetId,
@@ -155,6 +156,7 @@ export function createGame(input: CreateGameInput): GameState {
       assetsById[assetId] = {
         id: assetId,
         kind: "property",
+        marketKind: "residential",
         marketValueCents: cents(propertyFixture.marketValueCents),
         scheduledQuarterlyRentCents: cents(
           propertyFixture.scheduledQuarterlyRentCents,
@@ -178,6 +180,39 @@ export function createGame(input: CreateGameInput): GameState {
         id: assetId,
         kind: "business",
         cashPolicyId: "starting-company-v1",
+        operatingModel: {
+          kind: "revenue-cost-v1",
+          sensitivity:
+            STARTING_BUSINESS_SENSITIVITY[
+              profileId as keyof typeof STARTING_BUSINESS_SENSITIVITY
+            ],
+          referenceAnnualRevenueCents: cents(
+            businessFixture.annualRevenueCents,
+          ),
+          referenceAnnualNonLaborCostsCents: cents(
+            businessFixture.annualNonOwnerOperatingCostsCents -
+              businessFixture.externalManagementCostCents,
+          ),
+          fixedAnnualLaborCostsCents: cents(
+            businessFixture.annualOwnerWorkCompensationCents +
+              businessFixture.externalManagementCostCents,
+          ),
+          annualProfitAdjustmentCents: cents(0),
+          valuationBasis:
+            profileId === "self-employed-operator"
+              ? "owner-earnings"
+              : "after-labor-profit",
+          openingEnterpriseValueCents: cents(
+            businessFixture.enterpriseValueCents,
+          ),
+          openingValuationEarningsCents: cents(
+            businessFixture.annualOperatingProfitCents +
+              (profileId === "self-employed-operator"
+                ? businessFixture.annualOwnerWorkCompensationCents
+                : 0),
+          ),
+          quarters: [],
+        },
         cashCents: cents(businessFixture.openingCashCents),
         workCompensation: {
           playerId,
@@ -344,6 +379,7 @@ export function createGame(input: CreateGameInput): GameState {
     players,
     finance,
     economy: {
+      operatingRandom: createRandomState(`${input.seed}:operating-economy-v1`),
       currentRegime: STANDARD_V1_STARTING_REGIME,
       baseRateBps: basisPoints(STANDARD_V1_OPENING_BASE_RATE_BPS),
       lastMarketUpdate: null,

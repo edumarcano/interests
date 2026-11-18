@@ -7,6 +7,7 @@ import {
   PLAYER_LOAN_MAX_TERM_QUARTERS,
   PLAYER_LOAN_MIN_TERM_QUARTERS,
   PROPERTY_CATALOGUE,
+  PROPERTY_MARKET_KINDS,
   PUBLIC_MARKET_INSTRUMENT_IDS,
   STANDARD_V1_OPENING_BASE_RATE_BPS,
   STANDARD_V1_PLAYER_COUNT,
@@ -30,6 +31,7 @@ import { assertBusinessCashState } from "./assertBusinessCashState";
 import { assertCompanyLoan } from "./assertCompanyLoan";
 import { assertCompletionState } from "./assertCompletionState";
 import { assertNpcLoan } from "./assertNpcLoan";
+import { assertOperatingEconomyState } from "./assertOperatingEconomyState";
 import { assertSettlementState } from "./assertSettlementState";
 
 export function assertGameState(state: GameState): void {
@@ -735,6 +737,11 @@ export function assertGameState(state: GameState): void {
       )
         throw new Error("Invalid sold property");
       if (
+        asset.marketKind !== undefined &&
+        !PROPERTY_MARKET_KINDS.includes(asset.marketKind)
+      )
+        throw new Error("Game invariant failed: invalid property market kind");
+      if (
         !Number.isSafeInteger(asset.marketValueCents) ||
         asset.marketValueCents < 0
       ) {
@@ -1019,6 +1026,7 @@ export function assertGameState(state: GameState): void {
   assertOpportunitiesState(state);
   assertSettlementState(state);
   assertBusinessCashState(state);
+  assertOperatingEconomyState(state);
 }
 
 function assertEconomyState(state: GameState): void {
@@ -1045,11 +1053,15 @@ function assertEconomyState(state: GameState): void {
     );
   }
 
-  if (economy.baseRateBps !== STANDARD_V1_OPENING_BASE_RATE_BPS) {
+  if (
+    state.lastSettledQuarter === 0 &&
+    economy.baseRateBps !== STANDARD_V1_OPENING_BASE_RATE_BPS
+  )
+    throw new Error("Game invariant failed: invalid opening base rate");
+  if (!isValidRandomState(economy.operatingRandom))
     throw new Error(
-      `Game invariant failed: baseRateBps must equal ${STANDARD_V1_OPENING_BASE_RATE_BPS} in this slice, got ${economy.baseRateBps}`,
+      "Game invariant failed: invalid operating economy random state",
     );
-  }
 
   if (state.lastSettledQuarter === 0) {
     if (economy.lastMarketUpdate !== null) {

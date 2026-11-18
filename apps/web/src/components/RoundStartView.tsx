@@ -5,6 +5,7 @@ import type {
 } from "@interests/shared";
 import type React from "react";
 import { useState } from "react";
+import { EconomicConditionsSummary } from "./EconomicConditionsSummary.js";
 import { OpportunityCard } from "./OpportunityCard.js";
 import { PropertyPanel } from "./PropertyPanel.js";
 import { PublicMarketsPanel } from "./PublicMarketsPanel.js";
@@ -93,6 +94,7 @@ export const RoundStartView: React.FC<Props> = ({
       )}
 
       {/* Self Finances Summary */}
+      <EconomicConditionsSummary conditions={match.economicConditions} />
       <SelfFinanceSummary self={match.self} />
       {roomCode && (
         <PublicMarketsPanel

@@ -354,9 +354,12 @@ describe("quarter settlement foundation", () => {
     const bizAfter = result.state.finance.assetsById[business.id];
     expect(bizAfter).toEqual(business);
 
-    // 7. Property state unchanged
+    // 7. Earned Q1 rent is unchanged; Q2 scheduled rent includes inflation.
     const propAfter = result.state.finance.assetsById[property.id];
-    expect(propAfter).toEqual(property);
+    expect(propAfter).toEqual({
+      ...property,
+      scheduledQuarterlyRentCents: 301_875,
+    });
 
     // 8. Quarter state advances
     expect(result.state.lastSettledQuarter).toBe(1);

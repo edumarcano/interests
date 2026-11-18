@@ -13,5 +13,6 @@ export * from "./mode";
 export * from "./npcLending";
 export * from "./objectiveInstructions";
 export * from "./objectives";
+export * from "./operatingEconomy";
 export * from "./profiles";
 export * from "./settlement";

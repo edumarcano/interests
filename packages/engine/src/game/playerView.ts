@@ -1,5 +1,6 @@
 import {
   BUSINESS_CASH_POLICIES,
+  COMPLETION_ECONOMY_TARGETS,
   OBJECTIVE_COMMON_INSTRUCTIONS,
   OBJECTIVE_INSTRUCTIONS,
   OBJECTIVE_INSTRUCTIONS_VERSION,
@@ -14,6 +15,7 @@ import type {
   BusinessEquityInvitationView,
   BusinessLoanInvitationView,
   JointPropertyView,
+  MatchEconomicConditionsView,
   MatchId,
   MatchResultView,
   MatchSelfFinancialDetailsView,
@@ -175,6 +177,7 @@ export interface PurePlayerProjection {
   readonly hasActiveTransaction: boolean;
   readonly jointProperty: JointPropertyView | null;
   readonly propertyAcquisition: PropertyAcquisitionView | null;
+  readonly economicConditions: MatchEconomicConditionsView;
   readonly result: MatchResultView | null;
   readonly matchId: MatchId;
   readonly modeId: string;
@@ -878,6 +881,14 @@ export function projectPlayerGameState(
     hasActiveTransaction: state.activeTransaction !== null,
     jointProperty,
     propertyAcquisition,
+    economicConditions: {
+      baseRateBps: state.economy.baseRateBps,
+      annualInflationBps:
+        COMPLETION_ECONOMY_TARGETS[state.economy.currentRegime]
+          .annualInflationBps,
+      creditEnvironment:
+        COMPLETION_ECONOMY_TARGETS[state.economy.currentRegime].credit,
+    },
     result: state.result
       ? state.result.kind === "objective-victory"
         ? {

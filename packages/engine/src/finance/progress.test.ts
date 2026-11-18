@@ -125,7 +125,7 @@ describe("canonical progress accounting", () => {
     ).toBe(old.quarterlyLivingExpenseCents);
     expect(
       result.state.finance.quarterStartBasis.recurringByPlayer[worker],
-    ).toEqual(changed);
+    ).toEqual({ ...changed, quarterlyLivingExpenseCents: 1_368_500 });
   });
 
   it("keeps a property's earned quarter with its opening owner after current ownership changes", () => {

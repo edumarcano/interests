@@ -212,7 +212,7 @@ describe("retained-profit-v1", () => {
       [[375_000, 225_000]],
     ]);
     expect(settlements.map((r) => r.state.finance.cashByPlayer[buyer])).toEqual(
-      [721_950, 1_026_541, 1_333_416, 1_642_592],
+      [721_950, 968_775, 1_208_615, 1_540_000],
     );
     expect(state.currentQuarter).toBe(5);
     const company = state.finance.assetsById[opportunity.assetId];

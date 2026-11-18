@@ -678,10 +678,17 @@ export interface MatchRoundView {
   readonly spotlightsCompleted: number;
 }
 
+export interface MatchEconomicConditionsView {
+  readonly baseRateBps: number;
+  readonly annualInflationBps: number;
+  readonly creditEnvironment: "easy" | "normal" | "tight" | "severe";
+}
+
 export interface MatchPlayerView {
   readonly hasActiveTransaction?: boolean;
   readonly jointProperty?: JointPropertyView | null;
   readonly propertyAcquisition?: PropertyAcquisitionView | null;
+  readonly economicConditions?: MatchEconomicConditionsView;
   readonly result: MatchResultView | null;
   readonly matchId: MatchId;
   readonly modeId: string;

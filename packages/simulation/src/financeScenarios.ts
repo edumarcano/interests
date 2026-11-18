@@ -236,10 +236,12 @@ export function runFinanceScenario(name: FinanceScenarioName) {
       (a) => a.kind === "business" && a.workCompensation,
     );
     if (company?.kind !== "business") throw new Error("Missing company");
+    // Preserve the explicit constant-loss diagnostic rather than run a growth scenario.
+    const { operatingModel: _operatingModel, ...fixedLossCompany } = company;
     const assets = {
       ...state.finance.assetsById,
       [company.id]: {
-        ...company,
+        ...fixedLossCompany,
         cashCents: cents(0),
         annualOperatingProfitCents: cents(
           -company.workCompensation!.annualCompensationCents - 400_000,

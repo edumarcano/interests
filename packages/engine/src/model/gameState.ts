@@ -1,8 +1,10 @@
 import type {
   BusinessCashPolicyId,
+  BusinessSensitivity,
   EconomicRegimeId,
   ObjectiveId,
   ProfileId,
+  PropertyMarketKind,
   PublicMarketInstrumentId,
 } from "@interests/rules";
 import type {
@@ -193,6 +195,7 @@ export interface PropertyAsset {
   };
   readonly catalogueId?: string;
   readonly disposition?: "sold";
+  readonly marketKind?: PropertyMarketKind;
   readonly id: AssetId;
   readonly kind: "property";
   readonly marketValueCents: Cents;
@@ -208,7 +211,24 @@ export interface WorkCompensation {
   readonly arrearsCents: Cents;
 }
 
+export interface BusinessOperatingModel {
+  readonly kind: "revenue-cost-v1";
+  readonly sensitivity: BusinessSensitivity;
+  readonly referenceAnnualRevenueCents: Cents;
+  readonly referenceAnnualNonLaborCostsCents: Cents;
+  readonly fixedAnnualLaborCostsCents: Cents;
+  readonly annualProfitAdjustmentCents: Cents;
+  readonly valuationBasis: "after-labor-profit" | "owner-earnings";
+  readonly openingEnterpriseValueCents: Cents;
+  readonly openingValuationEarningsCents: Cents;
+  readonly quarters: readonly {
+    readonly quarter: number;
+    readonly operatingProfitCents: Cents;
+  }[];
+}
+
 export interface BusinessAsset {
+  readonly operatingModel?: BusinessOperatingModel;
   readonly annualManagementCostCents?: Cents;
   readonly cashPolicyId: BusinessCashPolicyId;
   readonly cashCents: Cents;
@@ -276,6 +296,7 @@ export interface MarketUpdateRecord {
 }
 
 export interface EconomyState {
+  readonly operatingRandom: RandomState;
   readonly currentRegime: EconomicRegimeId;
   readonly baseRateBps: BasisPoints;
   readonly lastMarketUpdate: MarketUpdateRecord | null;
