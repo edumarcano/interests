@@ -202,6 +202,7 @@ export function assertCompletionState(state: GameState): void {
           disposal.acquisitionBasisCents,
           disposal.assetCashReleasedCents ?? 0,
           disposal.financingCostsCents ?? 0,
+          disposal.companyClaimsPaidCents ?? 0,
         ])
           integer(money);
         if (disposal.referenceProceedsCents !== null)

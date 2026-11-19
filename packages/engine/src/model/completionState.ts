@@ -48,6 +48,7 @@ export interface CanonicalDisposalRecord {
   readonly saleFeesCents: Cents;
   readonly assetCashReleasedCents?: Cents;
   readonly financingCostsCents?: Cents;
+  readonly companyClaimsPaidCents?: Cents;
   readonly acquisitionBasisCents: Cents;
   readonly referenceProceedsCents: Cents | null;
   readonly economicSubstance: "genuine" | "circular";

@@ -7,6 +7,11 @@ import type { AssetId, PlayerId } from "@interests/shared";
 import { isAssetBorrower } from "../finance/bank";
 import { calculateBusinessEquity } from "../finance/business";
 import { FinanceDecimal } from "../finance/decimal";
+import {
+  beneficialBorrowerId,
+  isLenderLoan,
+  isPersonalBorrower,
+} from "../finance/loanParties";
 import { type Cents, cents } from "../finance/money";
 import { allocateProportionalCents } from "../finance/ownership";
 import type { QuarterObservation } from "../model/completionState";
@@ -263,7 +268,7 @@ export function measurePlayerObjectives(
     }
   }
   for (const loan of Object.values(state.finance.loansById)) {
-    if (!isAssetBorrower(loan) && loan.borrowerPlayerId === playerId) {
+    if (isPersonalBorrower(loan) && loan.borrowerPlayerId === playerId) {
       liabilities = sum([
         liabilities,
         loan.outstandingPrincipalCents,
@@ -321,9 +326,9 @@ export function measurePlayerObjectives(
       ];
     if (
       canonical &&
-      (canonical.kind !== "player-loan" ||
+      (!isLenderLoan(canonical) ||
         canonical.lenderPlayerId !== playerId ||
-        canonical.borrowerPlayerId !== loan.beneficialBorrowerId ||
+        beneficialBorrowerId(canonical) !== loan.beneficialBorrowerId ||
         canonical.originalPrincipalCents !== loan.fundedPrincipalCents ||
         canonical.outstandingPrincipalCents !==
           loan.outstandingPrincipalCents ||
@@ -491,6 +496,7 @@ export function measurePlayerObjectives(
         entry.acquisitionBasisCents,
         entry.assetCashReleasedCents ?? 0,
         entry.financingCostsCents ?? 0,
+        entry.companyClaimsPaidCents ?? 0,
       ].forEach(nonnegative);
       if (
         !entry.transactionId ||
@@ -514,6 +520,7 @@ export function measurePlayerObjectives(
         -entry.acquisitionBasisCents,
         entry.assetCashReleasedCents ?? 0,
         -(entry.financingCostsCents ?? 0),
+        -(entry.companyClaimsPaidCents ?? 0),
       ]);
       let credited = Math.min(0, actualGain);
       const seasoned =
@@ -533,6 +540,7 @@ export function measurePlayerObjectives(
                 -entry.acquisitionBasisCents,
                 entry.assetCashReleasedCents ?? 0,
                 -(entry.financingCostsCents ?? 0),
+                -(entry.companyClaimsPaidCents ?? 0),
               ]),
             );
           }

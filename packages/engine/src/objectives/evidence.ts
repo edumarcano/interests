@@ -1,5 +1,6 @@
 import type { PlayerId } from "@interests/shared";
 import { allocateDisposalCents } from "../finance/disposalEvidence";
+import { beneficialBorrowerId, isLenderLoan } from "../finance/loanParties";
 import { cents } from "../finance/money";
 import type { GameState } from "../model/gameState";
 import type { ObjectiveEvidence, ObjectiveFinancingEvidence } from "./model";
@@ -42,17 +43,21 @@ export function collectPlayerObjectiveEvidence(
   const financing: ObjectiveFinancingEvidence[] = [];
   for (const loan of Object.values(state.finance.loansById)) {
     if (
-      loan.kind !== "player-loan" ||
+      !isLenderLoan(loan) ||
       loan.lenderPlayerId !== playerId ||
       loan.fundedTransactionId === undefined
     )
       continue;
-    if (loan.settledInterestReceipts === undefined)
+    const receipts =
+      loan.kind === "npc-loan"
+        ? loan.interestReceipts
+        : loan.settledInterestReceipts;
+    if (receipts === undefined)
       throw new Error("Missing canonical funded-loan interest history");
     financing.push({
       loanId: loan.id,
       lenderPlayerId: loan.lenderPlayerId,
-      beneficialBorrowerId: loan.borrowerPlayerId,
+      beneficialBorrowerId: beneficialBorrowerId(loan),
       fundedTransactionId: loan.fundedTransactionId,
       originatedQuarter: loan.originatedQuarter,
       fundedPrincipalCents: loan.originalPrincipalCents,
@@ -63,7 +68,7 @@ export function collectPlayerObjectiveEvidence(
       funding: "non-circular",
       feesPaidCents: cents(0),
       realizedLossesCents: cents(0),
-      interestReceipts: loan.settledInterestReceipts
+      interestReceipts: receipts
         .filter((receipt) => receipt.quarter <= state.lastSettledQuarter)
         .map((receipt) => ({ ...receipt })),
     });
@@ -90,6 +95,7 @@ export function collectPlayerObjectiveEvidence(
       record.acquisitionBasisCents,
       record.assetCashReleasedCents ?? cents(0),
       record.financingCostsCents ?? cents(0),
+      record.companyClaimsPaidCents ?? cents(0),
     ].map((amount) => allocateDisposalCents(amount, weights));
     const references =
       record.referenceProceedsCents === null
@@ -108,6 +114,7 @@ export function collectPlayerObjectiveEvidence(
               acquisitionBasisCents: amounts[2]![index]!,
               assetCashReleasedCents: amounts[3]![index]!,
               financingCostsCents: amounts[4]![index]!,
+              companyClaimsPaidCents: amounts[5]![index]!,
               referenceProceedsCents: references?.[index] ?? null,
               economicSubstance:
                 index === 1 ? ("circular" as const) : record.economicSubstance,
@@ -124,7 +131,7 @@ export function collectPlayerObjectiveEvidence(
   };
 }
 
-/** Optional future NPC adapters cannot replace current canonical property, player-loan or disposal records. */
+/** Additional trusted evidence cannot replace existing canonical records. */
 export function combineObjectiveEvidence(
   state: GameState,
   playerId: PlayerId,
@@ -140,7 +147,7 @@ export function combineObjectiveEvidence(
       Object.hasOwn(state.finance.loansById, loan.loanId),
     )
   )
-    throw new Error("Canonical player loan evidence cannot be overridden");
+    throw new Error("Canonical loan evidence cannot be overridden");
   return {
     propertyClaims: canonical.propertyClaims,
     financing: [

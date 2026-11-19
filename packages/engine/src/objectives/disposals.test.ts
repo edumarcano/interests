@@ -204,6 +204,9 @@ it("preserves real property gross price, reserve cash, fees and payoff interest 
   const bought = propertyPurchase();
   const before = turn(until(bought.state, 3));
   const basis = before.progress.byPlayer[actor]!.assetsById[bought.asset.id]!;
+  const listed = before.finance.assetsById[bought.asset.id];
+  if (listed?.kind !== "property")
+    throw new Error("Expected property at resale");
   const originalRaw = before.progress.byPlayer[actor]!.realizedGainsCents;
   const after = send(before, actor, {
     type: "SELL_PROPERTY",
@@ -212,7 +215,7 @@ it("preserves real property gross price, reserve cash, fees and payoff interest 
   const record = after.progress.byPlayer[actor]!.disposalEvidence!.at(-1)!;
   expect(record).toMatchObject({
     category: "property",
-    proceedsCents: bought.asset.marketValueCents,
+    proceedsCents: listed.marketValueCents,
     acquisitionBasisCents: basis.costCents,
     settledExposureThroughQuarter: 2,
     acquiredQuarter: 1,

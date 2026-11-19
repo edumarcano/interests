@@ -33,11 +33,15 @@ function command(
   assertGameState(result.state);
   return result.state;
 }
-function setup(seed: string) {
+function setup(
+  seed: string,
+  setupScenario: "standard-v1" | "q1-business-diagnostic" = "standard-v1",
+) {
   let state = createGame({
     gameId: "objective-evidence",
     seed,
     playerIds: ids,
+    setupScenario,
   });
   for (const id of ids)
     state = command(state, id, {
@@ -94,9 +98,9 @@ function ordinaryProperty() {
   )!;
   return { state, property, loan };
 }
-function ordinaryLending() {
+function playerLendingDiagnostic() {
   for (let seed = 0; seed < 100; seed++) {
-    let state = setup(`objective-lending-${seed}`);
+    let state = setup(`objective-lending-${seed}`, "q1-business-diagnostic");
     const opportunity = Object.values(state.opportunitiesById)[0]!;
     const borrower = opportunity.targetPlayerId;
     const lender = ids.find(
@@ -141,7 +145,7 @@ function ordinaryLending() {
     expect(loan.originalPrincipalCents).toBe(5_000_000);
     return { state, lender, borrower, loan };
   }
-  throw new Error("No ordinarily affordable lender");
+  throw new Error("No affordable lender for the named player-loan diagnostic");
 }
 
 it("derives a real new mortgage and property reserves without a duplicate personal guarantee", () => {
@@ -251,7 +255,7 @@ it("does not treat an asset payoff's paid interest as relief from another requir
   );
 });
 it("records real loan interest by loan ID, groups its funded deal and retains lifetime receipts after repayment", () => {
-  const started = ordinaryLending();
+  const started = playerLendingDiagnostic();
   let state = started.state;
   expect(state.finance.loansById[started.loan.id]).toMatchObject({
     settledInterestReceipts: [],
@@ -316,7 +320,7 @@ it("never replaces canonical records with caller supplied player-loan or propert
   expect(() =>
     measurePlayerObjectives(property.state, actor, { propertyClaims: claims }),
   ).toThrow("cannot be overridden");
-  const lending = ordinaryLending();
+  const lending = playerLendingDiagnostic();
   expect(() =>
     measurePlayerObjectives(lending.state, lending.lender, {
       financing: collectPlayerObjectiveEvidence(lending.state, lending.lender)
@@ -344,7 +348,7 @@ it("never replaces canonical records with caller supplied player-loan or propert
   );
 });
 it("rejects invalid receipt money, dates and current-interest duplication at the snapshot invariant", () => {
-  const { state, loan } = ordinaryLending();
+  const { state, loan } = playerLendingDiagnostic();
   for (const receipt of [
     { quarter: 1, receivedCents: 1, currentEarnedCents: 1 },
     { quarter: 2, receivedCents: 1, currentEarnedCents: 2 },
@@ -368,7 +372,7 @@ it("rejects invalid receipt money, dates and current-interest duplication at the
   }
 });
 it("keeps another lender's private receipt history and evaluation out of a recipient's view", () => {
-  const started = ordinaryLending();
+  const started = playerLendingDiagnostic();
   let state = started.state;
   while (state.lastSettledQuarter < 2) {
     state = actorTurn(state, getActiveSpotlightPlayerId(state) ?? actor);

@@ -6,6 +6,7 @@ import { projectPlayerGameState } from "../game/playerView";
 import { getActiveSpotlightPlayerId } from "../game/round";
 import { assertGameState } from "../invariants/assertGameState";
 import type { BusinessAsset, GameState } from "../model/gameState";
+import { measurePlayerObjectives } from "../objectives/measurements";
 import { recurringCandidateWeights } from "./recurring";
 import {
   recurringBusinessExitQuote,
@@ -155,6 +156,23 @@ describe("ordinary matched recurring business exits", () => {
       soldQuarter: 2,
       proceedsCents: quote.sellerNetCents,
     });
+    const originalBasis =
+      state.progress.byPlayer[seller]!.assetsById[asset.id]!;
+    const recorded = closed.state.progress.byPlayer[seller]!.disposalEvidence;
+    expect(recorded).toHaveLength(1);
+    expect(recorded?.[0]).toMatchObject({
+      proceedsCents: quote.grossConsiderationCents,
+      saleFeesCents: quote.saleFeeCents,
+      companyClaimsPaidCents:
+        quote.bankPayoffCents +
+        quote.operatingArrearsPaidCents +
+        quote.workArrearsPaidCents,
+      acquisitionBasisCents: originalBasis.costCents,
+      settledExposureThroughQuarter: 1,
+    });
+    expect(
+      measurePlayerObjectives(closed.state, seller).creditedDealGainsCents,
+    ).toBe(quote.sellerNetCents - originalBasis.costCents);
     expect(applyPlayerCommand(closed.state, seller, request)).toMatchObject({
       ok: false,
       state: closed.state,

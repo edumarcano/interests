@@ -47,6 +47,7 @@ export interface ObjectiveDisposalEvidence {
   readonly saleFeesCents: Cents;
   readonly assetCashReleasedCents?: Cents;
   readonly financingCostsCents?: Cents;
+  readonly companyClaimsPaidCents?: Cents;
   readonly acquisitionBasisCents: Cents;
   /** Independent gross quote for the actual stake sold, required for player-to-player credit. */
   readonly referenceProceedsCents: Cents | null;
