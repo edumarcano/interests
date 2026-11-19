@@ -378,7 +378,59 @@ export interface JointPropertyView {
   readonly yourCashRequiredCents: number;
 }
 
+export interface PropertyAcquisitionTerms {
+  readonly catalogueId: string;
+  readonly principalCents: number;
+  readonly rateKind: "fixed" | "variable";
+  readonly buyers: readonly {
+    readonly playerId: string;
+    readonly cashContributionCents: number;
+    readonly ownershipPpm: number;
+  }[];
+}
+export interface PropertyAcquisitionQuote {
+  readonly askingPriceCents: number;
+  readonly feeCents: number;
+  readonly cashRequiredCents: number;
+  readonly principalCents: number;
+  readonly rateKind: "fixed" | "variable";
+  readonly annualRateBps: number;
+  readonly quarterlyPaymentCents: number;
+  readonly assetReserveCents: number;
+  readonly firstDueQuarter: number;
+  readonly termQuarters: number;
+}
+export type PropertyAcquisitionCommand =
+  | {
+      readonly type: "OPEN_PROPERTY_ACQUISITION";
+      readonly terms: PropertyAcquisitionTerms;
+    }
+  | {
+      readonly type: "REVISE_PROPERTY_ACQUISITION";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly terms: PropertyAcquisitionTerms;
+    }
+  | {
+      readonly type:
+        | "CONFIRM_PROPERTY_ACQUISITION"
+        | "WITHDRAW_PROPERTY_ACQUISITION"
+        | "CLOSE_PROPERTY_ACQUISITION"
+        | "CANCEL_PROPERTY_ACQUISITION";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+    };
+export interface PropertyAcquisitionView {
+  readonly id: string;
+  readonly leadPlayerId: string;
+  readonly termsRevision: number;
+  readonly terms: PropertyAcquisitionTerms;
+  readonly quote: PropertyAcquisitionQuote;
+  readonly confirmedPlayerIds: readonly string[];
+}
+
 export type PlayerCommand =
+  | PropertyAcquisitionCommand
   | BusinessAuctionCommand
   | JointPropertyCommand
   | BusinessCapitalCommand
@@ -629,6 +681,7 @@ export interface MatchRoundView {
 export interface MatchPlayerView {
   readonly hasActiveTransaction?: boolean;
   readonly jointProperty?: JointPropertyView | null;
+  readonly propertyAcquisition?: PropertyAcquisitionView | null;
   readonly result: MatchResultView | null;
   readonly matchId: MatchId;
   readonly modeId: string;

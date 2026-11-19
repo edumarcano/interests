@@ -37,7 +37,7 @@ import { basisPoints, cents } from "./money";
 import { allocateProportionalCents, ownershipPpm } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
 
-function catalogueProperty(
+export function catalogueProperty(
   id: string,
   playerId: PlayerId,
 ): PropertyAsset | null {
@@ -54,7 +54,7 @@ function catalogueProperty(
       }
     : null;
 }
-function purchaseQuote(
+export function purchaseQuote(
   state: GameState,
   playerId: PlayerId,
   property: PropertyAsset,
@@ -261,6 +261,10 @@ export function draftPropertyOwnerAction(
   playerId: PlayerId,
   command: PropertyCommand,
   authority: PropertyOwnerAuthority = "sole-owner",
+  purchaseFunding?: {
+    readonly cashByPlayer: Readonly<Partial<Record<PlayerId, number>>>;
+    readonly ownershipByPlayerPpm: PropertyAsset["ownershipByPlayerPpm"];
+  },
 ): ActionResult {
   const reject = (
     code:
@@ -452,10 +456,41 @@ export function draftPropertyOwnerAction(
         command.principalCents > 0
       )
         return reject("BANK_UNDERWRITING_FAILED");
-      if (!quote.canClose) return reject("INSUFFICIENT_FUNDS");
+      const contributions = purchaseFunding?.cashByPlayer ?? {
+        [playerId]: quote.cashRequiredCents,
+      };
+      const ownership =
+        purchaseFunding?.ownershipByPlayerPpm ?? template.ownershipByPlayerPpm;
+      if (
+        !Object.hasOwn(ownership, playerId) ||
+        Object.keys(ownership).length !== Object.keys(contributions).length ||
+        Object.entries(ownership).some(
+          ([owner, units]) =>
+            !state.players[owner as PlayerId] ||
+            !Number.isSafeInteger(units) ||
+            units <= 0 ||
+            !Object.hasOwn(contributions, owner),
+        ) ||
+        Object.values(ownership).reduce((sum, units) => sum + units, 0) !==
+          1_000_000 ||
+        Object.entries(contributions).some(
+          ([owner, amount]) =>
+            !Number.isSafeInteger(amount) ||
+            amount! <= 0 ||
+            getAvailableCashCents(state, owner as PlayerId) < amount!,
+        ) ||
+        Object.values(contributions).reduce<number>(
+          (sum, amount) => cents(sum + amount!),
+          0,
+        ) !== quote.cashRequiredCents ||
+        getAvailableCashCents(state, playerId) - contributions[playerId]! <
+          quote.personalReserveCents
+      )
+        return reject("INSUFFICIENT_FUNDS");
       const { id, counters } = nextDeterministicId("asset", state.counters);
       const asset: PropertyAsset = {
         ...template,
+        ownershipByPlayerPpm: ownership,
         id,
         catalogueId: command.catalogueId,
         cashCents: cents(0),
@@ -469,13 +504,17 @@ export function draftPropertyOwnerAction(
           assetsById: { ...state.finance.assetsById, [id]: asset },
         },
       };
-      posting({
-        source: playerCashAccount(playerId),
-        destination: propertyCashAccount(id),
-        amountCents: quote.cashRequiredCents,
-        reason: "property-equity-funding",
-        relatedAssetId: id,
-      });
+      for (const owner of state.playerOrder) {
+        const amount = contributions[owner];
+        if (amount)
+          posting({
+            source: playerCashAccount(owner),
+            destination: propertyCashAccount(id),
+            amountCents: cents(amount),
+            reason: "property-equity-funding",
+            relatedAssetId: id,
+          });
+      }
       originate(
         asset,
         command.principalCents,
@@ -496,30 +535,27 @@ export function draftPropertyOwnerAction(
         reason: "property-purchase-fee",
         relatedAssetId: id,
       });
-      const progress = state.progress.byPlayer[playerId]!;
-      draft = {
-        ...draft,
-        progress: {
-          byPlayer: {
-            ...state.progress.byPlayer,
-            [playerId]: {
-              ...progress,
-              assetsById: {
-                ...progress.assetsById,
-                [id]: {
-                  costCents: cents(
-                    asset.marketValueCents +
-                      quote.feeCents +
-                      quote.assetReserveCents,
-                  ),
-                  acquiredQuarter: state.currentQuarter,
-                  ownershipPpm: ownershipPpm(1_000_000),
-                },
-              },
+      const principalShares = allocateProportionalCents(
+        cents(command.principalCents),
+        ownership,
+      );
+      const byPlayer = { ...state.progress.byPlayer };
+      for (const owner of state.playerOrder) {
+        if (!ownership[owner]) continue;
+        const progress = byPlayer[owner]!;
+        byPlayer[owner] = {
+          ...progress,
+          assetsById: {
+            ...progress.assetsById,
+            [id]: {
+              costCents: cents(contributions[owner]! + principalShares[owner]!),
+              acquiredQuarter: state.currentQuarter,
+              ownershipPpm: ownership[owner]!,
             },
           },
-        },
-      };
+        };
+      }
+      draft = { ...draft, progress: { byPlayer } };
     } else {
       if (typeof command.assetId !== "string") return reject("INVALID_ACTION");
       const asset = state.finance.assetsById[command.assetId as AssetId];

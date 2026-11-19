@@ -226,7 +226,67 @@ const JointPropertyBoundFields = {
     .positive()
     .max(Number.MAX_SAFE_INTEGER),
 };
+const PropertyAcquisitionTermsSchema = z
+  .object({
+    catalogueId: z.string().min(1).max(64),
+    principalCents: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    rateKind: z.enum(["fixed", "variable"]),
+    buyers: z
+      .array(
+        z
+          .object({
+            playerId: z.string().min(1).max(64),
+            cashContributionCents: z
+              .number()
+              .int()
+              .positive()
+              .max(Number.MAX_SAFE_INTEGER),
+            ownershipPpm: z.number().int().positive().max(1_000_000),
+          })
+          .strict(),
+      )
+      .min(2)
+      .max(4),
+  })
+  .strict();
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("OPEN_PROPERTY_ACQUISITION"),
+      terms: PropertyAcquisitionTermsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("REVISE_PROPERTY_ACQUISITION"),
+      ...JointPropertyBoundFields,
+      terms: PropertyAcquisitionTermsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("CONFIRM_PROPERTY_ACQUISITION"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("WITHDRAW_PROPERTY_ACQUISITION"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("CLOSE_PROPERTY_ACQUISITION"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("CANCEL_PROPERTY_ACQUISITION"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
   JointPropertyOpenSchema,
   JointPropertyReviseSchema,
   z

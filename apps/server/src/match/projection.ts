@@ -171,6 +171,7 @@ export function buildMatchPlayerView(params: {
   return {
     hasActiveTransaction: pureProjection.hasActiveTransaction,
     jointProperty: pureProjection.jointProperty,
+    propertyAcquisition: pureProjection.propertyAcquisition,
     result: pureProjection.result,
     matchId: pureProjection.matchId,
     modeId: pureProjection.modeId,

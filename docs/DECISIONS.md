@@ -885,4 +885,10 @@ Sale clears related bank liens and distributes net cash with the canonical propo
 
 A frozen refinance quote remains loadable if payer capacity changes. Live confirmation/closing rejects changed eligibility or pricing until the initiator revises the terms; snapshot validation still checks the frozen financial structure. Direct sole-owner actions and voluntary reserve funding retain their existing command paths.
 
+### Shared property acquisition
+
+The persistent property catalogue supports a separate `property-acquisition` transaction for a lead and named funded partners. Engine prices and mortgage terms are frozen alongside each buyer's positive cash contribution and negotiated ownership; ownership totals exactly 1,000,000 PPM. Every buyer confirms the same revision. Revisions clear all confirmations and reservations, and withdrawal releases only the withdrawing buyer's hold. Only the buyers receive the detailed proposal.
+
+Closing revalidates underwriting and consent, then reuses the property purchase draft for contributions, one asset loan, the NPC purchase and fee, cost basis and spotlight advancement. Buyer cash equals price plus fee plus the retained asset debt-service reserve less bank principal. The lead retains their own personal reserve after their contribution; partners cannot fund that personal requirement. The asset borrows without personal guarantees. Each owner's recorded basis equals their cash contribution plus their proportionate share of bank principal, with deterministic cent allocation. Current-quarter ownership and operating rights remain unchanged; the acquired property enters the next quarter's basis.
+
 Packet 6 uses engine `0.0.11`, rules `0.0.9`, shared `0.0.13` and persistence `0.0.10`. Older snapshots continue to require a compatible build.

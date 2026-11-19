@@ -18,6 +18,7 @@ import type {
   MatchResultView,
   MatchSelfFinancialDetailsView,
   PlayerId,
+  PropertyAcquisitionView,
   PropertyManagementView,
   PropertyOfferView,
   SelfSettlementView,
@@ -173,6 +174,7 @@ export interface PureRoundView {
 export interface PurePlayerProjection {
   readonly hasActiveTransaction: boolean;
   readonly jointProperty: JointPropertyView | null;
+  readonly propertyAcquisition: PropertyAcquisitionView | null;
   readonly result: MatchResultView | null;
   readonly matchId: MatchId;
   readonly modeId: string;
@@ -678,6 +680,44 @@ export function projectPlayerGameState(
         }
       : null;
 
+  let propertyAcquisition: PropertyAcquisitionView | null = null;
+  const acquisition = state.activeTransaction;
+  if (
+    acquisition?.kind === "property-acquisition" &&
+    acquisition.terms.buyers.some((buyer) => buyer.playerId === playerId)
+  ) {
+    const quote = acquisition.quote;
+    propertyAcquisition = {
+      id: acquisition.id,
+      leadPlayerId: acquisition.leadPlayerId,
+      termsRevision: acquisition.termsRevision,
+      terms: {
+        catalogueId: acquisition.terms.catalogueId,
+        principalCents: acquisition.terms.principalCents,
+        rateKind: acquisition.terms.rateKind,
+        buyers: acquisition.terms.buyers.map((buyer) => ({
+          playerId: buyer.playerId,
+          cashContributionCents: buyer.cashContributionCents,
+          ownershipPpm: buyer.ownershipPpm,
+        })),
+      },
+      quote: {
+        askingPriceCents: quote.askingPriceCents,
+        feeCents: quote.feeCents,
+        cashRequiredCents: quote.cashRequiredCents,
+        principalCents: quote.principalCents,
+        rateKind: quote.rateKind,
+        annualRateBps: quote.annualRateBps,
+        quarterlyPaymentCents: quote.quarterlyPaymentCents,
+        assetReserveCents: quote.assetReserveCents,
+        firstDueQuarter: quote.firstDueQuarter,
+        termQuarters: quote.termQuarters,
+      },
+      confirmedPlayerIds: acquisition.confirmedPlayerIds.filter((id) =>
+        acquisition.terms.buyers.some((buyer) => buyer.playerId === id),
+      ),
+    };
+  }
   let jointProperty: JointPropertyView | null = null;
   const joint = state.activeTransaction;
   if (joint?.kind === "joint-property") {
@@ -837,6 +877,7 @@ export function projectPlayerGameState(
   return {
     hasActiveTransaction: state.activeTransaction !== null,
     jointProperty,
+    propertyAcquisition,
     result: state.result
       ? state.result.kind === "objective-victory"
         ? {
