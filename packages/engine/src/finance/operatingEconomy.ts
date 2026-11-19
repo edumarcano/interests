@@ -163,7 +163,8 @@ export function planQuarterOperatingUpdate(
       continue;
     if (asset.kind === "business") {
       const model = asset.operatingModel;
-      if (!model) continue;
+      if (!model || state.currentQuarter < (model.firstOperatingQuarter ?? 1))
+        continue;
       const outcome = businesses.find((company) => company.assetId === id);
       const quarters = outcome
         ? [

@@ -214,6 +214,7 @@ export interface WorkCompensation {
 }
 
 export interface BusinessOperatingModel {
+  readonly firstOperatingQuarter?: number;
   readonly kind: "revenue-cost-v1";
   readonly sensitivity: BusinessSensitivity;
   readonly referenceAnnualRevenueCents: Cents;

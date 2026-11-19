@@ -1,7 +1,10 @@
 import type { RecurringOpportunityFacts } from "@interests/shared";
 import { RECURRING_CONTENT_RULES } from "./completion";
 import { MARKET_BORROWER_TEMPLATES } from "./npcLending";
-import type { PropertyMarketKind } from "./operatingEconomy";
+import type {
+  BusinessSensitivity,
+  PropertyMarketKind,
+} from "./operatingEconomy";
 export const RECURRING_CATEGORIES = [
   "business",
   "property",
@@ -20,6 +23,10 @@ export interface RecurringContentTemplate {
   readonly minimumCashCents: number;
   readonly requiredOwnership?: "business" | "property";
   readonly propertyMarketKind?: PropertyMarketKind;
+  readonly businessOperating?: {
+    readonly sensitivity: BusinessSensitivity;
+    readonly fixedAnnualLaborCostsCents: number;
+  };
   readonly action:
     | "career"
     | "markets"
@@ -105,6 +112,10 @@ const templates: readonly RecurringContentTemplate[] = [
   },
   {
     id: "local-service-company",
+    businessOperating: {
+      sensitivity: "low",
+      fixedAnnualLaborCostsCents: 6_000_000,
+    },
     name: "Local service company",
     category: "business",
     intensity: "standard",
@@ -184,6 +195,10 @@ const templates: readonly RecurringContentTemplate[] = [
   },
   {
     id: "established-service-group",
+    businessOperating: {
+      sensitivity: "medium",
+      fixedAnnualLaborCostsCents: 36_000_000,
+    },
     name: "Established service group",
     category: "business",
     intensity: "standard",
@@ -222,6 +237,10 @@ const templates: readonly RecurringContentTemplate[] = [
   ),
   {
     id: "regional-company",
+    businessOperating: {
+      sensitivity: "medium",
+      fixedAnnualLaborCostsCents: 18_000_000,
+    },
     name: "Regional operating company",
     category: "business",
     intensity: "major",
@@ -246,6 +265,13 @@ export const RECURRING_CONTENT_TEMPLATES: readonly RecurringContentTemplate[] =
     templates.map((template) =>
       Object.freeze({
         ...template,
+        ...(template.businessOperating
+          ? {
+              businessOperating: Object.freeze({
+                ...template.businessOperating,
+              }),
+            }
+          : {}),
         facts:
           template.facts === null ? null : Object.freeze({ ...template.facts }),
       }),

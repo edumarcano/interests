@@ -364,7 +364,7 @@ describe("ordinary objective-neutral recurring generation", () => {
 });
 
 describe("authoritative recurring acquisition terms", () => {
-  it("resolves typed stored facts and fees without changing state or inventing a labor split", () => {
+  it("resolves typed stored facts, fees and the authored labor calibration without changing state", () => {
     const { state, owner } = investigationFixture();
     const card = state.content.cardsByPlayer[owner]!;
     const before = JSON.stringify(state);
@@ -379,7 +379,7 @@ describe("authoritative recurring acquisition terms", () => {
     if (result.terms.kind === "business") {
       expect(result.terms.necessaryLabor).toEqual({
         kind: "included-in-after-labor-profit",
-        explicitAnnualCostCents: null,
+        explicitAnnualCostCents: 6_000_000,
       });
       expect(
         result.terms.annualTotalOperatingCostsCents +

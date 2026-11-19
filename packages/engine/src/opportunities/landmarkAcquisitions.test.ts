@@ -249,7 +249,14 @@ describe("authored landmark acquisitions use the existing authoritative close", 
         enterpriseValueCents: 108_000_000,
         cashCents: quote.assetReserveCents,
       });
-      expect(asset).not.toHaveProperty("operatingModel");
+      expect(asset).toMatchObject({
+        operatingModel: {
+          sensitivity: "medium",
+          fixedAnnualLaborCostsCents: 36_000_000,
+          referenceAnnualNonLaborCostsCents: 118_350_000,
+          firstOperatingQuarter: 2,
+        },
+      });
       expect(asset).not.toHaveProperty("workCompensation");
       expect(
         result.state.progress.byPlayer[actor]!.assetsById[asset.id]!.costCents,

@@ -8,9 +8,10 @@ import type {
   PlayerId,
   RecurringOpportunityFacts,
 } from "@interests/shared";
+import { createManagedBusinessOperatingModel } from "../finance/businessPerformance";
 import { FinanceDecimal } from "../finance/decimal";
 import { type Cents, cents, isNonNegativeCents } from "../finance/money";
-import type { GameState } from "../model/gameState";
+import type { BusinessOperatingModel, GameState } from "../model/gameState";
 import { getAvailableCashCents } from "../transactions/reservations";
 
 interface RecurringAcquisitionCommon {
@@ -30,9 +31,10 @@ export type RecurringAcquisitionTerms =
       readonly kind: "business";
       readonly facts: Extract<RecurringOpportunityFacts, { kind: "business" }>;
       readonly annualTotalOperatingCostsCents: Cents;
+      readonly operatingModel: BusinessOperatingModel;
       readonly necessaryLabor: {
         readonly kind: "included-in-after-labor-profit";
-        readonly explicitAnnualCostCents: null;
+        readonly explicitAnnualCostCents: Cents;
       };
     })
   | (RecurringAcquisitionCommon & {
@@ -123,7 +125,12 @@ export function getRecurringAcquisitionTerms(
           .minus(facts.annualOperatingProfitCents)
           .toNumber(),
       );
-      if (costs < 0 || facts.debtPrincipalCents !== 0)
+      if (
+        costs < 0 ||
+        facts.debtPrincipalCents !== 0 ||
+        !template.businessOperating ||
+        template.businessOperating.fixedAnnualLaborCostsCents > costs
+      )
         return { ok: false, code: "INVALID_ACTION" };
       return {
         ok: true,
@@ -132,9 +139,16 @@ export function getRecurringAcquisitionTerms(
           kind: "business",
           facts: { ...facts },
           annualTotalOperatingCostsCents: costs,
+          operatingModel: createManagedBusinessOperatingModel({
+            ...facts,
+            ...template.businessOperating,
+            firstOperatingQuarter: state.currentQuarter + 1,
+          }),
           necessaryLabor: {
             kind: "included-in-after-labor-profit",
-            explicitAnnualCostCents: null,
+            explicitAnnualCostCents: cents(
+              template.businessOperating.fixedAnnualLaborCostsCents,
+            ),
           },
         },
       };

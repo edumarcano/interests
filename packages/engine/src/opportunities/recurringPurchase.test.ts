@@ -113,7 +113,14 @@ describe("recurring NPC acquisitions through production commands", () => {
         enterpriseValueCents: 12_000_000,
         cashCents: quote.assetReserveCents,
       });
-      expect(asset).not.toHaveProperty("operatingModel");
+      expect(asset).toMatchObject({
+        operatingModel: {
+          sensitivity: "low",
+          fixedAnnualLaborCostsCents: 6_000_000,
+          referenceAnnualNonLaborCostsCents: 16_000_000,
+          firstOperatingQuarter: 2,
+        },
+      });
       expect(
         result.state.progress.byPlayer[actor]!.assetsById[asset.id],
       ).toMatchObject({

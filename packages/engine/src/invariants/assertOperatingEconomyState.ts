@@ -18,6 +18,13 @@ export function assertOperatingEconomyState(state: GameState): void {
       !Object.hasOwn(BUSINESS_SENSITIVITY, model.sensitivity)
     )
       throw new Error("Invalid business operating model");
+    if (
+      model.firstOperatingQuarter !== undefined &&
+      (!Number.isSafeInteger(model.firstOperatingQuarter) ||
+        model.firstOperatingQuarter < 1 ||
+        model.firstOperatingQuarter > state.currentQuarter + 1)
+    )
+      throw new Error("Invalid first operating quarter");
     for (const value of [
       model.referenceAnnualRevenueCents,
       model.referenceAnnualNonLaborCostsCents,
@@ -45,7 +52,7 @@ export function assertOperatingEconomyState(state: GameState): void {
         !observed ||
         typeof observed !== "object" ||
         !Number.isSafeInteger(observed.quarter) ||
-        observed.quarter < 1 ||
+        observed.quarter < (model.firstOperatingQuarter ?? 1) ||
         observed.quarter > state.lastSettledQuarter ||
         (previous !== 0 && observed.quarter !== previous + 1) ||
         !isSafeCents(observed.operatingProfitCents)

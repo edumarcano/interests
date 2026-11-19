@@ -6,6 +6,7 @@ import {
   OBJECTIVE_MEASUREMENT_RULES,
   OPERATING_RULES,
 } from "@interests/rules";
+import type { BusinessOperatingModel } from "../model/gameState";
 import type { RandomState } from "../random/prng";
 import { FinanceDecimal } from "./decimal";
 import { drawMarketNoiseBps } from "./economy";
@@ -122,4 +123,50 @@ export function calculateNormalizedBusinessValueCents(input: {
       .round()
       .toNumber(),
   );
+}
+
+/** Preserve a purchased company's stated after-labor earnings and rational opening multiple. */
+export function createManagedBusinessOperatingModel(input: {
+  readonly annualRevenueCents: number;
+  readonly annualOperatingProfitCents: number;
+  readonly enterpriseValueCents: number;
+  readonly fixedAnnualLaborCostsCents: number;
+  readonly sensitivity: BusinessSensitivity;
+  readonly firstOperatingQuarter: number;
+}): BusinessOperatingModel {
+  if (
+    ![
+      input.annualRevenueCents,
+      input.annualOperatingProfitCents,
+      input.enterpriseValueCents,
+      input.fixedAnnualLaborCostsCents,
+    ].every(isNonNegativeCents) ||
+    input.annualRevenueCents === 0 ||
+    input.annualOperatingProfitCents === 0 ||
+    !BUSINESS_SENSITIVITY[input.sensitivity] ||
+    !Number.isSafeInteger(input.firstOperatingQuarter) ||
+    input.firstOperatingQuarter < 1
+  )
+    throw new RangeError("Invalid managed operating calibration");
+  const variable = cents(
+    new FinanceDecimal(input.annualRevenueCents)
+      .minus(input.fixedAnnualLaborCostsCents)
+      .minus(input.annualOperatingProfitCents)
+      .toNumber(),
+  );
+  if (variable < 0)
+    throw new RangeError("Managed labor exceeds stated operating costs");
+  return {
+    kind: "revenue-cost-v1",
+    firstOperatingQuarter: input.firstOperatingQuarter,
+    sensitivity: input.sensitivity,
+    referenceAnnualRevenueCents: cents(input.annualRevenueCents),
+    referenceAnnualNonLaborCostsCents: variable,
+    fixedAnnualLaborCostsCents: cents(input.fixedAnnualLaborCostsCents),
+    annualProfitAdjustmentCents: cents(0),
+    valuationBasis: "after-labor-profit",
+    openingEnterpriseValueCents: cents(input.enterpriseValueCents),
+    openingValuationEarningsCents: cents(input.annualOperatingProfitCents),
+    quarters: [],
+  };
 }

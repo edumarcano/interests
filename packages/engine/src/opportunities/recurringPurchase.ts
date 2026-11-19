@@ -48,6 +48,7 @@ function acquisitionAsset(
         ...common,
         kind: "business",
         cashPolicyId: "retained-profit-v1",
+        operatingModel: terms.operatingModel,
         operatingArrearsCents: cents(0),
         annualRevenueCents: cents(terms.facts.annualRevenueCents),
         annualOperatingProfitCents: cents(
