@@ -23,6 +23,7 @@ import type { GameState } from "../model/gameState";
 import { isValidRandomState } from "../random/prng";
 import { assertBusinessAuctionTransaction } from "../transactions/businessAuctionTerms";
 import { assertBusinessCapitalTransaction } from "../transactions/businessCapitalTerms";
+import { assertJointPropertyTransaction } from "../transactions/jointPropertyTerms";
 import { assertAssetBankLoan } from "./assertAssetBankLoan";
 import { assertBusinessCashState } from "./assertBusinessCashState";
 import { assertCompanyLoan } from "./assertCompanyLoan";
@@ -1112,7 +1113,11 @@ function assertEconomyState(state: GameState): void {
         "Game invariant failed: activeTransaction.id must be a non-empty string",
       );
     }
-    if (tx.kind === "business-capital" || tx.kind === "business-auction") {
+    if (
+      tx.kind === "business-capital" ||
+      tx.kind === "business-auction" ||
+      tx.kind === "joint-property"
+    ) {
       const activePlayerId =
         state.round?.stage === "spotlight"
           ? (state.playerOrder[
@@ -1122,7 +1127,9 @@ function assertEconomyState(state: GameState): void {
           : null;
       if (tx.kind === "business-capital")
         assertBusinessCapitalTransaction(state, tx, activePlayerId);
-      else assertBusinessAuctionTransaction(state, tx, activePlayerId);
+      else if (tx.kind === "business-auction")
+        assertBusinessAuctionTransaction(state, tx, activePlayerId);
+      else assertJointPropertyTransaction(state, tx, activePlayerId);
       return;
     }
     if (tx.kind !== "cash-business-purchase") {

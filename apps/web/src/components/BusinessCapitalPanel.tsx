@@ -60,6 +60,7 @@ export function BusinessCapitalPanel({
     !tx &&
     (!isMySpotlight ||
       !companies.length ||
+      match.hasActiveTransaction ||
       match.activeTransaction ||
       match.businessAuction)
   )

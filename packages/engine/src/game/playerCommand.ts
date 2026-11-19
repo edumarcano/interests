@@ -4,6 +4,7 @@ import type {
   BusinessAuctionCommand,
   BusinessCapitalCommand,
   ExpandBusinessCommandPayload,
+  JointPropertyCommand,
   OpportunityId,
   PlayerId,
   PropertyCommand,
@@ -26,6 +27,7 @@ import {
   acceptPlayerLoanFinancingOffer,
   submitPlayerLoanFinancingOffer,
 } from "../transactions/cashBusinessPurchase.js";
+import { applyJointPropertyCommand } from "../transactions/jointProperty";
 import { type ActionResult, applyAction } from "./actions.js";
 import { applyCareerCommand } from "./career";
 import {
@@ -90,6 +92,7 @@ export interface WireCancelActiveTransactionCommand {
 
 export type WirePlayerCommand =
   | BusinessAuctionCommand
+  | JointPropertyCommand
   | BusinessCapitalCommand
   | PropertyCommand
   | ExpandBusinessCommandPayload
@@ -147,6 +150,13 @@ export function applyPlayerCommand(
     case "OPEN_BUSINESS_AUCTION":
     case "RESPOND_BUSINESS_AUCTION":
       return applyBusinessAuctionCommand(state, actorPlayerId, wireCommand);
+    case "OPEN_JOINT_PROPERTY":
+    case "REVISE_JOINT_PROPERTY":
+    case "CONFIRM_JOINT_PROPERTY":
+    case "WITHDRAW_JOINT_PROPERTY":
+    case "CLOSE_JOINT_PROPERTY":
+    case "CANCEL_JOINT_PROPERTY":
+      return applyJointPropertyCommand(state, actorPlayerId, wireCommand);
     case "OPEN_BUSINESS_CAPITAL":
     case "REVISE_BUSINESS_CAPITAL":
     case "CONFIRM_BUSINESS_CAPITAL":

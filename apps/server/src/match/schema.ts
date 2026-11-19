@@ -189,7 +189,70 @@ const BusinessCapitalTermsSchema = z.discriminatedUnion("kind", [
     .strict(),
 ]);
 
+const JointPropertyTermsSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("sale") }).strict(),
+  z.object({ kind: z.literal("renovation") }).strict(),
+  z
+    .object({
+      kind: z.literal("refinance"),
+      rateKind: z.enum(["fixed", "variable"]),
+    })
+    .strict(),
+]);
+const JointPropertyOpenSchema = z
+  .object({
+    type: z.literal("OPEN_JOINT_PROPERTY"),
+    assetId: z.string().min(1).max(64),
+    terms: JointPropertyTermsSchema,
+  })
+  .strict();
+const JointPropertyReviseSchema = z
+  .object({
+    type: z.literal("REVISE_JOINT_PROPERTY"),
+    transactionId: z.string().min(1).max(64),
+    expectedTermsRevision: z
+      .number()
+      .int()
+      .positive()
+      .max(Number.MAX_SAFE_INTEGER),
+    terms: JointPropertyTermsSchema,
+  })
+  .strict();
+const JointPropertyBoundFields = {
+  transactionId: z.string().min(1).max(64),
+  expectedTermsRevision: z
+    .number()
+    .int()
+    .positive()
+    .max(Number.MAX_SAFE_INTEGER),
+};
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
+  JointPropertyOpenSchema,
+  JointPropertyReviseSchema,
+  z
+    .object({
+      type: z.literal("CONFIRM_JOINT_PROPERTY"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("WITHDRAW_JOINT_PROPERTY"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("CLOSE_JOINT_PROPERTY"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("CANCEL_JOINT_PROPERTY"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
   z
     .object({
       type: z.literal("OFFER_BUSINESS_EQUITY"),

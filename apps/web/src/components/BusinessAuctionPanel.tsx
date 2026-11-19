@@ -34,6 +34,7 @@ export function BusinessAuctionPanel({
   const canList =
     isSpotlight &&
     companies.length > 0 &&
+    !match.hasActiveTransaction &&
     !match.businessCapital &&
     !match.activeTransaction;
   if (!auction && !canList) return null;

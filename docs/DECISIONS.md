@@ -877,4 +877,12 @@ The rotating spotlight owns at most one deal. Explicit confirmations bind the cu
 | Expansion and labor | Expansion spends company cash against next-quarter profit, preserving earned input. Shared expansion requires unanimous confirmation. A paid worker must retain an ownership position; after resignation the former worker can transfer their remaining stake while replacement management and unpaid work claims continue. |
 | Business bank debt | Fixed business debt settles from company cash before distributions. The trusted origination helper requires an actual funded closing draft, approved underwriting, retained personal and company reserves, and a matching closing gap. Recurring business acquisition uses this helper in packet 7. |
 
+### Joint property execution
+
+Shared sale, refinance and renovation use one `joint-property` transaction with an ownership snapshot, frozen engine quote, terms revision and explicit owner confirmations. Revised terms clear all confirmations and reservations. Only current owners see the detailed proposal; every client receives the public transaction-presence flag used to disable unrelated major actions.
+
+Sale clears related bank liens and distributes net cash with the canonical proportional cent allocator. Each owner's acquisition/disposal evidence updates once, while quarter-start income rights remain intact. Refinance and renovation name the initiating owner as the only cash payer; other owners approve that exact effect without an automatic cash call. Only confirmed payer cash is reserved. Closing revalidates the live quote and all ownership rights, then composes the financial draft with spotlight advancement and any final-quarter settlement atomically. The initiator may cancel and release reservations; an owner may withdraw confirmation and release the associated hold even if the live quote has changed.
+
+A frozen refinance quote remains loadable if payer capacity changes. Live confirmation/closing rejects changed eligibility or pricing until the initiator revises the terms; snapshot validation still checks the frozen financial structure. Direct sole-owner actions and voluntary reserve funding retain their existing command paths.
+
 Packet 6 uses engine `0.0.11`, rules `0.0.9`, shared `0.0.13` and persistence `0.0.10`. Older snapshots continue to require a compatible build.

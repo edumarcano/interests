@@ -292,8 +292,78 @@ export interface BusinessLoanOfferView {
   readonly selected: boolean;
 }
 
+export type JointPropertyTerms =
+  | { readonly kind: "sale" }
+  | { readonly kind: "refinance"; readonly rateKind: "fixed" | "variable" }
+  | { readonly kind: "renovation" };
+export type JointPropertyQuote =
+  | {
+      readonly kind: "sale";
+      readonly salePriceCents: number;
+      readonly feeCents: number;
+      readonly payoffCents: number;
+      readonly netProceedsCents: number;
+      readonly proceedsByPlayer: Readonly<Record<string, number>>;
+    }
+  | {
+      readonly kind: "refinance";
+      readonly payerPlayerId: string;
+      readonly cashRequiredCents: number;
+      readonly feeCents: number;
+      readonly principalCents: number;
+      readonly rateKind: "fixed" | "variable";
+      readonly annualRateBps: number;
+      readonly quarterlyPaymentCents: number;
+      readonly assetReserveCents: number;
+      readonly firstDueQuarter: number;
+      readonly termQuarters: number;
+    }
+  | {
+      readonly kind: "renovation";
+      readonly payerPlayerId: string;
+      readonly cashRequiredCents: number;
+      readonly effectiveQuarter: number;
+      readonly rentIncreaseBps: number;
+      readonly occupancyIncreaseBps: number;
+      readonly valueIncreaseCents: number;
+    };
+export type JointPropertyCommand =
+  | {
+      readonly type: "OPEN_JOINT_PROPERTY";
+      readonly assetId: string;
+      readonly terms: JointPropertyTerms;
+    }
+  | {
+      readonly type: "REVISE_JOINT_PROPERTY";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly terms: JointPropertyTerms;
+    }
+  | {
+      readonly type:
+        | "CONFIRM_JOINT_PROPERTY"
+        | "WITHDRAW_JOINT_PROPERTY"
+        | "CLOSE_JOINT_PROPERTY"
+        | "CANCEL_JOINT_PROPERTY";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+    };
+export interface JointPropertyView {
+  readonly id: string;
+  readonly assetId: string;
+  readonly initiatorPlayerId: string;
+  readonly termsRevision: number;
+  readonly terms: JointPropertyTerms;
+  readonly quote: JointPropertyQuote;
+  readonly ownershipByPlayerPpm: Readonly<Record<string, number>>;
+  readonly participantIds: readonly string[];
+  readonly confirmedPlayerIds: readonly string[];
+  readonly yourCashRequiredCents: number;
+}
+
 export type PlayerCommand =
   | BusinessAuctionCommand
+  | JointPropertyCommand
   | BusinessCapitalCommand
   | PropertyCommand
   | ExpandBusinessCommandPayload
@@ -540,6 +610,8 @@ export interface MatchRoundView {
 }
 
 export interface MatchPlayerView {
+  readonly hasActiveTransaction?: boolean;
+  readonly jointProperty?: JointPropertyView | null;
   readonly result: MatchResultView | null;
   readonly matchId: MatchId;
   readonly modeId: string;

@@ -20,6 +20,14 @@ export function getReservedCashCents(
     return cents(0);
   }
   if (tx.kind === "business-auction") return reservedAuctionCash(tx, playerId);
+  if (tx.kind === "joint-property")
+    return cents(
+      tx.confirmedPlayerIds.includes(playerId) &&
+        tx.initiatorPlayerId === playerId &&
+        tx.quote.kind !== "sale"
+        ? tx.quote.cashRequiredCents
+        : 0,
+    );
   if (tx.kind === "business-capital") {
     const offers = cents(
       reservedBusinessLoanCash(tx, playerId) +

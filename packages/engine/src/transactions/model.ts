@@ -1,12 +1,15 @@
 import type {
   AssetId,
   BusinessCapitalTerms,
+  JointPropertyQuote,
+  JointPropertyTerms,
   PlayerId,
   TransactionId,
 } from "@interests/shared";
 
 import type { JournalEntry } from "../finance/journal";
 import type { BasisPoints, Cents } from "../finance/money";
+import type { OwnershipPpm } from "../finance/ownership";
 import type { GameState } from "../model/gameState";
 import type { SealedAuction } from "./sealedAuction";
 
@@ -79,7 +82,21 @@ export interface BusinessLoanOffer {
   readonly termQuarters: number;
 }
 
+export interface JointPropertyTransaction {
+  readonly id: TransactionId;
+  readonly kind: "joint-property";
+  readonly assetId: AssetId;
+  readonly initiatorPlayerId: PlayerId;
+  readonly createdQuarter: number;
+  readonly termsRevision: number;
+  readonly terms: JointPropertyTerms;
+  readonly quote: JointPropertyQuote;
+  readonly ownershipByPlayerPpm: Readonly<Record<PlayerId, OwnershipPpm>>;
+  readonly confirmedPlayerIds: readonly PlayerId[];
+}
+
 export type ActiveTransaction =
+  | JointPropertyTransaction
   | CashBusinessPurchaseTransaction
   | BusinessCapitalTransaction
   | BusinessAuctionTransaction;
@@ -118,6 +135,12 @@ export type TransactionErrorCode =
   | "AUCTION_SEAT_INELIGIBLE"
   | "AUCTION_ALREADY_RESPONDED"
   | "AUCTION_BID_TOO_LOW"
+  | "INVALID_PROPERTY_TERMS"
+  | "PROPERTY_QUOTE_CHANGED"
+  | "PROPERTY_OWNER_REQUIRED"
+  | "PROPERTY_CONFIRMATIONS_REQUIRED"
+  | "PROPERTY_ALREADY_CONFIRMED"
+  | "PROPERTY_NOT_CONFIRMED"
   | "INVALID_CAPITAL_CONSIDERATION"
   | "CAPITAL_PARTICIPANT_REQUIRED"
   | "CAPITAL_CONFIRMATIONS_REQUIRED"

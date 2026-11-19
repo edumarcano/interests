@@ -167,6 +167,7 @@ export const SpotlightView: React.FC<Props> = ({
 
       {/* Private Opportunity Card (Target Buyer, unpursued or investigating) */}
       {match.self.opportunity &&
+        !match.hasActiveTransaction &&
         !match.activeTransaction &&
         !match.businessCapital &&
         !match.businessAuction && (
@@ -288,7 +289,8 @@ export const SpotlightView: React.FC<Props> = ({
             >
               It's your spotlight!
             </p>
-            {!match.activeTransaction &&
+            {!match.hasActiveTransaction &&
+              !match.activeTransaction &&
               !match.businessCapital &&
               !match.businessAuction && (
                 <button

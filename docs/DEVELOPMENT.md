@@ -112,6 +112,12 @@ The operating model passed its local checkpoint at `c94aeb5`; objective-neutral 
 
 The user approved the shared-asset consent, sealed-auction, occupancy, operating-cost and objective safeguard defaults now recorded in GAME_DESIGN and ARCH-045. A stake seller can now open a public auction from the spotlight. Other seats submit one sealed bid or pass. The final response closes atomically, settles at the winning bid, posts the buyer and seller fees, releases losing reservations and advances the seller’s spotlight. A four-browser production journey tied at $1,200, hid both bids from the seller, carried the $1,224 reserves and acceptance order across restart, and transferred the stake only to the earlier bidder. All 856 tests, three capital browser scenarios, typecheck, lint and build passed. Balance, enjoyment and pacing remain to be assessed in M8.
 
+### Joint property checkpoint
+
+Joint property sale, refinance and renovation are implemented locally on `codex/m7-joint-property` from `67d1bb8`. Every current owner confirms the same frozen quote and terms revision. Sale cash/disposal evidence allocates pro rata; refinance/renovation debit only the explicitly named initiator. Private proposal views and the public `hasActiveTransaction` flag distinguish owner terms from generic transaction presence. The branch is unpushed and unmerged; shared protocol/version integration remains with packet 6.
+
+The standalone full suite passed 863 tests before the final frozen-capacity regression; all seven focused joint-property cases then passed. Local typechecks, lint and the production build passed. An explicitly synthetic four-browser journey at 320px confirmed two-owner sale rights, private visibility, an unfinished proposal across process restart and exact 60/40 cash proceeds. Ordinary setup does not yet create a jointly owned property, so this fixture establishes transaction behavior rather than ordinary joint-property acquisition reachability. Socket/SQLite/HTTP tests protect accepted receipt retries and private paired-state views. A final root integration run remains separate from these local results.
+
 ## M7 completion and M8 handoff
 
 M7 is complete only after production-command journeys demonstrate all eight legal objective routes without injected wealth or reduced thresholds, an ordinary four-client match reaches a valid winner, Q32 produces a durable draw when required, and privacy/retry/restart checks cover the new actions and terminal results. Finale boundary fixtures supplement those journeys rather than replace them.

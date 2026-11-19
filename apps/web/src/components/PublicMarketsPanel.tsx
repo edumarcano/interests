@@ -48,6 +48,7 @@ export function PublicMarketsPanel({
   const generation = useRef(0);
   const canTrade =
     !isPaused &&
+    !match.hasActiveTransaction &&
     !match.activeTransaction &&
     !match.businessCapital &&
     !match.businessAuction &&
