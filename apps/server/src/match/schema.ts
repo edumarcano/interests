@@ -114,17 +114,6 @@ export const ResignLaborPayloadSchema = z
   .object({ type: z.literal("RESIGN_LABOR") })
   .strict();
 
-export const PursueFinalePayloadSchema = z
-  .object({
-    type: z.literal("PURSUE_FINALE"),
-    action: z.discriminatedUnion("type", [
-      ResignLaborPayloadSchema,
-      AcceptCareerOfferPayloadSchema,
-      z.object({ type: z.literal("CONFIRM_INDEPENDENCE") }).strict(),
-    ]),
-  })
-  .strict();
-
 const transactionKey = z.string().min(1).max(128);
 const positiveCents = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const ownershipUnits = z.number().int().min(1).max(1_000_000);
@@ -277,15 +266,57 @@ const PropertyAcquisitionTermsSchema = z
 export const RecurringAcquisitionPreviewSchema = z
   .object({ opportunityId: z.string().min(1).max(128) })
   .strict();
+const SellRecurringBusinessPayloadSchema = z
+  .object({
+    type: z.literal("SELL_RECURRING_BUSINESS"),
+    opportunityId: z.string().min(1).max(64),
+    quoteId: z.string().min(1).max(1000),
+  })
+  .strict();
+
+const AcquireRecurringPayloadSchema = z
+  .object({
+    type: z.literal("ACQUIRE_RECURRING_OPPORTUNITY"),
+    opportunityId: z.string().min(1).max(128),
+    quoteId: z.string().min(1).max(1000),
+  })
+  .strict();
+
+const FundRecurringLoanPayloadSchema = z
+  .object({
+    type: z.literal("FUND_RECURRING_LOAN"),
+    opportunityId: z.string().min(1).max(128),
+  })
+  .strict();
+
+const ExpandBusinessPayloadSchema = z
+  .object({
+    type: z.literal("EXPAND_BUSINESS"),
+    assetId: z.string().min(1).max(128),
+    investmentCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    ownerContributionCents: positiveCents.optional(),
+  })
+  .strict();
+
+export const PursueFinalePayloadSchema = z
+  .object({
+    type: z.literal("PURSUE_FINALE"),
+    action: z.discriminatedUnion("type", [
+      ResignLaborPayloadSchema,
+      AcceptCareerOfferPayloadSchema,
+      TradePublicMarketsPayloadSchema,
+      SellRecurringBusinessPayloadSchema,
+      AcquireRecurringPayloadSchema,
+      FundRecurringLoanPayloadSchema,
+      ExpandBusinessPayloadSchema,
+      z.object({ type: z.literal("CONFIRM_INDEPENDENCE") }).strict(),
+    ]),
+  })
+  .strict();
+
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
   PursueFinalePayloadSchema,
-  z
-    .object({
-      type: z.literal("SELL_RECURRING_BUSINESS"),
-      opportunityId: z.string().min(1).max(64),
-      quoteId: z.string().min(1).max(1000),
-    })
-    .strict(),
+  SellRecurringBusinessPayloadSchema,
   z
     .object({
       type: z.literal("OPEN_PROPERTY_ACQUISITION"),
@@ -373,19 +404,8 @@ export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
       investorPlayerId: transactionKey,
     })
     .strict(),
-  z
-    .object({
-      type: z.literal("ACQUIRE_RECURRING_OPPORTUNITY"),
-      opportunityId: z.string().min(1).max(128),
-      quoteId: z.string().min(1).max(1000),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("FUND_RECURRING_LOAN"),
-      opportunityId: z.string().min(1).max(128),
-    })
-    .strict(),
+  AcquireRecurringPayloadSchema,
+  FundRecurringLoanPayloadSchema,
   z
     .object({
       type: z.literal("OPEN_BUSINESS_AUCTION"),
@@ -453,14 +473,7 @@ export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("CLOSE_BUSINESS_CAPITAL"), ...termsBinding })
     .strict(),
-  z
-    .object({
-      type: z.literal("EXPAND_BUSINESS"),
-      assetId: z.string().min(1).max(128),
-      investmentCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-      ownerContributionCents: positiveCents.optional(),
-    })
-    .strict(),
+  ExpandBusinessPayloadSchema,
   TradePublicMarketsPayloadSchema,
   AcceptCareerOfferPayloadSchema,
   ResignLaborPayloadSchema,

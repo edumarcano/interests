@@ -116,6 +116,11 @@ export interface PursueFinaleCommandPayload {
   readonly action:
     | ResignLaborCommandPayload
     | AcceptCareerOfferCommandPayload
+    | TradePublicMarketsCommandPayload
+    | ExpandBusinessCommandPayload
+    | AcquireRecurringCommand
+    | SellRecurringBusinessCommand
+    | FundRecurringLoanCommand
     | { readonly type: "CONFIRM_INDEPENDENCE" };
 }
 export interface CareerOfferView {

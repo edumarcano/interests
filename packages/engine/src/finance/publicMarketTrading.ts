@@ -9,6 +9,7 @@ import type {
   PublicMarketTradePreview,
 } from "@interests/shared";
 import type { ActionErrorCode, ActionResult } from "../game/actions";
+import type { EconomicActionFinalizer } from "../game/finalization";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "../game/round";
 import type { GameState } from "../model/gameState";
 import { getAvailableCashCents } from "../transactions/reservations";
@@ -168,10 +169,17 @@ export function previewPublicMarketTrade(
   }
 }
 
+export interface MarketTradeFacts {
+  readonly kind: "public-market-trade";
+  readonly purchasedCents: number;
+  readonly soldCents: number;
+}
+
 export function tradePublicMarketsAndAdvanceSpotlight(
   state: GameState,
   actorPlayerId: PlayerId,
   trades: readonly PublicMarketTradeLeg[],
+  finalize?: EconomicActionFinalizer<MarketTradeFacts>,
 ): ActionResult {
   const reject = (code: ActionErrorCode): ActionResult => ({
     ok: false,
@@ -341,6 +349,28 @@ export function tradePublicMarketsAndAdvanceSpotlight(
       },
     },
   };
+  if (finalize) {
+    const postedTotal = (reason: string) =>
+      cents(
+        journalEntries.reduce(
+          (sum, entry) =>
+            sum + (entry.reason === reason ? entry.amountCents : 0),
+          0,
+        ),
+      );
+    const finished = finalize({
+      before: state,
+      draft,
+      actorPlayerId,
+      journalEntries,
+      facts: {
+        kind: "public-market-trade",
+        purchasedCents: postedTotal("public-market-purchase"),
+        soldCents: postedTotal("public-market-sale"),
+      },
+    });
+    return finished.ok ? finished : reject(finished.code);
+  }
   const advanced = advanceSpotlight(draft, actorPlayerId);
   if (!advanced.ok) return reject(advanced.code);
   return {
