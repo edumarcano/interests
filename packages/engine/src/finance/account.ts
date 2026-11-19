@@ -1,6 +1,7 @@
 import type { AssetId, PlayerId } from "@interests/shared";
 
 export const EXTERNAL_ACCOUNTS = [
+  "npc-borrower",
   "employer",
   "bank",
   "market",

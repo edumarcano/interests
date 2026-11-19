@@ -1,7 +1,7 @@
 import { asLoanId, asPlayerId, type PlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
 import { stageOpeningFixture } from "../../test/openingFixture";
-import { createGame } from "../game/createGame";
+import { createQ1BusinessDiagnosticGame } from "../game/createGame";
 import { applyPlayerCommand } from "../game/playerCommand";
 import { getActiveSpotlightPlayerId } from "../game/round";
 import { assertGameState } from "../invariants/assertGameState";
@@ -22,7 +22,7 @@ const owner = players[0]!;
 function fixture(
   options: { profit?: number; cash?: number; starting?: boolean } = {},
 ) {
-  let state = createGame({
+  let state = createQ1BusinessDiagnosticGame({
     gameId: "business-bank-servicing",
     seed: "business-bank-servicing",
     playerIds: players,
@@ -42,8 +42,10 @@ function fixture(
         (options.starting ? "starting-company-v1" : "retained-profit-v1"),
   );
   if (!original) throw new Error("Missing synthetic base company");
+  // Fixed synthetic bank-servicing calibration, separate from operating dynamics.
+  const { operatingModel: _operatingModel, ...fixedOriginal } = original;
   const asset: BusinessAsset = {
-    ...original,
+    ...fixedOriginal,
     annualOperatingProfitCents: cents(options.profit ?? 4_000_000),
     cashCents: cents(options.cash ?? 187_959),
     ...(options.starting

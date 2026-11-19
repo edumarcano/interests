@@ -1,5 +1,6 @@
 import {
   BUSINESS_CASH_POLICIES,
+  COMPLETION_ECONOMY_TARGETS,
   OBJECTIVE_COMMON_INSTRUCTIONS,
   OBJECTIVE_INSTRUCTIONS,
   OBJECTIVE_INSTRUCTIONS_VERSION,
@@ -14,12 +15,15 @@ import type {
   BusinessEquityInvitationView,
   BusinessLoanInvitationView,
   JointPropertyView,
+  MatchEconomicConditionsView,
   MatchId,
   MatchResultView,
   MatchSelfFinancialDetailsView,
   PlayerId,
+  PropertyAcquisitionView,
   PropertyManagementView,
   PropertyOfferView,
+  RecurringOpportunityView,
   SelfSettlementView,
   TransactionId,
 } from "@interests/shared";
@@ -27,10 +31,12 @@ import { calculatePlayerLoanSchedule } from "../finance/amortization";
 import { isAssetBorrower } from "../finance/bank";
 import { calculateBusinessEquity } from "../finance/business";
 import { planBusinessSettlement } from "../finance/businessSettlement";
+import { isLenderLoan, isPersonalBorrower } from "../finance/loanParties";
 import { calculateLoanObligation } from "../finance/obligations";
 import { calculatePropertyCashFlow } from "../finance/property";
 import { propertyManagement, propertyOffers } from "../finance/propertyActions";
 import type { GameState } from "../model/gameState.js";
+import { projectRecurringOpportunity } from "../opportunities/recurring";
 import { projectBusinessAuction } from "../transactions/businessAuctionTerms";
 import { planBusinessCapital } from "../transactions/businessCapitalTerms";
 import {
@@ -103,7 +109,8 @@ export interface PureLoanView {
   readonly id: string;
   readonly kind: string;
   readonly role: "borrower" | "lender" | "company-borrower" | "asset-borrower";
-  readonly counterpartyPlayerId: PlayerId | "bank";
+  readonly counterpartyPlayerId: PlayerId | "bank" | null;
+  readonly npcBorrowerName?: string;
   readonly originalPrincipalCents: number;
   readonly outstandingPrincipalCents: number;
   readonly annualRateBps: number;
@@ -114,6 +121,7 @@ export interface PureLoanView {
 export interface PureSelfView {
   readonly propertyOffers: readonly PropertyOfferView[];
   readonly propertyManagement: readonly PropertyManagementView[];
+  readonly recurringOpportunity: RecurringOpportunityView | null;
   readonly financialDetails: MatchSelfFinancialDetailsView;
   readonly livingExpenseArrearsCents: number;
   readonly lastSettlement: SelfSettlementView | null;
@@ -171,6 +179,8 @@ export interface PureRoundView {
 export interface PurePlayerProjection {
   readonly hasActiveTransaction: boolean;
   readonly jointProperty: JointPropertyView | null;
+  readonly propertyAcquisition: PropertyAcquisitionView | null;
+  readonly economicConditions: MatchEconomicConditionsView;
   readonly result: MatchResultView | null;
   readonly matchId: MatchId;
   readonly modeId: string;
@@ -354,9 +364,8 @@ export function projectPlayerGameState(
         playerId
       ] ?? 0) > 0;
     const borrower =
-      !isAssetBorrower(loan) && loan.borrowerPlayerId === playerId;
-    const lender =
-      loan.kind === "player-loan" && loan.lenderPlayerId === playerId;
+      isPersonalBorrower(loan) && loan.borrowerPlayerId === playerId;
+    const lender = isLenderLoan(loan) && loan.lenderPlayerId === playerId;
     if (!borrower && !lender && !company) continue;
     const repaid =
       loan.outstandingPrincipalCents === 0 && loan.unpaidInterestCents === 0;
@@ -375,11 +384,16 @@ export function projectPlayerGameState(
           ? borrower
             ? loan.lenderPlayerId
             : loan.borrowerPlayerId
-          : "bank",
+          : loan.kind === "npc-loan"
+            ? null
+            : "bank",
+      ...(loan.kind === "npc-loan"
+        ? { npcBorrowerName: loan.borrowerName }
+        : {}),
       originalPrincipalCents: loan.originalPrincipalCents,
       outstandingPrincipalCents: loan.outstandingPrincipalCents,
       annualRateBps: loan.annualRateBps,
-      ...(loan.kind === "player-loan"
+      ...(isLenderLoan(loan)
         ? {
             termQuarters: loan.termQuarters,
             scheduledQuarterlyPaymentCents: calculatePlayerLoanSchedule({
@@ -479,6 +493,7 @@ export function projectPlayerGameState(
   const self: PureSelfView = {
     propertyOffers: offers,
     propertyManagement: management,
+    recurringOpportunity: projectRecurringOpportunity(state, playerId),
     financialDetails: {
       formerWorkClaims: Object.values(state.finance.assetsById).flatMap(
         (asset) =>
@@ -672,6 +687,44 @@ export function projectPlayerGameState(
         }
       : null;
 
+  let propertyAcquisition: PropertyAcquisitionView | null = null;
+  const acquisition = state.activeTransaction;
+  if (
+    acquisition?.kind === "property-acquisition" &&
+    acquisition.terms.buyers.some((buyer) => buyer.playerId === playerId)
+  ) {
+    const quote = acquisition.quote;
+    propertyAcquisition = {
+      id: acquisition.id,
+      leadPlayerId: acquisition.leadPlayerId,
+      termsRevision: acquisition.termsRevision,
+      terms: {
+        catalogueId: acquisition.terms.catalogueId,
+        principalCents: acquisition.terms.principalCents,
+        rateKind: acquisition.terms.rateKind,
+        buyers: acquisition.terms.buyers.map((buyer) => ({
+          playerId: buyer.playerId,
+          cashContributionCents: buyer.cashContributionCents,
+          ownershipPpm: buyer.ownershipPpm,
+        })),
+      },
+      quote: {
+        askingPriceCents: quote.askingPriceCents,
+        feeCents: quote.feeCents,
+        cashRequiredCents: quote.cashRequiredCents,
+        principalCents: quote.principalCents,
+        rateKind: quote.rateKind,
+        annualRateBps: quote.annualRateBps,
+        quarterlyPaymentCents: quote.quarterlyPaymentCents,
+        assetReserveCents: quote.assetReserveCents,
+        firstDueQuarter: quote.firstDueQuarter,
+        termQuarters: quote.termQuarters,
+      },
+      confirmedPlayerIds: acquisition.confirmedPlayerIds.filter((id) =>
+        acquisition.terms.buyers.some((buyer) => buyer.playerId === id),
+      ),
+    };
+  }
   let jointProperty: JointPropertyView | null = null;
   const joint = state.activeTransaction;
   if (joint?.kind === "joint-property") {
@@ -831,6 +884,15 @@ export function projectPlayerGameState(
   return {
     hasActiveTransaction: state.activeTransaction !== null,
     jointProperty,
+    propertyAcquisition,
+    economicConditions: {
+      baseRateBps: state.economy.baseRateBps,
+      annualInflationBps:
+        COMPLETION_ECONOMY_TARGETS[state.economy.currentRegime]
+          .annualInflationBps,
+      creditEnvironment:
+        COMPLETION_ECONOMY_TARGETS[state.economy.currentRegime].credit,
+    },
     result: state.result
       ? state.result.kind === "objective-victory"
         ? {

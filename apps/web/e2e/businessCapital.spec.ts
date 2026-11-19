@@ -1,5 +1,6 @@
 import type { MatchPlayerView } from "@interests/shared";
 import { expect, type Page, test } from "@playwright/test";
+import { acquireOrdinaryOpportunity } from "./support/ordinaryAcquisition";
 import { startTestServer } from "./support/serverHarness";
 
 for (const mode of ["cash", "financed", "auction", "equity"] as const) {
@@ -13,7 +14,7 @@ for (const mode of ["cash", "financed", "auction", "equity"] as const) {
           ? "a sealed stake auction hides bid amounts and settles a tie after restart"
           : "a private stake sale survives process restart and closes at the confirmed price",
     async ({ browser }) => {
-      test.setTimeout(90_000);
+      test.setTimeout(180_000);
       const server = await startTestServer();
       const contexts = await Promise.all(
         Array.from({ length: 4 }, () =>
@@ -57,9 +58,42 @@ for (const mode of ["cash", "financed", "auction", "equity"] as const) {
           expect(response.ok()).toBe(true);
           return (await response.json()).match;
         }
-        const clients = await Promise.all(
+        let clients = await Promise.all(
           pages.map(async (page) => ({ page, view: await view(page) })),
         );
+        if (
+          !clients.some((client) =>
+            client.view.self.ownedAssets?.some(
+              (asset) => asset.ownershipPpm === 1_000_000,
+            ),
+          )
+        ) {
+          await acquireOrdinaryOpportunity(
+            pages,
+            server.origin,
+            code!,
+            "business",
+            "bank-fixed",
+            false,
+          );
+          // Reach preparation before exercising the separate capital action.
+          for (;;) {
+            const current = await view(host);
+            if (current.round?.stage === "round-start") break;
+            const active = clients.find(
+              (client) =>
+                client.view.self.playerId ===
+                current.round!.activeSpotlightPlayerId,
+            )!;
+            await active.page.getByTestId("pass-spotlight-btn").click();
+            await expect
+              .poll(async () => (await view(host)).revision)
+              .toBe(current.revision + 1);
+          }
+          clients = await Promise.all(
+            pages.map(async (page) => ({ page, view: await view(page) })),
+          );
+        }
         const seller = clients.find((client) =>
           client.view.self.ownedAssets?.some(
             (asset) => asset.ownershipPpm === 1_000_000,

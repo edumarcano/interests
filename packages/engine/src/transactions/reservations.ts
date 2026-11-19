@@ -20,6 +20,13 @@ export function getReservedCashCents(
     return cents(0);
   }
   if (tx.kind === "business-auction") return reservedAuctionCash(tx, playerId);
+  if (tx.kind === "property-acquisition")
+    return cents(
+      tx.confirmedPlayerIds.includes(playerId)
+        ? (tx.terms.buyers.find((buyer) => buyer.playerId === playerId)
+            ?.cashContributionCents ?? 0)
+        : 0,
+    );
   if (tx.kind === "joint-property")
     return cents(
       tx.confirmedPlayerIds.includes(playerId) &&

@@ -137,7 +137,7 @@ describe("financial acceptance scenarios", () => {
 
   it("continues the original financed purchase with actual work pay and separate loan receipts", () => {
     const result = runFinanceScenario("financed-acquisition");
-    expect(result.initialization).toBe("player-journey");
+    expect(result.initialization).toBe("q1-business-diagnostic");
     expect(
       result.checkpoints.every((c) => c.finance.missedLoanPayments === 0),
     ).toBe(true);
@@ -160,7 +160,7 @@ describe("financial acceptance scenarios", () => {
     const living = runFinanceScenario("living-shortfall");
     expect(
       living.checkpoints.map((c) => c.finance.balances.livingArrearsCents),
-    ).toEqual([1_000, 2_000, 3_000, 4_000]);
+    ).toEqual([1_000, 2_006, 3_023, 4_051]);
     expect(Object.keys(living.finalState.finance.loansById)).toHaveLength(0);
     const cyclic = runFinanceScenario("cyclic-loans");
     expect(cyclic.checkpoints.map((c) => c.finance.missedLoanPayments)).toEqual(

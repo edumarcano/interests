@@ -24,11 +24,11 @@ async function assertNoHorizontalOverflow(page: Page, stageName: string) {
   ).toBeLessThanOrEqual(overflow.docWidth);
 }
 
-test.describe("Four-client financial acceptance", () => {
+test.describe("Named Q1 diagnostic financial acceptance", () => {
   let server: TestServerHarness;
 
   test.beforeAll(async () => {
-    server = await startTestServer();
+    server = await startTestServer({ setupScenario: "q1-business-diagnostic" });
   });
 
   test.afterAll(async () => {
@@ -704,7 +704,7 @@ test.describe("Four-client financial acceptance", () => {
     }
   }
   for (const diagnosticDistress of [false, true]) {
-    test(`financed purchase through Q5, reload and restart: ${diagnosticDistress ? "synthetic distress" : "ordinary journey"}`, async ({
+    test(`financed purchase through Q5, reload and restart: ${diagnosticDistress ? "synthetic distress" : "ordinary resources"}`, async ({
       browser,
     }) => {
       await runJourney(browser, diagnosticDistress);

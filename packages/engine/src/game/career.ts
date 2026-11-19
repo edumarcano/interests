@@ -1,11 +1,13 @@
 import {
   CAREER_REENTRY_ANNUAL_CENTS,
   CAREER_TEMPLATES,
+  EXECUTIVE_COMPANY_OPERATING_CALIBRATION,
   EXECUTIVE_COMPANY_TERMS,
   TRANSACTION_FEES_BPS,
 } from "@interests/rules";
 import type { AssetId, CareerOfferView, PlayerId } from "@interests/shared";
 import { externalCashAccount, playerCashAccount } from "../finance/account";
+import { createManagedBusinessOperatingModel } from "../finance/businessPerformance";
 import { FinanceDecimal } from "../finance/decimal";
 import { cents } from "../finance/money";
 import { ownershipPpm } from "../finance/ownership";
@@ -194,6 +196,11 @@ export function applyCareerCommand(
           id: generated.id,
           kind: "business",
           cashPolicyId: "retained-profit-v1",
+          operatingModel: createManagedBusinessOperatingModel({
+            ...EXECUTIVE_COMPANY_TERMS,
+            ...EXECUTIVE_COMPANY_OPERATING_CALIBRATION,
+            firstOperatingQuarter: state.currentQuarter + 1,
+          }),
           cashCents: cents(0),
           operatingArrearsCents: cents(0),
           annualRevenueCents: cents(EXECUTIVE_COMPANY_TERMS.annualRevenueCents),

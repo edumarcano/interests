@@ -335,7 +335,9 @@ describe("quarter settlement foundation", () => {
     expect(result.state.counters.journal).toBe(initialCounters.journal + 2);
     expect(result.state.counters.asset).toBe(initialCounters.asset);
     expect(result.state.counters.loan).toBe(initialCounters.loan);
-    expect(result.state.counters.opportunity).toBe(initialCounters.opportunity);
+    expect(result.state.counters.opportunity).toBe(
+      initialCounters.opportunity + state.playerOrder.length,
+    );
     expect(result.state.counters.contract).toBe(initialCounters.contract);
 
     // 5. Loan state unchanged (regression check)
@@ -354,9 +356,12 @@ describe("quarter settlement foundation", () => {
     const bizAfter = result.state.finance.assetsById[business.id];
     expect(bizAfter).toEqual(business);
 
-    // 7. Property state unchanged
+    // 7. Earned Q1 rent is unchanged; Q2 scheduled rent includes inflation.
     const propAfter = result.state.finance.assetsById[property.id];
-    expect(propAfter).toEqual(property);
+    expect(propAfter).toEqual({
+      ...property,
+      scheduledQuarterlyRentCents: 301_875,
+    });
 
     // 8. Quarter state advances
     expect(result.state.lastSettledQuarter).toBe(1);

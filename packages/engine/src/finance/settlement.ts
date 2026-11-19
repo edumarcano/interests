@@ -1,5 +1,6 @@
 import {
   calculateCashYieldBps,
+  OBJECTIVE_MEASUREMENT_RULES,
   OPERATING_RULES,
   PUBLIC_MARKET_INSTRUMENT_IDS,
   PUBLIC_MARKET_INSTRUMENTS,
@@ -17,6 +18,7 @@ import type {
   Loan,
   PublicMarketPortfolio,
 } from "../model/gameState";
+import { generateRecurringContent } from "../opportunities/recurring";
 import {
   type CashAccount,
   externalCashAccount,
@@ -33,6 +35,7 @@ import {
 import { FinanceDecimal } from "./decimal";
 import { generateQuarterMarketUpdate } from "./economy";
 import type { JournalEntry } from "./journal";
+import { isPersonalBorrower } from "./loanParties";
 import {
   calculateQuarterlyYieldCents,
   revaluePublicMarketPortfolio,
@@ -46,6 +49,7 @@ import {
   type LoanPaymentOutcome,
   type SettlementOutcome,
 } from "./obligations";
+import { planQuarterOperatingUpdate } from "./operatingEconomy";
 import { allocateProportionalCents } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
 import {
@@ -70,7 +74,8 @@ export type SettleQuarterErrorCode =
   | "MARKET_VALUE_OVERFLOW"
   | "OBLIGATION_OVERFLOW"
   | "JOURNAL_ID_EXHAUSTED"
-  | "SETTLEMENT_ID_EXHAUSTED";
+  | "SETTLEMENT_ID_EXHAUSTED"
+  | "OPPORTUNITY_ID_EXHAUSTED";
 export type SettleQuarterResult =
   | {
       readonly ok: true;
@@ -326,7 +331,7 @@ export function applyQuarterSettlement(
         if (
           due &&
           candidate &&
-          !isAssetBorrower(candidate) &&
+          isPersonalBorrower(candidate) &&
           candidate.borrowerPlayerId === playerId
         ) {
           weights[loanId] = due.amountDueCents;
@@ -341,7 +346,7 @@ export function applyQuarterSettlement(
     for (const loanId of loanIds) {
       const due = obligations[loanId];
       const loan = loansById[loanId];
-      if (!due || !loan || isAssetBorrower(loan)) continue;
+      if (!due || !loan || !isPersonalBorrower(loan)) continue;
       const applied = applyLoanPaymentAllocation(
         loan,
         due,
@@ -368,6 +373,35 @@ export function applyQuarterSettlement(
         ...(loan.kind === "legacy-bank-loan" && loan.relatedAssetId
           ? { relatedAssetId: loan.relatedAssetId }
           : {}),
+        loanPayment: {
+          principalCents: applied.outcome.principalPaidCents,
+          interestCents: applied.outcome.interestPaidCents,
+        },
+      });
+    }
+    // Market borrower receipts are posted only after personal budgets are fixed.
+    for (const loanId of loanIds) {
+      const loan = loansById[loanId];
+      const due = obligations[loanId];
+      if (loan?.kind !== "npc-loan" || !due) continue;
+      const applied = applyLoanPaymentAllocation(
+        loan,
+        due,
+        cents(
+          Math.min(due.amountDueCents, loan.quarterlyRepaymentCapacityCents),
+        ),
+        quarter,
+      );
+      loansById[loanId] = applied.loan;
+      loanPayments.push(applied.outcome);
+      planPosting({
+        source: externalCashAccount("npc-borrower"),
+        destination: playerCashAccount(loan.lenderPlayerId),
+        amountCents: applied.outcome.paidCents,
+        reason: "npc-loan-payment",
+        quarter,
+        relatedLoanId: loanId,
+        relatedTransactionId: loan.fundedTransactionId,
         loanPayment: {
           principalCents: applied.outcome.principalPaidCents,
           interestCents: applied.outcome.interestPaidCents,
@@ -446,16 +480,54 @@ export function applyQuarterSettlement(
         },
       };
     }
+    for (const asset of Object.values(assetsById)) {
+      if (
+        asset.kind !== "business" ||
+        asset.pendingAnnualProfitIncreaseCents === undefined
+      )
+        continue;
+      const { pendingAnnualProfitIncreaseCents, ...business } = asset;
+      assetsById = {
+        ...assetsById,
+        [business.id]: {
+          ...business,
+          ...(business.operatingModel
+            ? {
+                operatingModel: {
+                  ...business.operatingModel,
+                  annualProfitAdjustmentCents: cents(
+                    business.operatingModel.annualProfitAdjustmentCents +
+                      pendingAnnualProfitIncreaseCents,
+                  ),
+                },
+              }
+            : {}),
+          annualOperatingProfitCents: cents(
+            business.annualOperatingProfitCents +
+              pendingAnnualProfitIncreaseCents,
+          ),
+        },
+      };
+    }
+    const operating = planQuarterOperatingUpdate(
+      state,
+      assetsById,
+      marketUpdate.nextRegime,
+      businesses,
+    );
+    assetsById = operating.assetsById;
+    const nextRecurring = operating.recurringByPlayer;
     for (const loan of Object.values(loansById))
       if (loan.kind === "asset-bank-loan")
         loansById[loan.id] = resetVariableAssetLoan(
           loan,
-          state.economy.baseRateBps,
+          operating.nextBaseRateBps,
           quarter + 1,
         );
     for (const asset of Object.values(assetsById)) {
       if (
         asset.kind !== "property" ||
+        asset.disposition === "sold" ||
         !asset.renovationPending ||
         asset.renovationPending.effectiveQuarter !== quarter + 1
       )
@@ -489,25 +561,8 @@ export function applyQuarterSettlement(
         },
       };
     }
-    for (const asset of Object.values(assetsById)) {
-      if (
-        asset.kind !== "business" ||
-        asset.pendingAnnualProfitIncreaseCents === undefined
-      )
-        continue;
-      const { pendingAnnualProfitIncreaseCents, ...business } = asset;
-      assetsById = {
-        ...assetsById,
-        [business.id]: {
-          ...business,
-          annualOperatingProfitCents: cents(
-            business.annualOperatingProfitCents +
-              pendingAnnualProfitIncreaseCents,
-          ),
-        },
-      };
-    }
-    const nextState: GameState = {
+
+    const operatingState: GameState = {
       ...state,
       progress: recordQuarterObservations(
         state,
@@ -520,13 +575,14 @@ export function applyQuarterSettlement(
         ...finance,
         loansById,
         assetsById,
+        recurringByPlayer: nextRecurring,
         livingArrearsByPlayer,
         lastSettlement: settlementOutcome,
         publicMarketsByPlayer: revaluedMarketsByPlayer,
         quarterStartBasis: {
           businessesById: captureBusinessBasis(assetsById),
           propertiesById: capturePropertyBasis(assetsById),
-          recurringByPlayer: captureRecurringBasis(finance.recurringByPlayer),
+          recurringByPlayer: captureRecurringBasis(nextRecurring),
           quarter: quarter + 1,
           cashByPlayer: { ...finance.cashByPlayer },
           publicMarketsByPlayer: { ...revaluedMarketsByPlayer },
@@ -534,7 +590,8 @@ export function applyQuarterSettlement(
       },
       economy: {
         currentRegime: marketUpdate.nextRegime,
-        baseRateBps: state.economy.baseRateBps,
+        baseRateBps: basisPoints(operating.nextBaseRateBps),
+        operatingRandom: operating.nextOperatingRandom,
         lastMarketUpdate: {
           quarter,
           regimeUsed: marketUpdate.regimeUsed,
@@ -547,6 +604,15 @@ export function applyQuarterSettlement(
         ? { stage: "round-start", spotlightsCompleted: 0 }
         : null,
     };
+    if (
+      operatingState.content.scenario === "standard-v1" &&
+      operatingState.currentQuarter <=
+        OBJECTIVE_MEASUREMENT_RULES.safetyDrawQuarter &&
+      operatingState.counters.opportunity >
+        Number.MAX_SAFE_INTEGER - operatingState.playerOrder.length
+    )
+      throw new SettlementPlanningError("OPPORTUNITY_ID_EXHAUSTED");
+    const nextState = generateRecurringContent(operatingState);
     assertGameState(nextState);
     return {
       ok: true,

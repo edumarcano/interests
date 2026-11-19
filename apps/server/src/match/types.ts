@@ -34,6 +34,7 @@ export interface MatchMemberRecord {
 }
 
 export interface MatchInitializationManifest {
+  readonly setupScenario?: "standard-v1" | "q1-business-diagnostic";
   readonly gameId: string;
   readonly modeId: string;
   readonly seed: string;

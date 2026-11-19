@@ -11,6 +11,7 @@ import {
 } from "./amortization";
 import type { BusinessSettlementOutcome } from "./businessSettlement";
 import { FinanceDecimal } from "./decimal";
+import { isLenderLoan, isPersonalBorrower } from "./loanParties";
 import { type Cents, cents } from "./money";
 
 export interface LoanPaymentAccounting {
@@ -64,7 +65,7 @@ export function calculateLoanObligation(
     quarter <= loan.lastProcessedQuarter ||
     ((loan.kind === "company-loan" || loan.kind === "asset-bank-loan") &&
       quarter < loan.firstDueQuarter) ||
-    (loan.kind === "player-loan" && quarter <= loan.originatedQuarter) ||
+    (isLenderLoan(loan) && quarter <= loan.originatedQuarter) ||
     (loan.outstandingPrincipalCents === 0 && loan.unpaidInterestCents === 0)
   ) {
     return null;
@@ -82,7 +83,7 @@ export function calculateLoanObligation(
   const interestDueCents = cents(loan.unpaidInterestCents + currentInterest);
   let regularPayment: number;
   let matured = false;
-  if (loan.kind === "player-loan") {
+  if (isLenderLoan(loan)) {
     const schedule = calculatePlayerLoanSchedule({
       principalCents: loan.originalPrincipalCents,
       annualRateBps: loan.annualRateBps,
@@ -142,39 +143,49 @@ export function applyLoanPaymentAllocation(
     unpaidInterestCents: cents(obligation.interestDueCents - interestPaidCents),
     lastProcessedQuarter: quarter,
   };
-  const updated: Loan =
-    loan.kind === "player-loan"
-      ? {
-          ...loan,
-          ...accounting,
-          outstandingPrincipalCents: cents(
-            loan.outstandingPrincipalCents - principalPaidCents,
-          ),
-          installmentsProcessed: Math.min(
-            loan.termQuarters,
-            quarter - loan.originatedQuarter,
-          ),
-        }
-      : {
-          ...loan,
-          ...accounting,
-          outstandingPrincipalCents: cents(
-            loan.outstandingPrincipalCents - principalPaidCents,
-          ),
-          periodsProcessed: loan.periodsProcessed + 1,
-        };
+  const updated: Loan = isLenderLoan(loan)
+    ? {
+        ...loan,
+        ...accounting,
+        outstandingPrincipalCents: cents(
+          loan.outstandingPrincipalCents - principalPaidCents,
+        ),
+        installmentsProcessed: Math.min(
+          loan.termQuarters,
+          quarter - loan.originatedQuarter,
+        ),
+        ...(loan.kind === "npc-loan" && interestPaidCents > 0
+          ? {
+              interestReceipts: [
+                ...loan.interestReceipts,
+                {
+                  quarter,
+                  receivedCents: interestPaidCents,
+                  currentEarnedCents: cents(
+                    Math.max(0, interestPaidCents - loan.unpaidInterestCents),
+                  ),
+                },
+              ],
+            }
+          : {}),
+      }
+    : {
+        ...loan,
+        ...accounting,
+        outstandingPrincipalCents: cents(
+          loan.outstandingPrincipalCents - principalPaidCents,
+        ),
+        periodsProcessed: loan.periodsProcessed + 1,
+      };
   return {
     loan: updated,
     outcome: {
       loanId: loan.id,
-      borrowerPlayerId:
-        loan.kind === "company-loan" || loan.kind === "asset-bank-loan"
-          ? null
-          : loan.borrowerPlayerId,
+      borrowerPlayerId: isPersonalBorrower(loan) ? loan.borrowerPlayerId : null,
       ...(loan.kind === "company-loan" || loan.kind === "asset-bank-loan"
         ? { borrowerAssetId: loan.borrowerAssetId }
         : {}),
-      lenderPlayerId: loan.kind === "player-loan" ? loan.lenderPlayerId : null,
+      lenderPlayerId: isLenderLoan(loan) ? loan.lenderPlayerId : null,
       dueCents: obligation.amountDueCents,
       paidCents,
       principalPaidCents,

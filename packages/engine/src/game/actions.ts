@@ -19,6 +19,7 @@ export interface ChooseObjectiveAction {
 export type GameAction = ChooseObjectiveAction;
 
 export type ActionErrorCode =
+  | "NPC_BORROWER_UNAVAILABLE"
   | "INVALID_EXPANSION"
   | "BUSINESS_EXPANSION_REQUIRES_CONSENT"
   | "INVALID_MARKET_TRADE"
@@ -47,6 +48,7 @@ export type ActionErrorCode =
   | "OBLIGATION_OVERFLOW"
   | "JOURNAL_ID_EXHAUSTED"
   | "SETTLEMENT_ID_EXHAUSTED"
+  | "OPPORTUNITY_ID_EXHAUSTED"
   | TransactionErrorCode
   | InvestigateOpportunityErrorCode
   | PursueOpportunityErrorCode;

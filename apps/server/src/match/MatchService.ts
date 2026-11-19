@@ -3,6 +3,7 @@ import {
   applyPlayerCommand,
   createGame,
   type GameState,
+  getRecurringAcquisitionQuotes,
   previewPublicMarketTrade,
 } from "@interests/engine";
 import {
@@ -13,6 +14,7 @@ import {
   type PlayerId,
   type PublicMarketTradeLeg,
   type PublicMarketTradePreview,
+  type RecurringAcquisitionQuote,
   type RoomMemberId,
 } from "@interests/shared";
 import type { Socket } from "socket.io";
@@ -38,6 +40,9 @@ export class MatchService {
     private readonly matchRepository: MatchRepository,
     private readonly lobbyRepository: LobbyRepository,
     private coordinator?: RoomConnectionCoordinator,
+    private readonly setupScenario:
+      | "standard-v1"
+      | "q1-business-diagnostic" = "standard-v1",
   ) {}
 
   setCoordinator(coordinator: RoomConnectionCoordinator): void {
@@ -162,11 +167,13 @@ export class MatchService {
       // Pure engine setup
       const initialGameState = createGame({
         gameId: matchId,
+        setupScenario: this.setupScenario,
         seed,
         playerIds,
       });
 
       const initializationManifest: MatchInitializationManifest = {
+        setupScenario: this.setupScenario,
         gameId: matchId,
         modeId: "standard-v1",
         seed,
@@ -288,6 +295,29 @@ export class MatchService {
       matchMembers: matchWithMembers.members,
       hostMemberId: roomInfo.room.hostMemberId,
     });
+  }
+
+  previewRecurringAcquisition(params: {
+    roomCode: string;
+    sessionToken: string;
+    opportunityId: string;
+  }): readonly RecurringAcquisitionQuote[] {
+    const recipient = this.getMatchView(params).self.playerId;
+    const match = this.matchRepository.findMatchByRoomCode(params.roomCode);
+    if (!match)
+      throw new MatchError("NO_ACTIVE_MATCH", "No active match found", 404);
+    const room = this.matchRepository.findRoomWithMembers(params.roomCode);
+    if (!room) throw new MatchError("ROOM_NOT_FOUND", "Room not found", 404);
+    const state = this.validatePersistedMatchOrFault(
+      params.roomCode,
+      match,
+      room.members,
+    );
+    return getRecurringAcquisitionQuotes(
+      state,
+      recipient,
+      params.opportunityId,
+    );
   }
 
   previewPublicMarkets(params: {

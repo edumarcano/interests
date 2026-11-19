@@ -1,3 +1,4 @@
+import { isLenderLoan, isPersonalBorrower } from "../finance/loanParties";
 import { isNonNegativeCents } from "../finance/money";
 import type { GameState } from "../model/gameState";
 
@@ -49,7 +50,7 @@ export function assertSettlementState(state: GameState): void {
       );
     }
     if (
-      loan.kind === "player-loan" &&
+      isLenderLoan(loan) &&
       loan.installmentsProcessed > 0 &&
       loan.installmentsProcessed !==
         Math.min(
@@ -108,15 +109,13 @@ export function assertSettlementState(state: GameState): void {
       !loan ||
       seen.has(payment.loanId) ||
       payment.borrowerPlayerId !==
-        (loan.kind === "company-loan" || loan.kind === "asset-bank-loan"
-          ? null
-          : loan.borrowerPlayerId) ||
+        (isPersonalBorrower(loan) ? loan.borrowerPlayerId : null) ||
       payment.borrowerAssetId !==
         (loan.kind === "company-loan" || loan.kind === "asset-bank-loan"
           ? loan.borrowerAssetId
           : undefined) ||
       payment.lenderPlayerId !==
-        (loan.kind === "player-loan" ? loan.lenderPlayerId : null)
+        (isLenderLoan(loan) ? loan.lenderPlayerId : null)
     ) {
       throw new Error("Game invariant failed: invalid loan outcome parties");
     }
@@ -139,6 +138,18 @@ export function assertSettlementState(state: GameState): void {
           payment.closingUnpaidInterestCents
     ) {
       throw new Error("Game invariant failed: loan outcome does not reconcile");
+    }
+    if (loan.kind === "npc-loan") {
+      const row = loan.interestReceipts.find(
+        (item) => item.quarter === outcome.quarter,
+      );
+      if (
+        loan.quarterlyRepaymentCapacityCents < payment.paidCents ||
+        (row?.receivedCents ?? 0) !== payment.interestPaidCents
+      )
+        throw new Error(
+          "Game invariant failed: non-player loan receipt does not reconcile",
+        );
     }
   }
 }

@@ -35,14 +35,14 @@ This command runs six fixed-seed scenarios through `applyPlayerCommand`, includi
 
 | Scenario | Initialization and purpose |
 | --- | --- |
-| `financed-acquisition` | Unmodified `m7-planning-1` setup; Q1 purchase with $30,000 buyer cash and a $20,000 player loan, 10% APR, three quarters. The unified starting income makes this purchase affordable. |
-| `living-shortfall` | Synthetic zero-resource accounts, no loans, $10 quarterly living costs for one player; records $40 unpaid by Q4. |
+| `financed-acquisition` | Explicit `q1-business-diagnostic` setup with seed `m7-planning-1`; Q1 purchase with $30,000 buyer cash and a $20,000 player loan, 10% APR, three quarters. The unified starting income makes this purchase affordable. |
+| `living-shortfall` | Synthetic zero-resource accounts, no loans, $10 Q1 living costs for one player, indexed by the ordinary inflation path; records $40.51 unpaid by Q4. |
 | `mortgage-shortfall` | Synthetic zero-resource accounts with the opening mortgage from `m7-diagnostic-5`; claims continue without deleting principal. |
 | `cyclic-loans` | Synthetic zero-resource accounts with two opposite $200 loans, 10% APR, two quarters; incoming repayments cannot fund same-quarter payments. |
 | `company-loss` | Synthetic zero-reserve starting company with operating losses beyond work pay; preserves company operating/work/loan claims and prevents personal cash calls. |
 | `post-maturity-recovery` | Synthetic zero-resource $200 player loan matures in Q3. An explicitly reported $1,000 cash injection at Q4 permits $215 recovery: $200 principal and $15 simple interest. |
 
-Diagnostic initialization removes unrelated resource flows and uses explicit synthetic loans or company performance. These states and the Q4 injection are boundary experiments, not supported player actions, ordinary economic forecasts or observed playtest outcomes. Only `financed-acquisition` is labeled `player-journey`.
+Diagnostic initialization removes unrelated resource flows and uses explicit synthetic loans or company performance. These states and the Q4 injection are boundary experiments, not supported player actions, ordinary economic forecasts or observed playtest outcomes. The financed acquisition is labeled `q1-business-diagnostic`; ordinary setup never grants its demonstration company. Other cases remain `synthetic-diagnostic`.
 
 ## Measurement contracts
 

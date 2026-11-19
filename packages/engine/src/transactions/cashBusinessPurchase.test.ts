@@ -193,7 +193,7 @@ describe("cash-business-purchase transaction lifecycle", () => {
     expect(openedState.activeTransaction?.kind).toBe("cash-business-purchase");
     expect(legacy(openedState)?.buyerPlayerId).toBe(p1);
     expect(legacy(openedState)?.sellerPlayerId).toBe(p2);
-    expect(openedState.activeTransaction?.assetId).toBe(businessAssetId);
+    expect(legacy(openedState)?.assetId).toBe(businessAssetId);
     expect(legacy(openedState)?.purchasePriceCents).toBe(6_000_000);
     expect(openedState.activeTransaction?.createdQuarter).toBe(
       openedState.currentQuarter,

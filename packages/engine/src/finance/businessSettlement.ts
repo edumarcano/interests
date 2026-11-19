@@ -56,7 +56,7 @@ export function captureBusinessBasis(
   const result: Record<AssetId, BusinessQuarterBasis> = {};
   for (const id of (Object.keys(assets) as AssetId[]).sort()) {
     const asset = assets[id];
-    if (asset?.kind === "business")
+    if (asset?.kind === "business" && !asset.npcSale)
       result[id] = {
         cashPolicyId: asset.cashPolicyId,
         ...(asset.annualManagementCostCents !== undefined

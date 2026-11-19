@@ -18,6 +18,7 @@ import {
   propertyLoanQuote,
   quoteAssetBankLoan,
   resetVariableAssetLoan,
+  roundedRatio,
 } from "./bank";
 import { basisPoints, cents } from "./money";
 import { calculateLoanObligation } from "./obligations";
@@ -160,6 +161,8 @@ describe("M7 bank and property production commands", () => {
       ),
     ).toHaveLength(0);
     state = accepted(state, actor, { type: "BEGIN_ROUND" });
+    const earnedBasis =
+      state.finance.quarterStartBasis.propertiesById[asset.id]!;
     state = settleCurrent(state);
     const payment = state.finance.lastSettlement!.loanPayments.find(
       (p) => p.loanId === loan.id,
@@ -178,7 +181,7 @@ describe("M7 bank and property production commands", () => {
         `asset:${asset.id}`
       ]!.recurringReceivedCents,
     ).toBe(
-      calculatePropertyCashFlow(asset).netOperatingIncomeCents -
+      calculatePropertyCashFlow(earnedBasis).netOperatingIncomeCents -
         payment.paidCents,
     );
   });
@@ -308,7 +311,11 @@ describe("M7 bank and property production commands", () => {
           entry.relatedAssetId === bought.asset.id &&
           entry.reason === "property-operating-distribution",
       )!.amountCents,
-    ).toBe(calculatePropertyCashFlow(bought.asset).netOperatingIncomeCents);
+    ).toBe(
+      calculatePropertyCashFlow(
+        before.finance.quarterStartBasis.propertiesById[bought.asset.id]!,
+      ).netOperatingIncomeCents,
+    );
     expect(
       applyPlayerCommand(state, actor, {
         type: "SELL_PROPERTY",
@@ -321,7 +328,10 @@ describe("M7 bank and property production commands", () => {
       state.progress.byPlayer[actor]!.realizedGainsCents -
         before.progress.byPlayer[actor]!.realizedGainsCents,
     ).toBe(
-      -bought.quote.feeCents -
+      (before.finance.assetsById[bought.asset.id] as PropertyAsset)
+        .marketValueCents -
+        bought.asset.marketValueCents -
+        bought.quote.feeCents -
         quote.saleFeeCents -
         bankPayoff(before, before.finance.loansById[bought.loan.id]!)
           .interestCents,
@@ -385,6 +395,8 @@ describe("M7 bank and property production commands", () => {
     const basis =
       state.finance.quarterStartBasis.propertiesById[bought.asset.id]!;
     const beforeCash = state.finance.cashByPlayer[actor]!;
+    const control = accepted(state, actor, { type: "PASS_SPOTLIGHT" }).finance
+      .assetsById[bought.asset.id] as PropertyAsset;
     const result = applyPlayerCommand(state, actor, {
       type: "RENOVATE_PROPERTY",
       assetId: bought.asset.id,
@@ -393,9 +405,13 @@ describe("M7 bank and property production commands", () => {
     if (!result.ok) throw new Error(result.code);
     state = result.state;
     const asset = state.finance.assetsById[bought.asset.id] as PropertyAsset;
-    expect(asset.marketValueCents).toBe(10_800_000);
-    expect(asset.scheduledQuarterlyRentCents).toBe(288_750);
-    expect(asset.occupancyBps).toBe(10_000);
+    expect(asset.marketValueCents).toBe(control.marketValueCents + 800_000);
+    expect(asset.scheduledQuarterlyRentCents).toBe(
+      roundedRatio(control.scheduledQuarterlyRentCents, 10_500),
+    );
+    expect(asset.occupancyBps).toBe(
+      Math.min(10_000, control.occupancyBps + 500),
+    );
     const spent = result.journalEntries.find(
       (j) => j.reason === "property-renovation",
     )!.amountCents;
@@ -416,6 +432,37 @@ describe("M7 bank and property production commands", () => {
     });
     expect(repeat.ok).toBe(false);
     expect(repeat.state).toBe(state);
+  });
+  it("classifies catalogue assets and resets variable loans to the new quarter rate", () => {
+    const bought = buy(ready(), "variable");
+    expect(bought.asset.marketKind).toBe("residential");
+    const q2 = nextActorTurn(bought.state);
+    const state = {
+      ...q2,
+      economy: { ...q2.economy, baseRateBps: basisPoints(1000) },
+    };
+    const next = settleCurrent(state);
+    const loan = next.finance.loansById[bought.loan.id] as AssetBankLoan;
+    expect(next.economy.baseRateBps).toBe(950);
+    expect(loan.annualRateBps).toBe(
+      950 +
+        (bought.loan.pricing.kind === "variable"
+          ? bought.loan.pricing.spreadBps
+          : 0),
+    );
+    expect(loan.maturityQuarter).toBe(bought.loan.maturityQuarter);
+    const commercial = accepted(ready(), actor, {
+      type: "BUY_PROPERTY",
+      catalogueId: "commercial-plaza",
+      principalCents: 0,
+      rateKind: "fixed",
+    });
+    expect(
+      Object.values(commercial.finance.assetsById).find(
+        (asset) =>
+          asset.kind === "property" && asset.catalogueId === "commercial-plaza",
+      ),
+    ).toMatchObject({ marketKind: "commercial" });
   });
   it("resets variable rates over the original remaining maturity while preserving arrears and principal", () => {
     const { loan } = buy(ready(), "variable");
@@ -809,6 +856,9 @@ describe("M7 bank and property production commands", () => {
     state = accepted(state, actor, { type: "PASS_SPOTLIGHT" });
     state = nextActorTurn(state);
     const before = state.finance.assetsById[bought.asset.id] as PropertyAsset;
+    const control = settleCurrent(state).finance.assetsById[
+      bought.asset.id
+    ] as PropertyAsset;
     state = accepted(state, actor, {
       type: "RENOVATE_PROPERTY",
       assetId: bought.asset.id,
@@ -826,9 +876,16 @@ describe("M7 bank and property production commands", () => {
     });
     state = settleCurrent(state);
     const improved = state.finance.assetsById[bought.asset.id] as PropertyAsset;
-    expect(improved.marketValueCents).toBe(before.marketValueCents + 800_000);
-    expect(improved.scheduledQuarterlyRentCents).toBe(288_750);
-    expect(improved.occupancyBps).toBe(10_000);
+    expect(improved.marketValueCents).toBe(control.marketValueCents + 800_000);
+    expect(improved.scheduledQuarterlyRentCents).toBe(
+      roundedRatio(control.scheduledQuarterlyRentCents, 10_500),
+    );
+    expect(improved.occupancyBps).toBe(
+      Math.min(10_000, control.occupancyBps + 500),
+    );
+    expect(state.finance.quarterStartBasis.propertiesById[improved.id]).toEqual(
+      improved,
+    );
     expect(improved.renovationPending).toBeUndefined();
   });
 });

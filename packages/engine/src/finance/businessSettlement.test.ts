@@ -1,6 +1,6 @@
 import { asAssetId, asPlayerId, type PlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
-import { createGame } from "../game/createGame";
+import { createQ1BusinessDiagnosticGame } from "../game/createGame";
 import {
   applyPlayerCommand,
   type WirePlayerCommand,
@@ -59,7 +59,7 @@ function companyFixture(
   },
 ): GameState {
   const base = selectObjectives(
-    createGame({
+    createQ1BusinessDiagnosticGame({
       gameId: "company-fixture",
       seed: "company-fixture",
       playerIds: ids,
@@ -125,7 +125,7 @@ function companyFixture(
 }
 function financedJourney(term: number) {
   let state = selectObjectives(
-    createGame({
+    createQ1BusinessDiagnosticGame({
       gameId: "financed-m7",
       seed: "m7-planning-1",
       playerIds: ids,
@@ -212,7 +212,7 @@ describe("retained-profit-v1", () => {
       [[375_000, 225_000]],
     ]);
     expect(settlements.map((r) => r.state.finance.cashByPlayer[buyer])).toEqual(
-      [721_950, 1_026_541, 1_333_416, 1_642_592],
+      [721_950, 968_775, 1_208_615, 1_540_000],
     );
     expect(state.currentQuarter).toBe(5);
     const company = state.finance.assetsById[opportunity.assetId];

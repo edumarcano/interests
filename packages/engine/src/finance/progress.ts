@@ -15,6 +15,7 @@ import type {
 import { calculateBusinessEquity } from "./business";
 import { FinanceDecimal } from "./decimal";
 import type { JournalEntry } from "./journal";
+import { beneficialBorrowerId, isLenderLoan } from "./loanParties";
 import { type Cents, cents } from "./money";
 import type { SettlementOutcome } from "./obligations";
 import { allocateProportionalCents } from "./ownership";
@@ -184,7 +185,7 @@ export function recordQuarterObservations(
         if (loan.kind === "legacy-bank-loan" && loan.relatedAssetId)
           add(`asset:${loan.relatedAssetId}`, "property", 0, payment.dueCents);
       }
-      if (payment.lenderPlayerId === playerId && loan.kind === "player-loan") {
+      if (payment.lenderPlayerId === playerId && isLenderLoan(loan)) {
         financingInterest = cents(
           financingInterest + payment.interestPaidCents,
         );
@@ -193,7 +194,7 @@ export function recordQuarterObservations(
           payment.interestPaidCents - loan.unpaidInterestCents,
         );
         add(
-          `borrower:${loan.borrowerPlayerId}`,
+          `borrower:${beneficialBorrowerId(loan)}`,
           "financing",
           currentInterestPaid,
         );
@@ -210,6 +211,23 @@ export function recordQuarterObservations(
           )[playerId] ?? 0;
         add(`asset:${id}`, "property", 0, share);
       }
+    }
+    for (const asset of Object.values(state.finance.assetsById)) {
+      if (
+        asset.kind !== "business" ||
+        asset.npcSale?.quarter !== outcome.quarter
+      )
+        continue;
+      const sale = asset.npcSale;
+      const interest =
+        allocateProportionalCents(
+          sale.bankInterestPaidCents,
+          sale.sellerOwnershipByPlayerPpm,
+        )[playerId] ?? 0;
+      if ((sale.sellerOwnershipByPlayerPpm[playerId] ?? 0) > 0)
+        add(`asset:${asset.id}`, "business", 0, interest);
+      if (asset.workCompensation?.playerId === playerId)
+        work = cents(work + sale.workArrearsPaidCents);
     }
     const observation: QuarterObservation = {
       quarter: outcome.quarter,

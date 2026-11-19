@@ -76,6 +76,7 @@ export function assertCompletionState(state: GameState): void {
       const asset = state.finance.assetsById[progress.labor.assetId];
       if (
         asset?.kind !== "business" ||
+        asset.npcSale ||
         asset.workCompensation?.playerId !== playerId
       )
         throw new Error("Invalid owner work reference");
@@ -102,6 +103,7 @@ export function assertCompletionState(state: GameState): void {
     for (const asset of Object.values(state.finance.assetsById)) {
       if (
         asset.kind === "business" &&
+        !asset.npcSale &&
         asset.workCompensation?.playerId === playerId &&
         asset.workCompensation.annualCompensationCents > 0 &&
         (progress.labor.kind !== "owner-work" ||
@@ -130,6 +132,41 @@ export function assertCompletionState(state: GameState): void {
         throw new Error(
           "Acquisition basis belongs to a different ownership stake",
         );
+
+      if (acquisition.acquisition !== undefined) {
+        const evidence = acquisition.acquisition;
+        record(evidence);
+        if (
+          evidence.kind !== "recurring-npc" ||
+          typeof evidence.opportunityId !== "string" ||
+          !evidence.opportunityId ||
+          typeof evidence.templateId !== "string" ||
+          !evidence.templateId ||
+          typeof evidence.transactionId !== "string" ||
+          !evidence.transactionId
+        )
+          throw new Error("Invalid recurring acquisition evidence");
+        for (const amount of [
+          evidence.considerationCents,
+          evidence.feeCents,
+          evidence.bankPrincipalCents,
+          evidence.reserveCents,
+          evidence.buyerCashCents,
+        ])
+          integer(amount);
+        if (
+          !Number.isSafeInteger(
+            evidence.considerationCents +
+              evidence.feeCents +
+              evidence.reserveCents,
+          ) ||
+          evidence.considerationCents +
+            evidence.feeCents +
+            evidence.reserveCents !==
+            evidence.buyerCashCents + evidence.bankPrincipalCents
+        )
+          throw new Error("Unreconciled recurring acquisition funding");
+      }
       integer(acquisition.costCents);
       integer(acquisition.acquiredQuarter);
       integer(acquisition.ownershipPpm, 1);

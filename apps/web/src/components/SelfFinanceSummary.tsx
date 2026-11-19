@@ -296,7 +296,7 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
               data-testid={`settled-loan-${payment.loanId}`}
             >
               {payment.role === "asset-borrower"
-                ? "Property loan"
+                ? "Asset loan"
                 : payment.role === "company-borrower"
                   ? "Company loan"
                   : "Loan"}{" "}
@@ -362,7 +362,7 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
                 <span>
                   <strong style={{ textTransform: "capitalize" }}>
                     {loan.role === "asset-borrower"
-                      ? "Property borrower"
+                      ? "Asset borrower"
                       : loan.role === "company-borrower"
                         ? "Company borrower"
                         : loan.role}

@@ -6,6 +6,7 @@ import type {
 } from "@interests/shared";
 import { useState } from "react";
 import { JointPropertyPanel } from "./JointPropertyPanel";
+import { PropertyAcquisitionPanel } from "./PropertyAcquisitionPanel";
 
 const money = (amount: number) =>
   new Intl.NumberFormat("en-US", {
@@ -82,6 +83,11 @@ export function PropertyPanel({
         costs and asset debt before owner distributions. The bank has no
         personal guarantee.
       </p>
+      <PropertyAcquisitionPanel
+        match={match}
+        isPaused={isPaused}
+        onSendCommand={onSendCommand}
+      />
       <JointPropertyPanel
         match={match}
         isPaused={isPaused}

@@ -1,8 +1,8 @@
 # Development status
 
-**Updated:** 2026-11-17
+**Updated:** 2026-11-19
 **Active milestone:** 7, full gameplay rules and content  
-**Current focus:** Build multiplayer business capital on the reviewed bank/property PR. Operating economy and objective measurement are in progress on separate branches. No PRs merged.
+**Current focus:** Verify the combined operating-economy and recurring-content branch for packet 7. Objective finales and terminal persistence are in separate packet 8 worktrees. The M7 stack remains open and unmerged.
 
 ## Milestone 6: physical playtest outcome
 
@@ -19,8 +19,8 @@ The acquisition and repayment flow is playable, but prolonged financial gameplay
 
 | Area | Approved policy | Remaining work |
 | --- | --- | --- |
-| **A4: business distributions** | Separate work pay and ownership returns; company cash/claims; Q1 starting-company operations; Q2 acquisition fixture; 80/20 surplus split | Approved in ARCH-040; performance, growth, labor exit and ownership actions await implementation. |
-| **A5: default and insolvency** | Partial payments, explicit living/operating/work/loan claims, ordinary principal interest, fixed maturity and private recovery outcomes | Claims/cash cure retained; broader financing/ownership await implementation. Foreclosure, bankruptcy, write-offs and secured player loans are deferred. |
+| **A4: business distributions** | Separate work pay and ownership returns; company cash/claims; Q1 starting-company operations; Q2 acquisition fixture; 80/20 surplus split | Starting-company performance, growth, labor exit, ownership and consent are implemented in the open M7 stack. Managed companies also use authored fixed labor and earned-quarter performance. |
+| **A5: default and insolvency** | Partial payments, explicit living/operating/work/loan claims, ordinary principal interest, fixed maturity and private recovery outcomes | Claims/cash cure, asset bank loans, market lending and shared closing are implemented on the local M7 stack. Foreclosure, bankruptcy, write-offs and secured player loans remain deferred. |
 
 ARCH-039 and GAME_DESIGN 16.3.2 record the approved integrated calibration. Opening company loans pay from Q1 to Q28 at 8% fixed APR; debt exists once in the loan registry and company equity derives it. Employment-only recurring income for the three owner profiles is zero. Work compensation and ownership distributions are funded once from company cash. Old saves require their compatible build; no automatic conversion occurs.
 
@@ -38,7 +38,7 @@ The default Windows test run again hit fork-worker exit code 3221226505; a bound
 
 ## M7 completion delivery
 
-ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The local runtime implements financial foundations, public-fund trading, career/labor choices and bank/property transactions. Recurring content, objective evaluation and winner execution remain pending.
+ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The local stack implements financial foundations, public markets, careers, bank and property finance, multiplayer capital and recurring economic choices through packet 7. Winning finales and complete-match payment and result proof remain in packets 8 and 9.
 
 | Packet | Deliverable | Current state |
 | --- | --- | --- |
@@ -48,8 +48,8 @@ ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. T
 | 4 | Careers, executive ownership, resignation and equal-cost management conversion | Delivered in open [PR #39](https://github.com/edumarcano/interests/pull/39), `codex/m7-career-labor`, stacked on #38; unmerged |
 | 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Delivered in open [PR #40](https://github.com/edumarcano/interests/pull/40), stacked on #39; both Remora review axes passed; unmerged |
 | 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Delivered in open [PR #41](https://github.com/edumarcano/interests/pull/41), stacked on #40; both Remora review axes passed; unmerged |
-| 7 | Operating economy, recurring private/public content and non-player alternatives | Operating rules, recurring cards and diagnostic isolation verified on `codex/m7-operating-economy`; executable NPC and shared-acquisition routes in progress |
-| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Pure evaluation and durable Q32 draw verified in isolation on `codex/m7-objectives`; canonical evidence and winning finales in progress |
+| 7 | Operating economy, recurring private/public content and non-player alternatives | Delivered in open [PR #42](https://github.com/edumarcano/interests/pull/42), stacked on #41. Both Remora review axes passed locally; hosted CI pending. |
+| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Pure evaluation, canonical evidence and durable Q32 draw verified in isolation; the private finale coordinator and route integrations are in progress |
 | 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | Pending |
 
 Each packet requires relevant behavior tests, typecheck, lint, tests and Remora split-axis review. Browser-facing changes also require build and applicable E2E proof. Record actual PR/head/check state here as delivery changes; leave every PR unmerged unless the user explicitly approves merging.
@@ -104,11 +104,29 @@ A seller can list a stake at auction; the eligible seats submit one sealed bid o
 
 The combined stack at `d57d3e8` passed 868 unit/integration tests, all 13 production Chromium scenarios, typecheck, lint, build and the local Remora harness check. Four-browser runs at 320px closed a $1,000 stake sale, preserved a $500 selected loan at 6.25%, selected $600 equity for 8%, and resolved competing $1,200 bids after a restart. The shared-property browser run used a labeled synthetic ownership fixture, preserved both owners' rights through restart, and reconciled the exact 60/40 payout. Socket, HTTP and SQLite tests cover recipient privacy and receipt retry. Both Remora review axes passed after fixing withdrawal when a refinance quote has changed. PR #41 is open and unmerged. New fixed business loans have canonical servicing and a trusted funded-close primitive; recurring acquisition and an ordinary shared-property purchase path remain in packet 7.
 
-### Packets 7 and 8 checkpoints
+### Packet 7 implementation and verification
 
-The operating branch has versioned rates/inflation, property occupancy and valuation, actual company performance, objective-neutral cards, paid diligence, focus and explicit Q1 diagnostic isolation. The operating and capital integration at `4b53835` passed 912 tests on its earlier stack. Card closes, ordinary shared property acquisition, non-player exits and lending, and final stack integration remain.
+PR #41 remains open and unmerged at `c5adba4`; hosted CI run #119 passed. Packet 7 is open and unmerged in [PR #42](https://github.com/edumarcano/interests/pull/42) on `codex/m7-npc-lending`. ARCH-047 and ARCH-048 describe the operating and discovery contracts. The economy adjusts rates and credit, inflation, occupancy, property value and realized company performance. Rate resets, renovation and expansion preserve the closing quarter’s earned rights. A sole owner may explicitly fund an expansion shortfall from personal cash; the contribution and company expenditure reconcile atomically and preserve ownership dates.
 
-The pure objective evaluator passed at `5203855` and the Q32 draw at `d27e270`. The draw passed four actual browsers through 164 accepted commands, reload and restart. These are isolated branch results. Canonical property, financing and disposal evidence, private progress, winning finales and whole-match acceptance remain.
+Ordinary setup creates one private card per seat each quarter without the Q1 demonstration company. Focus, capacity and holdings influence later discovery without reading hidden objectives. Diligence reveals stable facts after the fee. Cash and bank acquisition use exact engine quotes and booked cash, fees, reserves, ownership basis and canonical debt. The catalogue includes a $650k residential court, $1.1M commercial center and $1M managed service group; residential and commercial types persist on the owned asset. Shared catalogue purchases take unanimous same-terms buyer commitments, then use the existing mortgage and purchase path with one loan. The lead retains their own personal reserve.
+
+Five fixed-rate market borrowers offer different sizes, terms and repayment risk. Funding spends actual cash and creates one canonical loan; payment starts next quarter. The lender sees scheduled terms and actual payments. Same-borrower repeat funding is blocked while a loan is live. A frozen loan quote retains the base rate used to create it. A seasoned sole-owner company can receive a scarce matched buyer card whose bid remains fixed. The private exit quote shows company cash included, fees, claims/payoff and net proceeds. Closing clears related claims, preserves earned rights and removes the sold company from future operations.
+
+Verified component journeys include an ordinary 60/40 shared bank purchase and joint sale after restart (`96d14c9`), business bank and property cash purchases with paid diligence (`a40dcc8`), market lending through first payment and restart (`0292075`), and an ordinary four-client whole-company exit after cancelled review and restart (`ad89615`). The capacity/funding checkpoint passed 954 integrated tests; the larger-listings and business-exit branches passed 963 and 962 respectively before the final combination. The full combined implementation at `3cfa021` passed 986 unit/server tests, all 19 production Chromium scenarios, six typechecks, lint, web build and local Remora manifest/hash verification. Both review axes passed after correcting the property reserve check, frozen quote-rate validation and fixture identities. Lint retains warnings, and physical playtests remain in M8.
+
+The `ordinary-npc-close-0` command evidence closed bank-backed purchases in Q5 and cash purchases in Q12/Q14 on the same acquisition implementation. The Q5 company paid $99,650 price, $1,993 fee and $44,639.81 buyer cash with a $59,790 balance-sheet loan. The `landmark-content-0` proof acquired the residential court in Q9, commercial center in Q15 and service group in Q16 through ordinary commands. These receipts prove funded paths and remain tied to their tested content revisions. Browser proofs use production commands and real sessions; explicitly synthetic fixtures cover counter, loan and qualification boundaries.
+
+### Packet 8 integration status
+
+The pure evaluator passed at `5203855`, property/financing evidence at `a2fd825`, and canonical disposal evidence at `adfa7f9` with 907 tests on its isolated branch. The terminal economy port `61d89ab` settles Q32 once, records its actual earnings and skips Q33 rates, plans, basis and random draws. It passed 57 focused engine and UI cases, the SQLite fault/restart integration and an ordinary four-client draw after 164 accepted commands. The private finale coordinator and career routes are verified in isolation at `eec1817`, with qualitative private progress at `e2af6bc`. Their terminal and economic route integration remains in progress. Packet 9 still requires ordinary command journeys for every objective and a four-browser legitimate winner with durable public result.
+
+### Packet 7 purchased-company performance
+
+New local, regional, mature-service and Executive ownership companies now use explicit necessary-labor calibration under the existing regime rules. Their closing revenue, after-labor profit, operating value, cash accounting and opening income entitlement stay unchanged. The model begins in acquisition quarter + 1, preserving fourth-spotlight closes and omitting zero-entitlement prehistory. Fixed labor is $60k local/Executive, $180k regional and $360k mature-service; actual stored profit determines the matching variable-cost reference and rational opening multiple. ARCH-048 records the content assumptions.
+
+All 61 focused financial/career cases and six typechecks pass. Lint passes with 1,415 warnings and four infos; local harness and diff checks pass. The full suite passes 984 of 985 tests: the remaining existing server property fixture assumes one holding after a purchase even when the seat already owns an opening property (`matchRoundOrchestration.test.ts:1353`, actual two). That fixture uses no new managed purchase or Executive command; the property fixture correction remains a separate integration step. Five earlier assertions of absent models/null labor now assert exact authored models, and the landmark synthetic card explicitly constructs its own action metadata instead of retaining a generated business buyer.
+
+An ordinary command proof (`managed-proof-0`) repeats byte-for-byte for local purchase in Q3, regional in Q9, mature service group in Q12 and Executive ownership in Q4, followed by two actual earned quarters each. It changes no starting cash/assets, fixed outcomes or thresholds. Actual first-quarter earnings match stored after-labor profit / 4, labor stays fixed, bounded future revenue/profit move, and histories start only after acquisition. This is deterministic accounting evidence; generic valuation integration, complete-match acceptance and human balance findings remain separate.
 
 ## M7 completion and M8 handoff
 
