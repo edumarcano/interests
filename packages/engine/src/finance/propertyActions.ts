@@ -46,6 +46,7 @@ export function catalogueProperty(
     ? {
         id: "quote" as AssetId,
         kind: "property",
+        marketKind: listing.marketKind,
         marketValueCents: cents(listing.marketValueCents),
         scheduledQuarterlyRentCents: cents(listing.scheduledQuarterlyRentCents),
         occupancyBps: basisPoints(listing.occupancyBps),

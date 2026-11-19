@@ -155,7 +155,8 @@ export function planQuarterOperatingUpdate(
   let random = state.economy.operatingRandom;
   for (const id of Object.keys(assetsById).sort() as AssetId[]) {
     const asset = assetsById[id];
-    if (!asset) continue;
+    if (!asset || (asset.kind === "property" && asset.disposition === "sold"))
+      continue;
     if (asset.kind === "business") {
       const model = asset.operatingModel;
       if (!model) continue;

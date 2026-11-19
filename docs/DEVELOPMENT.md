@@ -142,6 +142,10 @@ The ordinary browser now renders private cards, asking amounts, paid stable fact
 
 All 783 tests, six package/app typechecks, production build and eight production-browser journeys pass. Lint passes with 849 warnings and three infos. The new four-client journey verifies ordinary private card discovery and focus, then uses an explicitly labeled offline synthetic card fixture to exercise paid diligence without altering cash, assets or thresholds. It proves the $250 journal charge through the real command/HTTP path, stable facts after reload, rival privacy, pause gating, expiry, Q2 replacement and retained focus. The inspected 320px screenshot has no horizontal overflow. The earlier ordinary Q4 command proof supplies discovery evidence separately. Local split-axis review found no blocking defect in this bounded checkpoint; full capital integration, hosted CI and human validation remain pending.
 
+### Packet 7 capital integration checkpoint
+
+The economy/content stack is rebased onto stable capital checkpoint `b2df61b`. Catalogue property classifications, next-rate variable-loan resets, sold-record exclusion, renovation activation after operating movement and persistent calibrated expansion adjustments are connected. Earned opening entitlements remain unchanged. Fixed bank-origination/servicing fixtures explicitly use the named Q1 diagnostic and omit dynamic operating calibration where they assert constant synthetic profits. All 912 tests and six package/app typechecks pass. Full integrated browser verification follows recurring acquisition execution.
+
 ## M7 completion and M8 handoff
 
 M7 is complete only after production-command journeys demonstrate all eight legal objective routes without injected wealth or reduced thresholds, an ordinary four-client match reaches a valid winner, Q32 produces a durable draw when required, and privacy/retry/restart checks cover the new actions and terminal results. Finale boundary fixtures supplement those journeys rather than replace them.

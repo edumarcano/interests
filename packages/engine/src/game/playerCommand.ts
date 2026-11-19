@@ -23,12 +23,12 @@ import {
   pursuePrivateBusinessPurchaseOpportunity,
   pursuePrivateBusinessPurchaseOpportunityWithFinancingRequest,
 } from "../opportunities/privateBusinessPurchase.js";
-import { applyBusinessAuctionCommand } from "../transactions/businessAuction";
-import { applyBusinessCapitalCommand } from "../transactions/businessCapital";
 import {
   investigateRecurringOpportunity,
   setPlayerFocus,
 } from "../opportunities/recurring";
+import { applyBusinessAuctionCommand } from "../transactions/businessAuction";
+import { applyBusinessCapitalCommand } from "../transactions/businessCapital";
 import {
   acceptPlayerLoanFinancingOffer,
   submitPlayerLoanFinancingOffer,

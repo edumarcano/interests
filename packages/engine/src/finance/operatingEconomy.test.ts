@@ -223,6 +223,28 @@ describe("property closing returns", () => {
       createRandomState("operating-economy:operating-economy-v1"),
     );
   });
+  it("leaves sold property records and the operating stream untouched", () => {
+    const state = ready();
+    const id = asAssetId("sold-property");
+    const sold = {
+      id,
+      kind: "property" as const,
+      disposition: "sold" as const,
+      marketKind: "residential" as const,
+      marketValueCents: cents(1_000_000),
+      scheduledQuarterlyRentCents: cents(10_000),
+      occupancyBps: 9000 as never,
+      operatingExpenseRatioBps: 3000 as never,
+      ownershipByPlayerPpm: {},
+    };
+    const result = planQuarterOperatingUpdate(
+      state,
+      { [id]: sold },
+      "overheating",
+    );
+    expect(result.assetsById[id]).toEqual(sold);
+    expect(result.nextOperatingRandom).toEqual(state.economy.operatingRandom);
+  });
   it("rejects missing or malformed operating stream snapshots instead of inventing one", () => {
     const state = ready();
     const candidate = JSON.parse(JSON.stringify(state));

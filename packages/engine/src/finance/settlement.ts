@@ -1,7 +1,7 @@
 import {
   calculateCashYieldBps,
-  OPERATING_RULES,
   OBJECTIVE_MEASUREMENT_RULES,
+  OPERATING_RULES,
   PUBLIC_MARKET_INSTRUMENT_IDS,
   PUBLIC_MARKET_INSTRUMENTS,
 } from "@interests/rules";
@@ -480,16 +480,54 @@ export function applyQuarterSettlement(
         },
       };
     }
+    for (const asset of Object.values(assetsById)) {
+      if (
+        asset.kind !== "business" ||
+        asset.pendingAnnualProfitIncreaseCents === undefined
+      )
+        continue;
+      const { pendingAnnualProfitIncreaseCents, ...business } = asset;
+      assetsById = {
+        ...assetsById,
+        [business.id]: {
+          ...business,
+          ...(business.operatingModel
+            ? {
+                operatingModel: {
+                  ...business.operatingModel,
+                  annualProfitAdjustmentCents: cents(
+                    business.operatingModel.annualProfitAdjustmentCents +
+                      pendingAnnualProfitIncreaseCents,
+                  ),
+                },
+              }
+            : {}),
+          annualOperatingProfitCents: cents(
+            business.annualOperatingProfitCents +
+              pendingAnnualProfitIncreaseCents,
+          ),
+        },
+      };
+    }
+    const operating = planQuarterOperatingUpdate(
+      state,
+      assetsById,
+      marketUpdate.nextRegime,
+      businesses,
+    );
+    assetsById = operating.assetsById;
+    const nextRecurring = operating.recurringByPlayer;
     for (const loan of Object.values(loansById))
       if (loan.kind === "asset-bank-loan")
         loansById[loan.id] = resetVariableAssetLoan(
           loan,
-          state.economy.baseRateBps,
+          operating.nextBaseRateBps,
           quarter + 1,
         );
     for (const asset of Object.values(assetsById)) {
       if (
         asset.kind !== "property" ||
+        asset.disposition === "sold" ||
         !asset.renovationPending ||
         asset.renovationPending.effectiveQuarter !== quarter + 1
       )
@@ -523,32 +561,7 @@ export function applyQuarterSettlement(
         },
       };
     }
-    for (const asset of Object.values(assetsById)) {
-      if (
-        asset.kind !== "business" ||
-        asset.pendingAnnualProfitIncreaseCents === undefined
-      )
-        continue;
-      const { pendingAnnualProfitIncreaseCents, ...business } = asset;
-      assetsById = {
-        ...assetsById,
-        [business.id]: {
-          ...business,
-          annualOperatingProfitCents: cents(
-            business.annualOperatingProfitCents +
-              pendingAnnualProfitIncreaseCents,
-          ),
-        },
-      };
-    }
-    const operating = planQuarterOperatingUpdate(
-      state,
-      assetsById,
-      marketUpdate.nextRegime,
-      businesses,
-    );
-    assetsById = operating.assetsById;
-    const nextRecurring = operating.recurringByPlayer;
+
     const operatingState: GameState = {
       ...state,
       progress: recordQuarterObservations(

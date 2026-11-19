@@ -36,6 +36,7 @@ import { calculateLoanObligation } from "../finance/obligations";
 import { calculatePropertyCashFlow } from "../finance/property";
 import { propertyManagement, propertyOffers } from "../finance/propertyActions";
 import type { GameState } from "../model/gameState.js";
+import { projectRecurringOpportunity } from "../opportunities/recurring";
 import { projectBusinessAuction } from "../transactions/businessAuctionTerms";
 import { planBusinessCapital } from "../transactions/businessCapitalTerms";
 import {
@@ -48,7 +49,6 @@ import {
   canOfferBusinessLoan,
   loanRequests,
 } from "../transactions/businessLoanOffers";
-import { projectRecurringOpportunity } from "../opportunities/recurring";
 import {
   jointPropertyCashRequired,
   jointPropertyParticipants,

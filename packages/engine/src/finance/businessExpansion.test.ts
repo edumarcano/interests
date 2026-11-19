@@ -79,7 +79,10 @@ describe("company-funded expansion", () => {
       cashCents:
         (baselineQ2.finance.assetsById[asset.id] as typeof asset).cashCents -
         investmentCents,
-      annualOperatingProfitCents: asset.annualOperatingProfitCents + 100_000,
+      annualOperatingProfitCents:
+        (baselineQ2.finance.assetsById[asset.id] as typeof asset)
+          .annualOperatingProfitCents + 100_000,
+      operatingModel: { annualProfitAdjustmentCents: 100_000 },
     });
     expect(expandedQ2.finance.assetsById[asset.id]).not.toHaveProperty(
       "pendingAnnualProfitIncreaseCents",
@@ -94,7 +97,10 @@ describe("company-funded expansion", () => {
     expect(
       expandedQ2.finance.quarterStartBasis.businessesById[asset.id]!
         .annualOperatingProfitCents,
-    ).toBe(q1Profit + 100_000);
+    ).toBe(
+      (baselineQ2.finance.assetsById[asset.id] as typeof asset)
+        .annualOperatingProfitCents + 100_000,
+    );
     const q3 = nextQuarter(
       command(expandedQ2, players[0]!, { type: "BEGIN_ROUND" }).state,
     );
@@ -102,7 +108,12 @@ describe("company-funded expansion", () => {
       q3.progress.byPlayer[actor]!.quarters[1]!.companyOperatingProfitById[
         asset.id
       ],
-    ).toBe(Math.round(q1Profit / 4) + 25_000);
+    ).toBe(
+      Math.round(
+        (baselineQ2.finance.assetsById[asset.id] as typeof asset)
+          .annualOperatingProfitCents / 4,
+      ) + 25_000,
+    );
   });
 
   it("rejects invalid or unfunded expansion without spending cash or advancing", () => {

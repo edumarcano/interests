@@ -6,7 +6,7 @@ import {
 } from "@interests/shared";
 import { describe, expect, it } from "vitest";
 import { stageOpeningFixture } from "../../test/openingFixture";
-import { createGame } from "../game/createGame";
+import { createQ1BusinessDiagnosticGame } from "../game/createGame";
 import type { WirePlayerCommand } from "../game/playerCommand";
 import { applyPlayerCommand } from "../game/playerCommand";
 import { assertGameState } from "../invariants/assertGameState";
@@ -34,7 +34,7 @@ import { postCash } from "./posting";
 
 const players = ["A", "B", "C", "D"].map(asPlayerId);
 function fixture() {
-  let state = createGame({
+  let state = createQ1BusinessDiagnosticGame({
     gameId: "bank-draft",
     seed: "business-bank-servicing",
     playerIds: players,
