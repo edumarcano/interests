@@ -439,6 +439,7 @@ export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
       type: z.literal("EXPAND_BUSINESS"),
       assetId: z.string().min(1).max(128),
       investmentCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+      ownerContributionCents: positiveCents.optional(),
     })
     .strict(),
   TradePublicMarketsPayloadSchema,

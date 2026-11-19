@@ -141,6 +141,62 @@ describe("company-funded expansion", () => {
     }
   });
 
+  it("uses the confirmed personal shortfall exactly once and adds it to ownership basis", () => {
+    const { state, actor, asset } = enterOwnerSpotlight();
+    const contribution = 400_000;
+    const investmentCents = asset.cashCents + contribution;
+    const expansion = {
+      type: "EXPAND_BUSINESS",
+      assetId: asset.id,
+      investmentCents,
+    } as const;
+    const originalBasis = state.progress.byPlayer[actor]!.assetsById[asset.id]!;
+    const rejected = applyPlayerCommand(state, actor, {
+      ...expansion,
+      ownerContributionCents: contribution + 1,
+    });
+    expect(rejected).toEqual({
+      ok: false,
+      code: "INVALID_EXPANSION",
+      state,
+      journalEntries: [],
+    });
+    const expanded = command(state, actor, {
+      ...expansion,
+      ownerContributionCents: contribution,
+    });
+    expect(expanded.journalEntries.slice(0, 2)).toMatchObject([
+      {
+        reason: "business-owner-expansion-contribution",
+        source: { kind: "player", playerId: actor },
+        destination: { kind: "business", assetId: asset.id },
+        amountCents: contribution,
+      },
+      {
+        reason: "business-expansion",
+        source: { kind: "business", assetId: asset.id },
+        amountCents: investmentCents,
+      },
+    ]);
+    expect(expanded.state.finance.cashByPlayer[actor]).toBe(
+      state.finance.cashByPlayer[actor]! - contribution,
+    );
+    expect(
+      expanded.state.progress.byPlayer[actor]!.assetsById[asset.id],
+    ).toMatchObject({
+      ...originalBasis,
+      costCents: originalBasis.costCents + contribution,
+    });
+    expect(expanded.state.finance.quarterStartBasis).toBe(
+      state.finance.quarterStartBasis,
+    );
+    expect(expanded.state.finance.assetsById[asset.id]).toMatchObject({
+      cashCents: 0,
+      pendingAnnualProfitIncreaseCents: investmentCents / 4,
+      annualOperatingProfitCents: asset.annualOperatingProfitCents,
+    });
+  });
+
   it("rolls back the company posting when the last spotlight cannot settle", () => {
     const { state, actor, asset } = enterOwnerSpotlight();
     let lastSpotlight = command(nextQuarter(state), players[0]!, {
@@ -161,10 +217,15 @@ describe("company-funded expansion", () => {
         settlement: Number.MAX_SAFE_INTEGER,
       },
     };
+    const company = exhausted.finance.assetsById[asset.id];
+    if (company?.kind !== "business")
+      throw new Error("Expected opening company");
+    const investment = Math.ceil((company.cashCents + 400_000) / 4) * 4;
     const result = applyPlayerCommand(exhausted, actor, {
       type: "EXPAND_BUSINESS",
       assetId: asset.id,
-      investmentCents: 400_000,
+      investmentCents: investment,
+      ownerContributionCents: investment - company.cashCents,
     });
     expect(result).toEqual({
       ok: false,

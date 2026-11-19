@@ -162,13 +162,20 @@ export function BusinessCapitalPanel({
   const binding = tx
     ? { transactionId: tx.id, expectedTermsRevision: tx.termsRevision }
     : null;
-  const directExpansion =
-    !tx &&
-    terms?.kind === "company-expansion" &&
-    companies.some(
-      (asset) =>
-        asset.id === draft?.assetId && asset.ownershipPpm === 1_000_000,
-    );
+  const expansionCompany =
+    !tx && terms?.kind === "company-expansion"
+      ? companies.find(
+          (asset) =>
+            asset.id === draft?.assetId && asset.ownershipPpm === 1_000_000,
+        )
+      : undefined;
+  const ownerContribution =
+    expansionCompany && terms?.kind === "company-expansion"
+      ? Math.max(
+          0,
+          terms.investmentCents - (expansionCompany.companyCashCents ?? 0),
+        )
+      : 0;
 
   return (
     <section className="card business-capital" aria-label="Business capital">
@@ -550,20 +557,35 @@ export function BusinessCapitalPanel({
               />
             </>
           )}
+          {ownerContribution > 0 && (
+            <p>
+              This expansion also uses {usd(ownerContribution)} of your personal
+              cash. The extra annual profit starts next quarter.
+              {ownerContribution > match.self.availableCashCents &&
+                " Your available cash falls short."}
+            </p>
+          )}
           <button
             type="button"
             className="btn-primary"
-            disabled={!terms || disabled}
+            disabled={
+              !terms ||
+              disabled ||
+              ownerContribution > match.self.availableCashCents
+            }
             onClick={() =>
               terms &&
               void send(
                 binding
                   ? { type: "REVISE_BUSINESS_CAPITAL", ...binding, terms }
-                  : directExpansion && terms.kind === "company-expansion"
+                  : expansionCompany && terms.kind === "company-expansion"
                     ? {
                         type: "EXPAND_BUSINESS",
                         assetId: draft.assetId,
                         investmentCents: terms.investmentCents,
+                        ...(ownerContribution > 0
+                          ? { ownerContributionCents: ownerContribution }
+                          : {}),
                       }
                     : {
                         type: "OPEN_BUSINESS_CAPITAL",
@@ -575,7 +597,7 @@ export function BusinessCapitalPanel({
           >
             {tx
               ? "Send revised terms"
-              : directExpansion
+              : expansionCompany
                 ? "Fund expansion"
                 : "Send business proposal"}
           </button>

@@ -196,6 +196,7 @@ export interface ExpandBusinessCommandPayload {
   readonly type: "EXPAND_BUSINESS";
   readonly assetId: string;
   readonly investmentCents: number;
+  readonly ownerContributionCents?: number;
 }
 
 export type BusinessCapitalTerms =
