@@ -39,7 +39,10 @@ try {
       cardsByPlayer: {
         ...state.content.cardsByPlayer,
         [player]: {
-          ...current,
+          id: current.id,
+          targetPlayerId: player,
+          createdQuarter: state.currentQuarter,
+          status: "available",
           templateId: template.id,
           category: template.category,
           askingPriceCents: cents(template.askingPriceCents),

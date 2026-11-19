@@ -19,10 +19,10 @@ function send(state: GameState, player: PlayerId, command: WirePlayerCommand) {
   return result;
 }
 
-function ordinaryOffer(finalSpotlight = false) {
+function readyForLending(seed: string) {
   let state = createGame({
     gameId: "market-loan",
-    seed: "ordinary-market-loan-v1",
+    seed,
     playerIds: players,
   });
   for (const player of players) {
@@ -37,6 +37,11 @@ function ordinaryOffer(finalSpotlight = false) {
       focus: "financing",
     }).state;
   }
+  return state;
+}
+
+function ordinaryOffer(finalSpotlight = false) {
+  let state = readyForLending("ordinary-market-loan-v1");
   for (let turns = 0; turns < 32; turns++) {
     if (state.round?.stage === "round-start")
       state = send(state, host, { type: "BEGIN_ROUND" }).state;
@@ -57,7 +62,10 @@ const advanceQuarter = (original: GameState) => {
   let state = original;
   if (state.round?.stage === "round-start")
     state = send(state, host, { type: "BEGIN_ROUND" }).state;
-  while (state.currentQuarter === original.currentQuarter) {
+  while (
+    state.phase !== "finished" &&
+    state.currentQuarter === original.currentQuarter
+  ) {
     const player = getActiveSpotlightPlayerId(state)!;
     state = send(state, player, { type: "PASS_SPOTLIGHT" }).state;
   }
@@ -65,6 +73,25 @@ const advanceQuarter = (original: GameState) => {
 };
 
 describe("ordinary recurring market lending", () => {
+  it("retains the last generated loan terms through the quarter-32 boundary", () => {
+    let state = readyForLending("loan-horizon-0");
+    while (state.currentQuarter < 32) state = advanceQuarter(state);
+    const before = Object.values(state.content.cardsByPlayer).find(
+      (card) => card?.npcFundingTerms,
+    );
+    if (!before?.npcFundingTerms)
+      throw new Error("Expected a quarter-32 market loan");
+    expect(before.npcFundingTerms.openingBaseRateBps).toBe(
+      state.economy.baseRateBps,
+    );
+    const closed = advanceQuarter(state);
+    assertGameState(closed);
+    expect(closed.content.cardsByPlayer[before.targetPlayerId]).toEqual({
+      ...before,
+      status: "expired",
+    });
+  });
+
   it("funds the private quote once and persists real principal and interest payments", () => {
     const { state, player, card, quote } = ordinaryOffer();
     expect(ordinaryOffer().card).toEqual(card);

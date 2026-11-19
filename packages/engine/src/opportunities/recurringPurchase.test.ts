@@ -34,7 +34,11 @@ function fixture(templateId = "local-service-company", actor = players[0]!) {
     (item) => item.id === templateId,
   )!;
   const card = {
-    ...state.content.cardsByPlayer[actor]!,
+    id: state.content.cardsByPlayer[actor]!.id,
+    targetPlayerId: actor,
+    createdQuarter: state.currentQuarter,
+    status: "available" as const,
+    investigated: false,
     templateId,
     category: template.category,
     askingPriceCents: cents(template.askingPriceCents),

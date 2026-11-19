@@ -84,7 +84,9 @@ function stageCard(
         }
       : template.facts;
   const card = {
-    ...state.content.cardsByPlayer[actor]!,
+    id: state.content.cardsByPlayer[actor]!.id,
+    targetPlayerId: actor,
+    createdQuarter: state.currentQuarter,
     templateId,
     category: template.category,
     askingPriceCents,

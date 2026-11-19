@@ -95,12 +95,14 @@ export function assertRecurringContentState(state: GameState): void {
     )
       throw new Error("Invalid recurring template terms");
     if (template.action === "npc-financing") {
-      const expected = materializeNpcFundingTerms(
-        card.templateId,
-        card.askingPriceCents,
-        state.economy.baseRateBps,
-      );
       const terms = card.npcFundingTerms;
+      const expected =
+        terms &&
+        materializeNpcFundingTerms(
+          card.templateId,
+          card.askingPriceCents,
+          terms.openingBaseRateBps,
+        );
       if (
         !terms ||
         !expected ||
@@ -109,6 +111,8 @@ export function assertRecurringContentState(state: GameState): void {
         Object.entries(expected).some(
           ([key, value]) => terms[key as keyof typeof terms] !== value,
         ) ||
+        (card.createdQuarter === state.currentQuarter &&
+          terms.openingBaseRateBps !== state.economy.baseRateBps) ||
         card.status === "acquired"
       )
         throw new Error("Invalid frozen market loan quote");

@@ -27,12 +27,16 @@ export interface NpcFundingTerms {
   readonly quarterlyRepaymentCapacityCents: number;
 }
 
+export interface FrozenNpcFundingTerms extends NpcFundingTerms {
+  readonly openingBaseRateBps: number;
+}
+
 /** Resolve once at card generation. Store the result with the card, not a current-rate reference. */
 export function materializeNpcFundingTerms(
   cardTemplateId: string,
   principalCents: number,
   openingBaseRateBps: number,
-): NpcFundingTerms | null {
+): FrozenNpcFundingTerms | null {
   const template = MARKET_BORROWER_TEMPLATES.find(
     (row) => row.cardTemplateId === cardTemplateId,
   );
@@ -47,7 +51,7 @@ export function materializeNpcFundingTerms(
     (row) => row.id === template.creditGrade,
   );
   if (!grade) throw new Error("Missing authored borrower credit spread");
-  const terms: NpcFundingTerms = {
+  const terms: FrozenNpcFundingTerms = {
     borrowerId: template.borrowerId,
     borrowerName: template.name,
     principalCents,
@@ -57,6 +61,7 @@ export function materializeNpcFundingTerms(
       BANK_LENDING_RULES.businessPremiumBps,
     termQuarters: template.termQuarters,
     quarterlyRepaymentCapacityCents: template.quarterlyRepaymentCapacityCents,
+    openingBaseRateBps,
   };
   return validNpcFundingTerms(terms) ? terms : null;
 }

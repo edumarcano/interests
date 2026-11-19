@@ -22,8 +22,8 @@ import { FinanceDecimal } from "../finance/decimal";
 import { isLenderLoan } from "../finance/loanParties";
 import { type Cents, cents } from "../finance/money";
 import {
+  type FrozenNpcFundingTerms,
   materializeNpcFundingTerms,
-  type NpcFundingTerms,
   npcOfferAvailable,
   quoteNpcFunding,
 } from "../finance/npcLending";
@@ -59,7 +59,7 @@ export interface RecurringOpportunity {
     | "completed";
   readonly acquiredAssetId?: import("@interests/shared").AssetId;
   readonly fundedLoanId?: LoanId;
-  readonly npcFundingTerms?: NpcFundingTerms;
+  readonly npcFundingTerms?: FrozenNpcFundingTerms;
   readonly askingPriceCents: Cents;
   readonly investigationFeeCents: Cents;
   readonly investigated: boolean;
