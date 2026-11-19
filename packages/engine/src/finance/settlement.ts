@@ -33,6 +33,7 @@ import {
 import { FinanceDecimal } from "./decimal";
 import { generateQuarterMarketUpdate } from "./economy";
 import type { JournalEntry } from "./journal";
+import { isPersonalBorrower } from "./loanParties";
 import {
   calculateQuarterlyYieldCents,
   revaluePublicMarketPortfolio,
@@ -326,7 +327,7 @@ export function applyQuarterSettlement(
         if (
           due &&
           candidate &&
-          !isAssetBorrower(candidate) &&
+          isPersonalBorrower(candidate) &&
           candidate.borrowerPlayerId === playerId
         ) {
           weights[loanId] = due.amountDueCents;
@@ -341,7 +342,7 @@ export function applyQuarterSettlement(
     for (const loanId of loanIds) {
       const due = obligations[loanId];
       const loan = loansById[loanId];
-      if (!due || !loan || isAssetBorrower(loan)) continue;
+      if (!due || !loan || !isPersonalBorrower(loan)) continue;
       const applied = applyLoanPaymentAllocation(
         loan,
         due,
@@ -368,6 +369,35 @@ export function applyQuarterSettlement(
         ...(loan.kind === "legacy-bank-loan" && loan.relatedAssetId
           ? { relatedAssetId: loan.relatedAssetId }
           : {}),
+        loanPayment: {
+          principalCents: applied.outcome.principalPaidCents,
+          interestCents: applied.outcome.interestPaidCents,
+        },
+      });
+    }
+    // Market borrower receipts are posted only after personal budgets are fixed.
+    for (const loanId of loanIds) {
+      const loan = loansById[loanId];
+      const due = obligations[loanId];
+      if (loan?.kind !== "npc-loan" || !due) continue;
+      const applied = applyLoanPaymentAllocation(
+        loan,
+        due,
+        cents(
+          Math.min(due.amountDueCents, loan.quarterlyRepaymentCapacityCents),
+        ),
+        quarter,
+      );
+      loansById[loanId] = applied.loan;
+      loanPayments.push(applied.outcome);
+      planPosting({
+        source: externalCashAccount("npc-borrower"),
+        destination: playerCashAccount(loan.lenderPlayerId),
+        amountCents: applied.outcome.paidCents,
+        reason: "npc-loan-payment",
+        quarter,
+        relatedLoanId: loanId,
+        relatedTransactionId: loan.fundedTransactionId,
         loanPayment: {
           principalCents: applied.outcome.principalPaidCents,
           interestCents: applied.outcome.interestPaidCents,

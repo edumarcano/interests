@@ -10,6 +10,7 @@ export * from "./economy";
 export * from "./loans";
 export * from "./markets";
 export * from "./mode";
+export * from "./npcLending";
 export * from "./objectiveInstructions";
 export * from "./objectives";
 export * from "./profiles";

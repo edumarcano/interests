@@ -19,6 +19,7 @@ export interface ChooseObjectiveAction {
 export type GameAction = ChooseObjectiveAction;
 
 export type ActionErrorCode =
+  | "NPC_BORROWER_UNAVAILABLE"
   | "INVALID_EXPANSION"
   | "BUSINESS_EXPANSION_REQUIRES_CONSENT"
   | "INVALID_MARKET_TRADE"

@@ -120,9 +120,11 @@ export function buildMatchPlayerView(params: {
       kind: l.kind,
       role: l.role,
       counterpartyNickname:
-        l.counterpartyPlayerId === "bank"
-          ? "Bank"
-          : getNicknameForPlayer(l.counterpartyPlayerId),
+        l.counterpartyPlayerId === null
+          ? (l.npcBorrowerName ?? "Market borrower")
+          : l.counterpartyPlayerId === "bank"
+            ? "Bank"
+            : getNicknameForPlayer(l.counterpartyPlayerId),
       originalPrincipalCents: l.originalPrincipalCents,
       outstandingPrincipalCents: l.outstandingPrincipalCents,
       annualRateBps: l.annualRateBps,

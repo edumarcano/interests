@@ -103,6 +103,28 @@ export interface PlayerLoan extends LoanPaymentAccounting {
   readonly fundedTransactionId?: TransactionId;
 }
 
+/** A market borrower is not a player and never draws from a player's cash budget. */
+export interface NpcLoan extends LoanPaymentAccounting {
+  readonly id: LoanId;
+  readonly kind: "npc-loan";
+  readonly borrowerId: string;
+  readonly borrowerName: string;
+  readonly lenderPlayerId: PlayerId;
+  readonly originalPrincipalCents: Cents;
+  readonly outstandingPrincipalCents: Cents;
+  readonly annualRateBps: BasisPoints;
+  readonly termQuarters: number;
+  readonly installmentsProcessed: number;
+  readonly originatedQuarter: number;
+  readonly fundedTransactionId: TransactionId;
+  readonly quarterlyRepaymentCapacityCents: Cents;
+  readonly interestReceipts: readonly {
+    readonly quarter: number;
+    readonly receivedCents: Cents;
+    readonly currentEarnedCents: Cents;
+  }[];
+}
+
 export type LegacyBankLoanPurpose = "personal-debt" | "property-mortgage";
 
 export interface LegacyBankLoan extends LoanPaymentAccounting {
@@ -153,7 +175,12 @@ export interface AssetBankLoan extends LoanPaymentAccounting {
   readonly paymentBasisPrincipalCents: Cents;
 }
 
-export type Loan = PlayerLoan | LegacyBankLoan | CompanyLoan | AssetBankLoan;
+export type Loan =
+  | PlayerLoan
+  | NpcLoan
+  | LegacyBankLoan
+  | CompanyLoan
+  | AssetBankLoan;
 
 export interface PropertyAsset {
   /** Absent on grandfathered properties whose mortgage remains personal. */

@@ -27,6 +27,7 @@ import { calculatePlayerLoanSchedule } from "../finance/amortization";
 import { isAssetBorrower } from "../finance/bank";
 import { calculateBusinessEquity } from "../finance/business";
 import { planBusinessSettlement } from "../finance/businessSettlement";
+import { isLenderLoan, isPersonalBorrower } from "../finance/loanParties";
 import { calculateLoanObligation } from "../finance/obligations";
 import { calculatePropertyCashFlow } from "../finance/property";
 import { propertyManagement, propertyOffers } from "../finance/propertyActions";
@@ -103,7 +104,8 @@ export interface PureLoanView {
   readonly id: string;
   readonly kind: string;
   readonly role: "borrower" | "lender" | "company-borrower" | "asset-borrower";
-  readonly counterpartyPlayerId: PlayerId | "bank";
+  readonly counterpartyPlayerId: PlayerId | "bank" | null;
+  readonly npcBorrowerName?: string;
   readonly originalPrincipalCents: number;
   readonly outstandingPrincipalCents: number;
   readonly annualRateBps: number;
@@ -354,9 +356,8 @@ export function projectPlayerGameState(
         playerId
       ] ?? 0) > 0;
     const borrower =
-      !isAssetBorrower(loan) && loan.borrowerPlayerId === playerId;
-    const lender =
-      loan.kind === "player-loan" && loan.lenderPlayerId === playerId;
+      isPersonalBorrower(loan) && loan.borrowerPlayerId === playerId;
+    const lender = isLenderLoan(loan) && loan.lenderPlayerId === playerId;
     if (!borrower && !lender && !company) continue;
     const repaid =
       loan.outstandingPrincipalCents === 0 && loan.unpaidInterestCents === 0;
@@ -375,11 +376,16 @@ export function projectPlayerGameState(
           ? borrower
             ? loan.lenderPlayerId
             : loan.borrowerPlayerId
-          : "bank",
+          : loan.kind === "npc-loan"
+            ? null
+            : "bank",
+      ...(loan.kind === "npc-loan"
+        ? { npcBorrowerName: loan.borrowerName }
+        : {}),
       originalPrincipalCents: loan.originalPrincipalCents,
       outstandingPrincipalCents: loan.outstandingPrincipalCents,
       annualRateBps: loan.annualRateBps,
-      ...(loan.kind === "player-loan"
+      ...(isLenderLoan(loan)
         ? {
             termQuarters: loan.termQuarters,
             scheduledQuarterlyPaymentCents: calculatePlayerLoanSchedule({

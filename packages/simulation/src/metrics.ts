@@ -112,8 +112,7 @@ export function createPlayerSnapshot(
 
   for (const loan of Object.values(state.finance.loansById)) {
     if (
-      loan.kind !== "company-loan" &&
-      loan.kind !== "asset-bank-loan" &&
+      (loan.kind === "player-loan" || loan.kind === "legacy-bank-loan") &&
       loan.borrowerPlayerId === playerId
     )
       unpaidObligationsCents = safeAdd(
@@ -121,7 +120,10 @@ export function createPlayerSnapshot(
         loan.unpaidInterestCents,
         "unpaid obligations",
       );
-    if (loan.kind === "player-loan" && loan.lenderPlayerId === playerId)
+    if (
+      (loan.kind === "player-loan" || loan.kind === "npc-loan") &&
+      loan.lenderPlayerId === playerId
+    )
       unpaidInterestReceivableCents = safeAdd(
         unpaidInterestReceivableCents,
         loan.unpaidInterestCents,
@@ -135,8 +137,8 @@ export function createPlayerSnapshot(
           "legacyBankDebtCents",
         );
       }
-    } else if (loan.kind === "player-loan") {
-      if (loan.borrowerPlayerId === playerId) {
+    } else if (loan.kind === "player-loan" || loan.kind === "npc-loan") {
+      if (loan.kind === "player-loan" && loan.borrowerPlayerId === playerId) {
         playerLoanDebtCents = safeAdd(
           playerLoanDebtCents,
           loan.outstandingPrincipalCents,

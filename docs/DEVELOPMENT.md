@@ -110,6 +110,8 @@ The operating branch has versioned rates/inflation, property occupancy and valua
 
 The pure objective evaluator passed at `5203855` and the Q32 draw at `d27e270`. The draw passed four actual browsers through 164 accepted commands, reload and restart. These are isolated branch results. Canonical property, financing and disposal evidence, private progress, winning finales and whole-match acceptance remain.
 
+PR #41 hosted CI run #119 passed on head `c5adba4`. Non-player lending is in progress on `codex/m7-npc-lending`: the canonical note, trusted funding draft, private quote and lender views, and actual settlement receipts are in place. Authoring defines distinct market borrowers within the approved size bands. Fixed rates resolve once per offer; settlement pays only up to the recorded borrower cash budget, applies arrears to unpaid obligations, and never includes principal or unreceived interest in earned income. The checkpoint passed 872 tests, typecheck, and lint. Four focused tests verify locked quotes, privacy, exact amortization, actual versus unpaid interest, and repeat funding rejection. Recurring card delivery, player command, and end-to-end funding are not yet wired on that branch.
+
 ## M7 completion and M8 handoff
 
 M7 is complete only after production-command journeys demonstrate all eight legal objective routes without injected wealth or reduced thresholds, an ordinary four-client match reaches a valid winner, Q32 produces a durable draw when required, and privacy/retry/restart checks cover the new actions and terminal results. Finale boundary fixtures supplement those journeys rather than replace them.

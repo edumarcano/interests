@@ -6,6 +6,23 @@ import type {
   TransactionId,
 } from "./primitives/ids.js";
 
+export interface MarketLoanQuoteView {
+  readonly borrowerName: string;
+  readonly principalCents: number;
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
+  readonly firstDueQuarter: number;
+  readonly scheduledQuarterlyPaymentCents: number;
+  readonly onTimeTotalInterestCents: number;
+  readonly repaymentRisk: "full-budget" | "tight-budget";
+  readonly canFund: boolean;
+  readonly unavailableReason:
+    | "borrower-funded"
+    | "insufficient-cash"
+    | "transaction-active"
+    | null;
+}
+
 export interface ChooseObjectiveCommandPayload {
   readonly type: "CHOOSE_OBJECTIVE";
   readonly objectiveId: string;

@@ -28,6 +28,7 @@ import { assertAssetBankLoan } from "./assertAssetBankLoan";
 import { assertBusinessCashState } from "./assertBusinessCashState";
 import { assertCompanyLoan } from "./assertCompanyLoan";
 import { assertCompletionState } from "./assertCompletionState";
+import { assertNpcLoan } from "./assertNpcLoan";
 import { assertSettlementState } from "./assertSettlementState";
 
 export function assertGameState(state: GameState): void {
@@ -383,6 +384,7 @@ export function assertGameState(state: GameState): void {
     );
   }
 
+  const activeNpcBorrowers = new Set<string>();
   for (const [loanKey, loan] of Object.entries(state.finance.loansById)) {
     if (loan === undefined || loan === null || typeof loan !== "object") {
       throw new Error(`Game invariant failed: loan ${loanKey} is invalid`);
@@ -393,7 +395,14 @@ export function assertGameState(state: GameState): void {
       );
     }
 
-    if (loan.kind === "asset-bank-loan") {
+    if (loan.kind === "npc-loan") {
+      assertNpcLoan(state, loan);
+      if (loan.outstandingPrincipalCents > 0 || loan.unpaidInterestCents > 0) {
+        if (activeNpcBorrowers.has(loan.borrowerId))
+          throw new Error("Duplicate active non-player borrower");
+        activeNpcBorrowers.add(loan.borrowerId);
+      }
+    } else if (loan.kind === "asset-bank-loan") {
       assertAssetBankLoan(state, loan);
     } else if (loan.kind === "company-loan") {
       assertCompanyLoan(state, loan);
