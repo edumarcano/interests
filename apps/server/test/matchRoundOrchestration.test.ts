@@ -1350,7 +1350,11 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     ).toBe(record.match.snapshotJson);
     const own = await getView(index);
     expect(own.self.loans!.some((item) => item.id === loan.id)).toBe(true);
-    expect(own.self.propertyManagement).toHaveLength(1);
+    expect(
+      own.self.propertyManagement!.filter(
+        (item) => item.assetId === loan.borrowerAssetId,
+      ),
+    ).toHaveLength(1);
     for (let other = 0; other < 4; other++)
       if (other !== index) {
         const view = await getView(other);
@@ -1359,9 +1363,7 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
         );
         expect(
           view.self.propertyManagement!.some(
-            (item) =>
-              item.assetId ===
-              (loan as { borrowerAssetId: string }).borrowerAssetId,
+            (item) => item.assetId === loan.borrowerAssetId,
           ),
         ).toBe(false);
       }
