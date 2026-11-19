@@ -76,6 +76,7 @@ export function assertCompletionState(state: GameState): void {
       const asset = state.finance.assetsById[progress.labor.assetId];
       if (
         asset?.kind !== "business" ||
+        asset.npcSale ||
         asset.workCompensation?.playerId !== playerId
       )
         throw new Error("Invalid owner work reference");
@@ -102,6 +103,7 @@ export function assertCompletionState(state: GameState): void {
     for (const asset of Object.values(state.finance.assetsById)) {
       if (
         asset.kind === "business" &&
+        !asset.npcSale &&
         asset.workCompensation?.playerId === playerId &&
         asset.workCompensation.annualCompensationCents > 0 &&
         (progress.labor.kind !== "owner-work" ||

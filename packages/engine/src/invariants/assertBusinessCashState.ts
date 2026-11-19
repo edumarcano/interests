@@ -1,5 +1,6 @@
-import { BUSINESS_CASH_POLICIES } from "@interests/rules";
+import { BUSINESS_CASH_POLICIES, TRANSACTION_FEES_BPS } from "@interests/rules";
 import type { AssetId, PlayerId } from "@interests/shared";
+import { roundedRatio } from "../finance/bank";
 import { cents, isNonNegativeCents } from "../finance/money";
 import { allocateProportionalCents } from "../finance/ownership";
 import type { GameState } from "../model/gameState";
@@ -16,6 +17,66 @@ export function assertBusinessCashState(state: GameState): void {
       throw new Error("Game invariant failed: invalid business cash policy");
     requireMoney(asset.cashCents);
     requireMoney(asset.operatingArrearsCents);
+    if (asset.npcSale) {
+      const sale = asset.npcSale;
+      if (
+        !Number.isSafeInteger(sale.quarter) ||
+        sale.quarter < 1 ||
+        sale.quarter > state.currentQuarter ||
+        typeof sale.quoteId !== "string" ||
+        !sale.quoteId.trim() ||
+        typeof sale.buyerId !== "string" ||
+        !sale.buyerId.trim() ||
+        state.playerOrder.some((id) => id === sale.buyerId) ||
+        !/^transaction-[1-9]\d*$/.test(sale.transactionId) ||
+        Object.keys(asset.ownershipByPlayerPpm).length !== 0
+      )
+        throw new Error("Invalid NPC company sale");
+      for (const key of [
+        "operatingEnterpriseBidCents",
+        "retainedCompanyCashCents",
+        "grossConsiderationCents",
+        "saleFeeCents",
+        "bankPayoffCents",
+        "bankInterestPaidCents",
+        "operatingArrearsPaidCents",
+        "workArrearsPaidCents",
+        "netOwnerProceedsCents",
+      ] as const)
+        requireMoney(sale[key]);
+      allocateProportionalCents(cents(0), sale.sellerOwnershipByPlayerPpm);
+      if (
+        Object.keys(sale.sellerOwnershipByPlayerPpm).some(
+          (id) => !state.playerOrder.includes(id as PlayerId),
+        ) ||
+        sale.operatingEnterpriseBidCents === 0 ||
+        sale.grossConsiderationCents !==
+          sale.operatingEnterpriseBidCents + sale.retainedCompanyCashCents ||
+        sale.saleFeeCents !==
+          roundedRatio(
+            sale.grossConsiderationCents,
+            TRANSACTION_FEES_BPS.business.sale,
+          ) ||
+        sale.bankInterestPaidCents > sale.bankPayoffCents ||
+        sale.grossConsiderationCents !==
+          sale.saleFeeCents +
+            sale.bankPayoffCents +
+            sale.operatingArrearsPaidCents +
+            sale.workArrearsPaidCents +
+            sale.netOwnerProceedsCents ||
+        (!asset.workCompensation && sale.workArrearsPaidCents !== 0) ||
+        Object.values(state.finance.loansById).some(
+          (loan) =>
+            (loan.kind === "company-loan" || loan.kind === "asset-bank-loan") &&
+            loan.borrowerAssetId === asset.id &&
+            (loan.outstandingPrincipalCents ||
+              loan.unpaidInterestCents ||
+              loan.pastDuePrincipalCents),
+        )
+      )
+        throw new Error("NPC company sale does not reconcile");
+    }
+
     if (asset.annualManagementCostCents !== undefined) {
       requireMoney(asset.annualManagementCostCents);
       if (
@@ -50,6 +111,7 @@ export function assertBusinessCashState(state: GameState): void {
         !work ||
         !state.playerOrder.includes(work.playerId) ||
         (work.annualCompensationCents > 0 &&
+          !asset.npcSale &&
           (asset.ownershipByPlayerPpm[work.playerId] ?? 0) <= 0)
       )
         throw new Error("Game invariant failed: invalid company work party");
@@ -68,7 +130,11 @@ export function assertBusinessCashState(state: GameState): void {
       "Game invariant failed: invalid business entitlement basis",
     );
   for (const asset of Object.values(state.finance.assetsById)) {
-    if (asset.kind === "business" && !Object.hasOwn(basis, asset.id))
+    if (
+      asset.kind === "business" &&
+      !asset.npcSale &&
+      !Object.hasOwn(basis, asset.id)
+    )
       throw new Error("Game invariant failed: missing business entitlement");
   }
   for (const id of Object.keys(basis) as AssetId[]) {
@@ -150,6 +216,10 @@ export function assertBusinessCashState(state: GameState): void {
       requireMoney(amount);
       distributed = cents(distributed + amount);
     }
+    const paidAfterOutcome =
+      asset.npcSale && asset.npcSale.quarter > outcome.quarter
+        ? asset.npcSale
+        : null;
     const work = business.workCompensation;
     const beforeComp =
       business.cashBeforeCompensationCents ?? business.operatingCashCents;
@@ -173,7 +243,9 @@ export function assertBusinessCashState(state: GameState): void {
         work.arrearsPaidCents > work.arrearsDueCents ||
         work.closingArrearsCents !==
           work.currentDueCents + work.arrearsDueCents - workPaid ||
-        work.closingArrearsCents !== asset.workCompensation.arrearsCents ||
+        work.closingArrearsCents !==
+          asset.workCompensation.arrearsCents +
+            (paidAfterOutcome?.workArrearsPaidCents ?? 0) ||
         beforeComp !==
           business.operatingCashCents +
             work.currentDueCents +
@@ -201,13 +273,10 @@ export function assertBusinessCashState(state: GameState): void {
       throw new Error(
         "Game invariant failed: company debt outcome does not reconcile",
       );
-    const hasLoanArrears = Object.values(state.finance.loansById).some(
-      (loan) =>
-        (loan.kind === "company-loan" ||
-          (loan.kind === "asset-bank-loan" &&
-            loan.purpose === "business-acquisition")) &&
-        loan.borrowerAssetId === asset.id &&
-        (loan.pastDuePrincipalCents > 0 || loan.unpaidInterestCents > 0),
+    const hasLoanArrears = outcome.loanPayments.some(
+      (payment) =>
+        payment.borrowerAssetId === asset.id &&
+        payment.paidCents < payment.dueCents,
     );
     // Later contributions may change current cash; the historical closing sum still reconciles.
     const historicalWorkPaid = work?.arrearsPaidCents ?? 0;
@@ -237,7 +306,9 @@ export function assertBusinessCashState(state: GameState): void {
                 historicalWorkPaid -
                 debtPaid,
             )) ||
-      business.closingOperatingArrearsCents !== asset.operatingArrearsCents
+      business.closingOperatingArrearsCents !==
+        asset.operatingArrearsCents +
+          (paidAfterOutcome?.operatingArrearsPaidCents ?? 0)
     ) {
       throw new Error(
         "Game invariant failed: business outcome does not reconcile",

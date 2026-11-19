@@ -643,7 +643,10 @@ export function assertGameState(state: GameState): void {
     const ownerIds = Object.keys(asset.ownershipByPlayerPpm);
     if (
       ownerIds.length === 0 &&
-      !(asset.kind === "property" && asset.disposition === "sold")
+      !(
+        (asset.kind === "property" && asset.disposition === "sold") ||
+        (asset.kind === "business" && asset.npcSale !== undefined)
+      )
     ) {
       throw new Error(
         `Game invariant failed: asset ${asset.id} must have at least one owner`,
@@ -681,8 +684,8 @@ export function assertGameState(state: GameState): void {
     if (
       totalOwnershipPpm !== TOTAL_OWNERSHIP_PPM &&
       !(
-        asset.kind === "property" &&
-        asset.disposition === "sold" &&
+        ((asset.kind === "property" && asset.disposition === "sold") ||
+          (asset.kind === "business" && asset.npcSale !== undefined)) &&
         totalOwnershipPpm === 0
       )
     ) {

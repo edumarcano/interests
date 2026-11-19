@@ -231,6 +231,25 @@ export interface BusinessOperatingModel {
 
 export interface BusinessAsset {
   readonly operatingModel?: BusinessOperatingModel;
+  /** Sold-company ledger retained for earned rights, canonical loans and claims. No player ownership remains. */
+  readonly npcSale?: {
+    readonly quoteId: string;
+    readonly buyerId: string;
+    readonly quarter: number;
+    readonly transactionId: TransactionId;
+    readonly operatingEnterpriseBidCents: Cents;
+    readonly retainedCompanyCashCents: Cents;
+    readonly sellerOwnershipByPlayerPpm: Readonly<
+      Record<PlayerId, OwnershipPpm>
+    >;
+    readonly grossConsiderationCents: Cents;
+    readonly saleFeeCents: Cents;
+    readonly bankPayoffCents: Cents;
+    readonly bankInterestPaidCents: Cents;
+    readonly operatingArrearsPaidCents: Cents;
+    readonly workArrearsPaidCents: Cents;
+    readonly netOwnerProceedsCents: Cents;
+  };
   readonly annualManagementCostCents?: Cents;
   readonly cashPolicyId: BusinessCashPolicyId;
   readonly cashCents: Cents;

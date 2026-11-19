@@ -212,6 +212,23 @@ export function recordQuarterObservations(
         add(`asset:${id}`, "property", 0, share);
       }
     }
+    for (const asset of Object.values(state.finance.assetsById)) {
+      if (
+        asset.kind !== "business" ||
+        asset.npcSale?.quarter !== outcome.quarter
+      )
+        continue;
+      const sale = asset.npcSale;
+      const interest =
+        allocateProportionalCents(
+          sale.bankInterestPaidCents,
+          sale.sellerOwnershipByPlayerPpm,
+        )[playerId] ?? 0;
+      if ((sale.sellerOwnershipByPlayerPpm[playerId] ?? 0) > 0)
+        add(`asset:${asset.id}`, "business", 0, interest);
+      if (asset.workCompensation?.playerId === playerId)
+        work = cents(work + sale.workArrearsPaidCents);
+    }
     const observation: QuarterObservation = {
       quarter: outcome.quarter,
       employmentIncomeCents: cents(employment),
