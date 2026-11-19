@@ -114,7 +114,243 @@ export const ResignLaborPayloadSchema = z
   .object({ type: z.literal("RESIGN_LABOR") })
   .strict();
 
+const transactionKey = z.string().min(1).max(128);
+const positiveCents = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+const ownershipUnits = z.number().int().min(1).max(1_000_000);
+const loanSlot = z.number().int().min(0).max(3);
+const termsBinding = {
+  transactionId: transactionKey,
+  expectedTermsRevision: z
+    .number()
+    .int()
+    .positive()
+    .max(Number.MAX_SAFE_INTEGER),
+};
+const BusinessCapitalTermsSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("request-equity"),
+      requests: z
+        .array(
+          z
+            .object({
+              amountCents: positiveCents,
+              invitedInvestorId: transactionKey.optional(),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(4),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("company-expansion"),
+      investmentCents: positiveCents,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("secondary-stake-sale"),
+      buyerPlayerId: transactionKey,
+      sellerPlayerId: transactionKey,
+      priceCents: positiveCents,
+      ownershipPpm: ownershipUnits,
+      loanRequests: z
+        .array(
+          z
+            .object({
+              principalCents: positiveCents,
+              invitedLenderId: transactionKey.optional(),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(4)
+        .optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("primary-issuance"),
+      contributions: z
+        .array(
+          z
+            .object({
+              playerId: transactionKey,
+              amountCents: positiveCents,
+              postMoneyOwnershipPpm: ownershipUnits,
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(4),
+    })
+    .strict(),
+]);
+
+const JointPropertyTermsSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("sale") }).strict(),
+  z.object({ kind: z.literal("renovation") }).strict(),
+  z
+    .object({
+      kind: z.literal("refinance"),
+      rateKind: z.enum(["fixed", "variable"]),
+    })
+    .strict(),
+]);
+const JointPropertyOpenSchema = z
+  .object({
+    type: z.literal("OPEN_JOINT_PROPERTY"),
+    assetId: z.string().min(1).max(64),
+    terms: JointPropertyTermsSchema,
+  })
+  .strict();
+const JointPropertyReviseSchema = z
+  .object({
+    type: z.literal("REVISE_JOINT_PROPERTY"),
+    transactionId: z.string().min(1).max(64),
+    expectedTermsRevision: z
+      .number()
+      .int()
+      .positive()
+      .max(Number.MAX_SAFE_INTEGER),
+    terms: JointPropertyTermsSchema,
+  })
+  .strict();
+const JointPropertyBoundFields = {
+  transactionId: z.string().min(1).max(64),
+  expectedTermsRevision: z
+    .number()
+    .int()
+    .positive()
+    .max(Number.MAX_SAFE_INTEGER),
+};
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
+  JointPropertyOpenSchema,
+  JointPropertyReviseSchema,
+  z
+    .object({
+      type: z.literal("CONFIRM_JOINT_PROPERTY"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("WITHDRAW_JOINT_PROPERTY"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("CLOSE_JOINT_PROPERTY"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("CANCEL_JOINT_PROPERTY"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("OFFER_BUSINESS_EQUITY"),
+      ...termsBinding,
+      slot: loanSlot,
+      postMoneyOwnershipPpm: ownershipUnits,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("SELECT_BUSINESS_EQUITY"),
+      ...termsBinding,
+      slot: loanSlot,
+      investorPlayerId: transactionKey,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("WITHDRAW_BUSINESS_EQUITY"),
+      ...termsBinding,
+      slot: loanSlot,
+      investorPlayerId: transactionKey,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("OPEN_BUSINESS_AUCTION"),
+      assetId: transactionKey,
+      ownershipPpm: ownershipUnits,
+      minimumBidCents: positiveCents,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("RESPOND_BUSINESS_AUCTION"),
+      transactionId: transactionKey,
+      bidCents: positiveCents.nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("OFFER_BUSINESS_LOAN"),
+      ...termsBinding,
+      slot: loanSlot,
+      annualRateBps: z
+        .number()
+        .int()
+        .nonnegative()
+        .max(Number.MAX_SAFE_INTEGER),
+      termQuarters: z.number().int().min(2).max(8),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("SELECT_BUSINESS_LOAN"),
+      ...termsBinding,
+      slot: loanSlot,
+      lenderPlayerId: transactionKey,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("WITHDRAW_BUSINESS_LOAN"),
+      ...termsBinding,
+      slot: loanSlot,
+      lenderPlayerId: transactionKey,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("OPEN_BUSINESS_CAPITAL"),
+      assetId: transactionKey,
+      terms: BusinessCapitalTermsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("REVISE_BUSINESS_CAPITAL"),
+      ...termsBinding,
+      terms: BusinessCapitalTermsSchema,
+    })
+    .strict(),
+  z
+    .object({ type: z.literal("CONFIRM_BUSINESS_CAPITAL"), ...termsBinding })
+    .strict(),
+  z
+    .object({ type: z.literal("WITHDRAW_BUSINESS_CAPITAL"), ...termsBinding })
+    .strict(),
+  z
+    .object({ type: z.literal("CLOSE_BUSINESS_CAPITAL"), ...termsBinding })
+    .strict(),
+  z
+    .object({
+      type: z.literal("EXPAND_BUSINESS"),
+      assetId: z.string().min(1).max(128),
+      investmentCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    })
+    .strict(),
   TradePublicMarketsPayloadSchema,
   AcceptCareerOfferPayloadSchema,
   ResignLaborPayloadSchema,

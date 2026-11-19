@@ -2,6 +2,10 @@ import type { PlayerId } from "@interests/shared";
 
 import { type Cents, cents, subtractCents } from "../finance/money";
 import type { GameState } from "../model/gameState";
+import { reservedAuctionCash } from "./businessAuctionTerms";
+import { planBusinessCapital } from "./businessCapitalTerms";
+import { reservedBusinessEquityCash } from "./businessEquityOffers";
+import { reservedBusinessLoanCash } from "./businessLoanOffers";
 
 /**
  * Pure helper calculating total reserved cash in cents for a player across active transactions.
@@ -11,14 +15,36 @@ export function getReservedCashCents(
   state: GameState,
   playerId: PlayerId,
 ): Cents {
-  if (state.activeTransaction === null) {
+  const tx = state.activeTransaction;
+  if (tx === null) {
     return cents(0);
   }
-  let totalReserved = 0;
-  if (state.activeTransaction.reservation.playerId === playerId) {
-    totalReserved += state.activeTransaction.reservation.amountCents;
+  if (tx.kind === "business-auction") return reservedAuctionCash(tx, playerId);
+  if (tx.kind === "joint-property")
+    return cents(
+      tx.confirmedPlayerIds.includes(playerId) &&
+        tx.initiatorPlayerId === playerId &&
+        tx.quote.kind !== "sale"
+        ? tx.quote.cashRequiredCents
+        : 0,
+    );
+  if (tx.kind === "business-capital") {
+    const offers = cents(
+      reservedBusinessLoanCash(tx, playerId) +
+        reservedBusinessEquityCash(tx, playerId),
+    );
+    if (!tx.confirmedPlayerIds.includes(playerId)) return cents(offers);
+    const asset = state.finance.assetsById[tx.assetId];
+    const plan =
+      asset?.kind === "business" ? planBusinessCapital(state, asset, tx) : null;
+    if (!plan) throw new Error("Missing business capital reservation terms");
+    return cents(offers + (plan.cashContributions.get(playerId) ?? 0));
   }
-  const offer = state.activeTransaction.playerLoanFinancing?.offer;
+  let totalReserved = 0;
+  if (tx.reservation.playerId === playerId) {
+    totalReserved += tx.reservation.amountCents;
+  }
+  const offer = tx.playerLoanFinancing?.offer;
   if (
     offer !== null &&
     offer !== undefined &&

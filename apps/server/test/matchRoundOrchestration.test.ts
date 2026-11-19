@@ -7,6 +7,7 @@ import {
   assertGameState,
   basisPoints,
   captureBusinessBasis,
+  capturePropertyBasis,
   cents,
   createProgress,
   type GameState,
@@ -1419,5 +1420,165 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     expect(
       matchRepo.findMatchById(matchId as MatchId)!.match.snapshotJson,
     ).toBe(record.match.snapshotJson);
+  });
+  it("persists unanimous shared-property closing and private terms with retry-safe pro-rata payouts", async () => {
+    const { clients, roomCode, cookies, matchId } =
+      await setupMatchAtRoundStart();
+    const original = JSON.parse(
+      matchRepo.findMatchById(matchId as MatchId)!.match.snapshotJson,
+    ) as GameState;
+    const [a, b, c] = original.playerOrder;
+    if (!a || !b || !c) throw new Error("Missing fixture owners");
+    const propertyId = asAssetId("shared-server-property");
+    const property = {
+      id: propertyId,
+      kind: "property" as const,
+      marketValueCents: cents(10_000_000),
+      scheduledQuarterlyRentCents: cents(275_000),
+      occupancyBps: basisPoints(9500),
+      operatingExpenseRatioBps: basisPoints(3000),
+      cashCents: cents(0),
+      ownershipByPlayerPpm: {
+        [a]: ownershipPpm(600_000),
+        [b]: ownershipPpm(400_000),
+      },
+    };
+    const finance = {
+      ...original.finance,
+      assetsById: { ...original.finance.assetsById, [propertyId]: property },
+      quarterStartBasis: {
+        ...original.finance.quarterStartBasis,
+        propertiesById: capturePropertyBasis({
+          ...original.finance.assetsById,
+          [propertyId]: property,
+        }),
+      },
+    };
+    const fixture = {
+      ...original,
+      finance,
+      progress: createProgress(finance, original.playerOrder),
+    };
+    assertGameState(fixture);
+    db.prepare("UPDATE matches SET snapshot_json = ? WHERE id = ?").run(
+      JSON.stringify(fixture),
+      matchId,
+    );
+    async function view(index: number): Promise<MatchPlayerView> {
+      const response = await server.fastify.inject({
+        method: "GET",
+        url: `/api/rooms/${roomCode}/match`,
+        cookies: { interests_session: cookies[index]! },
+      });
+      expect(response.statusCode).toBe(200);
+      return JSON.parse(response.body).match;
+    }
+    async function command(
+      index: number,
+      payload: unknown,
+      expectedRevision: number,
+      commandId = randomUUID(),
+    ) {
+      return sendCommand(clients[index]!.socket, {
+        commandId,
+        expectedRevision,
+        command: payload,
+      });
+    }
+    expect((await command(0, { type: "BEGIN_ROUND" }, 4)).ok).toBe(true);
+    expect(
+      (
+        await command(
+          0,
+          {
+            type: "OPEN_JOINT_PROPERTY",
+            assetId: propertyId,
+            terms: { kind: "sale" },
+          },
+          5,
+        )
+      ).ok,
+    ).toBe(true);
+    const own = await view(0),
+      coowner = await view(1),
+      other = await view(2);
+    expect(own.jointProperty).toEqual(coowner.jointProperty);
+    expect(other.jointProperty).toBeNull();
+    expect(other.hasActiveTransaction).toBe(true);
+    const deal = own.jointProperty!;
+    const confirm = {
+      type: "CONFIRM_JOINT_PROPERTY",
+      transactionId: deal.id,
+      expectedTermsRevision: 1,
+    };
+    expect((await command(2, confirm, 6)).ok).toBe(false);
+    expect((await command(0, confirm, 6)).ok).toBe(true);
+    const id = randomUUID();
+    const ack = await command(1, confirm, 7, id);
+    expect(ack.ok).toBe(true);
+    expect(await command(1, confirm, 7, id)).toEqual(ack);
+    const pending = matchRepo.findMatchById(matchId as MatchId)!.match
+      .snapshotJson;
+    const loaded = JSON.parse(pending) as GameState;
+    assertGameState(loaded);
+    expect(loaded.activeTransaction).toMatchObject({
+      kind: "joint-property",
+      confirmedPlayerIds: [a, b],
+    });
+    const paired = {
+      ...loaded,
+      finance: {
+        ...loaded.finance,
+        cashByPlayer: {
+          ...loaded.finance.cashByPlayer,
+          [b]: cents(loaded.finance.cashByPlayer[b]! + 11),
+        },
+      },
+    };
+    assertGameState(paired);
+    const unrelated = await view(2);
+    db.prepare("UPDATE matches SET snapshot_json = ? WHERE id = ?").run(
+      JSON.stringify(paired),
+      matchId,
+    );
+    expect(await view(2)).toEqual(unrelated);
+    db.prepare("UPDATE matches SET snapshot_json = ? WHERE id = ?").run(
+      pending,
+      matchId,
+    );
+    const close = {
+      type: "CLOSE_JOINT_PROPERTY",
+      transactionId: deal.id,
+      expectedTermsRevision: 1,
+    };
+    const closeId = randomUUID();
+    const closed = await command(0, close, 8, closeId);
+    expect(closed.ok).toBe(true);
+    expect(await command(0, close, 8, closeId)).toEqual(closed);
+    const snapshot = JSON.parse(
+      matchRepo.findMatchById(matchId as MatchId)!.match.snapshotJson,
+    ) as GameState;
+    expect(snapshot.finance.cashByPlayer[a]).toBe(
+      fixture.finance.cashByPlayer[a]! + 5_760_000,
+    );
+    expect(snapshot.finance.cashByPlayer[b]).toBe(
+      fixture.finance.cashByPlayer[b]! + 3_840_000,
+    );
+    expect(snapshot.activeTransaction).toBeNull();
+    expect(snapshot.round!.spotlightsCompleted).toBe(1);
+    const entries = db
+      .prepare(
+        "SELECT payload_json FROM match_events WHERE match_id = ? AND event_kind = 'journal-entry'",
+      )
+      .all(matchId) as { payload_json: string }[];
+    expect(
+      entries.filter((row) => {
+        const entry = JSON.parse(row.payload_json);
+        return (
+          entry.relatedAssetId === propertyId &&
+          entry.reason === "property-sale-proceeds"
+        );
+      }),
+    ).toHaveLength(2);
   });
 });

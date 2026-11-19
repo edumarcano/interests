@@ -11,6 +11,7 @@ import type {
   LoanId,
   OpportunityId,
   PlayerId,
+  TransactionId,
 } from "@interests/shared";
 import type { BasisPoints, Cents } from "../finance/money";
 import type {
@@ -99,6 +100,7 @@ export interface PlayerLoan extends LoanPaymentAccounting {
   readonly termQuarters: number;
   readonly installmentsProcessed: number;
   readonly originatedQuarter: number;
+  readonly fundedTransactionId?: TransactionId;
 }
 
 export type LegacyBankLoanPurpose = "personal-debt" | "property-mortgage";
@@ -189,6 +191,7 @@ export interface BusinessAsset {
   readonly annualRevenueCents: Cents;
   readonly annualOperatingProfitCents: Cents;
   readonly enterpriseValueCents: Cents;
+  readonly pendingAnnualProfitIncreaseCents?: Cents;
   /** Zero on managed acquisition assets; absent on registry-financed starting companies. */
   readonly debtPrincipalCents?: Cents;
   /** Required for starting-company-v1, absent on the managed acquisition policy. */

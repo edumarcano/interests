@@ -1,8 +1,17 @@
-import type { AssetId, PlayerId, TransactionId } from "@interests/shared";
+import type {
+  AssetId,
+  BusinessCapitalTerms,
+  JointPropertyQuote,
+  JointPropertyTerms,
+  PlayerId,
+  TransactionId,
+} from "@interests/shared";
 
 import type { JournalEntry } from "../finance/journal";
 import type { BasisPoints, Cents } from "../finance/money";
+import type { OwnershipPpm } from "../finance/ownership";
 import type { GameState } from "../model/gameState";
+import type { SealedAuction } from "./sealedAuction";
 
 export type CashReservationPurpose = "purchase-price" | "player-loan-funding";
 
@@ -39,7 +48,67 @@ export interface CashBusinessPurchaseTransaction {
   readonly playerLoanFinancing?: PlayerLoanFinancingRequest;
 }
 
-export type ActiveTransaction = CashBusinessPurchaseTransaction;
+export interface BusinessCapitalTransaction {
+  readonly id: TransactionId;
+  readonly kind: "business-capital";
+  readonly assetId: AssetId;
+  readonly initiatorPlayerId: PlayerId;
+  readonly createdQuarter: number;
+  readonly terms: BusinessCapitalTerms;
+  readonly termsRevision: number;
+  readonly confirmedPlayerIds: readonly PlayerId[];
+  readonly loanOffers?: readonly BusinessLoanOffer[];
+  readonly selectedLoans?: readonly {
+    readonly slot: number;
+    readonly lenderPlayerId: PlayerId;
+  }[];
+  readonly equityOffers?: readonly BusinessEquityOffer[];
+  readonly selectedEquity?: readonly {
+    readonly slot: number;
+    readonly investorPlayerId: PlayerId;
+  }[];
+}
+
+export interface BusinessEquityOffer {
+  readonly investorPlayerId: PlayerId;
+  readonly slot: number;
+  readonly postMoneyOwnershipPpm: number;
+}
+
+export interface BusinessLoanOffer {
+  readonly lenderPlayerId: PlayerId;
+  readonly slot: number;
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
+}
+
+export interface JointPropertyTransaction {
+  readonly id: TransactionId;
+  readonly kind: "joint-property";
+  readonly assetId: AssetId;
+  readonly initiatorPlayerId: PlayerId;
+  readonly createdQuarter: number;
+  readonly termsRevision: number;
+  readonly terms: JointPropertyTerms;
+  readonly quote: JointPropertyQuote;
+  readonly ownershipByPlayerPpm: Readonly<Record<PlayerId, OwnershipPpm>>;
+  readonly confirmedPlayerIds: readonly PlayerId[];
+}
+
+export type ActiveTransaction =
+  | JointPropertyTransaction
+  | CashBusinessPurchaseTransaction
+  | BusinessCapitalTransaction
+  | BusinessAuctionTransaction;
+
+export interface BusinessAuctionTransaction extends SealedAuction {
+  readonly id: TransactionId;
+  readonly kind: "business-auction";
+  readonly assetId: AssetId;
+  readonly sellerPlayerId: PlayerId;
+  readonly createdQuarter: number;
+  readonly ownershipPpm: number;
+}
 
 export interface OpenCashBusinessPurchaseInput {
   readonly buyerPlayerId: PlayerId;
@@ -63,6 +132,25 @@ export interface SubmitPlayerLoanFinancingOfferInput {
 }
 
 export type TransactionErrorCode =
+  | "AUCTION_SEAT_INELIGIBLE"
+  | "AUCTION_ALREADY_RESPONDED"
+  | "AUCTION_BID_TOO_LOW"
+  | "INVALID_PROPERTY_TERMS"
+  | "PROPERTY_QUOTE_CHANGED"
+  | "PROPERTY_OWNER_REQUIRED"
+  | "PROPERTY_CONFIRMATIONS_REQUIRED"
+  | "PROPERTY_ALREADY_CONFIRMED"
+  | "PROPERTY_NOT_CONFIRMED"
+  | "INVALID_CAPITAL_CONSIDERATION"
+  | "CAPITAL_PARTICIPANT_REQUIRED"
+  | "CAPITAL_CONFIRMATIONS_REQUIRED"
+  | "CAPITAL_ALREADY_CONFIRMED"
+  | "CAPITAL_NOT_CONFIRMED"
+  | "INVALID_TRANSACTION_KIND"
+  | "INVALID_EXPANSION"
+  | "COUNTER_EXHAUSTED"
+  | "JOURNAL_ID_EXHAUSTED"
+  | "INVALID_QUARTER"
   | "WRONG_PHASE"
   | "WRONG_ROUND_STAGE"
   | "NOT_ACTIVE_SPOTLIGHT"

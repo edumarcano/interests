@@ -315,6 +315,10 @@ V1 should favor reusable templates rather than hundreds of bespoke code paths. A
 
 Targeted/open offers and scarce public bids remain within one active transaction. Primary equity puts cash into the company; secondary sales pay the owner. No human refusal may block every route. Remove the M6 Q1 free-company fixture from ordinary finished Standard setup; retain it as an explicitly named diagnostic scenario. Production generation must never grant one seat that demonstration windfall.
 
+**Shared asset decisions:** All current owners must confirm the same terms before spending company reserves on expansion, or selling, refinancing, or renovating a jointly owned property. A sole owner can act directly, subject to the usual closing rules.
+
+**Scarce auctions:** Each eligible seat submits one sealed, cash-backed bid or passes. Resolve when all eligible seats respond. The highest bidder wins and pays their own bid; the first server-accepted bid wins an exact tie. The spotlight initiator may cancel before resolution and release all reservations; release losing reservations on resolution.
+
 # 7. Economic simulation [LOCKED]
 
 The economy should be deep enough to create coherent consequences and changing strategy, but simple enough that players can understand the current environment at a glance.
@@ -1013,6 +1017,8 @@ Working-owner transfers and labor exit are approved M7 work but are not activate
 
 Low/medium/high sensitivity uses 0.5x/1x/1.5x the regime revenue effect and inclusive uniform integer-BPS noise of ±200/350/500 BPS. Cap combined quarterly revenue movement at ±1,000 BPS. Preserve necessary fixed labor costs and compatible valuation multiples; falling revenue may produce losses. Normalize performance from actual operating quarters, without inventing historical objective income or reinterpreting the opening practice valuation basis.
 
+Local practices use low sensitivity, mature operating companies use medium, and young or growth companies use high. Non-labor operating costs move proportionally with revenue; necessary labor and management costs stay fixed.
+
 Company expansion spends $4 of company cash for $1 additional annual operating profit from the next quarter. Confirmed equity or owner capital may fund the company first. Spent reserves cannot also remain in equity as cash. Preserve quarter-start operating inputs and ownership for current-quarter results.
 
 ## 16.5 Three public-market instruments [PROTOTYPE]
@@ -1059,13 +1065,13 @@ Public-market buy/sell/rebalance with section 14.4 fees, property revaluation, a
 
 ## 16.6 Property valuation movement [PROTOTYPE]
 
-| **Regime**  | **Residential quarterly mean** | **Commercial quarterly mean** |
-|-------------|--------------------------------|-------------------------------|
-| Expansion   | +1.0%                          | +1.2%                         |
-| Overheating | +0.5%                          | +0.3%                         |
-| Slowdown    | -0.5%                          | -1.0%                         |
-| Recession   | -1.5%                          | -3.0%                         |
-| Recovery    | +1.0%                          | +1.5%                         |
+| **Regime**  | **Residential quarterly mean** | **Commercial quarterly mean** | **Residential occupancy target** | **Commercial occupancy target** |
+|-------------|--------------------------------|-------------------------------|----------------------------------|---------------------------------|
+| Expansion   | +1.0%                          | +1.2%                         | 96%                              | 94%                             |
+| Overheating | +0.5%                          | +0.3%                         | 98%                              | 97%                             |
+| Slowdown    | -0.5%                          | -1.0%                         | 94%                              | 90%                             |
+| Recession   | -1.5%                          | -3.0%                         | 88%                              | 80%                             |
+| Recovery    | +1.0%                          | +1.5%                         | 95%                              | 90%                             |
 
 Use inclusive uniform noise ±75 BPS residential and ±125 BPS commercial. Incremental rate sensitivity is −2/−3 BPS of residential/commercial value return per +1 BPS base-rate change, applied once. Occupancy moves at most one percentage point per quarter toward regime targets. Rent follows inflation. Do not apply an already-counted shock again.
 
@@ -1246,6 +1252,9 @@ The eight objective identities and the two-choice, unique-objective setup remain
 | Investment income | Exclude labor income, returned principal, unpaid interest, capital/sale proceeds and circular transactions. |
 | Gains | Acquisition basis includes fees; net losses reduce progress. A disposal needs one settled quarter of exposure. Bound player-to-player gain credit by independent quotes; genuine non-player bargains retain actual cost. |
 | Bad debt | Overdue lending carries zero objective asset value until cured; canonical claims and borrower liabilities persist. |
+| Financier deal count | Count distinct performing deals originally funded with at least $50,000 of the player's capital. Group split tranches of the same funded deal. |
+| Deal Maker disposal count | Count profitable disposals with at least $50,000 in gross proceeds, subject to the settled exposure and independent price safeguards above. |
+| Independent resilience | No overdue obligations. Four-quarter non-employment cash flow after required personal debt service must still cover at least 1.5x protected annual living costs. |
 
 Protected annual living costs are the greater of current annual living cost and living cost owed over the last four completed quarters; missing quarters contribute zero. This prevents a last-second expense reduction from manufacturing qualification. Token splits cannot create extra holdings or income sources. Every objective must have viable non-player acquisition, financing, employment or exit routes; no human can veto every route.
 

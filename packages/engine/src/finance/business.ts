@@ -51,7 +51,14 @@ export function calculateBusinessEquity(
   let debt = new FinanceDecimal(business.debtPrincipalCents ?? 0);
   let unpaidInterest = new FinanceDecimal(0);
   for (const loan of Object.values(loansById)) {
-    if (loan.kind !== "company-loan" || loan.borrowerAssetId !== business.id)
+    if (
+      (loan.kind !== "company-loan" &&
+        !(
+          loan.kind === "asset-bank-loan" &&
+          loan.purpose === "business-acquisition"
+        )) ||
+      loan.borrowerAssetId !== business.id
+    )
       continue;
     debt = debt.plus(loan.outstandingPrincipalCents);
     unpaidInterest = unpaidInterest.plus(loan.unpaidInterestCents);

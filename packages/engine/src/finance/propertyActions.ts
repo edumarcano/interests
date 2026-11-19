@@ -34,7 +34,7 @@ import {
 } from "./bank";
 import type { JournalEntry } from "./journal";
 import { basisPoints, cents } from "./money";
-import { ownershipPpm } from "./ownership";
+import { allocateProportionalCents, ownershipPpm } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
 
 function catalogueProperty(
@@ -152,6 +152,7 @@ function refinancingQuote(
   playerId: PlayerId,
   asset: PropertyAsset,
   rateKind: "fixed" | "variable",
+  authority: PropertyOwnerAuthority = "sole-owner",
 ) {
   const liens = assetBankLiens(state, asset.id);
   const principalCents = cents(
@@ -191,7 +192,8 @@ function refinancingQuote(
       liens.every(
         (loan) => !loan.pastDuePrincipalCents && !loan.unpaidInterestCents,
       ) &&
-      Object.keys(asset.ownershipByPlayerPpm).length === 1 &&
+      (authority === "unanimous-owners" ||
+        Object.keys(asset.ownershipByPlayerPpm).length === 1) &&
       quote.approved &&
       getAvailableCashCents(state, playerId) - feeCents - reserveCents >=
         quote.personalQuarterlyObligationsCents,
@@ -200,6 +202,7 @@ function refinancingQuote(
 export function propertyManagement(
   state: GameState,
   playerId: PlayerId,
+  authority: PropertyOwnerAuthority = "sole-owner",
 ): PropertyManagementView[] {
   return Object.values(state.finance.assetsById)
     .filter(
@@ -233,26 +236,31 @@ export function propertyManagement(
         saleFeeCents: feeCents,
         netSaleProceedsCents,
         canSell:
-          Object.keys(asset.ownershipByPlayerPpm).length === 1 &&
+          (authority === "unanimous-owners" ||
+            Object.keys(asset.ownershipByPlayerPpm).length === 1) &&
           netSaleProceedsCents >= 0,
         renovationCostCents: cost,
         canRenovate:
           asset.renovatedQuarter === undefined &&
-          Object.keys(asset.ownershipByPlayerPpm).length === 1 &&
+          (authority === "unanimous-owners" ||
+            Object.keys(asset.ownershipByPlayerPpm).length === 1) &&
           getAvailableCashCents(state, playerId) >= cost,
         renovated: asset.renovatedQuarter !== undefined,
         refinancingQuotes: (["fixed", "variable"] as const).map((kind) =>
-          refinancingQuote(state, playerId, asset, kind),
+          refinancingQuote(state, playerId, asset, kind, authority),
         ),
       };
     });
 }
 
-/** NPC terms are complete; the close and spotlight transition are one atomic operation. */
-export function applyPropertyCommand(
+export type PropertyOwnerAuthority = "sole-owner" | "unanimous-owners";
+
+/** Internal finance draft. The transaction controller proves unanimous consent before using joint authority. */
+export function draftPropertyOwnerAction(
   state: GameState,
   playerId: PlayerId,
   command: PropertyCommand,
+  authority: PropertyOwnerAuthority = "sole-owner",
 ): ActionResult {
   const reject = (
     code:
@@ -560,7 +568,10 @@ export function applyPropertyCommand(
       } else if (command.type === "RENOVATE_PROPERTY") {
         if (asset.renovatedQuarter !== undefined)
           return reject("ALREADY_RENOVATED");
-        if (Object.keys(asset.ownershipByPlayerPpm).length !== 1)
+        if (
+          authority === "sole-owner" &&
+          Object.keys(asset.ownershipByPlayerPpm).length !== 1
+        )
           return reject("OWNER_CONSENT_REQUIRED");
         const cost = renovationCost(asset);
         if (getAvailableCashCents(state, playerId) < cost)
@@ -611,7 +622,10 @@ export function applyPropertyCommand(
           },
         };
       } else {
-        if (Object.keys(asset.ownershipByPlayerPpm).length !== 1)
+        if (
+          authority === "sole-owner" &&
+          Object.keys(asset.ownershipByPlayerPpm).length !== 1
+        )
           return reject("OWNER_CONSENT_REQUIRED");
         if (command.type === "REFINANCE_PROPERTY") {
           if (!["fixed", "variable"].includes(command.rateKind))
@@ -621,6 +635,7 @@ export function applyPropertyCommand(
             playerId,
             asset,
             command.rateKind,
+            authority,
           );
           if (!quote.canClose) return reject("BANK_UNDERWRITING_FAILED");
           posting({
@@ -687,7 +702,7 @@ export function applyPropertyCommand(
             },
           };
         } else if (command.type === "SELL_PROPERTY") {
-          const quote = propertyManagement(state, playerId).find(
+          const quote = propertyManagement(state, playerId, authority).find(
             (item) => item.assetId === asset.id,
           )!;
           if (!quote.canSell) return reject("INSUFFICIENT_FUNDS");
@@ -706,13 +721,18 @@ export function applyPropertyCommand(
             reason: "property-sale-fee",
             relatedAssetId: asset.id,
           });
-          posting({
-            source: propertyCashAccount(asset.id),
-            destination: playerCashAccount(playerId),
-            amountCents: quote.netSaleProceedsCents,
-            reason: "property-sale-proceeds",
-            relatedAssetId: asset.id,
-          });
+          const saleProceeds = allocateProportionalCents(
+            cents(quote.netSaleProceedsCents),
+            asset.ownershipByPlayerPpm,
+          );
+          for (const owner of (Object.keys(saleProceeds) as PlayerId[]).sort())
+            posting({
+              source: propertyCashAccount(asset.id),
+              destination: playerCashAccount(owner),
+              amountCents: saleProceeds[owner]!,
+              reason: "property-sale-proceeds",
+              relatedAssetId: asset.id,
+            });
           draft = {
             ...draft,
             finance: {
@@ -729,10 +749,6 @@ export function applyPropertyCommand(
               },
             },
           };
-          const progress = state.progress.byPlayer[playerId]!;
-          const basis = progress.assetsById[asset.id]!;
-          const bases = { ...progress.assetsById };
-          delete bases[asset.id];
           // Original acquisition debt is a funding source, never a gain or an extra cost.
           const netEconomicProceeds = cents(
             asset.marketValueCents +
@@ -744,58 +760,65 @@ export function applyPropertyCommand(
                   0,
                 )),
           );
-          const profitable =
-            state.lastSettledQuarter >= basis.acquiredQuarter &&
-            netEconomicProceeds > basis.costCents;
-          draft = {
-            ...draft,
-            progress: {
-              byPlayer: {
-                ...state.progress.byPlayer,
-                [playerId]: {
-                  ...progress,
-                  assetsById: bases,
-                  realizedGainsCents: cents(
-                    progress.realizedGainsCents +
-                      netEconomicProceeds -
-                      basis.costCents,
+          const economicShares = allocateProportionalCents(
+            netEconomicProceeds,
+            asset.ownershipByPlayerPpm,
+          );
+          const reference = cents(asset.marketValueCents - quote.payoffCents);
+          const referenceShares = allocateProportionalCents(
+            cents(Math.abs(reference)),
+            asset.ownershipByPlayerPpm,
+          );
+          const byPlayer = { ...draft.progress.byPlayer };
+          for (const owner of (
+            Object.keys(asset.ownershipByPlayerPpm) as PlayerId[]
+          ).sort()) {
+            const progress = byPlayer[owner]!;
+            const basis = progress.assetsById[asset.id]!;
+            const bases = { ...progress.assetsById };
+            delete bases[asset.id];
+            const proceeds = economicShares[owner]!;
+            const profitable =
+              state.lastSettledQuarter >= basis.acquiredQuarter &&
+              proceeds > basis.costCents;
+            byPlayer[owner] = {
+              ...progress,
+              assetsById: bases,
+              realizedGainsCents: cents(
+                progress.realizedGainsCents + proceeds - basis.costCents,
+              ),
+              disposals: [
+                ...progress.disposals,
+                {
+                  assetId: asset.id,
+                  category: "property",
+                  counterpartyPlayerId: null,
+                  acquiredQuarter: basis.acquiredQuarter,
+                  soldQuarter: state.currentQuarter,
+                  proceedsCents: proceeds,
+                  costCents: basis.costCents,
+                  referenceEquityCents: cents(
+                    reference < 0
+                      ? -referenceShares[owner]!
+                      : referenceShares[owner]!,
                   ),
-                  disposals: [
-                    ...progress.disposals,
-                    {
-                      assetId: asset.id,
-                      category: "property",
-                      counterpartyPlayerId: null,
-                      acquiredQuarter: basis.acquiredQuarter,
-                      soldQuarter: state.currentQuarter,
-                      proceedsCents: netEconomicProceeds,
-                      costCents: basis.costCents,
-                      referenceEquityCents: cents(
-                        asset.marketValueCents - quote.payoffCents,
-                      ),
-                    },
-                  ],
-                  profitableDisposalAssetIds: profitable
-                    ? [
-                        ...new Set([
-                          ...progress.profitableDisposalAssetIds,
-                          asset.id,
-                        ]),
-                      ]
-                    : progress.profitableDisposalAssetIds,
                 },
-              },
-            },
-          };
+              ],
+              profitableDisposalAssetIds: profitable
+                ? [
+                    ...new Set([
+                      ...progress.profitableDisposalAssetIds,
+                      asset.id,
+                    ]),
+                  ]
+                : progress.profitableDisposalAssetIds,
+            };
+          }
+          draft = { ...draft, progress: { byPlayer } };
         } else return reject("INVALID_ACTION");
       }
     }
-    const advanced = advanceSpotlight(draft, playerId);
-    if (!advanced.ok) return { ...advanced, state, journalEntries: [] };
-    return {
-      ...advanced,
-      journalEntries: [...journals, ...advanced.journalEntries],
-    };
+    return { ok: true, state: draft, journalEntries: journals };
   } catch (error) {
     if (error instanceof RangeError)
       return reject(
@@ -805,4 +828,20 @@ export function applyPropertyCommand(
       );
     throw error;
   }
+}
+
+/** Sole-owner direct actions retain the existing atomic spotlight/settlement boundary. */
+export function applyPropertyCommand(
+  state: GameState,
+  playerId: PlayerId,
+  command: PropertyCommand,
+): ActionResult {
+  const draft = draftPropertyOwnerAction(state, playerId, command);
+  if (!draft.ok) return draft;
+  const advanced = advanceSpotlight(draft.state, playerId);
+  if (!advanced.ok) return { ...advanced, state, journalEntries: [] };
+  return {
+    ...advanced,
+    journalEntries: [...draft.journalEntries, ...advanced.journalEntries],
+  };
 }

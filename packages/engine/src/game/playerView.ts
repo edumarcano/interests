@@ -9,6 +9,11 @@ import {
   PUBLIC_MARKET_TRADE_FEE_BPS,
 } from "@interests/rules";
 import type {
+  BusinessAuctionView,
+  BusinessCapitalView,
+  BusinessEquityInvitationView,
+  BusinessLoanInvitationView,
+  JointPropertyView,
   MatchId,
   MatchResultView,
   MatchSelfFinancialDetailsView,
@@ -26,6 +31,22 @@ import { calculateLoanObligation } from "../finance/obligations";
 import { calculatePropertyCashFlow } from "../finance/property";
 import { propertyManagement, propertyOffers } from "../finance/propertyActions";
 import type { GameState } from "../model/gameState.js";
+import { projectBusinessAuction } from "../transactions/businessAuctionTerms";
+import { planBusinessCapital } from "../transactions/businessCapitalTerms";
+import {
+  businessEquityOfferViews,
+  canOfferBusinessEquity,
+  equityRequests,
+} from "../transactions/businessEquityOffers";
+import {
+  businessLoanOfferViews,
+  canOfferBusinessLoan,
+  loanRequests,
+} from "../transactions/businessLoanOffers";
+import {
+  jointPropertyCashRequired,
+  jointPropertyParticipants,
+} from "../transactions/jointPropertyTerms";
 import {
   getAvailableCashCents,
   getReservedCashCents,
@@ -148,6 +169,8 @@ export interface PureRoundView {
 }
 
 export interface PurePlayerProjection {
+  readonly hasActiveTransaction: boolean;
+  readonly jointProperty: JointPropertyView | null;
   readonly result: MatchResultView | null;
   readonly matchId: MatchId;
   readonly modeId: string;
@@ -158,6 +181,10 @@ export interface PurePlayerProjection {
   readonly players: readonly PurePlayerSummary[];
   readonly self: PureSelfView;
   readonly activeTransaction: PureActiveTransactionSummary | null;
+  readonly businessCapital: BusinessCapitalView | null;
+  readonly businessLoanInvitation: BusinessLoanInvitationView | null;
+  readonly businessEquityInvitation: BusinessEquityInvitationView | null;
+  readonly businessAuction: BusinessAuctionView | null;
 }
 
 /**
@@ -453,6 +480,20 @@ export function projectPlayerGameState(
     propertyOffers: offers,
     propertyManagement: management,
     financialDetails: {
+      formerWorkClaims: Object.values(state.finance.assetsById).flatMap(
+        (asset) =>
+          asset.kind === "business" &&
+          !asset.ownershipByPlayerPpm[playerId] &&
+          asset.workCompensation?.playerId === playerId &&
+          asset.workCompensation.arrearsCents > 0
+            ? [
+                {
+                  assetId: asset.id,
+                  amountCents: asset.workCompensation.arrearsCents,
+                },
+              ]
+            : [],
+      ),
       careerOffers: getCareerOffers(state, playerId),
       annualLaborCompensationCents: currentAnnualLaborCompensation(
         state,
@@ -536,7 +577,7 @@ export function projectPlayerGameState(
 
   // Role-aware active transaction projection
   let activeTransaction: PureActiveTransactionSummary | null = null;
-  if (state.activeTransaction !== null) {
+  if (state.activeTransaction?.kind === "cash-business-purchase") {
     const tx = state.activeTransaction;
     const isFinanced = Boolean(tx.playerLoanFinancing);
     const financing = tx.playerLoanFinancing;
@@ -631,7 +672,165 @@ export function projectPlayerGameState(
         }
       : null;
 
+  let jointProperty: JointPropertyView | null = null;
+  const joint = state.activeTransaction;
+  if (joint?.kind === "joint-property") {
+    const asset = state.finance.assetsById[joint.assetId];
+    if (
+      asset?.kind === "property" &&
+      (asset.ownershipByPlayerPpm[playerId] ?? 0) > 0
+    ) {
+      const participants = jointPropertyParticipants(state, asset);
+      const quote = joint.quote;
+      const allowedQuote =
+        quote.kind === "sale"
+          ? {
+              kind: quote.kind,
+              salePriceCents: quote.salePriceCents,
+              feeCents: quote.feeCents,
+              payoffCents: quote.payoffCents,
+              netProceedsCents: quote.netProceedsCents,
+              proceedsByPlayer: Object.fromEntries(
+                participants.map((id) => [id, quote.proceedsByPlayer[id] ?? 0]),
+              ),
+            }
+          : quote.kind === "refinance"
+            ? {
+                kind: quote.kind,
+                payerPlayerId: quote.payerPlayerId,
+                cashRequiredCents: quote.cashRequiredCents,
+                feeCents: quote.feeCents,
+                principalCents: quote.principalCents,
+                rateKind: quote.rateKind,
+                annualRateBps: quote.annualRateBps,
+                quarterlyPaymentCents: quote.quarterlyPaymentCents,
+                assetReserveCents: quote.assetReserveCents,
+                firstDueQuarter: quote.firstDueQuarter,
+                termQuarters: quote.termQuarters,
+              }
+            : {
+                kind: quote.kind,
+                payerPlayerId: quote.payerPlayerId,
+                cashRequiredCents: quote.cashRequiredCents,
+                effectiveQuarter: quote.effectiveQuarter,
+                rentIncreaseBps: quote.rentIncreaseBps,
+                occupancyIncreaseBps: quote.occupancyIncreaseBps,
+                valueIncreaseCents: quote.valueIncreaseCents,
+              };
+      jointProperty = {
+        id: joint.id,
+        assetId: joint.assetId,
+        initiatorPlayerId: joint.initiatorPlayerId,
+        termsRevision: joint.termsRevision,
+        terms:
+          quote.kind === "refinance"
+            ? { kind: "refinance", rateKind: quote.rateKind }
+            : { kind: quote.kind },
+        quote: allowedQuote,
+        ownershipByPlayerPpm: Object.fromEntries(
+          participants.map((id) => [id, asset.ownershipByPlayerPpm[id]!]),
+        ),
+        participantIds: participants,
+        confirmedPlayerIds: joint.confirmedPlayerIds.filter((id) =>
+          participants.includes(id),
+        ),
+        yourCashRequiredCents: jointPropertyCashRequired(joint, playerId),
+      };
+    }
+  }
+
+  let businessCapital: BusinessCapitalView | null = null;
+  let businessLoanInvitation: BusinessLoanInvitationView | null = null;
+  let businessEquityInvitation: BusinessEquityInvitationView | null = null;
+  const capital = state.activeTransaction;
+  if (capital?.kind === "business-capital") {
+    const asset = state.finance.assetsById[capital.assetId];
+    const plan =
+      asset?.kind === "business"
+        ? planBusinessCapital(state, asset, capital)
+        : null;
+    const requests = loanRequests(capital);
+    const equity = equityRequests(capital);
+    const readyToConfirm = plan?.ready ?? false;
+    const isCurrentOwner = (asset?.ownershipByPlayerPpm[playerId] ?? 0) > 0;
+    const isDirectParty =
+      capital.terms.kind === "request-equity"
+        ? isCurrentOwner
+        : capital.terms.kind !== "secondary-stake-sale" ||
+          capital.terms.buyerPlayerId === playerId ||
+          capital.terms.sellerPlayerId === playerId;
+    if (isDirectParty && plan?.participants.includes(playerId)) {
+      businessCapital = {
+        id: capital.id,
+        assetId: capital.assetId,
+        initiatorPlayerId: capital.initiatorPlayerId,
+        terms: plan.terms,
+        termsRevision: capital.termsRevision,
+        participantIds: plan.participants,
+        confirmedPlayerIds: capital.confirmedPlayerIds,
+        yourContributionCents: plan.cashContributions.get(playerId) ?? 0,
+        ...(requests.length
+          ? {
+              loanOffers: businessLoanOfferViews(capital, playerId),
+              readyToConfirm,
+            }
+          : {}),
+        ...(equity.length
+          ? {
+              equityOffers: businessEquityOfferViews(
+                capital,
+                playerId,
+                isCurrentOwner,
+              ),
+              readyToConfirm,
+            }
+          : {}),
+      };
+    }
+    if (equity.length) {
+      const slots = equity.flatMap((request, slot) =>
+        canOfferBusinessEquity(capital, playerId, slot)
+          ? [{ slot, amountCents: request.amountCents }]
+          : [],
+      );
+      if (slots.length) {
+        businessEquityInvitation = {
+          transactionId: capital.id,
+          issuerPlayerId: capital.initiatorPlayerId,
+          termsRevision: capital.termsRevision,
+          slots,
+          ownOffers: businessEquityOfferViews(capital, playerId, false),
+          confirmed: capital.confirmedPlayerIds.includes(playerId),
+          readyToConfirm,
+          mustConfirmThroughOwnerView: isCurrentOwner,
+        };
+      }
+    }
+    if (capital.terms.kind === "secondary-stake-sale" && requests.length) {
+      const slots = requests.flatMap((request, slot) =>
+        canOfferBusinessLoan(capital, playerId, slot)
+          ? [{ slot, principalCents: request.principalCents }]
+          : [],
+      );
+      if (slots.length) {
+        const ownOffers = businessLoanOfferViews(capital, playerId);
+        businessLoanInvitation = {
+          transactionId: capital.id,
+          borrowerPlayerId: capital.terms.buyerPlayerId,
+          termsRevision: capital.termsRevision,
+          slots,
+          ownOffers,
+          readyToConfirm,
+          confirmed: capital.confirmedPlayerIds.includes(playerId),
+          selected: ownOffers.some((offer) => offer.selected),
+        };
+      }
+    }
+  }
+
   return {
+    hasActiveTransaction: state.activeTransaction !== null,
+    jointProperty,
     result: state.result
       ? state.result.kind === "objective-victory"
         ? {
@@ -653,5 +852,12 @@ export function projectPlayerGameState(
     players,
     self,
     activeTransaction,
+    businessCapital,
+    businessLoanInvitation,
+    businessEquityInvitation,
+    businessAuction:
+      capital?.kind === "business-auction"
+        ? projectBusinessAuction(capital, playerId)
+        : null,
   };
 }

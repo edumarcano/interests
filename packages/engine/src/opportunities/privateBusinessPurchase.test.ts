@@ -22,6 +22,7 @@ import {
   getAvailableCashCents,
   getReservedCashCents,
 } from "../transactions/reservations";
+import { legacy } from "../transactions/testLegacyTransaction";
 import {
   createPrivateBusinessPurchaseOpportunity,
   investigatePrivateBusinessPurchaseOpportunity,
@@ -296,9 +297,9 @@ describe("first private business-purchase opportunity lifecycle", () => {
 
     expect(pursuedState.activeTransaction).not.toBeNull();
     expect(pursuedState.activeTransaction?.id).toBe("transaction-1");
-    expect(pursuedState.activeTransaction?.buyerPlayerId).toBe(buyerId);
-    expect(pursuedState.activeTransaction?.sellerPlayerId).toBe(sellerId);
-    expect(pursuedState.activeTransaction?.purchasePriceCents).toBe(6_000_000);
+    expect(legacy(pursuedState)?.buyerPlayerId).toBe(buyerId);
+    expect(legacy(pursuedState)?.sellerPlayerId).toBe(sellerId);
+    expect(legacy(pursuedState)?.purchasePriceCents).toBe(6_000_000);
 
     // Cash verification: actual cash unchanged, reserved cash increased, available cash decreased
     expect(pursuedState.finance.cashByPlayer[buyerId]).toBe(10_000_000);

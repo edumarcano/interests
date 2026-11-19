@@ -167,6 +167,8 @@ export function buildMatchPlayerView(params: {
       : null;
 
   return {
+    hasActiveTransaction: pureProjection.hasActiveTransaction,
+    jointProperty: pureProjection.jointProperty,
     result: pureProjection.result,
     matchId: pureProjection.matchId,
     modeId: pureProjection.modeId,
@@ -177,5 +179,9 @@ export function buildMatchPlayerView(params: {
     players,
     self: enrichedSelf,
     activeTransaction,
+    businessCapital: pureProjection.businessCapital,
+    businessLoanInvitation: pureProjection.businessLoanInvitation,
+    businessEquityInvitation: pureProjection.businessEquityInvitation,
+    businessAuction: pureProjection.businessAuction,
   };
 }

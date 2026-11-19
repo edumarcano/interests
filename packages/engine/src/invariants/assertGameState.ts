@@ -21,6 +21,9 @@ import { TOTAL_OWNERSHIP_PPM } from "../finance/ownership";
 import { calculatePropertyCashFlow } from "../finance/property";
 import type { GameState } from "../model/gameState";
 import { isValidRandomState } from "../random/prng";
+import { assertBusinessAuctionTransaction } from "../transactions/businessAuctionTerms";
+import { assertBusinessCapitalTransaction } from "../transactions/businessCapitalTerms";
+import { assertJointPropertyTransaction } from "../transactions/jointPropertyTerms";
 import { assertAssetBankLoan } from "./assertAssetBankLoan";
 import { assertBusinessCashState } from "./assertBusinessCashState";
 import { assertCompanyLoan } from "./assertCompanyLoan";
@@ -464,6 +467,18 @@ export function assertGameState(state: GameState): void {
         );
       }
 
+      if (loan.fundedTransactionId !== undefined) {
+        const sequence =
+          typeof loan.fundedTransactionId === "string" &&
+          /^transaction-([1-9]\d*)$/.exec(loan.fundedTransactionId);
+        const ordinal = sequence ? Number(sequence[1]) : Number.NaN;
+        if (
+          !Number.isSafeInteger(ordinal) ||
+          ordinal > state.counters.transaction
+        )
+          throw new Error("Invalid player loan funding transaction reference");
+      }
+
       // Contract terms remain valid even when actual repayments differ.
       try {
         calculatePlayerLoanSchedule({
@@ -762,6 +777,19 @@ export function assertGameState(state: GameState): void {
       if (!Number.isSafeInteger(asset.annualOperatingProfitCents)) {
         throw new Error(
           `Game invariant failed: business ${asset.id} annualOperatingProfitCents must be signed safe integer cents`,
+        );
+      }
+      if (
+        asset.pendingAnnualProfitIncreaseCents !== undefined &&
+        (!Number.isSafeInteger(asset.pendingAnnualProfitIncreaseCents) ||
+          asset.pendingAnnualProfitIncreaseCents <= 0 ||
+          !Number.isSafeInteger(
+            asset.annualOperatingProfitCents +
+              asset.pendingAnnualProfitIncreaseCents,
+          ))
+      ) {
+        throw new Error(
+          `Game invariant failed: invalid pending expansion for ${asset.id}`,
         );
       }
       if (
@@ -1084,6 +1112,25 @@ function assertEconomyState(state: GameState): void {
       throw new Error(
         "Game invariant failed: activeTransaction.id must be a non-empty string",
       );
+    }
+    if (
+      tx.kind === "business-capital" ||
+      tx.kind === "business-auction" ||
+      tx.kind === "joint-property"
+    ) {
+      const activePlayerId =
+        state.round?.stage === "spotlight"
+          ? (state.playerOrder[
+              (state.currentQuarter - 1 + state.round.spotlightsCompleted) %
+                state.playerOrder.length
+            ] ?? null)
+          : null;
+      if (tx.kind === "business-capital")
+        assertBusinessCapitalTransaction(state, tx, activePlayerId);
+      else if (tx.kind === "business-auction")
+        assertBusinessAuctionTransaction(state, tx, activePlayerId);
+      else assertJointPropertyTransaction(state, tx, activePlayerId);
+      return;
     }
     if (tx.kind !== "cash-business-purchase") {
       throw new Error(

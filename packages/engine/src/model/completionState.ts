@@ -1,7 +1,8 @@
 import type { PublicMarketInstrumentId } from "@interests/rules";
-import type { AssetId, PlayerId } from "@interests/shared";
+import type { AssetId, PlayerId, TransactionId } from "@interests/shared";
 import type { Cents } from "../finance/money";
 import type { OwnershipPpm } from "../finance/ownership";
+import type { StakeBasisSlice } from "../finance/stakeBasis";
 
 export const FOCUS_AREAS = [
   "general",
@@ -24,6 +25,7 @@ export interface AssetAcquisitionBasis {
   readonly costCents: Cents;
   readonly acquiredQuarter: number;
   readonly ownershipPpm: OwnershipPpm;
+  readonly slices?: readonly StakeBasisSlice[];
 }
 export type IncomeCategory =
   | "cash"
@@ -73,6 +75,8 @@ export interface PlayerProgress {
     readonly proceedsCents: Cents;
     readonly costCents: Cents;
     readonly referenceEquityCents: Cents;
+    readonly transactionId?: TransactionId;
+    readonly grossProceedsCents?: Cents;
   }[];
   readonly profitableDisposalAssetIds: readonly string[];
 }

@@ -19,6 +19,8 @@ export interface ChooseObjectiveAction {
 export type GameAction = ChooseObjectiveAction;
 
 export type ActionErrorCode =
+  | "INVALID_EXPANSION"
+  | "BUSINESS_EXPANSION_REQUIRES_CONSENT"
   | "INVALID_MARKET_TRADE"
   | "INSUFFICIENT_HOLDINGS"
   | "CAREER_OFFER_UNAVAILABLE"
