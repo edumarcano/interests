@@ -7,6 +7,7 @@ import {
   type TransactionId,
 } from "@interests/shared";
 import type { ActionErrorCode, ActionResult } from "../game/actions";
+import type { EconomicActionFinalizer } from "../game/finalization";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "../game/round";
 import type { GameState } from "../model/gameState";
 import type { TransactionResult } from "../transactions/model";
@@ -17,15 +18,24 @@ import {
   playerCashAccount,
 } from "./account";
 import type { JournalEntry } from "./journal";
+import type { Cents } from "./money";
 import { addCents, cents } from "./money";
 import { TOTAL_OWNERSHIP_PPM } from "./ownership";
 import { postCash } from "./posting";
 import { allocateStakeSliceCents } from "./stakeBasis";
 
+export interface BusinessExpansionRealizedFacts {
+  readonly kind: "business-expansion";
+  readonly assetId: AssetId;
+  readonly totalInvestmentCents: Cents;
+  readonly ownerContributionCents: Cents;
+}
+
 export function expandBusinessAndAdvanceSpotlight(
   state: GameState,
   actor: PlayerId,
   input: Omit<ExpandBusinessCommandPayload, "type">,
+  finalize?: EconomicActionFinalizer<BusinessExpansionRealizedFacts>,
 ): ActionResult {
   const reject = (code: ActionErrorCode): ActionResult => ({
     ok: false,
@@ -120,6 +130,29 @@ export function expandBusinessAndAdvanceSpotlight(
   }
   const posted = applyCompanyExpansion(funded, asset.id, input.investmentCents);
   if (!posted.ok) return reject(posted.code);
+  if (finalize) {
+    const totalInvestmentCents = posted.journalEntries.reduce(
+      (total, entry) => addCents(total, entry.amountCents),
+      cents(0),
+    );
+    const ownerContributionCents = fundingJournal.reduce(
+      (total, entry) => addCents(total, entry.amountCents),
+      cents(0),
+    );
+    const result = finalize({
+      before: state,
+      draft: posted.state,
+      actorPlayerId: actor,
+      journalEntries: [...fundingJournal, ...posted.journalEntries],
+      facts: {
+        kind: "business-expansion",
+        assetId: asset.id,
+        totalInvestmentCents,
+        ownerContributionCents,
+      },
+    });
+    return result.ok ? result : reject(result.code);
+  }
   const advanced = advanceSpotlight(posted.state, actor);
   if (!advanced.ok) return reject(advanced.code);
   return {

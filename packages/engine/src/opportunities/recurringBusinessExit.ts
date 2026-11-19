@@ -10,8 +10,10 @@ import {
   type MatchedIndependentBusinessBuyer,
   quoteMatchedBusinessExit,
 } from "../finance/businessExit";
+import { type Cents, cents } from "../finance/money";
 import type { ActionResult } from "../game/actions";
 import { nextDeterministicId } from "../game/deterministicIds";
+import type { EconomicActionFinalizer } from "../game/finalization";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "../game/round";
 import type { BusinessAsset, GameState } from "../model/gameState";
 import type { RecurringOpportunity } from "./recurring";
@@ -120,11 +122,20 @@ export function recurringBusinessExitQuote(
     sellerNetCents: quote.netOwnerProceedsCents,
   };
 }
+export interface RecurringBusinessSaleRealizedFacts {
+  readonly kind: "npc-business-sale";
+  readonly assetId: AssetId;
+  readonly grossConsiderationCents: Cents;
+  readonly netProceedsCents: Cents;
+  readonly remainingClaimsCents: Cents;
+}
+
 export function sellRecurringBusiness(
   state: GameState,
   player: PlayerId,
   opportunityId: string,
   quoteId: string,
+  finalize?: EconomicActionFinalizer<RecurringBusinessSaleRealizedFacts>,
 ): ActionResult {
   const reject = (
     code:
@@ -184,6 +195,41 @@ export function sellRecurringBusiness(
       },
     },
   };
+  if (finalize) {
+    const sold = consumed.finance.assetsById[buyer.assetId];
+    if (sold?.kind !== "business" || !sold.npcSale)
+      throw new Error("Missing matched business disposal");
+    const remainingDebt = Object.values(consumed.finance.loansById).reduce(
+      (total, loan) =>
+        (loan.kind === "company-loan" || loan.kind === "asset-bank-loan") &&
+        loan.borrowerAssetId === sold.id
+          ? cents(
+              total + loan.outstandingPrincipalCents + loan.unpaidInterestCents,
+            )
+          : total,
+      cents(0),
+    );
+    const result = finalize({
+      before: state,
+      draft: consumed,
+      actorPlayerId: player,
+      journalEntries: draft.journalEntries,
+      facts: {
+        kind: "npc-business-sale",
+        assetId: sold.id,
+        grossConsiderationCents: sold.npcSale.grossConsiderationCents,
+        netProceedsCents: sold.npcSale.netOwnerProceedsCents,
+        remainingClaimsCents: cents(
+          remainingDebt +
+            sold.operatingArrearsCents +
+            (sold.workCompensation?.arrearsCents ?? 0),
+        ),
+      },
+    });
+    return result.ok
+      ? result
+      : { ok: false, code: result.code, state, journalEntries: [] };
+  }
   const advanced = advanceSpotlight(consumed, player);
   if (!advanced.ok) return { ...advanced, state, journalEntries: [] };
   return {
