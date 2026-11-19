@@ -681,11 +681,24 @@ export type MatchResultView =
       readonly completedQuarter: number;
     }
   | { readonly kind: "safety-draw"; readonly completedQuarter: number };
+export interface ObjectiveEvaluationView {
+  readonly objectiveId: string;
+  readonly status: "eligible" | "ineligible";
+  readonly checks: readonly {
+    readonly id: string;
+    readonly met: boolean;
+    readonly actual: number;
+    readonly target: number;
+    readonly comparison: "minimum" | "maximum" | "required";
+  }[];
+}
+
 export interface MatchSelfFinancialDetailsView {
   readonly formerWorkClaims?: readonly {
     readonly assetId: string;
     readonly amountCents: number;
   }[];
+  readonly objectiveEvaluation: ObjectiveEvaluationView | null;
   readonly careerOffers: readonly CareerOfferView[];
   readonly annualLaborCompensationCents: number | null;
   readonly quarterlyIncomeCents: number;

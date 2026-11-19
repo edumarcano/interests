@@ -118,6 +118,7 @@ export function recordQuarterObservations(
       category: SourceObservation["category"],
       amount: number,
       debt = 0,
+      personalDebt = 0,
     ) => {
       const old = sources[key];
       sources[key] = {
@@ -126,6 +127,13 @@ export function recordQuarterObservations(
           (old?.recurringReceivedCents ?? 0) + amount,
         ),
         debtServiceOwedCents: cents((old?.debtServiceOwedCents ?? 0) + debt),
+        ...(personalDebt > 0 || old?.personalDebtServiceOwedCents !== undefined
+          ? {
+              personalDebtServiceOwedCents: cents(
+                (old?.personalDebtServiceOwedCents ?? 0) + personalDebt,
+              ),
+            }
+          : {}),
       };
     };
     for (const entry of journals) {
@@ -183,7 +191,13 @@ export function recordQuarterObservations(
         owed = cents(owed + payment.dueCents);
         paid = cents(paid + payment.paidCents);
         if (loan.kind === "legacy-bank-loan" && loan.relatedAssetId)
-          add(`asset:${loan.relatedAssetId}`, "property", 0, payment.dueCents);
+          add(
+            `asset:${loan.relatedAssetId}`,
+            "property",
+            0,
+            payment.dueCents,
+            payment.dueCents,
+          );
       }
       if (payment.lenderPlayerId === playerId && isLenderLoan(loan)) {
         financingInterest = cents(

@@ -36,6 +36,8 @@ import { calculateLoanObligation } from "../finance/obligations";
 import { calculatePropertyCashFlow } from "../finance/property";
 import { propertyManagement, propertyOffers } from "../finance/propertyActions";
 import type { GameState } from "../model/gameState.js";
+import { evaluateObjective } from "../objectives/evaluate";
+import { measurePlayerObjectives } from "../objectives/measurements";
 import { projectRecurringOpportunity } from "../opportunities/recurring";
 import { projectBusinessAuction } from "../transactions/businessAuctionTerms";
 import { planBusinessCapital } from "../transactions/businessCapitalTerms";
@@ -495,6 +497,18 @@ export function projectPlayerGameState(
   } catch (error) {
     if (!(error instanceof RangeError)) throw error;
   }
+  let objectiveEvaluation: MatchSelfFinancialDetailsView["objectiveEvaluation"] =
+    null;
+  if (selfPlayer.selectedObjectiveId !== null) {
+    try {
+      objectiveEvaluation = evaluateObjective(
+        measurePlayerObjectives(state, playerId),
+        selfPlayer.selectedObjectiveId,
+      );
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+    }
+  }
   const self: PureSelfView = {
     propertyOffers: offers,
     propertyManagement: management,
@@ -514,6 +528,7 @@ export function projectPlayerGameState(
               ]
             : [],
       ),
+      objectiveEvaluation,
       careerOffers: getCareerOffers(state, playerId),
       annualLaborCompensationCents: currentAnnualLaborCompensation(
         state,

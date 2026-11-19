@@ -4,6 +4,7 @@ import {
   PUBLIC_MARKET_INSTRUMENT_IDS,
 } from "@interests/rules";
 import type { AssetId, PlayerId } from "@interests/shared";
+import { isAssetBorrower } from "../finance/bank";
 import { calculateBusinessEquity } from "../finance/business";
 import { FinanceDecimal } from "../finance/decimal";
 import { type Cents, cents } from "../finance/money";
@@ -11,6 +12,7 @@ import { allocateProportionalCents } from "../finance/ownership";
 import type { QuarterObservation } from "../model/completionState";
 import type { GameState } from "../model/gameState";
 import { getAvailableCashCents } from "../transactions/reservations";
+import { combineObjectiveEvidence } from "./evidence";
 import type {
   ObjectiveEvidence,
   ObjectiveHolding,
@@ -57,8 +59,13 @@ function actualQuarters(
 export function measurePlayerObjectives(
   state: GameState,
   playerId: PlayerId,
-  evidence: ObjectiveEvidence = {},
+  additionalEvidence: ObjectiveEvidence = {},
 ): ObjectiveMeasurements {
+  const evidence = combineObjectiveEvidence(
+    state,
+    playerId,
+    additionalEvidence,
+  );
   const progress = state.progress.byPlayer[playerId];
   if (!progress || !state.players[playerId])
     throw new Error("Unknown objective player");
@@ -110,7 +117,11 @@ export function measurePlayerObjectives(
   }
   for (const asset of Object.values(state.finance.assetsById)) {
     const ownership = asset.ownershipByPlayerPpm[playerId] ?? 0;
-    if (ownership <= 0) continue;
+    if (
+      ownership <= 0 ||
+      (asset.kind === "property" && asset.disposition === "sold")
+    )
+      continue;
     activeSources.add(`asset:${asset.id}`);
     if (asset.kind === "business") {
       const result = calculateBusinessEquity(asset, state.finance.loansById);
@@ -153,7 +164,7 @@ export function measurePlayerObjectives(
         (asset.workCompensation?.arrearsCents ?? 0) > 0 ||
         Object.values(state.finance.loansById).some(
           (loan) =>
-            loan.kind === "company-loan" &&
+            isAssetBorrower(loan) &&
             loan.borrowerAssetId === asset.id &&
             (loan.pastDuePrincipalCents > 0 || loan.unpaidInterestCents > 0),
         );
@@ -252,7 +263,7 @@ export function measurePlayerObjectives(
     }
   }
   for (const loan of Object.values(state.finance.loansById)) {
-    if (loan.kind !== "company-loan" && loan.borrowerPlayerId === playerId) {
+    if (!isAssetBorrower(loan) && loan.borrowerPlayerId === playerId) {
       liabilities = sum([
         liabilities,
         loan.outstandingPrincipalCents,
@@ -424,7 +435,7 @@ export function measurePlayerObjectives(
         continue;
       personalDebtAlreadyDeducted = sum([
         personalDebtAlreadyDeducted,
-        source.debtServiceOwedCents,
+        source.personalDebtServiceOwedCents ?? 0,
       ]);
       const expectedCategory =
         id === "cash"

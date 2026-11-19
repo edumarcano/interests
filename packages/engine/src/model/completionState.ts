@@ -45,6 +45,8 @@ export type IncomeCategory =
   | "business"
   | "financing";
 export interface SourceObservation {
+  /** Subset already included in the player's required personal debt service. */
+  readonly personalDebtServiceOwedCents?: Cents;
   readonly category: IncomeCategory;
   readonly recurringReceivedCents: Cents;
   readonly debtServiceOwedCents: Cents;

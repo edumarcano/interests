@@ -315,6 +315,11 @@ export function assertCompletionState(state: GameState): void {
           throw new Error("Invalid income category");
         integer(source.recurringReceivedCents);
         integer(source.debtServiceOwedCents);
+        if (source.personalDebtServiceOwedCents !== undefined) {
+          integer(source.personalDebtServiceOwedCents);
+          if (source.personalDebtServiceOwedCents > source.debtServiceOwedCents)
+            throw new Error("Invalid personal debt attribution");
+        }
       }
       record(observation.companyOperatingProfitById);
       for (const profit of Object.values(

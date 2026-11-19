@@ -501,6 +501,36 @@ export function assertGameState(state: GameState): void {
           throw new Error("Invalid player loan funding transaction reference");
       }
 
+      if (
+        loan.fundedTransactionId !== undefined &&
+        loan.settledInterestReceipts === undefined
+      )
+        throw new Error("Missing funded player loan interest receipts");
+      if (loan.settledInterestReceipts !== undefined) {
+        if (!Array.isArray(loan.settledInterestReceipts))
+          throw new Error("Invalid player loan interest receipts");
+        let previousQuarter = loan.originatedQuarter;
+        let received = 0;
+        for (const receipt of loan.settledInterestReceipts) {
+          if (
+            !receipt ||
+            !Number.isSafeInteger(receipt.quarter) ||
+            receipt.quarter <= previousQuarter ||
+            receipt.quarter > loan.lastProcessedQuarter ||
+            !Number.isSafeInteger(receipt.receivedCents) ||
+            receipt.receivedCents < 0 ||
+            !Number.isSafeInteger(receipt.currentEarnedCents) ||
+            receipt.currentEarnedCents < 0 ||
+            receipt.currentEarnedCents > receipt.receivedCents
+          )
+            throw new Error("Invalid player loan interest receipt");
+          previousQuarter = receipt.quarter;
+          received += receipt.receivedCents;
+          if (!Number.isSafeInteger(received))
+            throw new Error("Player loan received interest overflow");
+        }
+      }
+
       // Contract terms remain valid even when actual repayments differ.
       try {
         calculatePlayerLoanSchedule({

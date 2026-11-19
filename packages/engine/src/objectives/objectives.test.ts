@@ -537,6 +537,7 @@ describe("actual history and current exposure", () => {
           category: "property",
           recurringReceivedCents: cents(500_000),
           debtServiceOwedCents: cents(200_000),
+          personalDebtServiceOwedCents: cents(200_000),
         },
       },
     }));
