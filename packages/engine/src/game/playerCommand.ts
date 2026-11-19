@@ -1,6 +1,7 @@
 import type { ObjectiveId } from "@interests/rules";
 import type {
   AcceptCareerOfferCommandPayload,
+  AcquireRecurringCommand,
   BusinessAuctionCommand,
   BusinessCapitalCommand,
   ExpandBusinessCommandPayload,
@@ -27,6 +28,7 @@ import {
   investigateRecurringOpportunity,
   setPlayerFocus,
 } from "../opportunities/recurring";
+import { acquireRecurringOpportunity } from "../opportunities/recurringPurchase";
 import { applyBusinessAuctionCommand } from "../transactions/businessAuction";
 import { applyBusinessCapitalCommand } from "../transactions/businessCapital";
 import {
@@ -99,6 +101,7 @@ export interface WireCancelActiveTransactionCommand {
 
 export type WirePlayerCommand =
   | PropertyAcquisitionCommand
+  | AcquireRecurringCommand
   | BusinessAuctionCommand
   | JointPropertyCommand
   | BusinessCapitalCommand
@@ -156,6 +159,8 @@ export function applyPlayerCommand(
     return { ok: false, state, code: "WRONG_PHASE", journalEntries: [] };
 
   switch (wireCommand.type) {
+    case "ACQUIRE_RECURRING_OPPORTUNITY":
+      return acquireRecurringOpportunity(state, actorPlayerId, wireCommand);
     case "OPEN_BUSINESS_AUCTION":
     case "RESPOND_BUSINESS_AUCTION":
       return applyBusinessAuctionCommand(state, actorPlayerId, wireCommand);

@@ -240,9 +240,13 @@ describe("ordinary objective-neutral recurring generation", () => {
     for (const player of players) {
       const candidates = recurringCandidateWeights(initial, player);
       for (const candidate of candidates)
-        expect(initial.finance.cashByPlayer[player]).toBeGreaterThanOrEqual(
-          candidate.template.minimumCashCents,
-        );
+        expect(
+          initial.finance.cashByPlayer[player]! >=
+            candidate.template.minimumCashCents ||
+            ["npc-business-purchase", "npc-property-purchase"].includes(
+              candidate.template.action,
+            ),
+        ).toBe(true);
       const quick = candidates
         .filter((candidate) => candidate.template.intensity === "quick")
         .reduce((total, candidate) => total + candidate.weight, 0);

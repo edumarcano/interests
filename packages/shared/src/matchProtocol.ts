@@ -429,6 +429,28 @@ export interface PropertyAcquisitionView {
   readonly confirmedPlayerIds: readonly string[];
 }
 
+export type RecurringAcquisitionRoute = "cash" | "bank-fixed" | "bank-variable";
+export interface RecurringAcquisitionQuote {
+  readonly id: string;
+  readonly opportunityId: string;
+  readonly kind: "business" | "property";
+  readonly route: RecurringAcquisitionRoute;
+  readonly askingPriceCents: number;
+  readonly purchaseFeeCents: number;
+  readonly principalCents: number;
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
+  readonly quarterlyPaymentCents: number;
+  readonly assetReserveCents: number;
+  readonly personalReserveCents: number;
+  readonly cashRequiredCents: number;
+  readonly canClose: boolean;
+}
+export interface AcquireRecurringCommand {
+  readonly type: "ACQUIRE_RECURRING_OPPORTUNITY";
+  readonly opportunityId: string;
+  readonly quoteId: string;
+}
 export interface SetFocusCommandPayload {
   readonly type: "SET_FOCUS";
   readonly focus:
@@ -476,7 +498,8 @@ export interface RecurringOpportunityView {
     | "npc-property-purchase"
     | "npc-financing";
   readonly createdQuarter: number;
-  readonly status: "available" | "expired";
+  readonly status: "available" | "expired" | "acquired";
+  readonly acquiredAssetId?: string;
   readonly askingPriceCents: number;
   readonly investigationFeeCents: number;
   readonly investigated: boolean;
@@ -491,6 +514,7 @@ export type PlayerCommand =
   | PropertyCommand
   | ExpandBusinessCommandPayload
   | SetFocusCommandPayload
+  | AcquireRecurringCommand
   | TradePublicMarketsCommandPayload
   | AcceptCareerOfferCommandPayload
   | ResignLaborCommandPayload

@@ -63,6 +63,7 @@ export const MatchView: React.FC<Props> = ({
       )}
 
       <RecurringOpportunityPanel
+        roomCode={roomCode}
         key={match.self.recurringOpportunity?.id ?? "no-recurring-card"}
         match={match}
         isPaused={isPaused}

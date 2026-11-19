@@ -62,7 +62,7 @@ export function assertRecurringContentState(state: GameState): void {
       !card ||
       card.targetPlayerId !== player ||
       card.createdQuarter !== content.generatedQuarter ||
-      !["available", "expired"].includes(card.status) ||
+      !["available", "expired", "acquired"].includes(card.status) ||
       typeof card.investigated !== "boolean" ||
       typeof card.id !== "string" ||
       card.id.length === 0 ||
@@ -70,6 +70,14 @@ export function assertRecurringContentState(state: GameState): void {
     )
       throw new Error("Invalid recurring opportunity");
     ids.add(card.id);
+    if (card.status === "acquired") {
+      if (
+        !card.acquiredAssetId ||
+        !state.finance.assetsById[card.acquiredAssetId]
+      )
+        throw new Error("Missing recurring acquired asset");
+    } else if (card.acquiredAssetId !== undefined)
+      throw new Error("Unexpected recurring acquired asset");
     const template = RECURRING_CONTENT_TEMPLATES.find(
       (candidate) => candidate.id === card.templateId,
     );

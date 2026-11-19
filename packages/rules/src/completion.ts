@@ -132,6 +132,8 @@ export const TRANSACTION_FEES_BPS = Object.freeze({
 
 export const RECURRING_CONTENT_RULES = Object.freeze({
   privateOpportunitiesPerPlayerPerQuarter: 1,
+  askingPriceVariationBps: 250,
+  businessProfitVariationBps: 500,
   focusWeightMultiplier: 3,
   ownershipWeightMultiplier: 2,
   recentCategoryWeightDivisor: 2,

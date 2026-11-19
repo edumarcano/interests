@@ -262,6 +262,10 @@ const PropertyAcquisitionTermsSchema = z
       .max(4),
   })
   .strict();
+
+export const RecurringAcquisitionPreviewSchema = z
+  .object({ opportunityId: z.string().min(1).max(128) })
+  .strict();
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
   z
     .object({
@@ -348,6 +352,13 @@ export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
       ...termsBinding,
       slot: loanSlot,
       investorPlayerId: transactionKey,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("ACQUIRE_RECURRING_OPPORTUNITY"),
+      opportunityId: z.string().min(1).max(128),
+      quoteId: z.string().min(1).max(1000),
     })
     .strict(),
   z

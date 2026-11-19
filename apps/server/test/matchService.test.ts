@@ -243,6 +243,57 @@ describe("MatchService and Realtime Pipeline", () => {
         }),
       ).toMatchObject({ ok: true, revision: index + 1 });
     }
+    const preview = (
+      cookie?: string,
+      payload: Record<string, unknown> = {
+        opportunityId: original[0]!.self.recurringOpportunity!.id,
+      },
+      origin?: string,
+    ) =>
+      server.fastify.inject({
+        method: "POST",
+        url: `/api/rooms/${roomCode}/recurring-acquisition-preview`,
+        cookies: cookie ? { interests_session: cookie } : {},
+        payload,
+        headers: origin ? { origin } : {},
+      });
+    const previewBefore =
+      matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson;
+    expect((await preview()).statusCode).toBe(401);
+    expect(
+      (await preview(cookies[0], undefined, "https://unrelated.example"))
+        .statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await preview(cookies[0], {
+          opportunityId: original[0]!.self.recurringOpportunity!.id,
+          actorPlayerId: original[1]!.self.playerId,
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await preview(cookies[0], {
+          opportunityId: original[0]!.self.recurringOpportunity!.id,
+          principalCents: 1,
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect((await preview("invalid-session")).statusCode).toBe(403);
+    const quoteResponse = await preview(cookies[0]);
+    expect(quoteResponse.statusCode).toBe(200);
+    expect(quoteResponse.headers["cache-control"]).toBe("no-store");
+    expect(Object.keys(JSON.parse(quoteResponse.body))).toEqual(["quotes"]);
+    expect(quoteResponse.body).not.toMatch(
+      /annualRevenue|annualOperatingProfit|enterpriseValue|facts/,
+    );
+    expect(JSON.parse((await preview(cookies[1])).body)).toEqual({
+      quotes: [],
+    });
+    expect(matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson).toBe(
+      previewBefore,
+    );
     const snapshotBefore = JSON.parse(
       matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson,
     );

@@ -111,12 +111,14 @@ test("ordinary cards and future focus, with an explicit synthetic paid-diligence
         investigated.self.recurringOpportunity!.id,
       );
     }
-    expect(
-      await host
-        .getByTestId("recurring-opportunity-panel")
-        .getByRole("button", { name: /buy|purchase|finance/i })
-        .count(),
-    ).toBe(0);
+    await host.getByTestId("preview-recurring-acquisition").click();
+    await expect(host.getByTestId("review-recurring-cash")).toBeDisabled();
+    await expect(
+      host.getByTestId("review-recurring-bank-fixed"),
+    ).toBeDisabled();
+    await expect(
+      host.getByRole("dialog", { name: "Confirm opportunity purchase" }),
+    ).toHaveCount(0);
     const width = await host.evaluate(() => ({
       client: document.documentElement.clientWidth,
       scroll: document.documentElement.scrollWidth,

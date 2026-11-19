@@ -1,9 +1,12 @@
 import {
+  ASSET_UNDERWRITING,
+  COMPLETION_ECONOMY_TARGETS,
   OBJECTIVE_MEASUREMENT_RULES,
   RECURRING_CONTENT_RULES,
   RECURRING_CONTENT_TEMPLATES,
   type RecurringCategory,
   type RecurringContentTemplate,
+  TRANSACTION_FEES_BPS,
 } from "@interests/rules";
 import type {
   OpportunityId,
@@ -22,6 +25,7 @@ import { FOCUS_AREAS, type FocusArea } from "../model/completionState";
 import type { GameState } from "../model/gameState";
 import { drawBoundedInt, type RandomState } from "../random/prng";
 import { getAvailableCashCents } from "../transactions/reservations";
+import { getRecurringAcquisitionQuotes } from "./recurringPurchase";
 
 export interface RecurringOpportunity {
   readonly id: OpportunityId;
@@ -29,7 +33,8 @@ export interface RecurringOpportunity {
   readonly templateId: string;
   readonly category: RecurringCategory;
   readonly createdQuarter: number;
-  readonly status: "available" | "expired";
+  readonly status: "available" | "expired" | "acquired";
+  readonly acquiredAssetId?: import("@interests/shared").AssetId;
   readonly askingPriceCents: Cents;
   readonly investigationFeeCents: Cents;
   readonly investigated: boolean;
@@ -72,6 +77,102 @@ function ownsCategory(
   return false;
 }
 
+/** Conservative authored variation bounds keep bank-supported discovery fundable without rerolls. */
+function canFinanceTemplate(
+  state: GameState,
+  player: PlayerId,
+  template: RecurringContentTemplate,
+): boolean {
+  if (
+    !template.facts ||
+    !["npc-business-purchase", "npc-property-purchase"].includes(
+      template.action,
+    )
+  )
+    return false;
+  const askingPriceCents = cents(
+    new FinanceDecimal(template.askingPriceCents)
+      .times(10_000 + RECURRING_CONTENT_RULES.askingPriceVariationBps)
+      .div(10_000)
+      .round()
+      .toNumber(),
+  );
+  const limits =
+    ASSET_UNDERWRITING[
+      COMPLETION_ECONOMY_TARGETS[state.economy.currentRegime].credit
+    ];
+  const business = template.facts.kind === "business";
+  const loanValue = business
+    ? askingPriceCents
+    : template.facts.kind === "property"
+      ? template.facts.marketValueCents
+      : 0;
+  const maximumPrincipal = Math.min(
+    askingPriceCents,
+    new FinanceDecimal(loanValue)
+      .times(business ? limits.businessShareBps : limits.propertyLtvBps)
+      .div(10_000)
+      .round()
+      .toNumber(),
+  );
+  const fee = new FinanceDecimal(askingPriceCents)
+    .times(
+      business
+        ? TRANSACTION_FEES_BPS.business.purchase
+        : TRANSACTION_FEES_BPS.property.purchase,
+    )
+    .div(10_000)
+    .round()
+    .toNumber();
+  if (
+    getAvailableCashCents(state, player) <
+    askingPriceCents + fee - maximumPrincipal
+  )
+    return false;
+  const facts =
+    template.facts.kind === "business"
+      ? {
+          ...template.facts,
+          annualOperatingProfitCents: cents(
+            new FinanceDecimal(template.facts.annualOperatingProfitCents)
+              .times(
+                10_000 - RECURRING_CONTENT_RULES.businessProfitVariationBps,
+              )
+              .div(10_000)
+              .round()
+              .toNumber(),
+          ),
+        }
+      : template.facts;
+  const id = "candidate-finance-check" as OpportunityId;
+  const draft: GameState = {
+    ...state,
+    phase: "ready-for-first-round",
+    content: {
+      ...state.content,
+      cardsByPlayer: {
+        ...state.content.cardsByPlayer,
+        [player]: {
+          id,
+          targetPlayerId: player,
+          templateId: template.id,
+          category: template.category,
+          createdQuarter: state.currentQuarter,
+          status: "available",
+          askingPriceCents,
+          investigationFeeCents:
+            recurringInvestigationFeeCents(askingPriceCents),
+          investigated: false,
+          facts,
+        },
+      },
+    },
+  };
+  return getRecurringAcquisitionQuotes(draft, player, id).some(
+    (quote) => quote.route !== "cash" && quote.canClose,
+  );
+}
+
 /** Current owned resources and personal focus only; selected/offered objectives are never read. */
 export function recurringCandidateWeights(state: GameState, player: PlayerId) {
   if (!state.players[player]) throw new RangeError("Unknown content recipient");
@@ -80,7 +181,8 @@ export function recurringCandidateWeights(state: GameState, player: PlayerId) {
   const recent = state.content.recentCategoriesByPlayer[player] ?? [];
   return RECURRING_CONTENT_TEMPLATES.flatMap((template) => {
     if (
-      cash < template.minimumCashCents ||
+      (cash < template.minimumCashCents &&
+        !canFinanceTemplate(state, player, template)) ||
       (template.requiredOwnership &&
         !ownsCategory(state, player, template.requiredOwnership))
     )
@@ -157,13 +259,23 @@ export function generateRecurringContent(state: GameState): GameState {
       remaining -= candidate.weight;
     }
     if (!selected) throw new Error("No recurring content candidate");
-    const priceNoise = drawBoundedInt(random, 501);
+    const priceNoise = drawBoundedInt(
+      random,
+      2 * RECURRING_CONTENT_RULES.askingPriceVariationBps + 1,
+    );
     random = priceNoise.nextState;
-    const factNoise = drawBoundedInt(random, 1001);
+    const factNoise = drawBoundedInt(
+      random,
+      2 * RECURRING_CONTENT_RULES.businessProfitVariationBps + 1,
+    );
     random = factNoise.nextState;
     const price = cents(
       new FinanceDecimal(selected.askingPriceCents)
-        .times(10_000 + priceNoise.value - 250)
+        .times(
+          10_000 +
+            priceNoise.value -
+            RECURRING_CONTENT_RULES.askingPriceVariationBps,
+        )
         .dividedBy(10_000)
         .round()
         .toNumber(),
@@ -172,7 +284,11 @@ export function generateRecurringContent(state: GameState): GameState {
     if (facts?.kind === "business")
       facts.annualOperatingProfitCents = cents(
         new FinanceDecimal(facts.annualOperatingProfitCents)
-          .times(10_000 + factNoise.value - 500)
+          .times(
+            10_000 +
+              factNoise.value -
+              RECURRING_CONTENT_RULES.businessProfitVariationBps,
+          )
           .dividedBy(10_000)
           .round()
           .toNumber(),
@@ -250,6 +366,7 @@ export function projectRecurringOpportunity(
     action: template.action,
     createdQuarter: card.createdQuarter,
     status: card.status,
+    ...(card.acquiredAssetId ? { acquiredAssetId: card.acquiredAssetId } : {}),
     askingPriceCents: card.askingPriceCents,
     investigationFeeCents: card.investigationFeeCents,
     investigated: card.investigated,

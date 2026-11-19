@@ -22,6 +22,17 @@ export type LaborRole =
   | { readonly kind: "owner-work"; readonly assetId: AssetId }
   | { readonly kind: "not-working" };
 export interface AssetAcquisitionBasis {
+  readonly acquisition?: {
+    readonly kind: "recurring-npc";
+    readonly opportunityId: string;
+    readonly templateId: string;
+    readonly transactionId: TransactionId;
+    readonly considerationCents: number;
+    readonly feeCents: number;
+    readonly bankPrincipalCents: number;
+    readonly reserveCents: number;
+    readonly buyerCashCents: number;
+  };
   readonly costCents: Cents;
   readonly acquiredQuarter: number;
   readonly ownershipPpm: OwnershipPpm;

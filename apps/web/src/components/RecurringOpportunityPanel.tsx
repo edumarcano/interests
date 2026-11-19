@@ -7,6 +7,7 @@ import type {
 } from "@interests/shared";
 import { useEffect, useState } from "react";
 import { money } from "./CareerPanel";
+import { RecurringAcquisitionPanel } from "./RecurringAcquisitionPanel";
 
 const focusOptions = [
   ["general", "General"],
@@ -45,10 +46,12 @@ function Facts({ facts }: { facts: RecurringOpportunityFacts }) {
 }
 
 export function RecurringOpportunityPanel({
+  roomCode,
   match,
   isPaused,
   onSendCommand,
 }: {
+  roomCode?: string;
   match: MatchPlayerView;
   isPaused: boolean;
   onSendCommand: (command: PlayerCommand) => Promise<CommandAckResult>;
@@ -101,7 +104,11 @@ export function RecurringOpportunityPanel({
       {card.askingPriceCents > 0 && (
         <p>Asking amount: {money(card.askingPriceCents)}</p>
       )}
-      {card.status === "expired" ? (
+      {card.status === "acquired" ? (
+        <p role="status">
+          Purchase completed. Your asset appears in your private finances.
+        </p>
+      ) : card.status === "expired" ? (
         <p role="status">
           This card expired when your spotlight ended. New cards arrive next
           quarter.
@@ -161,6 +168,14 @@ export function RecurringOpportunityPanel({
         <p>
           <a href="#private-finances">Review your asset finances</a>
         </p>
+      )}
+      {roomCode && (
+        <RecurringAcquisitionPanel
+          roomCode={roomCode}
+          match={match}
+          isPaused={isPaused || pending !== null}
+          onSendCommand={onSendCommand}
+        />
       )}
       <div style={{ marginTop: "1rem" }}>
         <label htmlFor="future-opportunity-focus">

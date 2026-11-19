@@ -53,3 +53,5 @@ export * from "./finance/propertyActions";
 export * from "./finance/publicMarketTrading";
 export * from "./game/career";
 export * from "./model/completionState";
+
+export { getRecurringAcquisitionQuotes } from "./opportunities/recurringPurchase";
