@@ -2,7 +2,7 @@ import type { MatchPlayerView } from "@interests/shared";
 import { expect, test } from "@playwright/test";
 import { startTestServer } from "./support/serverHarness";
 
-test("ordinary four-client career acceptance persists earned pay and private finances on a phone", async ({
+test("ordinary four-client career acceptance persists earned pay and private progress on a phone", async ({
   browser,
 }) => {
   test.setTimeout(120_000);
@@ -51,6 +51,24 @@ test("ordinary four-client career acceptance persists earned pay and private fin
     await expect(
       host.getByRole("heading", { name: "Private objective requirements" }),
     ).toBeVisible();
+    const progress = host.getByRole("region", {
+      name: "Your objective progress",
+    });
+    await expect(progress).toBeVisible();
+    const evaluation = before.self.financialDetails.objectiveEvaluation!;
+    expect(evaluation.objectiveId).toBe(before.self.selectedObjectiveId);
+    await expect(progress.getByRole("status")).toHaveText(
+      evaluation.status === "eligible"
+        ? "Requirements met."
+        : "Requirements are still outstanding.",
+    );
+    await expect(progress.getByRole("listitem")).toHaveCount(
+      evaluation.checks.length,
+    );
+    for (const check of evaluation.checks)
+      await expect(
+        progress.getByRole("listitem").filter({ hasText: check.label }),
+      ).toHaveText(`${check.met ? "Met" : "Still needed"}: ${check.label}`);
     await host.getByText("Inspect exact requirements").click();
     await expect(
       host.getByText(/Protected annual living costs are the greater/),
@@ -80,7 +98,9 @@ test("ordinary four-client career acceptance persists earned pay and private fin
       expect(
         other.players.every(
           (player) =>
-            !("financialDetails" in player) && !("careerOffers" in player),
+            !("financialDetails" in player) &&
+            !("careerOffers" in player) &&
+            !("objectiveEvaluation" in player),
         ),
       ).toBe(true);
     }
@@ -99,7 +119,10 @@ test("ordinary four-client career acceptance persists earned pay and private fin
       client: document.documentElement.clientWidth,
     }));
     expect(overflow.scroll).toBeLessThanOrEqual(overflow.client);
-    await host.screenshot({ path: "/tmp/m7-career-phone.png", fullPage: true });
+    await host.screenshot({
+      path: "/tmp/m7-objective-progress-phone.png",
+      fullPage: true,
+    });
     await host.reload();
     await expect(host.getByTestId("quarter-heading")).toHaveText("Quarter 2");
     expect((await view()).self.financialDetails.quarterlyIncomeCents).toBe(
@@ -113,6 +136,9 @@ test("ordinary four-client career acceptance persists earned pay and private fin
       settled.self.financialDetails,
     );
     expect(restarted.revision).toBe(settled.revision);
+    await expect(
+      host.getByRole("region", { name: "Your objective progress" }),
+    ).toBeVisible();
   } finally {
     for (const context of contexts) await context.close();
     await server.cleanup();

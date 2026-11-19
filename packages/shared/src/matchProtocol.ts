@@ -700,6 +700,7 @@ export interface ObjectiveEvaluationView {
   readonly status: "eligible" | "ineligible";
   readonly checks: readonly {
     readonly id: string;
+    readonly label: string;
     readonly met: boolean;
     readonly actual: number;
     readonly target: number;

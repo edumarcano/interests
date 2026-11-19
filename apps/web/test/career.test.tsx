@@ -38,6 +38,7 @@ function match(): MatchPlayerView {
       reservedCashCents: 0,
       availableCashCents: 2_000_000,
       financialDetails: {
+        objectiveEvaluation: null,
         quarterlyIncomeCents: 2_250_000,
         quarterlyLivingExpenseCents: 1_500_000,
         entitledQuarterlyIncomeCents: 2_250_000,
@@ -201,4 +202,107 @@ it("shows the authoritative executive purchase fee and total funding requirement
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
+});
+
+it("renders engine-provided qualitative checks and updates them while exact private requirements remain available", () => {
+  const view = match();
+  const evaluation = {
+    objectiveId: "executive-owner",
+    status: "ineligible" as const,
+    checks: [
+      {
+        id: "executive-career-tier",
+        label: "An executive career role",
+        met: false,
+        actual: 0,
+        target: 1,
+        comparison: "required" as const,
+      },
+      {
+        id: "liquid-capital",
+        label: "Liquid capital",
+        met: true,
+        actual: 8_000_000,
+        target: 7_500_000,
+        comparison: "minimum" as const,
+      },
+    ],
+  };
+  const self = {
+    ...view.self,
+    financialDetails: {
+      ...view.self.financialDetails,
+      objectiveEvaluation: evaluation,
+    },
+  };
+  const mounted = render(<ObjectiveRequirements self={self} />);
+  expect(
+    screen.getByRole("region", { name: "Your objective progress" }),
+  ).toBeTruthy();
+  expect(screen.getByRole("status").textContent).toBe(
+    "Requirements are still outstanding.",
+  );
+  expect(
+    screen.getByText("An executive career role").closest("li")!.textContent,
+  ).toContain("Still needed");
+  expect(
+    screen.getByText("Liquid capital").closest("li")!.textContent,
+  ).toContain("Met:");
+  expect(screen.getByText(/Victory requires a successful/)).toBeTruthy();
+  fireEvent.click(screen.getByText("Inspect exact requirements"));
+  expect(screen.getByText("Executive career tier required.")).toBeTruthy();
+  mounted.rerender(
+    <ObjectiveRequirements
+      self={{
+        ...self,
+        financialDetails: {
+          ...self.financialDetails,
+          objectiveEvaluation: {
+            ...evaluation,
+            status: "eligible",
+            checks: evaluation.checks.map((check) => ({
+              ...check,
+              met: true,
+              actual: check.target,
+            })),
+          },
+        },
+      }}
+    />,
+  );
+  expect(screen.getByRole("status").textContent).toBe("Requirements met.");
+  expect(screen.queryByText(/Still needed/)).toBeNull();
+});
+
+it("keeps unavailable or mismatched progress distinct from an eligibility failure", () => {
+  const view = match();
+  const mounted = render(<ObjectiveRequirements self={view.self} />);
+  expect(screen.getByText(/Progress is unavailable/)).toBeTruthy();
+  expect(screen.queryByRole("status")).toBeNull();
+  mounted.rerender(
+    <ObjectiveRequirements
+      self={{
+        ...view.self,
+        financialDetails: {
+          ...view.self.financialDetails,
+          objectiveEvaluation: {
+            objectiveId: "independent",
+            status: "eligible",
+            checks: [
+              {
+                id: "liquid-capital",
+                label: "Unselected private requirement",
+                met: true,
+                actual: 1,
+                target: 1,
+                comparison: "minimum",
+              },
+            ],
+          },
+        },
+      }}
+    />,
+  );
+  expect(screen.queryByText("Unselected private requirement")).toBeNull();
+  expect(screen.queryByText("Requirements met.")).toBeNull();
 });

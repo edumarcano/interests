@@ -1,4 +1,4 @@
-import type { ObjectiveId } from "@interests/rules";
+import type { ObjectiveId, ObjectiveProgressCheckId } from "@interests/rules";
 import type { AssetId, PlayerId } from "@interests/shared";
 import type { Cents } from "../finance/money";
 
@@ -123,7 +123,8 @@ export interface ObjectiveMeasurements {
   readonly evidenceGaps: readonly string[];
 }
 export interface ObjectiveCheck {
-  readonly id: string;
+  readonly id: ObjectiveProgressCheckId;
+  readonly label: string;
   readonly met: boolean;
   readonly actual: number;
   readonly target: number;

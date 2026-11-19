@@ -61,6 +61,35 @@ export function ObjectiveRequirements({
         Performance history: {details.completedObservationQuarters} of 4
         completed quarters. Missing quarters count as zero.
       </p>
+      {self.selectedObjectiveId && (
+        <section aria-label="Your objective progress">
+          <h4>Current progress</h4>
+          {details.objectiveEvaluation?.objectiveId ===
+          self.selectedObjectiveId ? (
+            <>
+              <p role="status">
+                {details.objectiveEvaluation.status === "eligible"
+                  ? "Requirements met."
+                  : "Requirements are still outstanding."}
+              </p>
+              <p>Victory requires a successful, explicitly pursued finale.</p>
+              <ul style={{ paddingInlineStart: "1.25rem" }}>
+                {details.objectiveEvaluation.checks.map((check) => (
+                  <li key={check.id}>
+                    <strong>{check.met ? "Met" : "Still needed"}:</strong>{" "}
+                    {check.label}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p>
+              Progress is unavailable. You can inspect the exact requirements
+              below.
+            </p>
+          )}
+        </section>
+      )}
       {details.objectiveRequirements
         .filter(
           (requirement) =>

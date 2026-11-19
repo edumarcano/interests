@@ -1,6 +1,8 @@
 import {
   OBJECTIVE_IDS,
+  OBJECTIVE_PROGRESS_LABELS,
   type ObjectiveId,
+  type ObjectiveProgressCheckId,
   OBJECTIVE_MEASUREMENT_RULES as rules,
   OBJECTIVE_TARGETS as targets,
 } from "@interests/rules";
@@ -20,25 +22,30 @@ function sum(values: readonly number[]) {
   );
 }
 const minimum = (
-  id: string,
+  id: ObjectiveProgressCheckId,
   actual: number,
   target: number,
 ): ObjectiveCheck => ({
   id,
+  label: OBJECTIVE_PROGRESS_LABELS[id],
   actual,
   target,
   comparison: "minimum",
   met: actual >= target,
 });
-const required = (id: string, met: boolean): ObjectiveCheck => ({
+const required = (
+  id: ObjectiveProgressCheckId,
+  met: boolean,
+): ObjectiveCheck => ({
   id,
+  label: OBJECTIVE_PROGRESS_LABELS[id],
   actual: met ? 1 : 0,
   target: 1,
   comparison: "required",
   met,
 });
 function maximumRatio(
-  id: string,
+  id: ObjectiveProgressCheckId,
   numerator: number,
   denominator: number,
   target: number,
@@ -58,6 +65,7 @@ function maximumRatio(
       : 0;
   return {
     id,
+    label: OBJECTIVE_PROGRESS_LABELS[id],
     actual: Number.isSafeInteger(actual) ? actual : Number.MAX_SAFE_INTEGER,
     target,
     comparison: "maximum",
