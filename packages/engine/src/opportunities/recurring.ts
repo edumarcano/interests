@@ -1,6 +1,7 @@
 import {
   ASSET_UNDERWRITING,
   COMPLETION_ECONOMY_TARGETS,
+  MARKET_BORROWER_TEMPLATES,
   OBJECTIVE_MEASUREMENT_RULES,
   RECURRING_CONTENT_RULES,
   RECURRING_CONTENT_TEMPLATES,
@@ -9,14 +10,23 @@ import {
   TRANSACTION_FEES_BPS,
 } from "@interests/rules";
 import type {
+  LoanId,
   OpportunityId,
   PlayerId,
   RecurringOpportunityFacts,
   RecurringOpportunityView,
 } from "@interests/shared";
 import { externalCashAccount, playerCashAccount } from "../finance/account";
+import { bankBorrowerStrength } from "../finance/bank";
 import { FinanceDecimal } from "../finance/decimal";
+import { isLenderLoan } from "../finance/loanParties";
 import { type Cents, cents } from "../finance/money";
+import {
+  materializeNpcFundingTerms,
+  type NpcFundingTerms,
+  npcOfferAvailable,
+  quoteNpcFunding,
+} from "../finance/npcLending";
 import { postCash } from "../finance/posting";
 import type { ActionResult } from "../game/actions";
 import { nextDeterministicId } from "../game/deterministicIds";
@@ -33,8 +43,10 @@ export interface RecurringOpportunity {
   readonly templateId: string;
   readonly category: RecurringCategory;
   readonly createdQuarter: number;
-  readonly status: "available" | "expired" | "acquired";
+  readonly status: "available" | "expired" | "acquired" | "funded";
   readonly acquiredAssetId?: import("@interests/shared").AssetId;
+  readonly fundedLoanId?: LoanId;
+  readonly npcFundingTerms?: NpcFundingTerms;
   readonly askingPriceCents: Cents;
   readonly investigationFeeCents: Cents;
   readonly investigated: boolean;
@@ -70,26 +82,20 @@ function ownsCategory(
   if (category === "financing")
     return Object.values(state.finance.loansById).some(
       (loan) =>
-        loan.kind === "player-loan" &&
+        isLenderLoan(loan) &&
         loan.lenderPlayerId === player &&
         loan.outstandingPrincipalCents > 0,
     );
   return false;
 }
 
-/** Conservative authored variation bounds keep bank-supported discovery fundable without rerolls. */
-function canFinanceTemplate(
+/** Use the authored variation bounds to check cash and bank capacity without rerolls. */
+function canAcquireTemplate(
   state: GameState,
   player: PlayerId,
   template: RecurringContentTemplate,
 ): boolean {
-  if (
-    !template.facts ||
-    !["npc-business-purchase", "npc-property-purchase"].includes(
-      template.action,
-    )
-  )
-    return false;
+  if (!template.facts) throw new Error("Missing acquisition template facts");
   const askingPriceCents = cents(
     new FinanceDecimal(template.askingPriceCents)
       .times(10_000 + RECURRING_CONTENT_RULES.askingPriceVariationBps)
@@ -124,11 +130,17 @@ function canFinanceTemplate(
     .div(10_000)
     .round()
     .toNumber();
+  const cash = getAvailableCashCents(state, player);
+  const cashPrice = askingPriceCents + fee;
+  if (cash < cashPrice - maximumPrincipal) return false;
+  if (business && cash >= cashPrice) return true;
+  const borrower = bankBorrowerStrength(state, player);
   if (
-    getAvailableCashCents(state, player) <
-    askingPriceCents + fee - maximumPrincipal
+    !business &&
+    cash - cashPrice >= borrower.personalQuarterlyObligationsCents
   )
-    return false;
+    return true;
+  if (borrower.overdue) return false;
   const facts =
     template.facts.kind === "business"
       ? {
@@ -169,7 +181,7 @@ function canFinanceTemplate(
     },
   };
   return getRecurringAcquisitionQuotes(draft, player, id).some(
-    (quote) => quote.route !== "cash" && quote.canClose,
+    (quote) => quote.canClose,
   );
 }
 
@@ -180,9 +192,20 @@ export function recurringCandidateWeights(state: GameState, player: PlayerId) {
   const focus = state.progress.byPlayer[player]?.focus;
   const recent = state.content.recentCategoriesByPlayer[player] ?? [];
   return RECURRING_CONTENT_TEMPLATES.flatMap((template) => {
+    if (template.action === "npc-financing") {
+      const borrower = MARKET_BORROWER_TEMPLATES.find(
+        (row) => row.cardTemplateId === template.id,
+      );
+      if (!borrower) throw new Error("Missing market borrower template");
+      if (!npcOfferAvailable(state, borrower.borrowerId)) return [];
+    }
+    const acquisition =
+      template.action === "npc-business-purchase" ||
+      template.action === "npc-property-purchase";
     if (
-      (cash < template.minimumCashCents &&
-        !canFinanceTemplate(state, player, template)) ||
+      (acquisition
+        ? !canAcquireTemplate(state, player, template)
+        : cash < template.minimumCashCents) ||
       (template.requiredOwnership &&
         !ownsCategory(state, player, template.requiredOwnership))
     )
@@ -295,6 +318,16 @@ export function generateRecurringContent(state: GameState): GameState {
       );
     const next = nextDeterministicId("opportunity", counters);
     counters = next.counters;
+    const npcFundingTerms =
+      selected.action === "npc-financing"
+        ? materializeNpcFundingTerms(
+            selected.id,
+            price,
+            state.economy.baseRateBps,
+          )
+        : null;
+    if (selected.action === "npc-financing" && !npcFundingTerms)
+      throw new Error("Invalid authored market loan quote");
     cardsByPlayer[player] = {
       id: next.id,
       targetPlayerId: player,
@@ -308,6 +341,7 @@ export function generateRecurringContent(state: GameState): GameState {
         : cents(0),
       investigated: false,
       facts,
+      ...(npcFundingTerms ? { npcFundingTerms } : {}),
     };
     recentCategoriesByPlayer[player] = [
       ...(recentCategoriesByPlayer[player] ?? []),
@@ -356,6 +390,10 @@ export function projectRecurringOpportunity(
     (candidate) => candidate.id === card.templateId,
   );
   if (!template) throw new Error("Unknown content template");
+  const marketLoanQuote =
+    card.status === "available" && card.npcFundingTerms
+      ? quoteNpcFunding(state, player, card.npcFundingTerms)
+      : null;
   return {
     id: card.id,
     templateId: card.templateId,
@@ -367,6 +405,7 @@ export function projectRecurringOpportunity(
     createdQuarter: card.createdQuarter,
     status: card.status,
     ...(card.acquiredAssetId ? { acquiredAssetId: card.acquiredAssetId } : {}),
+    ...(marketLoanQuote ? { marketLoanQuote } : {}),
     askingPriceCents: card.askingPriceCents,
     investigationFeeCents: card.investigationFeeCents,
     investigated: card.investigated,

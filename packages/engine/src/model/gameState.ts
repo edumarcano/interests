@@ -120,6 +120,7 @@ export interface NpcLoan extends LoanPaymentAccounting {
   readonly installmentsProcessed: number;
   readonly originatedQuarter: number;
   readonly fundedTransactionId: TransactionId;
+  readonly fundedOpportunityId?: OpportunityId;
   readonly quarterlyRepaymentCapacityCents: Cents;
   readonly interestReceipts: readonly {
     readonly quarter: number;

@@ -1,4 +1,6 @@
 import type { RecurringOpportunityFacts } from "@interests/shared";
+import { RECURRING_CONTENT_RULES } from "./completion";
+import { MARKET_BORROWER_TEMPLATES } from "./npcLending";
 export const RECURRING_CATEGORIES = [
   "business",
   "property",
@@ -122,19 +124,25 @@ const templates: readonly RecurringContentTemplate[] = [
       operatingExpenseRatioBps: 3500,
     },
   },
-  {
-    id: "working-capital-loan",
-    name: "Working-capital lending request",
-    category: "financing",
-    intensity: "standard",
-    baseWeight: 2,
-    askingPriceCents: 1_000_000,
-    minimumCashCents: 1_000_000,
-    action: "npc-financing",
-    summary:
-      "An independent operating borrower seeks working capital. Compare the quoted interest with repayment and liquidity risk.",
-    facts: null,
-  },
+  ...MARKET_BORROWER_TEMPLATES.map(
+    (borrower): RecurringContentTemplate => ({
+      id: borrower.cardTemplateId,
+      name: `Lend to ${borrower.name.toLowerCase()}`,
+      category: "financing",
+      intensity: borrower.size === "large" ? "major" : "standard",
+      baseWeight: borrower.size === "small" ? 2 : 1,
+      askingPriceCents: borrower.principalCents,
+      minimumCashCents: Math.ceil(
+        (borrower.principalCents *
+          (10_000 + RECURRING_CONTENT_RULES.askingPriceVariationBps)) /
+          10_000,
+      ),
+      action: "npc-financing",
+      summary:
+        "Compare fixed interest, repayment risk and how long your cash will be tied up.",
+      facts: null,
+    }),
+  ),
   {
     id: "regional-company",
     name: "Regional operating company",

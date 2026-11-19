@@ -257,6 +257,29 @@ describe("ordinary objective-neutral recurring generation", () => {
       );
     }
   });
+  it("skips a property when an overdue buyer has the maximum price and fee but cannot retain the required reserve", () => {
+    const base = ready();
+    const buyer = players[0]!;
+    const snapshot = (cash: number): GameState => ({
+      ...base,
+      finance: {
+        ...base.finance,
+        cashByPlayer: { ...base.finance.cashByPlayer, [buyer]: cents(cash) },
+        livingArrearsByPlayer: {
+          ...base.finance.livingArrearsByPlayer,
+          [buyer]: cents(1),
+        },
+      },
+    });
+    const exactlyPriceWithFee = snapshot(15_682_500);
+    assertGameState(exactlyPriceWithFee);
+    const offersRental = (state: GameState) =>
+      recurringCandidateWeights(state, buyer).some(
+        ({ template }) => template.id === "residential-rental",
+      );
+    expect(offersRental(exactlyPriceWithFee)).toBe(false);
+    expect(offersRental(snapshot(25_000_000))).toBe(true);
+  });
   it("expires a card at its owner's spotlight and generates the next quarter once", () => {
     let state = ready();
     const begin = applyPlayerCommand(state, players[0]!, {

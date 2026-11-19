@@ -4,6 +4,7 @@ import {
   RECURRING_CONTENT_RULES,
   RECURRING_CONTENT_TEMPLATES,
 } from "@interests/rules";
+import { materializeNpcFundingTerms } from "../finance/npcLending";
 import type { GameState } from "../model/gameState";
 import { recurringInvestigationFeeCents } from "../opportunities/recurring";
 import { isValidRandomState } from "../random/prng";
@@ -62,7 +63,7 @@ export function assertRecurringContentState(state: GameState): void {
       !card ||
       card.targetPlayerId !== player ||
       card.createdQuarter !== content.generatedQuarter ||
-      !["available", "expired", "acquired"].includes(card.status) ||
+      !["available", "expired", "acquired", "funded"].includes(card.status) ||
       typeof card.investigated !== "boolean" ||
       typeof card.id !== "string" ||
       card.id.length === 0 ||
@@ -90,6 +91,50 @@ export function assertRecurringContentState(state: GameState): void {
       card.investigationFeeCents < 0
     )
       throw new Error("Invalid recurring template terms");
+    if (template.action === "npc-financing") {
+      const expected = materializeNpcFundingTerms(
+        card.templateId,
+        card.askingPriceCents,
+        state.economy.baseRateBps,
+      );
+      const terms = card.npcFundingTerms;
+      if (
+        !terms ||
+        !expected ||
+        Object.getPrototypeOf(terms) !== Object.prototype ||
+        Object.keys(terms).length !== Object.keys(expected).length ||
+        Object.entries(expected).some(
+          ([key, value]) => terms[key as keyof typeof terms] !== value,
+        ) ||
+        card.status === "acquired"
+      )
+        throw new Error("Invalid frozen market loan quote");
+      if (card.status === "funded") {
+        const loan =
+          card.fundedLoanId && state.finance.loansById[card.fundedLoanId];
+        if (
+          !loan ||
+          loan.kind !== "npc-loan" ||
+          loan.lenderPlayerId !== player ||
+          loan.fundedOpportunityId !== card.id ||
+          loan.originatedQuarter !== card.createdQuarter ||
+          loan.borrowerId !== terms.borrowerId ||
+          loan.borrowerName !== terms.borrowerName ||
+          loan.originalPrincipalCents !== terms.principalCents ||
+          loan.annualRateBps !== terms.annualRateBps ||
+          loan.termQuarters !== terms.termQuarters ||
+          loan.quarterlyRepaymentCapacityCents !==
+            terms.quarterlyRepaymentCapacityCents
+        )
+          throw new Error("Missing matching funded market loan");
+      } else if (card.fundedLoanId !== undefined)
+        throw new Error("Unexpected funded loan");
+    } else if (
+      card.npcFundingTerms !== undefined ||
+      card.fundedLoanId !== undefined ||
+      card.status === "funded"
+    )
+      throw new Error("Unexpected market loan terms");
     if (template.facts === null) {
       if (
         card.facts !== null ||

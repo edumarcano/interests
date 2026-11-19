@@ -7,6 +7,7 @@ import type {
 } from "@interests/shared";
 import { useEffect, useState } from "react";
 import { money } from "./CareerPanel";
+import { MarketLoanOffer } from "./MarketLoanOffer";
 import { RecurringAcquisitionPanel } from "./RecurringAcquisitionPanel";
 
 const focusOptions = [
@@ -17,6 +18,14 @@ const focusOptions = [
   ["markets", "Public markets"],
   ["financing", "Financing"],
 ] as const;
+const fundingErrors: Readonly<Record<string, string>> = {
+  NPC_BORROWER_UNAVAILABLE: "This borrower already has an active loan.",
+  INSUFFICIENT_AVAILABLE_CASH:
+    "You no longer have enough available cash to fund this loan.",
+  OPPORTUNITY_NOT_AVAILABLE: "This market offer has expired.",
+  NOT_ACTIVE_SPOTLIGHT: "You can fund this loan during your own spotlight.",
+  ACTIVE_TRANSACTION: "Finish the active transaction before funding this loan.",
+};
 type Focus = SetFocusCommandPayload["focus"];
 
 function Facts({ facts }: { facts: RecurringOpportunityFacts }) {
@@ -61,19 +70,29 @@ export function RecurringOpportunityPanel({
       ([id]) => id === match.self.financialDetails?.focus,
     )?.[0] ?? "general";
   const [draftFocus, setDraftFocus] = useState<Focus>(focus);
-  const [pending, setPending] = useState<"focus" | "investigate" | null>(null);
+  const [pending, setPending] = useState<
+    "focus" | "investigate" | "fund" | null
+  >(null);
   const [error, setError] = useState("");
   useEffect(() => setDraftFocus(focus), [focus]);
   const card = match.self.recurringOpportunity;
   if (!card || match.phase !== "ready-for-first-round") return null;
   const blocked = isPaused || pending !== null;
-  async function send(command: PlayerCommand, kind: "focus" | "investigate") {
+  async function send(
+    command: PlayerCommand,
+    kind: "focus" | "investigate" | "fund",
+  ) {
     if (blocked) return;
     setPending(kind);
     setError("");
     try {
       const result = await onSendCommand(command);
-      if (!result.ok) setError(result.error.message);
+      if (!result.ok) {
+        const { message } = result.error;
+        setError(
+          kind === "fund" ? (fundingErrors[message] ?? message) : message,
+        );
+      }
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Command failed. Try again.",
@@ -101,12 +120,17 @@ export function RecurringOpportunityPanel({
       </p>
       <h3 data-testid="recurring-card-name">{card.name}</h3>
       <p>{card.summary}</p>
-      {card.askingPriceCents > 0 && (
+      {card.askingPriceCents > 0 && card.action !== "npc-financing" && (
         <p>Asking amount: {money(card.askingPriceCents)}</p>
       )}
       {card.status === "acquired" ? (
         <p role="status">
           Purchase completed. Your asset appears in your private finances.
+        </p>
+      ) : card.status === "funded" ? (
+        <p role="status">
+          Loan funded. Follow payments and the outstanding balance in your
+          private finances.
         </p>
       ) : card.status === "expired" ? (
         <p role="status">
@@ -115,9 +139,26 @@ export function RecurringOpportunityPanel({
         </p>
       ) : (
         <p>
-          This card expires when your spotlight ends. You can investigate during
-          preparation.
+          This card expires when your spotlight ends.
+          {card.investigationFeeCents > 0 &&
+            " You can investigate during preparation."}
         </p>
+      )}
+      {card.marketLoanQuote && (
+        <MarketLoanOffer
+          quote={card.marketLoanQuote}
+          isSpotlight={
+            match.round?.activeSpotlightPlayerId === match.self.playerId
+          }
+          isBlocked={blocked}
+          isSubmitting={pending === "fund"}
+          onFund={() =>
+            send(
+              { type: "FUND_RECURRING_LOAN", opportunityId: card.id },
+              "fund",
+            )
+          }
+        />
       )}
       {card.facts ? (
         <>

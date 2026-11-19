@@ -451,6 +451,10 @@ export interface AcquireRecurringCommand {
   readonly opportunityId: string;
   readonly quoteId: string;
 }
+export interface FundRecurringLoanCommand {
+  readonly type: "FUND_RECURRING_LOAN";
+  readonly opportunityId: string;
+}
 export interface SetFocusCommandPayload {
   readonly type: "SET_FOCUS";
   readonly focus:
@@ -498,8 +502,9 @@ export interface RecurringOpportunityView {
     | "npc-property-purchase"
     | "npc-financing";
   readonly createdQuarter: number;
-  readonly status: "available" | "expired" | "acquired";
+  readonly status: "available" | "expired" | "acquired" | "funded";
   readonly acquiredAssetId?: string;
+  readonly marketLoanQuote?: MarketLoanQuoteView;
   readonly askingPriceCents: number;
   readonly investigationFeeCents: number;
   readonly investigated: boolean;
@@ -515,6 +520,7 @@ export type PlayerCommand =
   | ExpandBusinessCommandPayload
   | SetFocusCommandPayload
   | AcquireRecurringCommand
+  | FundRecurringLoanCommand
   | TradePublicMarketsCommandPayload
   | AcceptCareerOfferCommandPayload
   | ResignLaborCommandPayload

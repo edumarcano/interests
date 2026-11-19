@@ -7,12 +7,21 @@ export function assertNpcLoan(state: GameState, loan: NpcLoan): void {
     typeof loan.fundedTransactionId === "string" &&
     /^transaction-([1-9]\d*)$/.exec(loan.fundedTransactionId);
   const ordinal = fundingSequence ? Number(fundingSequence[1]) : Number.NaN;
+  const opportunitySequence =
+    typeof loan.fundedOpportunityId === "string" &&
+    /^opportunity-([1-9]\d*)$/.exec(loan.fundedOpportunityId);
+  const opportunityOrdinal = opportunitySequence
+    ? Number(opportunitySequence[1])
+    : Number.NaN;
   if (
     !state.playerOrder.includes(loan.lenderPlayerId) ||
     Object.hasOwn(loan, "borrowerPlayerId") ||
     Object.hasOwn(loan, "borrowerAssetId") ||
     !Number.isSafeInteger(ordinal) ||
     ordinal > state.counters.transaction ||
+    (loan.fundedOpportunityId !== undefined &&
+      (!Number.isSafeInteger(opportunityOrdinal) ||
+        opportunityOrdinal > state.counters.opportunity)) ||
     !isNonNegativeCents(loan.outstandingPrincipalCents) ||
     loan.outstandingPrincipalCents > loan.originalPrincipalCents ||
     !Number.isSafeInteger(loan.originatedQuarter) ||

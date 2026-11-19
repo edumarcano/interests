@@ -3,7 +3,11 @@ import {
   BANK_LENDING_RULES,
   MARKET_BORROWER_TEMPLATES,
 } from "@interests/rules";
-import type { MarketLoanQuoteView, PlayerId } from "@interests/shared";
+import type {
+  MarketLoanQuoteView,
+  OpportunityId,
+  PlayerId,
+} from "@interests/shared";
 import type { ActionResult } from "../game/actions";
 import { nextDeterministicId } from "../game/deterministicIds";
 import type { GameState, NpcLoan } from "../model/gameState";
@@ -138,6 +142,7 @@ export function draftFundNpcLoan(
   state: GameState,
   lender: PlayerId,
   terms: NpcFundingTerms,
+  opportunityId?: OpportunityId,
 ): ActionResult {
   const reject = (
     code: Extract<ActionResult, { ok: false }>["code"],
@@ -168,6 +173,7 @@ export function draftFundNpcLoan(
     quarter: state.currentQuarter,
     relatedLoanId: generated.id,
     relatedTransactionId: deal.id,
+    relatedOpportunityId: opportunityId,
   });
   if (!posted.ok)
     return reject(
@@ -186,6 +192,9 @@ export function draftFundNpcLoan(
     originatedQuarter: state.currentQuarter,
     installmentsProcessed: 0,
     fundedTransactionId: deal.id,
+    ...(opportunityId === undefined
+      ? {}
+      : { fundedOpportunityId: opportunityId }),
     quarterlyRepaymentCapacityCents: cents(
       terms.quarterlyRepaymentCapacityCents,
     ),

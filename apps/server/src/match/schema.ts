@@ -363,6 +363,12 @@ export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
+      type: z.literal("FUND_RECURRING_LOAN"),
+      opportunityId: z.string().min(1).max(128),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("OPEN_BUSINESS_AUCTION"),
       assetId: transactionKey,
       ownershipPpm: ownershipUnits,
