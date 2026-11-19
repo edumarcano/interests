@@ -32,6 +32,7 @@ export interface ObjectiveFinancingEvidence {
   }[];
 }
 export interface ObjectiveDisposalEvidence {
+  readonly disposalId?: string;
   readonly transactionId: string;
   readonly underlyingAssetId: string;
   readonly category: "business" | "property" | "public-markets";
@@ -44,6 +45,8 @@ export interface ObjectiveDisposalEvidence {
   readonly soldQuarter: number;
   readonly proceedsCents: Cents;
   readonly saleFeesCents: Cents;
+  readonly assetCashReleasedCents?: Cents;
+  readonly financingCostsCents?: Cents;
   readonly acquisitionBasisCents: Cents;
   /** Independent gross quote for the actual stake sold, required for player-to-player credit. */
   readonly referenceProceedsCents: Cents | null;

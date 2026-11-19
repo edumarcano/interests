@@ -13,6 +13,7 @@ import {
   transferBusinessStake,
 } from "./businessStakes";
 import { FinanceDecimal } from "./decimal";
+import { recordOwnershipTransfer } from "./disposalEvidence";
 import type { JournalEntry } from "./journal";
 import { addCents, type Cents, cents, isNonNegativeCents } from "./money";
 import { ownershipPpm, TOTAL_OWNERSHIP_PPM } from "./ownership";
@@ -75,6 +76,8 @@ function lots(
     basis.slices ?? [
       {
         acquiredQuarter: basis.acquiredQuarter,
+        settledExposureThroughQuarter: basis.settledExposureThroughQuarter,
+        previousTransfers: basis.previousTransfers,
         costCents: basis.costCents,
         ownershipPpm: basis.ownershipPpm,
       },
@@ -87,6 +90,9 @@ function summarize(slices: readonly StakeBasisSlice[]): AssetAcquisitionBasis {
   if (!latest) throw new RangeError("Expected retained acquisition basis");
   return {
     slices,
+    settledExposureThroughQuarter: Math.min(
+      ...slices.map((slice) => slice.settledExposureThroughQuarter ?? 0),
+    ),
     // A caller that only understands the scalar must never age a new purchase.
     acquiredQuarter: latest.acquiredQuarter,
     costCents: slices.reduce(
@@ -176,19 +182,54 @@ function salePosting(
   if (disposal.retainedSlices.length > 0)
     soldAssets[asset.id] = summarize(disposal.retainedSlices);
   else delete soldAssets[asset.id];
-  const boughtBasis = summarize(
-    addStakeAcquisitionSlice(lots(buyer.assetsById[asset.id]), {
-      costCents: purchaseCost,
-      acquiredQuarter: state.currentQuarter,
-      ownershipPpm: ownershipPpm(soldPpm),
-    }),
+  const purchaseCosts = allocateStakeSliceCents(
+    purchaseCost,
+    disposal.disposedSlices,
   );
+  const transfers = disposal.disposedSlices.map((slice, index) =>
+    recordOwnershipTransfer(
+      {
+        disposalId: `${transactionId}:${sellerPlayerId}:${asset.id}:${index}`,
+        transactionId,
+        underlyingAssetId: asset.id,
+        category: "business",
+        counterparty: { kind: "player", id: buyerPlayerId },
+        acquiredQuarter: slice.acquiredQuarter,
+        settledExposureThroughQuarter: slice.settledExposureThroughQuarter ?? 0,
+        soldQuarter: state.currentQuarter,
+        proceedsCents: addCents(slice.netProceedsCents, feeSlices[index]!),
+        saleFeesCents: feeSlices[index]!,
+        acquisitionBasisCents: slice.costCents,
+        referenceProceedsCents: referenceSlices[index]!,
+        economicSubstance: "genuine",
+        ownershipUnits: slice.ownershipPpm,
+      },
+      sellerPlayerId,
+      buyerPlayerId,
+      slice.previousTransfers,
+    ),
+  );
+  let buyerSlices = lots(buyer.assetsById[asset.id]);
+  disposal.disposedSlices.forEach((slice, index) => {
+    buyerSlices = addStakeAcquisitionSlice(buyerSlices, {
+      costCents: purchaseCosts[index]!,
+      acquiredQuarter: state.currentQuarter,
+      ownershipPpm: slice.ownershipPpm,
+      settledExposureThroughQuarter: 0,
+      previousTransfers: transfers[index]!.previousTransfers,
+    });
+  });
+  const boughtBasis = summarize(buyerSlices);
   const progress = {
     byPlayer: {
       ...state.progress.byPlayer,
       [sellerPlayerId]: {
         ...seller,
         assetsById: soldAssets,
+        disposalEvidence: [
+          ...(seller.disposalEvidence ?? []),
+          ...transfers.map((transfer) => transfer.record),
+        ],
         disposals: [
           ...seller.disposals,
           ...disposal.disposedSlices.map((slice, index) => ({

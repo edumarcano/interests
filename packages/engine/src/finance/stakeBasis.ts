@@ -1,3 +1,4 @@
+import type { OwnershipTransferExposure } from "../model/completionState";
 import { FinanceDecimal } from "./decimal";
 import { type Cents, cents, isNonNegativeCents } from "./money";
 import {
@@ -7,6 +8,8 @@ import {
 } from "./ownership";
 
 export interface StakeBasisSlice {
+  readonly settledExposureThroughQuarter?: number;
+  readonly previousTransfers?: readonly OwnershipTransferExposure[];
   readonly costCents: Cents;
   readonly acquiredQuarter: number;
   readonly ownershipPpm: OwnershipPpm;
@@ -161,8 +164,18 @@ export function disposeStakeBasis(
       .round()
       .toNumber();
     removedCost += removed;
+    const transferred = slice.previousTransfers?.map((transfer) => ({
+      ...transfer,
+      ownershipUnits: new FinanceDecimal(transfer.ownershipUnits)
+        .times(soldPpm)
+        .div(slice.ownershipPpm)
+        .round()
+        .toNumber(),
+    }));
     if (soldPpm > 0)
       disposedSlices.push({
+        ...slice,
+        ...(transferred ? { previousTransfers: transferred } : {}),
         acquiredQuarter: slice.acquiredQuarter,
         ownershipPpm: ownershipPpm(soldPpm),
         costCents: cents(removed),
@@ -170,6 +183,19 @@ export function disposeStakeBasis(
       });
     if (soldPpm < slice.ownershipPpm)
       retainedSlices.push({
+        ...slice,
+        ...(transferred
+          ? {
+              previousTransfers: slice.previousTransfers!.map(
+                (transfer, index) => ({
+                  ...transfer,
+                  ownershipUnits:
+                    transfer.ownershipUnits -
+                    transferred[index]!.ownershipUnits,
+                }),
+              ),
+            }
+          : {}),
         acquiredQuarter: slice.acquiredQuarter,
         ownershipPpm: ownershipPpm(slice.ownershipPpm - soldPpm),
         costCents: cents(slice.costCents - removed),

@@ -453,7 +453,7 @@ describe("canonical progress accounting", () => {
     ).toBeUndefined();
     expect(
       closed.state.progress.byPlayer[buyer]?.assetsById[opportunity.assetId],
-    ).toEqual({
+    ).toMatchObject({
       costCents: 5_000_000,
       acquiredQuarter: 1,
       ownershipPpm: 1_000_000,

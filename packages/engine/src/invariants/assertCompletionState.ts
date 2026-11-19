@@ -4,7 +4,10 @@ import {
   PUBLIC_MARKET_INSTRUMENT_IDS,
 } from "@interests/rules";
 import type { PlayerId } from "@interests/shared";
-import { FOCUS_AREAS } from "../model/completionState";
+import {
+  type CanonicalDisposalRecord,
+  FOCUS_AREAS,
+} from "../model/completionState";
 import type { GameState } from "../model/gameState";
 
 function record(value: unknown): asserts value is Record<string, unknown> {
@@ -27,6 +30,18 @@ function keys(value: unknown, expected: readonly string[]) {
     expected.some((id) => !(id in value))
   )
     throw new Error("Invalid completion player keys");
+}
+function exposureDate(
+  value: unknown,
+  acquiredQuarter: number,
+  settledQuarter: number,
+) {
+  integer(value);
+  if (
+    (value as number) > settledQuarter ||
+    ((value as number) > 0 && (value as number) <= acquiredQuarter)
+  )
+    throw new Error("Invalid settled exposure quarter");
 }
 export function assertCompletionState(state: GameState): void {
   record(state.progress);
@@ -60,6 +75,7 @@ export function assertCompletionState(state: GameState): void {
         throw new Error("Invalid prepaid interest ownership");
     }
   }
+  const disposalRecords = new Map<string, CanonicalDisposalRecord>();
   const basis = state.finance.quarterStartBasis;
   record(basis.propertiesById);
   keys(basis.recurringByPlayer, state.playerOrder);
@@ -113,6 +129,85 @@ export function assertCompletionState(state: GameState): void {
     }
     keys(progress.publicMarketBasis, PUBLIC_MARKET_INSTRUMENT_IDS);
     for (const cost of Object.values(progress.publicMarketBasis)) integer(cost);
+    if (progress.publicMarketExposure !== undefined) {
+      keys(progress.publicMarketExposure, PUBLIC_MARKET_INSTRUMENT_IDS);
+      for (const slices of Object.values(progress.publicMarketExposure)) {
+        if (!Array.isArray(slices))
+          throw new Error("Invalid fund exposure slices");
+        for (const slice of slices) {
+          record(slice);
+          integer(slice.acquiredQuarter);
+          integer(slice.valueCents);
+          integer(slice.costCents);
+          if (slice.acquiredQuarter > state.currentQuarter)
+            throw new Error("Future fund acquisition");
+          exposureDate(
+            slice.settledExposureThroughQuarter,
+            slice.acquiredQuarter,
+            state.lastSettledQuarter,
+          );
+        }
+      }
+    }
+    if (progress.disposalEvidence !== undefined) {
+      if (!Array.isArray(progress.disposalEvidence))
+        throw new Error("Invalid canonical disposal ledger");
+      for (const rawDisposal of progress.disposalEvidence) {
+        record(rawDisposal);
+        const disposal = rawDisposal as unknown as CanonicalDisposalRecord;
+        record(disposal.counterparty);
+        for (const id of [
+          disposal.disposalId,
+          disposal.transactionId,
+          disposal.underlyingAssetId,
+          disposal.counterparty?.id,
+        ])
+          if (typeof id !== "string" || id.length === 0)
+            throw new Error("Invalid canonical disposal identity");
+        if (disposalRecords.has(disposal.disposalId))
+          throw new Error("Duplicate canonical disposal identity");
+        disposalRecords.set(disposal.disposalId, disposal);
+        if (
+          !["business", "property", "public-markets"].includes(
+            disposal.category,
+          ) ||
+          !["genuine", "circular"].includes(disposal.economicSubstance)
+        )
+          throw new Error("Invalid canonical disposal kind");
+        if (disposal.counterparty.kind === "player") {
+          if (
+            !state.players[disposal.counterparty.id as PlayerId] ||
+            disposal.counterparty.id === playerId
+          )
+            throw new Error("Invalid disposal counterparty");
+        } else if (disposal.counterparty.kind !== "non-player")
+          throw new Error("Invalid disposal counterparty");
+        integer(disposal.acquiredQuarter);
+        integer(disposal.soldQuarter, 1);
+        integer(disposal.ownershipUnits, 1);
+        exposureDate(
+          disposal.settledExposureThroughQuarter,
+          disposal.acquiredQuarter,
+          state.lastSettledQuarter,
+        );
+        if (
+          disposal.soldQuarter > state.currentQuarter ||
+          disposal.acquiredQuarter > disposal.soldQuarter ||
+          disposal.settledExposureThroughQuarter >= disposal.soldQuarter
+        )
+          throw new Error("Invalid disposal exposure dates");
+        for (const money of [
+          disposal.proceedsCents,
+          disposal.saleFeesCents,
+          disposal.acquisitionBasisCents,
+          disposal.assetCashReleasedCents ?? 0,
+          disposal.financingCostsCents ?? 0,
+        ])
+          integer(money);
+        if (disposal.referenceProceedsCents !== null)
+          integer(disposal.referenceProceedsCents);
+      }
+    }
     record(progress.assetsById);
     for (const asset of Object.values(state.finance.assetsById)) {
       const units = asset.ownershipByPlayerPpm[playerId] ?? 0;
@@ -167,6 +262,12 @@ export function assertCompletionState(state: GameState): void {
         )
           throw new Error("Unreconciled recurring acquisition funding");
       }
+      if (acquisition.settledExposureThroughQuarter !== undefined)
+        exposureDate(
+          acquisition.settledExposureThroughQuarter,
+          acquisition.acquiredQuarter,
+          state.lastSettledQuarter,
+        );
       integer(acquisition.costCents);
       integer(acquisition.acquiredQuarter);
       integer(acquisition.ownershipPpm, 1);
@@ -186,6 +287,13 @@ export function assertCompletionState(state: GameState): void {
         let quarter = 0;
         for (const slice of acquisition.slices) {
           record(slice);
+          integer(slice.acquiredQuarter);
+          if (slice.settledExposureThroughQuarter !== undefined)
+            exposureDate(
+              slice.settledExposureThroughQuarter,
+              slice.acquiredQuarter,
+              state.lastSettledQuarter,
+            );
           integer(slice.costCents);
           integer(slice.ownershipPpm, 1);
           integer(slice.acquiredQuarter, quarter);
@@ -378,4 +486,42 @@ export function assertCompletionState(state: GameState): void {
       throw new Error("Invalid safety draw");
   } else if (state.result !== null)
     throw new Error("Active match cannot have a result");
+  for (const progress of Object.values(state.progress.byPlayer)) {
+    const histories = Object.values(progress.assetsById)
+      .flatMap((basis) => basis.slices ?? [basis])
+      .map((slice) => slice.previousTransfers);
+    const returnHistories = (progress.disposalEvidence ?? []).map(
+      (disposal) => disposal.circularReturns,
+    );
+    for (const history of [...histories, ...returnHistories])
+      if (history !== undefined) {
+        if (!Array.isArray(history))
+          throw new Error("Invalid ownership exposure history");
+        const identities = new Set<string>();
+        for (const reference of history) {
+          record(reference);
+          if (
+            typeof reference.disposalId !== "string" ||
+            identities.has(reference.disposalId)
+          )
+            throw new Error("Invalid ownership exposure identity");
+          identities.add(reference.disposalId);
+        }
+      }
+    const transfers = Object.values(progress.assetsById)
+      .flatMap((basis) => basis.slices ?? [basis])
+      .flatMap((slice) => slice.previousTransfers ?? []);
+    const returns = (progress.disposalEvidence ?? []).flatMap(
+      (disposal) => disposal.circularReturns ?? [],
+    );
+    for (const transfer of transfers)
+      if (!state.players[transfer.playerId])
+        throw new Error("Invalid ownership exposure player");
+    for (const reference of [...transfers, ...returns]) {
+      integer(reference.ownershipUnits);
+      const original = disposalRecords.get(reference.disposalId);
+      if (!original || reference.ownershipUnits > original.ownershipUnits)
+        throw new Error("Invalid returning disposal exposure");
+    }
+  }
 }

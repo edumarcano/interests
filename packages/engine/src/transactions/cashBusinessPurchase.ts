@@ -686,6 +686,7 @@ export function applyCloseCashBusinessPurchaseTransaction(
         updatedAsset,
         tx.purchasePriceCents,
         state.currentQuarter,
+        { transactionId: tx.id, loansById: state.finance.loansById },
       );
     } catch (error) {
       if (error instanceof RangeError) return reject("DESTINATION_OVERFLOW");
@@ -894,6 +895,7 @@ export function applyCloseCashBusinessPurchaseTransaction(
       updatedAsset,
       tx.purchasePriceCents,
       state.currentQuarter,
+      { transactionId: tx.id, loansById: state.finance.loansById },
     );
   } catch (error) {
     if (error instanceof RangeError) return reject("DESTINATION_OVERFLOW");

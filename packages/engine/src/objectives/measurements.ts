@@ -472,12 +472,25 @@ export function measurePlayerObjectives(
   if (ledger) {
     if (ledger.throughRevision !== state.revision)
       throw new Error("Stale objective disposal ledger");
-    unique(ledger.entries.map((entry) => entry.transactionId));
+    unique(
+      ledger.entries.map((entry) => entry.disposalId ?? entry.transactionId),
+    );
+    const transactions = new Map<
+      string,
+      {
+        credit: number;
+        gross: number;
+        categories: Set<string>;
+        counterparties: Set<string>;
+      }
+    >();
     for (const entry of ledger.entries) {
       [
         entry.proceedsCents,
         entry.saleFeesCents,
         entry.acquisitionBasisCents,
+        entry.assetCashReleasedCents ?? 0,
+        entry.financingCostsCents ?? 0,
       ].forEach(nonnegative);
       if (
         !entry.transactionId ||
@@ -499,6 +512,8 @@ export function measurePlayerObjectives(
         entry.proceedsCents,
         -entry.saleFeesCents,
         -entry.acquisitionBasisCents,
+        entry.assetCashReleasedCents ?? 0,
+        -(entry.financingCostsCents ?? 0),
       ]);
       let credited = Math.min(0, actualGain);
       const seasoned =
@@ -516,24 +531,48 @@ export function measurePlayerObjectives(
                 Math.min(entry.proceedsCents, entry.referenceProceedsCents),
                 -entry.saleFeesCents,
                 -entry.acquisitionBasisCents,
+                entry.assetCashReleasedCents ?? 0,
+                -(entry.financingCostsCents ?? 0),
               ]),
             );
           }
         } else credited = actualGain;
       }
       creditedGains = sum([creditedGains, credited]);
-      if (
-        credited > 0 &&
-        entry.proceedsCents >=
-          OBJECTIVE_QUALIFICATION_RULES.dealMakerDisposalMinimumGrossCents
-      ) {
-        profitableTransactions.add(entry.transactionId);
-        profitableCategories.add(entry.category);
-        profitableCounterparties.add(
+      const transaction = transactions.get(entry.transactionId) ?? {
+        credit: 0,
+        gross: 0,
+        categories: new Set<string>(),
+        counterparties: new Set<string>(),
+      };
+      transaction.credit = sum([transaction.credit, credited]);
+      if (seasoned && entry.economicSubstance === "genuine") {
+        const qualifiedGross =
+          entry.counterparty.kind === "player"
+            ? Math.min(entry.proceedsCents, entry.referenceProceedsCents ?? 0)
+            : entry.proceedsCents;
+        transaction.gross = sum([transaction.gross, qualifiedGross]);
+      }
+      if (credited > 0) {
+        transaction.categories.add(entry.category);
+        transaction.counterparties.add(
           `${entry.counterparty.kind}:${entry.counterparty.id}`,
         );
       }
+      transactions.set(entry.transactionId, transaction);
     }
+    for (const [id, transaction] of transactions)
+      if (
+        transaction.credit > 0 &&
+        transaction.gross >=
+          OBJECTIVE_QUALIFICATION_RULES.dealMakerDisposalMinimumGrossCents
+      ) {
+        profitableTransactions.add(id);
+        for (const category of transaction.categories)
+          profitableCategories.add(category);
+        for (const counterparty of transaction.counterparties)
+          profitableCounterparties.add(counterparty);
+      }
   } else if (progress.disposals.length || progress.publicMarketDisposals.length)
     gaps.push("disposal-history-evidence");
   const annualEmployment =

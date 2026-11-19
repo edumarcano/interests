@@ -1,4 +1,5 @@
 import type { PlayerId } from "@interests/shared";
+import { allocateDisposalCents } from "../finance/disposalEvidence";
 import { cents } from "../finance/money";
 import type { GameState } from "../model/gameState";
 import type { ObjectiveEvidence, ObjectiveFinancingEvidence } from "./model";
@@ -67,16 +68,71 @@ export function collectPlayerObjectiveEvidence(
         .map((receipt) => ({ ...receipt })),
     });
   }
-  return { propertyClaims, financing };
+  const records = state.progress.byPlayer[playerId]!.disposalEvidence;
+  const returns = new Map<string, number>();
+  for (const progress of Object.values(state.progress.byPlayer))
+    for (const record of progress.disposalEvidence ?? [])
+      for (const returned of record.circularReturns ?? [])
+        returns.set(
+          returned.disposalId,
+          (returns.get(returned.disposalId) ?? 0) + returned.ownershipUnits,
+        );
+  const entries = records?.flatMap((record) => {
+    const circular = Math.min(
+      record.ownershipUnits,
+      returns.get(record.disposalId) ?? 0,
+    );
+    if (circular === 0) return [record];
+    const weights = [record.ownershipUnits - circular, circular];
+    const amounts = [
+      record.proceedsCents,
+      record.saleFeesCents,
+      record.acquisitionBasisCents,
+      record.assetCashReleasedCents ?? cents(0),
+      record.financingCostsCents ?? cents(0),
+    ].map((amount) => allocateDisposalCents(amount, weights));
+    const references =
+      record.referenceProceedsCents === null
+        ? null
+        : allocateDisposalCents(record.referenceProceedsCents, weights);
+    return weights.flatMap((weight, index) =>
+      weight === 0
+        ? []
+        : [
+            {
+              ...record,
+              disposalId: `${record.disposalId}:${index}`,
+              ownershipUnits: weight,
+              proceedsCents: amounts[0]![index]!,
+              saleFeesCents: amounts[1]![index]!,
+              acquisitionBasisCents: amounts[2]![index]!,
+              assetCashReleasedCents: amounts[3]![index]!,
+              financingCostsCents: amounts[4]![index]!,
+              referenceProceedsCents: references?.[index] ?? null,
+              economicSubstance:
+                index === 1 ? ("circular" as const) : record.economicSubstance,
+            },
+          ],
+    );
+  });
+  return {
+    propertyClaims,
+    financing,
+    ...(entries
+      ? { disposalLedger: { throughRevision: state.revision, entries } }
+      : {}),
+  };
 }
 
-/** Optional future NPC/disposal adapters can add facts, but cannot replace live property or player-loan records. */
+/** Optional future NPC adapters cannot replace current canonical property, player-loan or disposal records. */
 export function combineObjectiveEvidence(
   state: GameState,
   playerId: PlayerId,
   additional: ObjectiveEvidence,
 ): ObjectiveEvidence {
   const canonical = collectPlayerObjectiveEvidence(state, playerId);
+  if (canonical.disposalLedger && additional.disposalLedger)
+    throw new Error("Canonical disposal ledger cannot be overridden");
   if (additional.propertyClaims?.length)
     throw new Error("Canonical property claims cannot be overridden");
   if (
@@ -91,8 +147,10 @@ export function combineObjectiveEvidence(
       ...(canonical.financing ?? []),
       ...(additional.financing ?? []),
     ],
-    ...(additional.disposalLedger
-      ? { disposalLedger: additional.disposalLedger }
+    ...((canonical.disposalLedger ?? additional.disposalLedger)
+      ? {
+          disposalLedger: canonical.disposalLedger ?? additional.disposalLedger,
+        }
       : {}),
   };
 }

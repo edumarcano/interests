@@ -216,6 +216,18 @@ function fixture() {
     referenceProceedsCents: null,
     economicSubstance: "genuine",
   }));
+  state = {
+    ...state,
+    progress: {
+      byPlayer: {
+        ...state.progress.byPlayer,
+        [actor]: {
+          ...state.progress.byPlayer[actor]!,
+          disposalEvidence: undefined,
+        },
+      },
+    },
+  };
   const evidence: ObjectiveEvidence = {
     financing,
     disposalLedger: { throughRevision: state.revision, entries },

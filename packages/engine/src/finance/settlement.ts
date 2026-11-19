@@ -589,6 +589,7 @@ export function applyQuarterSettlement(
         state,
         settlementOutcome,
         journalEntries,
+        revaluedMarketsByPlayer,
       ),
       phase: endsAtSafetyLimit ? "finished" : state.phase,
       result: endsAtSafetyLimit
