@@ -269,6 +269,13 @@ export const RecurringAcquisitionPreviewSchema = z
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
   z
     .object({
+      type: z.literal("SELL_RECURRING_BUSINESS"),
+      opportunityId: z.string().min(1).max(64),
+      quoteId: z.string().min(1).max(1000),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("OPEN_PROPERTY_ACQUISITION"),
       terms: PropertyAcquisitionTermsSchema,
     })

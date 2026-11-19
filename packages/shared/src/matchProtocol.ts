@@ -482,7 +482,27 @@ export type RecurringOpportunityFacts =
       readonly operatingExpenseRatioBps: number;
     };
 
+export interface RecurringBusinessExitQuote {
+  readonly id: string;
+  readonly assetId: string;
+  readonly operatingEnterpriseBidCents: number;
+  readonly referenceEnterpriseValueCents: number;
+  readonly companyCashIncludedCents: number;
+  readonly grossConsiderationCents: number;
+  readonly saleFeeCents: number;
+  readonly bankPayoffCents: number;
+  readonly bankInterestPaidCents: number;
+  readonly operatingArrearsPaidCents: number;
+  readonly workArrearsPaidCents: number;
+  readonly sellerNetCents: number;
+}
+export interface SellRecurringBusinessCommand {
+  readonly type: "SELL_RECURRING_BUSINESS";
+  readonly opportunityId: string;
+  readonly quoteId: string;
+}
 export interface RecurringOpportunityView {
+  readonly businessExitQuote?: RecurringBusinessExitQuote | null;
   readonly id: string;
   readonly templateId: string;
   readonly name: string;
@@ -501,9 +521,15 @@ export interface RecurringOpportunityView {
     | "property-management"
     | "npc-business-purchase"
     | "npc-property-purchase"
-    | "npc-financing";
+    | "npc-financing"
+    | "npc-business-exit";
   readonly createdQuarter: number;
-  readonly status: "available" | "expired" | "acquired" | "funded";
+  readonly status:
+    | "available"
+    | "expired"
+    | "acquired"
+    | "funded"
+    | "completed";
   readonly acquiredAssetId?: string;
   readonly marketLoanQuote?: MarketLoanQuoteView;
   readonly askingPriceCents: number;
@@ -513,6 +539,7 @@ export interface RecurringOpportunityView {
 }
 
 export type PlayerCommand =
+  | SellRecurringBusinessCommand
   | PropertyAcquisitionCommand
   | BusinessAuctionCommand
   | JointPropertyCommand

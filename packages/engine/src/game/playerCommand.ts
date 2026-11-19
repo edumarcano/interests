@@ -12,6 +12,7 @@ import type {
   PropertyAcquisitionCommand,
   PropertyCommand,
   ResignLaborCommandPayload,
+  SellRecurringBusinessCommand,
   SetFocusCommandPayload,
   TradePublicMarketsCommandPayload,
   TransactionId,
@@ -29,6 +30,7 @@ import {
   investigateRecurringOpportunity,
   setPlayerFocus,
 } from "../opportunities/recurring";
+import { sellRecurringBusiness } from "../opportunities/recurringBusinessExit";
 import { fundRecurringLoan } from "../opportunities/recurringLending";
 import { acquireRecurringOpportunity } from "../opportunities/recurringPurchase";
 import { applyBusinessAuctionCommand } from "../transactions/businessAuction";
@@ -102,6 +104,7 @@ export interface WireCancelActiveTransactionCommand {
 }
 
 export type WirePlayerCommand =
+  | SellRecurringBusinessCommand
   | PropertyAcquisitionCommand
   | AcquireRecurringCommand
   | FundRecurringLoanCommand
@@ -162,6 +165,13 @@ export function applyPlayerCommand(
     return { ok: false, state, code: "WRONG_PHASE", journalEntries: [] };
 
   switch (wireCommand.type) {
+    case "SELL_RECURRING_BUSINESS":
+      return sellRecurringBusiness(
+        state,
+        actorPlayerId,
+        wireCommand.opportunityId,
+        wireCommand.quoteId,
+      );
     case "ACQUIRE_RECURRING_OPPORTUNITY":
       return acquireRecurringOpportunity(state, actorPlayerId, wireCommand);
     case "FUND_RECURRING_LOAN":

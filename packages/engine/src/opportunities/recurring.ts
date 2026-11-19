@@ -35,15 +35,28 @@ import { FOCUS_AREAS, type FocusArea } from "../model/completionState";
 import type { GameState } from "../model/gameState";
 import { drawBoundedInt, type RandomState } from "../random/prng";
 import { getAvailableCashCents } from "../transactions/reservations";
+import {
+  authorRecurringBusinessBuyer,
+  type RecurringBusinessBuyer,
+  recurringBusinessExitQuote,
+  seasonedSoleOwnedBusinesses,
+} from "./recurringBusinessExit";
 import { getRecurringAcquisitionQuotes } from "./recurringPurchase";
 
 export interface RecurringOpportunity {
+  readonly businessBuyer?: RecurringBusinessBuyer;
+  readonly disposedAssetId?: import("@interests/shared").AssetId;
   readonly id: OpportunityId;
   readonly targetPlayerId: PlayerId;
   readonly templateId: string;
   readonly category: RecurringCategory;
   readonly createdQuarter: number;
-  readonly status: "available" | "expired" | "acquired" | "funded";
+  readonly status:
+    | "available"
+    | "expired"
+    | "acquired"
+    | "funded"
+    | "completed";
   readonly acquiredAssetId?: import("@interests/shared").AssetId;
   readonly fundedLoanId?: LoanId;
   readonly npcFundingTerms?: NpcFundingTerms;
@@ -203,6 +216,11 @@ export function recurringCandidateWeights(state: GameState, player: PlayerId) {
       template.action === "npc-business-purchase" ||
       template.action === "npc-property-purchase";
     if (
+      template.action === "npc-business-exit" &&
+      !seasonedSoleOwnedBusinesses(state, player).length
+    )
+      return [];
+    if (
       (acquisition
         ? !canAcquireTemplate(state, player, template)
         : cash < template.minimumCashCents) ||
@@ -292,7 +310,7 @@ export function generateRecurringContent(state: GameState): GameState {
       2 * RECURRING_CONTENT_RULES.businessProfitVariationBps + 1,
     );
     random = factNoise.nextState;
-    const price = cents(
+    let price = cents(
       new FinanceDecimal(selected.askingPriceCents)
         .times(
           10_000 +
@@ -328,7 +346,18 @@ export function generateRecurringContent(state: GameState): GameState {
         : null;
     if (selected.action === "npc-financing" && !npcFundingTerms)
       throw new Error("Invalid authored market loan quote");
+    const businessBuyer =
+      selected.action === "npc-business-exit"
+        ? authorRecurringBusinessBuyer(
+            state,
+            player,
+            next.id,
+            priceNoise.value - RECURRING_CONTENT_RULES.askingPriceVariationBps,
+          )
+        : undefined;
+    if (businessBuyer) price = cents(businessBuyer.operatingEnterpriseBidCents);
     cardsByPlayer[player] = {
+      ...(businessBuyer ? { businessBuyer } : {}),
       id: next.id,
       targetPlayerId: player,
       templateId: selected.id,
@@ -402,6 +431,9 @@ export function projectRecurringOpportunity(
     intensity: template.intensity,
     summary: template.summary,
     action: template.action,
+    ...(template.action === "npc-business-exit"
+      ? { businessExitQuote: recurringBusinessExitQuote(state, player) }
+      : {}),
     createdQuarter: card.createdQuarter,
     status: card.status,
     ...(card.acquiredAssetId ? { acquiredAssetId: card.acquiredAssetId } : {}),

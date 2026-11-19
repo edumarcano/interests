@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { money } from "./CareerPanel";
 import { MarketLoanOffer } from "./MarketLoanOffer";
 import { RecurringAcquisitionPanel } from "./RecurringAcquisitionPanel";
+import { RecurringBusinessExitPanel } from "./RecurringBusinessExitPanel";
 
 const focusOptions = [
   ["general", "General"],
@@ -121,9 +122,18 @@ export function RecurringOpportunityPanel({
       <h3 data-testid="recurring-card-name">{card.name}</h3>
       <p>{card.summary}</p>
       {card.askingPriceCents > 0 && card.action !== "npc-financing" && (
-        <p>Asking amount: {money(card.askingPriceCents)}</p>
+        <p>
+          {card.action === "npc-business-exit"
+            ? "Fixed buyer operating bid"
+            : "Asking amount"}
+          : {money(card.askingPriceCents)}
+        </p>
       )}
-      {card.status === "acquired" ? (
+      {card.status === "completed" ? (
+        <p role="status">
+          Business sale completed. The company is no longer player-owned.
+        </p>
+      ) : card.status === "acquired" ? (
         <p role="status">
           Purchase completed. Your asset appears in your private finances.
         </p>
@@ -210,6 +220,11 @@ export function RecurringOpportunityPanel({
           <a href="#private-finances">Review your asset finances</a>
         </p>
       )}
+      <RecurringBusinessExitPanel
+        match={match}
+        isPaused={isPaused || pending !== null}
+        onSendCommand={onSendCommand}
+      />
       {roomCode && (
         <RecurringAcquisitionPanel
           roomCode={roomCode}

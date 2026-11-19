@@ -25,13 +25,28 @@ export interface RecurringContentTemplate {
     | "property-management"
     | "npc-business-purchase"
     | "npc-property-purchase"
-    | "npc-financing";
+    | "npc-financing"
+    | "npc-business-exit";
   readonly summary: string;
   readonly facts: RecurringOpportunityFacts | null;
 }
 
 /** Authored prototype choices; actual closing always requires its own authoritative quote. */
 const templates: readonly RecurringContentTemplate[] = [
+  {
+    id: "independent-business-buyer",
+    name: "Independent buyer for your company",
+    category: "business",
+    intensity: "standard",
+    baseWeight: 2,
+    askingPriceCents: 0,
+    minimumCashCents: 0,
+    requiredOwnership: "business",
+    action: "npc-business-exit",
+    summary:
+      "A matched independent buyer makes one fixed operating-business bid. Review the exact cash, claims, sale fee and seller proceeds before accepting.",
+    facts: null,
+  },
   {
     id: "career-review",
     name: "Review your career options",

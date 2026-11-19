@@ -4,6 +4,7 @@ import {
   RECURRING_CONTENT_RULES,
   RECURRING_CONTENT_TEMPLATES,
 } from "@interests/rules";
+import { roundedRatio } from "../finance/bank";
 import { materializeNpcFundingTerms } from "../finance/npcLending";
 import type { GameState } from "../model/gameState";
 import { recurringInvestigationFeeCents } from "../opportunities/recurring";
@@ -63,7 +64,9 @@ export function assertRecurringContentState(state: GameState): void {
       !card ||
       card.targetPlayerId !== player ||
       card.createdQuarter !== content.generatedQuarter ||
-      !["available", "expired", "acquired", "funded"].includes(card.status) ||
+      !["available", "expired", "acquired", "funded", "completed"].includes(
+        card.status,
+      ) ||
       typeof card.investigated !== "boolean" ||
       typeof card.id !== "string" ||
       card.id.length === 0 ||
@@ -135,6 +138,45 @@ export function assertRecurringContentState(state: GameState): void {
       card.status === "funded"
     )
       throw new Error("Unexpected market loan terms");
+    if (template.action === "npc-business-exit") {
+      const buyer = card.businessBuyer;
+      if (
+        !buyer ||
+        !state.finance.assetsById[buyer.assetId] ||
+        state.finance.assetsById[buyer.assetId]?.kind !== "business" ||
+        buyer.buyerId !== `independent-buyer:${card.id}` ||
+        !Number.isSafeInteger(buyer.referenceEnterpriseValueCents) ||
+        buyer.referenceEnterpriseValueCents <= 0 ||
+        !Number.isSafeInteger(buyer.operatingEnterpriseBidCents) ||
+        buyer.operatingEnterpriseBidCents !== card.askingPriceCents ||
+        buyer.operatingEnterpriseBidCents <
+          roundedRatio(
+            buyer.referenceEnterpriseValueCents,
+            10_000 - RECURRING_CONTENT_RULES.askingPriceVariationBps,
+          ) ||
+        buyer.operatingEnterpriseBidCents >
+          roundedRatio(
+            buyer.referenceEnterpriseValueCents,
+            10_000 + RECURRING_CONTENT_RULES.askingPriceVariationBps,
+          )
+      )
+        throw new Error("Invalid persisted business buyer");
+      if (card.status === "completed") {
+        const sold = state.finance.assetsById[buyer.assetId];
+        if (
+          card.disposedAssetId !== buyer.assetId ||
+          sold?.kind !== "business" ||
+          sold.npcSale?.quoteId !== card.id
+        )
+          throw new Error("Invalid completed business exit");
+      } else if (card.disposedAssetId !== undefined)
+        throw new Error("Unexpected business disposal");
+    } else if (
+      card.businessBuyer !== undefined ||
+      card.disposedAssetId !== undefined ||
+      card.status === "completed"
+    )
+      throw new Error("Unexpected business buyer");
     if (template.facts === null) {
       if (
         card.facts !== null ||
