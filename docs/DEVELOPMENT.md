@@ -48,7 +48,7 @@ ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. T
 | 4 | Careers, executive ownership, resignation and equal-cost management conversion | Delivered in open [PR #39](https://github.com/edumarcano/interests/pull/39), `codex/m7-career-labor`, stacked on #38; unmerged |
 | 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Delivered in open [PR #40](https://github.com/edumarcano/interests/pull/40), stacked on #39; both Remora review axes passed; unmerged |
 | 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Delivered in open [PR #41](https://github.com/edumarcano/interests/pull/41), stacked on #40; both Remora review axes passed; unmerged |
-| 7 | Operating economy, recurring private/public content and non-player alternatives | Verified locally on `codex/m7-npc-lending`, stacked on #41. Publication and hosted CI pending. |
+| 7 | Operating economy, recurring private/public content and non-player alternatives | Delivered in open [PR #42](https://github.com/edumarcano/interests/pull/42), stacked on #41. Both Remora review axes passed locally; hosted CI pending. |
 | 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Pure evaluation, canonical evidence and durable Q32 draw verified in isolation; the private finale coordinator and route integrations are in progress |
 | 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | Pending |
 
@@ -106,7 +106,7 @@ The combined stack at `d57d3e8` passed 868 unit/integration tests, all 13 produc
 
 ### Packet 7 implementation and verification
 
-PR #41 remains open and unmerged at `c5adba4`; hosted CI run #119 passed. Packet 7 is locally stacked on it under `codex/m7-npc-lending`. ARCH-047 and ARCH-048 describe the operating and discovery contracts. The economy adjusts rates and credit, inflation, occupancy, property value and realized company performance. Rate resets, renovation and expansion preserve the closing quarter’s earned rights. A sole owner may explicitly fund an expansion shortfall from personal cash; the contribution and company expenditure reconcile atomically and preserve ownership dates.
+PR #41 remains open and unmerged at `c5adba4`; hosted CI run #119 passed. Packet 7 is open and unmerged in [PR #42](https://github.com/edumarcano/interests/pull/42) on `codex/m7-npc-lending`. ARCH-047 and ARCH-048 describe the operating and discovery contracts. The economy adjusts rates and credit, inflation, occupancy, property value and realized company performance. Rate resets, renovation and expansion preserve the closing quarter’s earned rights. A sole owner may explicitly fund an expansion shortfall from personal cash; the contribution and company expenditure reconcile atomically and preserve ownership dates.
 
 Ordinary setup creates one private card per seat each quarter without the Q1 demonstration company. Focus, capacity and holdings influence later discovery without reading hidden objectives. Diligence reveals stable facts after the fee. Cash and bank acquisition use exact engine quotes and booked cash, fees, reserves, ownership basis and canonical debt. The catalogue includes a $650k residential court, $1.1M commercial center and $1M managed service group; residential and commercial types persist on the owned asset. Shared catalogue purchases take unanimous same-terms buyer commitments, then use the existing mortgage and purchase path with one loan. The lead retains their own personal reserve.
 
