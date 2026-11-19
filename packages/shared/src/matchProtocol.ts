@@ -110,6 +110,14 @@ export interface AcceptCareerOfferCommandPayload {
 export interface ResignLaborCommandPayload {
   readonly type: "RESIGN_LABOR";
 }
+/** Explicit owner-only request. Eligibility, target objective and effects remain engine-owned. */
+export interface PursueFinaleCommandPayload {
+  readonly type: "PURSUE_FINALE";
+  readonly action:
+    | ResignLaborCommandPayload
+    | AcceptCareerOfferCommandPayload
+    | { readonly type: "CONFIRM_INDEPENDENCE" };
+}
 export interface CareerOfferView {
   readonly id: string;
   readonly name: string;
@@ -542,6 +550,7 @@ export interface RecurringOpportunityView {
 export type PlayerCommand =
   | SellRecurringBusinessCommand
   | PropertyAcquisitionCommand
+  | PursueFinaleCommandPayload
   | BusinessAuctionCommand
   | JointPropertyCommand
   | BusinessCapitalCommand

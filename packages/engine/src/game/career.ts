@@ -9,12 +9,13 @@ import type { AssetId, CareerOfferView, PlayerId } from "@interests/shared";
 import { externalCashAccount, playerCashAccount } from "../finance/account";
 import { createManagedBusinessOperatingModel } from "../finance/businessPerformance";
 import { FinanceDecimal } from "../finance/decimal";
-import { cents } from "../finance/money";
+import { type Cents, cents } from "../finance/money";
 import { ownershipPpm } from "../finance/ownership";
 import { postCash } from "../finance/posting";
 import type { BusinessAsset, GameState } from "../model/gameState";
 import type { ActionErrorCode, ActionResult } from "./actions";
 import { nextDeterministicId } from "./deterministicIds";
+import type { EconomicActionFinalizer } from "./finalization";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "./round";
 
 export function currentAnnualLaborCompensation(
@@ -120,10 +121,25 @@ function leaveOwnerWork(state: GameState, playerId: PlayerId): GameState {
   };
 }
 
+export type CareerActionFacts =
+  | { readonly kind: "labor-exit" }
+  | {
+      readonly kind: "career-acceptance";
+      readonly offerId: string;
+      readonly role: "professional" | "executive";
+      readonly transitionCostCents: Cents;
+      readonly ownershipPosition: null | {
+        readonly assetId: AssetId;
+        readonly considerationCents: Cents;
+        readonly purchaseFeeCents: Cents;
+      };
+    };
+
 export function applyCareerCommand(
   state: GameState,
   playerId: PlayerId,
   offerId: string | null,
+  finalize?: EconomicActionFinalizer<CareerActionFacts>,
 ): ActionResult {
   const reject = (code: ActionErrorCode): ActionResult => ({
     ok: false,
@@ -280,6 +296,28 @@ export function applyCareerCommand(
         },
       },
     };
+    if (finalize)
+      return finalize({
+        before: state,
+        draft,
+        actorPlayerId: playerId,
+        journalEntries: journals,
+        facts: offer
+          ? {
+              kind: "career-acceptance",
+              offerId: offer.id,
+              role: offer.role,
+              transitionCostCents: cents(offer.transitionCostCents),
+              ownershipPosition: ownershipPositionAssetId
+                ? {
+                    assetId: ownershipPositionAssetId,
+                    considerationCents: cents(offer.ownershipCostCents),
+                    purchaseFeeCents: cents(offer.ownershipPurchaseFeeCents),
+                  }
+                : null,
+            }
+          : { kind: "labor-exit" },
+      });
     const advanced = advanceSpotlight(draft, playerId);
     if (!advanced.ok) return reject(advanced.code);
     return {

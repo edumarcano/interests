@@ -52,6 +52,10 @@ export * from "./finance/progress";
 export * from "./finance/propertyActions";
 export * from "./finance/publicMarketTrading";
 export * from "./game/career";
+export type {
+  EconomicActionFinalization,
+  EconomicActionFinalizer,
+} from "./game/finalization";
 export * from "./model/completionState";
 export * from "./objectives/index";
 export { getRecurringAcquisitionQuotes } from "./opportunities/recurringPurchase";

@@ -11,6 +11,7 @@ import type {
   PlayerId,
   PropertyAcquisitionCommand,
   PropertyCommand,
+  PursueFinaleCommandPayload,
   ResignLaborCommandPayload,
   SellRecurringBusinessCommand,
   SetFocusCommandPayload,
@@ -21,6 +22,7 @@ import { expandBusinessAndAdvanceSpotlight } from "../finance/businessExpansion.
 import { applyPropertyCommand } from "../finance/propertyActions";
 import { tradePublicMarketsAndAdvanceSpotlight } from "../finance/publicMarketTrading.js";
 import type { GameState } from "../model/gameState.js";
+import { pursueFinale } from "../objectives/finale";
 import {
   investigatePrivateBusinessPurchaseOpportunity,
   pursuePrivateBusinessPurchaseOpportunity,
@@ -108,6 +110,7 @@ export type WirePlayerCommand =
   | PropertyAcquisitionCommand
   | AcquireRecurringCommand
   | FundRecurringLoanCommand
+  | PursueFinaleCommandPayload
   | BusinessAuctionCommand
   | JointPropertyCommand
   | BusinessCapitalCommand
@@ -176,6 +179,8 @@ export function applyPlayerCommand(
       return acquireRecurringOpportunity(state, actorPlayerId, wireCommand);
     case "FUND_RECURRING_LOAN":
       return fundRecurringLoan(state, actorPlayerId, wireCommand.opportunityId);
+    case "PURSUE_FINALE":
+      return pursueFinale(state, actorPlayerId, wireCommand);
     case "OPEN_BUSINESS_AUCTION":
     case "RESPOND_BUSINESS_AUCTION":
       return applyBusinessAuctionCommand(state, actorPlayerId, wireCommand);

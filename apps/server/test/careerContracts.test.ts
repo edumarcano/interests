@@ -66,3 +66,51 @@ it("round-trips accepted employment through the actual snapshot validator with s
   expect(getCareerOffers(loaded, actor)).toEqual(getCareerOffers(state, actor));
   assertGameState(loaded);
 });
+
+it("accepts only strictly nested explicit finale actions without client objective or financial authority", () => {
+  const actions = [
+    { type: "RESIGN_LABOR" },
+    {
+      type: "ACCEPT_CAREER_OFFER",
+      offerId: "career:5:executive:20000000:employment",
+    },
+    { type: "CONFIRM_INDEPENDENCE" },
+  ];
+  for (const action of actions) {
+    const command = { type: "PURSUE_FINALE", action };
+    expect(PlayerCommandPayloadSchema.parse(command)).toEqual(command);
+    for (const extra of [
+      { objectiveId: "independent" },
+      { actorPlayerId: "other" },
+      { eligible: true },
+      { result: { kind: "objective-victory" } },
+    ]) {
+      expect(
+        PlayerCommandPayloadSchema.safeParse({ ...command, ...extra }).success,
+      ).toBe(false);
+      expect(
+        PlayerCommandPayloadSchema.safeParse({
+          ...command,
+          action: { ...action, ...extra },
+        }).success,
+      ).toBe(false);
+    }
+  }
+  for (const action of [
+    null,
+    [],
+    { type: "PASS_SPOTLIGHT" },
+    { type: "RESPOND_BUSINESS_AUCTION", transactionId: "auction", bidCents: 1 },
+    { type: "PURSUE_FINALE", action: { type: "RESIGN_LABOR" } },
+    { type: "ACCEPT_CAREER_OFFER", offerId: "" },
+    { type: "ACCEPT_CAREER_OFFER", offerId: "x".repeat(201) },
+  ])
+    expect(
+      PlayerCommandPayloadSchema.safeParse({ type: "PURSUE_FINALE", action })
+        .success,
+    ).toBe(false);
+  expect(
+    PlayerCommandPayloadSchema.safeParse({ type: "CONFIRM_INDEPENDENCE" })
+      .success,
+  ).toBe(false);
+});

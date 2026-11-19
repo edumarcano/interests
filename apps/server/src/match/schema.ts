@@ -114,6 +114,17 @@ export const ResignLaborPayloadSchema = z
   .object({ type: z.literal("RESIGN_LABOR") })
   .strict();
 
+export const PursueFinalePayloadSchema = z
+  .object({
+    type: z.literal("PURSUE_FINALE"),
+    action: z.discriminatedUnion("type", [
+      ResignLaborPayloadSchema,
+      AcceptCareerOfferPayloadSchema,
+      z.object({ type: z.literal("CONFIRM_INDEPENDENCE") }).strict(),
+    ]),
+  })
+  .strict();
+
 const transactionKey = z.string().min(1).max(128);
 const positiveCents = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const ownershipUnits = z.number().int().min(1).max(1_000_000);
@@ -267,6 +278,7 @@ export const RecurringAcquisitionPreviewSchema = z
   .object({ opportunityId: z.string().min(1).max(128) })
   .strict();
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
+  PursueFinalePayloadSchema,
   z
     .object({
       type: z.literal("SELL_RECURRING_BUSINESS"),
