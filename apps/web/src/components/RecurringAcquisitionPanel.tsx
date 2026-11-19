@@ -123,6 +123,9 @@ export function RecurringAcquisitionPanel({
                 ? "Fixed bank finance"
                 : "Variable bank finance"}
           </h4>
+          {quote.propertyMarketKind && (
+            <p>Property market: {quote.propertyMarketKind}</p>
+          )}
           <p>
             Price {money(quote.askingPriceCents)} · Purchase fee{" "}
             {money(quote.purchaseFeeCents)}

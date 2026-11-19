@@ -1,4 +1,5 @@
 import {
+  type PropertyMarketKind,
   RECURRING_CONTENT_TEMPLATES,
   TRANSACTION_FEES_BPS,
 } from "@interests/rules";
@@ -36,7 +37,7 @@ export type RecurringAcquisitionTerms =
     })
   | (RecurringAcquisitionCommon & {
       readonly kind: "property";
-      readonly marketKind: "residential";
+      readonly marketKind: PropertyMarketKind;
       readonly facts: Extract<RecurringOpportunityFacts, { kind: "property" }>;
     });
 export type RecurringAcquisitionResult =
@@ -138,12 +139,14 @@ export function getRecurringAcquisitionTerms(
         },
       };
     }
+    if (!template.propertyMarketKind)
+      return { ok: false, code: "INVALID_ACTION" };
     return {
       ok: true,
       terms: {
         ...common,
         kind: "property",
-        marketKind: "residential",
+        marketKind: template.propertyMarketKind,
         facts: { ...facts },
       },
     };

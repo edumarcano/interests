@@ -168,6 +168,14 @@ The integrated full unit/server suite passed 962 tests across 87 files. Four foc
 
 An ordinary four-client production-browser journey passed discovery after earned operation, private bid/preview, cancelled review with unchanged cash/revision, process restart, a real whole-company sale and durable removal from holdings/loan views. It used no injected card, asset, wealth, seed or threshold. Seller review at 320px had no horizontal overflow. All six typechecks, lint, production build and harness consistency passed. Final packet 7/8 integration and hosted CI remain separate; finale eligibility and objective thresholds are unchanged.
 
+### Packet 7 larger authored acquisitions
+
+The recurring catalogue adds a $650k residential court, $1.1M commercial center and $1M mature managed service group. The court remains above $600k consideration at the lowest price variation; the group remains above $250k after-labor profit at the lowest profit variation. Property market type is authored metadata, is visible in the financial quote and is preserved on the actual asset. Existing acquisition, cash/bank, cost basis, expiry and weighting mechanics are reused; `recurring.ts` is unchanged.
+
+All 963 tests, six TypeScript projects, production build, three relevant browser journeys and local harness consistency checks pass. Lint passes with 1,263 warnings and four infos. Boundary tests close minimum-price residential purchases with cash and bank funds, commercial bank finance, three separately funded properties above $1.8M combined value, and the mature group at its minimum profit. Those fixtures explicitly supply synthetic liquidity and do not claim objective reachability.
+
+Separate ordinary production-command journeys using seed `landmark-content-0` obtain and fund the residential court in Q9, commercial center in Q15 and managed service group in Q16. They use actual starting profiles, career choices, focus, paid diligence and acquisition commands without injected cash/assets, fixed outcomes or changed thresholds. Repeated JSON is identical. This proves availability and funded execution, not objective eligibility, balance or human enjoyment. The isolated branch is `codex/m7-landmark-content` from `b831af5`; root's later lending/capacity changes remain a separate integration step.
+
 ## M7 completion and M8 handoff
 
 M7 is complete only after production-command journeys demonstrate all eight legal objective routes without injected wealth or reduced thresholds, an ordinary four-client match reaches a valid winner, Q32 produces a durable draw when required, and privacy/retry/restart checks cover the new actions and terminal results. Finale boundary fixtures supplement those journeys rather than replace them.

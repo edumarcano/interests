@@ -1,6 +1,7 @@
 import type { RecurringOpportunityFacts } from "@interests/shared";
 import { RECURRING_CONTENT_RULES } from "./completion";
 import { MARKET_BORROWER_TEMPLATES } from "./npcLending";
+import type { PropertyMarketKind } from "./operatingEconomy";
 export const RECURRING_CATEGORIES = [
   "business",
   "property",
@@ -18,6 +19,7 @@ export interface RecurringContentTemplate {
   readonly askingPriceCents: number;
   readonly minimumCashCents: number;
   readonly requiredOwnership?: "business" | "property";
+  readonly propertyMarketKind?: PropertyMarketKind;
   readonly action:
     | "career"
     | "markets"
@@ -122,6 +124,7 @@ const templates: readonly RecurringContentTemplate[] = [
   },
   {
     id: "residential-rental",
+    propertyMarketKind: "residential",
     name: "Residential rental",
     category: "property",
     intensity: "standard",
@@ -137,6 +140,65 @@ const templates: readonly RecurringContentTemplate[] = [
       scheduledQuarterlyRentCents: 450_000,
       occupancyBps: 9500,
       operatingExpenseRatioBps: 3500,
+    },
+  },
+  {
+    id: "residential-income-court",
+    name: "Residential income court",
+    category: "property",
+    propertyMarketKind: "residential",
+    intensity: "standard",
+    baseWeight: 1,
+    askingPriceCents: 65_000_000,
+    minimumCashCents: 67_957_500,
+    action: "npc-property-purchase",
+    summary:
+      "A managed residential court offers rent across multiple homes in one property. Compare its larger cash commitment with vacancy, operating costs and mortgage payments.",
+    facts: {
+      kind: "property",
+      marketValueCents: 67_000_000,
+      scheduledQuarterlyRentCents: 1_800_000,
+      occupancyBps: 9500,
+      operatingExpenseRatioBps: 3500,
+    },
+  },
+  {
+    id: "commercial-service-center",
+    name: "Commercial service center",
+    category: "property",
+    propertyMarketKind: "commercial",
+    intensity: "major",
+    baseWeight: 1,
+    askingPriceCents: 110_000_000,
+    minimumCashCents: 115_005_000,
+    action: "npc-property-purchase",
+    summary:
+      "An established commercial center concentrates several tenants in a larger property. Its rent supports a substantial financing decision, with commercial occupancy and rate exposure.",
+    facts: {
+      kind: "property",
+      marketValueCents: 112_000_000,
+      scheduledQuarterlyRentCents: 3_300_000,
+      occupancyBps: 9200,
+      operatingExpenseRatioBps: 3500,
+    },
+  },
+  {
+    id: "established-service-group",
+    name: "Established service group",
+    category: "business",
+    intensity: "standard",
+    baseWeight: 1,
+    askingPriceCents: 100_000_000,
+    minimumCashCents: 104_550_000,
+    action: "npc-business-purchase",
+    summary:
+      "A mature managed service group brings a larger operating income stream. Compare its after-labor profit and debt-service capacity with the capital concentrated in one company.",
+    facts: {
+      kind: "business",
+      annualRevenueCents: 180_000_000,
+      annualOperatingProfitCents: 27_000_000,
+      enterpriseValueCents: 108_000_000,
+      debtPrincipalCents: 0,
     },
   },
   ...MARKET_BORROWER_TEMPLATES.map(

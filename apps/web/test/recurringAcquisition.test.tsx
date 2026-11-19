@@ -168,3 +168,33 @@ it("renders a rejected confirmation without pretending that the purchase succeed
   expect((await screen.findByRole("alert")).textContent).toBe("Quote is stale");
   expect(screen.getByRole("dialog")).toBeTruthy();
 });
+
+it("shows the quoted public property market type before optional investigation", async () => {
+  vi.mocked(previewRecurringAcquisition).mockResolvedValue([
+    { ...quote, kind: "property", propertyMarketKind: "commercial" },
+  ]);
+  const propertyMatch = {
+    ...match,
+    self: {
+      ...match.self,
+      recurringOpportunity: {
+        ...match.self.recurringOpportunity!,
+        action: "npc-property-purchase" as const,
+        name: "Commercial service center",
+      },
+    },
+  };
+  render(
+    <RecurringAcquisitionPanel
+      roomCode="ABCDEF"
+      match={propertyMatch}
+      isPaused={false}
+      onSendCommand={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByTestId("preview-recurring-acquisition"));
+  expect(
+    (await screen.findByText("Property market: commercial")).textContent,
+  ).toBe("Property market: commercial");
+  expect(screen.queryByTestId("recurring-facts")).toBeNull();
+});

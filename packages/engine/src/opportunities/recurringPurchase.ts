@@ -201,6 +201,9 @@ export function getRecurringAcquisitionQuotes(
         ].join(":"),
         opportunityId: terms.opportunityId,
         kind: terms.kind,
+        ...(terms.kind === "property"
+          ? { propertyMarketKind: terms.marketKind }
+          : {}),
         route,
         askingPriceCents: terms.askingPriceCents,
         purchaseFeeCents: terms.purchaseFeeCents,

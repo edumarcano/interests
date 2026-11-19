@@ -432,6 +432,7 @@ export interface PropertyAcquisitionView {
 
 export type RecurringAcquisitionRoute = "cash" | "bank-fixed" | "bank-variable";
 export interface RecurringAcquisitionQuote {
+  readonly propertyMarketKind?: "residential" | "commercial";
   readonly id: string;
   readonly opportunityId: string;
   readonly kind: "business" | "property";
