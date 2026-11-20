@@ -179,3 +179,208 @@ describe("private public-market controls", () => {
     ).toBe(false);
   });
 });
+
+function marketFinaleMatch(
+  objectiveId: string,
+  status: "eligible" | "ineligible" = "eligible",
+): MatchPlayerView {
+  return {
+    ...match,
+    self: {
+      ...match.self,
+      selectedObjectiveId: objectiveId,
+      financialDetails: {
+        ...match.self.financialDetails,
+        objectiveEvaluation: { objectiveId, status, checks: [] },
+      },
+    },
+  };
+}
+async function openMarketPreview() {
+  fireEvent.change(screen.getByLabelText("Growth Fund amount"), {
+    target: { value: "12.34" },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Preview market trades" }),
+  );
+  await screen.findByTestId("market-trade-preview");
+}
+describe("private explicit market finale choice", () => {
+  it.each(["capital-allocator", "deal-maker", "wealth-architect"])(
+    "offers %s a separate quoted finale confirmation and sends only the explicit wrapper",
+    async (objectiveId) => {
+      stubPreview();
+      const send = vi.fn().mockResolvedValue({ ok: true });
+      render(
+        <PublicMarketsPanel
+          roomCode="ROOM"
+          match={marketFinaleMatch(objectiveId)}
+          isPaused={false}
+          onSendCommand={send}
+        />,
+      );
+      await openMarketPreview();
+      expect(
+        screen.getByRole("button", {
+          name: "Confirm trades and finish spotlight",
+        }),
+      ).toBeTruthy();
+      fireEvent.click(screen.getByTestId("review-market-finale"));
+      expect(
+        screen.getByRole("dialog", { name: "Confirm market finale" })
+          .textContent,
+      ).toContain("$555.55");
+      expect(send).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByTestId("confirm-market-finale"));
+      await waitFor(() =>
+        expect(send).toHaveBeenCalledWith({
+          type: "PURSUE_FINALE",
+          action: {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              { instrumentId: "growth-fund", buyCents: 1234, sellCents: 0 },
+            ],
+          },
+        }),
+      );
+    },
+  );
+  it.each([
+    "founder",
+    "property-magnate",
+    "independent",
+    "financier",
+    "executive",
+  ])(
+    "keeps the ordinary market action but exposes no unsupported %s finale",
+    async (objectiveId) => {
+      stubPreview();
+      render(
+        <PublicMarketsPanel
+          roomCode="ROOM"
+          match={marketFinaleMatch(objectiveId)}
+          isPaused={false}
+          onSendCommand={vi.fn()}
+        />,
+      );
+      await openMarketPreview();
+      expect(screen.queryByTestId("review-market-finale")).toBeNull();
+      expect(
+        screen.getByRole("button", {
+          name: "Confirm trades and finish spotlight",
+        }) as HTMLButtonElement,
+      ).toHaveProperty("disabled", false);
+    },
+  );
+  it("does not arm ordinary confirmation after cancelling a finale or editing the basket", async () => {
+    stubPreview();
+    const send = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <PublicMarketsPanel
+        roomCode="ROOM"
+        match={marketFinaleMatch("capital-allocator")}
+        isPaused={false}
+        onSendCommand={send}
+      />,
+    );
+    await openMarketPreview();
+    fireEvent.click(screen.getByTestId("review-market-finale"));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel finale" }));
+    expect(send).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("review-market-finale"));
+    fireEvent.change(screen.getByLabelText("Growth Fund amount"), {
+      target: { value: "20" },
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await openMarketPreview();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Confirm trades and finish spotlight",
+      }),
+    );
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: "TRADE_PUBLIC_MARKETS",
+        trades: [{ instrumentId: "growth-fund", buyCents: 1234, sellCents: 0 }],
+      }),
+    );
+  });
+  it("uses only matching private eligibility and blocks stale, paused and off-turn finale confirmation", async () => {
+    stubPreview();
+    const eligible = marketFinaleMatch("deal-maker"),
+      send = vi.fn();
+    const { rerender } = render(
+      <PublicMarketsPanel
+        roomCode="ROOM"
+        match={eligible}
+        isPaused={false}
+        onSendCommand={send}
+      />,
+    );
+    await openMarketPreview();
+    fireEvent.click(screen.getByTestId("review-market-finale"));
+    rerender(
+      <PublicMarketsPanel
+        roomCode="ROOM"
+        match={eligible}
+        isPaused={true}
+        onSendCommand={send}
+      />,
+    );
+    expect(
+      screen.getByTestId("confirm-market-finale") as HTMLButtonElement,
+    ).toHaveProperty("disabled", true);
+    rerender(
+      <PublicMarketsPanel
+        roomCode="ROOM"
+        match={{ ...eligible, revision: 8 }}
+        isPaused={false}
+        onSendCommand={send}
+      />,
+    );
+    expect(
+      screen.getByTestId("confirm-market-finale") as HTMLButtonElement,
+    ).toHaveProperty("disabled", true);
+    rerender(
+      <PublicMarketsPanel
+        roomCode="ROOM"
+        match={{
+          ...eligible,
+          round: {
+            ...eligible.round!,
+            activeSpotlightPlayerId: "other" as never,
+          },
+        }}
+        isPaused={false}
+        onSendCommand={send}
+      />,
+    );
+    expect(
+      screen.getByTestId("confirm-market-finale") as HTMLButtonElement,
+    ).toHaveProperty("disabled", true);
+    rerender(
+      <PublicMarketsPanel
+        roomCode="ROOM"
+        match={marketFinaleMatch("deal-maker", "ineligible")}
+        isPaused={false}
+        onSendCommand={send}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("confirm-market-finale"));
+    expect(send).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("review-market-finale")).toBeNull();
+    const mismatched = {
+      ...eligible,
+      self: { ...eligible.self, selectedObjectiveId: "wealth-architect" },
+    };
+    rerender(
+      <PublicMarketsPanel
+        roomCode="ROOM"
+        match={mismatched}
+        isPaused={false}
+        onSendCommand={send}
+      />,
+    );
+    expect(screen.queryByTestId("review-market-finale")).toBeNull();
+  });
+});
