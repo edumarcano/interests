@@ -38,16 +38,23 @@ export function RecurringBusinessExitPanel({
     pending ||
     Boolean(match.hasActiveTransaction) ||
     match.round?.activeSpotlightPlayerId !== match.self.playerId;
-  async function close() {
-    if (!review || disabled) return;
+  const objective = match.self.financialDetails?.objectiveEvaluation;
+  const canPursueFinale =
+    objective?.status === "eligible" &&
+    ["founder", "deal-maker"].includes(objective.objectiveId);
+  async function close(pursueFinale = false) {
+    if (!review || disabled || (pursueFinale && !canPursueFinale)) return;
     setPending(true);
     setError("");
     try {
-      const result = await onSendCommand({
-        type: "SELL_RECURRING_BUSINESS",
+      const action = {
+        type: "SELL_RECURRING_BUSINESS" as const,
         opportunityId: card!.id,
         quoteId: review.id,
-      });
+      };
+      const result = await onSendCommand(
+        pursueFinale ? { type: "PURSUE_FINALE", action } : action,
+      );
       if (!result.ok) setError(result.error.message);
       else setReview(null);
     } catch (cause) {
@@ -122,10 +129,20 @@ export function RecurringBusinessExitPanel({
             type="button"
             className="btn-secondary"
             disabled={disabled}
-            onClick={close}
+            onClick={() => close()}
           >
             {pending ? "Closing sale…" : "Confirm matched business sale"}
           </button>{" "}
+          {canPursueFinale && (
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={disabled}
+              onClick={() => close(true)}
+            >
+              Pursue finale with reviewed sale
+            </button>
+          )}
           <button
             type="button"
             className="btn-secondary"
