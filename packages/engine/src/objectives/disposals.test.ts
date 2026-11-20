@@ -1,8 +1,14 @@
-import { asPlayerId, type PlayerId } from "@interests/shared";
+import { asPlayerId, asTransactionId, type PlayerId } from "@interests/shared";
 import { expect, it } from "vitest";
+import { calculateBusinessEquity } from "../finance/business";
+import {
+  closeMatchedBusinessExitAndAdvanceSpotlight,
+  type MatchedIndependentBusinessBuyer,
+  quoteMatchedBusinessExit,
+} from "../finance/businessExit";
 import { cents } from "../finance/money";
 import { propertyOffers } from "../finance/propertyActions";
-import { createGame } from "../game/createGame";
+import { createGame, createQ1BusinessDiagnosticGame } from "../game/createGame";
 import {
   applyPlayerCommand,
   type WirePlayerCommand,
@@ -15,6 +21,7 @@ import type {
   GameState,
   PropertyAsset,
 } from "../model/gameState";
+import { openCashBusinessPurchaseTransaction } from "../transactions/cashBusinessPurchase";
 import { collectPlayerObjectiveEvidence } from "./evidence";
 import { measurePlayerObjectives } from "./measurements";
 
@@ -129,6 +136,253 @@ function propertyPurchase() {
   )!;
   return { state, asset };
 }
+
+function matchedExit(
+  initial: GameState,
+  seller: PlayerId,
+  assetId: BusinessAsset["id"],
+) {
+  const state = turn(initial, seller);
+  const asset = state.finance.assetsById[assetId] as BusinessAsset;
+  // Explicit trusted buyer fixture; the production exit performs all accounting and evidence writes.
+  const match: MatchedIndependentBusinessBuyer = {
+    kind: "matched-independent-business-buyer",
+    quoteId: "gain-floor-independent-buyer",
+    buyerId: "gain-floor-outside-buyer",
+    assetId,
+    quarter: state.currentQuarter,
+    operatingEnterpriseBidCents: asset.enterpriseValueCents,
+    retainedCompanyCashCents: asset.cashCents,
+    sellerOwnershipByPlayerPpm: asset.ownershipByPlayerPpm,
+  };
+  const quote = quoteMatchedBusinessExit(state, match);
+  if (!quote.ok) throw new Error(quote.code);
+  const closed = closeMatchedBusinessExitAndAdvanceSpotlight(
+    {
+      ...state,
+      counters: {
+        ...state.counters,
+        transaction: state.counters.transaction + 1,
+      },
+    },
+    seller,
+    asTransactionId(`transaction-${state.counters.transaction + 1}`),
+    match,
+    quote.quote,
+    "unanimous-owners",
+  );
+  if (!closed.ok) throw new Error(closed.code);
+  assertGameState(closed.state);
+  return closed.state;
+}
+
+it("does not credit a discounted player acquisition as an earned third-party resale gain", () => {
+  const f = companyFixture();
+  const entryReference = Math.round(
+    calculateBusinessEquity(f.asset, f.state.finance.loansById)
+      .equityValueCents / 4,
+  );
+  let state = capitalSale(f.state, f.owner, f.buyer, f.asset.id, 250_000, 100);
+  const actualCost =
+    state.progress.byPlayer[f.buyer]!.assetsById[f.asset.id]!.costCents;
+  expect(actualCost).toBe(102);
+  state = until(state, 4);
+  const other = ids.find(
+    (id) =>
+      id !== f.owner &&
+      id !== f.buyer &&
+      state.finance.cashByPlayer[id]! > 10_200_000,
+  )!;
+  state = capitalSale(state, f.buyer, other, f.asset.id, 250_000, 10_000_000);
+  const record = state.progress.byPlayer[f.buyer]!.disposalEvidence!.at(-1)!;
+  const expected = Math.max(
+    0,
+    Math.min(record.proceedsCents, record.referenceProceedsCents!) -
+      record.saleFeesCents -
+      (entryReference + 2),
+  );
+  expect(measurePlayerObjectives(state, f.buyer).creditedDealGainsCents).toBe(
+    expected,
+  );
+  expect(record.acquisitionBasisCents).toBe(actualCost);
+  expect(record.objectiveAcquisitionBasisFloorCents).toBe(entryReference + 2);
+});
+
+it("retains an allocated player entry floor through a partial disposal and a later NPC exit", () => {
+  const f = companyFixture();
+  let state = capitalSale(f.state, f.owner, f.buyer, f.asset.id, 250_000, 100);
+  const acquired = state.progress.byPlayer[f.buyer]!.assetsById[f.asset.id]!;
+  state = until(state, 4);
+  const other = ids.find(
+    (id) =>
+      id !== f.owner &&
+      id !== f.buyer &&
+      state.finance.cashByPlayer[id]! > 5_100_000,
+  )!;
+  state = capitalSale(state, f.buyer, other, f.asset.id, 125_000, 5_000_000);
+  const disposed = state.progress.byPlayer[f.buyer]!.disposalEvidence!.at(-1)!;
+  const retained = state.progress.byPlayer[f.buyer]!.assetsById[f.asset.id]!;
+  expect(
+    disposed.objectiveAcquisitionBasisFloorCents! +
+      retained.objectiveCostFloorCents!,
+  ).toBe(acquired.objectiveCostFloorCents);
+  expect(disposed.acquisitionBasisCents + retained.costCents).toBe(
+    acquired.costCents,
+  );
+  state = matchedExit(until(state, 5), f.buyer, f.asset.id);
+  const records = state.progress.byPlayer[f.buyer]!.disposalEvidence!;
+  expect(records.at(-1)!.counterparty.kind).toBe("non-player");
+  expect(records.at(-1)!.objectiveAcquisitionBasisFloorCents).toBe(
+    retained.objectiveCostFloorCents,
+  );
+  const expected = records.reduce((sum, record) => {
+    const actual =
+      record.proceedsCents -
+      record.saleFeesCents -
+      record.acquisitionBasisCents -
+      (record.companyClaimsPaidCents ?? 0);
+    const bounded =
+      (record.counterparty.kind === "player"
+        ? Math.min(record.proceedsCents, record.referenceProceedsCents!)
+        : record.proceedsCents) -
+      record.saleFeesCents -
+      record.objectiveAcquisitionBasisFloorCents! -
+      (record.companyClaimsPaidCents ?? 0);
+    return sum + (actual < 0 ? actual : Math.max(0, bounded));
+  }, 0);
+  expect(measurePlayerObjectives(state, f.buyer).creditedDealGainsCents).toBe(
+    expected,
+  );
+  expect(
+    measurePlayerObjectives(JSON.parse(JSON.stringify(state)), f.buyer)
+      .creditedDealGainsCents,
+  ).toBe(expected);
+});
+
+it("bounds cheaply negotiated primary ownership without changing the contributed company cash", () => {
+  const f = companyFixture();
+  let state = send(turn(f.state, f.owner), f.owner, {
+    type: "OPEN_BUSINESS_CAPITAL",
+    assetId: f.asset.id,
+    terms: {
+      kind: "primary-issuance",
+      contributions: [
+        { playerId: f.buyer, amountCents: 100, postMoneyOwnershipPpm: 250_000 },
+      ],
+    },
+  });
+  const transaction = state.activeTransaction!;
+  if (transaction.kind !== "business-capital")
+    throw new Error("Wrong transaction");
+  const binding = {
+    transactionId: transaction.id,
+    expectedTermsRevision: transaction.termsRevision,
+  };
+  for (const id of [f.owner, f.buyer])
+    state = send(state, id, { type: "CONFIRM_BUSINESS_CAPITAL", ...binding });
+  state = send(state, f.owner, { type: "CLOSE_BUSINESS_CAPITAL", ...binding });
+  const basis = state.progress.byPlayer[f.buyer]!.assetsById[f.asset.id]!;
+  expect(basis.costCents).toBe(100);
+  expect(basis.objectiveCostFloorCents).toBe(
+    Math.round(
+      (calculateBusinessEquity(f.asset, f.state.finance.loansById)
+        .equityValueCents +
+        100) /
+        4,
+    ),
+  );
+  expect(
+    (state.finance.assetsById[f.asset.id] as BusinessAsset).cashCents,
+  ).toBe(f.asset.cashCents + 100);
+  state = matchedExit(until(state, 4), f.buyer, f.asset.id);
+  const record = state.progress.byPlayer[f.buyer]!.disposalEvidence!.at(-1)!;
+  expect(record.acquisitionBasisCents).toBe(100);
+  const expected = Math.max(
+    0,
+    record.proceedsCents -
+      record.saleFeesCents -
+      (record.companyClaimsPaidCents ?? 0) -
+      basis.objectiveCostFloorCents!,
+  );
+  expect(measurePlayerObjectives(state, f.buyer).creditedDealGainsCents).toBe(
+    expected,
+  );
+});
+
+it("protects the direct whole-business purchase path without changing its actual cash basis", () => {
+  let state = createQ1BusinessDiagnosticGame({
+    gameId: "whole-entry-floor",
+    seed: "whole-entry-floor",
+    playerIds: ids,
+  });
+  for (const id of ids)
+    state = send(state, id, {
+      type: "CHOOSE_OBJECTIVE",
+      objectiveId: state.players[id]!.offeredObjectiveIds[0],
+    });
+  const opportunity = Object.values(state.opportunitiesById)[0]!;
+  state = turn(state, opportunity.targetPlayerId);
+  const asset = state.finance.assetsById[opportunity.assetId] as BusinessAsset;
+  const opened = openCashBusinessPurchaseTransaction(state, {
+    buyerPlayerId: opportunity.targetPlayerId,
+    sellerPlayerId: opportunity.sellerPlayerId,
+    assetId: asset.id,
+    purchasePriceCents: 100,
+  });
+  if (!opened.ok) throw new Error(opened.code);
+  state = send(opened.state, opportunity.targetPlayerId, {
+    type: "CLOSE_BUSINESS_PURCHASE",
+    transactionId: opened.state.activeTransaction!.id,
+  });
+  const basis =
+    state.progress.byPlayer[opportunity.targetPlayerId]!.assetsById[asset.id]!;
+  expect(basis.costCents).toBe(100);
+  expect(basis.objectiveCostFloorCents).toBe(asset.enterpriseValueCents);
+  state = turn(until(state, 3), opportunity.targetPlayerId);
+  const contribution =
+    1_000_000 - (state.finance.assetsById[asset.id] as BusinessAsset).cashCents;
+  state = send(state, opportunity.targetPlayerId, {
+    type: "EXPAND_BUSINESS",
+    assetId: asset.id,
+    investmentCents: 1_000_000,
+    ownerContributionCents: contribution,
+  });
+  const expanded =
+    state.progress.byPlayer[opportunity.targetPlayerId]!.assetsById[asset.id]!;
+  expect(expanded.costCents).toBe(basis.costCents + contribution);
+  expect(expanded.objectiveCostFloorCents).toBe(
+    basis.objectiveCostFloorCents! + contribution,
+  );
+  state = matchedExit(until(state, 4), opportunity.targetPlayerId, asset.id);
+  expect(
+    measurePlayerObjectives(state, opportunity.targetPlayerId)
+      .creditedDealGainsCents,
+  ).toBe(0);
+});
+
+it("rejects an unsafe or underreported negotiated entry floor at canonical and measurement boundaries", () => {
+  const f = companyFixture();
+  let state = capitalSale(f.state, f.owner, f.buyer, f.asset.id, 250_000, 100);
+  const invalid = JSON.parse(JSON.stringify(state)) as GameState;
+  Object.assign(invalid.progress.byPlayer[f.buyer]!.assetsById[f.asset.id]!, {
+    objectiveCostFloorCents: 101,
+  });
+  expect(() => assertGameState(invalid)).toThrow("below actual basis");
+  state = matchedExit(until(state, 4), f.buyer, f.asset.id);
+  const corrupt = JSON.parse(JSON.stringify(state)) as GameState;
+  const record = corrupt.progress.byPlayer[f.buyer]!.disposalEvidence!.at(-1)!;
+  Object.assign(record, {
+    objectiveAcquisitionBasisFloorCents: record.acquisitionBasisCents - 1,
+  });
+  expect(() => assertGameState(corrupt)).toThrow("below actual basis");
+  expect(() => measurePlayerObjectives(corrupt, f.buyer)).toThrow(
+    "below actual acquisition cost",
+  );
+  Object.assign(record, {
+    objectiveAcquisitionBasisFloorCents: Number.MAX_SAFE_INTEGER + 1,
+  });
+  expect(() => assertGameState(corrupt)).toThrow();
+});
 
 it("dates a real new fund acquisition only after a full following quarter, preserving aggregate weighted basis", () => {
   let state = setup();
@@ -286,6 +540,7 @@ it("caps a real player sale at the independent current stake quote and records i
     250_000,
     100_000,
   );
+  state = until(state, 4);
   const other = ids.find(
     (id) =>
       id !== f.owner &&
@@ -313,7 +568,7 @@ it("caps a real player sale at the independent current stake quote and records i
   const capped =
     Math.min(record.proceedsCents, record.referenceProceedsCents!) -
     record.saleFeesCents -
-    record.acquisitionBasisCents;
+    record.objectiveAcquisitionBasisFloorCents!;
   expect(capped).toBeGreaterThan(0);
   expect(capped).toBeLessThan(actual);
   expect(measurePlayerObjectives(state, f.buyer).creditedDealGainsCents).toBe(
@@ -335,7 +590,7 @@ it("invalidates only documented returning stake exposure and retains its financi
     (id) =>
       id !== f.owner &&
       id !== f.buyer &&
-      state.finance.cashByPlayer[id]! > 6_120_000,
+      state.finance.cashByPlayer[id]! > 10_200_000,
   )!;
   state = capitalSale(
     until(state, 4),
@@ -343,7 +598,7 @@ it("invalidates only documented returning stake exposure and retains its financi
     other,
     f.asset.id,
     250_000,
-    6_000_000,
+    10_000_000,
   );
   const original = state.progress.byPlayer[f.buyer]!.disposalEvidence!.at(-1)!;
   const beforeCredit = measurePlayerObjectives(
@@ -375,7 +630,7 @@ it("invalidates only documented returning stake exposure and retains its financi
   expect(
     projected.find((entry) => entry.economicSubstance === "circular")!
       .proceedsCents,
-  ).toBe(3_000_000);
+  ).toBe(5_000_000);
   expect(measurePlayerObjectives(state, f.buyer).creditedDealGainsCents).toBe(
     beforeCredit / 2,
   );
@@ -426,14 +681,25 @@ it("groups mixed acquisition slices into one close, nets losses and protects pri
     100_000,
   );
   const other = ids.find((id) => id !== f.owner && id !== f.buyer)!;
-  state = capitalSale(
-    until(state, 4),
-    f.buyer,
-    other,
-    f.asset.id,
-    800_000,
-    6_000_000,
+  state = until(state, 4);
+  // Synthetic counterparty liquidity; the seasoned stakes sell at their current reference value.
+  state = {
+    ...state,
+    finance: {
+      ...state.finance,
+      cashByPlayer: {
+        ...state.finance.cashByPlayer,
+        [other]: cents(100_000_000),
+      },
+    },
+  };
+  const salePrice = Math.round(
+    calculateBusinessEquity(
+      state.finance.assetsById[f.asset.id] as BusinessAsset,
+      state.finance.loansById,
+    ).equityValueCents * 0.8,
   );
+  state = capitalSale(state, f.buyer, other, f.asset.id, 800_000, salePrice);
   const records = state.progress.byPlayer[f.buyer]!.disposalEvidence!;
   expect(records).toHaveLength(2);
   expect(new Set(records.map((record) => record.transactionId)).size).toBe(1);
@@ -449,14 +715,15 @@ it("groups mixed acquisition slices into one close, nets losses and protects pri
           ...state.progress.byPlayer[f.buyer]!,
           disposalEvidence: records.map((record, index) => ({
             ...record,
-            acquisitionBasisCents: cents(index === 0 ? 6_000_000 : 0),
+            acquisitionBasisCents: cents(index === 0 ? salePrice : 0),
+            objectiveAcquisitionBasisFloorCents: undefined,
           })),
         },
       },
     },
   };
   expect(measurePlayerObjectives(losing, f.buyer).creditedDealGainsCents).toBe(
-    -180_000,
+    -records.reduce((total, record) => total + record.saleFeesCents, 0),
   );
   expect(measurePlayerObjectives(losing, f.buyer).profitableDisposals).toBe(0);
   const observer = ids.find(
@@ -473,6 +740,13 @@ it("groups mixed acquisition slices into one close, nets losses and protects pri
           disposalEvidence: records.map((record) => ({
             ...record,
             acquisitionBasisCents: cents(record.acquisitionBasisCents + 1),
+            ...(record.objectiveAcquisitionBasisFloorCents !== undefined
+              ? {
+                  objectiveAcquisitionBasisFloorCents: cents(
+                    record.objectiveAcquisitionBasisFloorCents + 1,
+                  ),
+                }
+              : {}),
           })),
         },
       },
@@ -541,7 +815,7 @@ it("does not turn an inflated small-stake price into a material player disposal"
       state.finance.cashByPlayer[id]! > 5_100_000,
   )!;
   state = capitalSale(
-    until(state, 4),
+    until(state, 16),
     f.buyer,
     other,
     f.asset.id,

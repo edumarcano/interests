@@ -128,6 +128,7 @@ describe("business capital close accounting", () => {
       {
         acquiredQuarter: state.currentQuarter,
         costCents: 100,
+        objectiveCostFloorCents: 28_500,
         ownershipPpm: 1_000,
       },
     ]);

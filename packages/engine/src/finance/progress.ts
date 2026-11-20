@@ -401,6 +401,12 @@ export function recordBusinessPurchaseBasis(
             proceedsCents: proceeds[index]!,
             saleFeesCents: cents(0),
             acquisitionBasisCents: slice.costCents,
+            ...(slice.objectiveCostFloorCents !== undefined
+              ? {
+                  objectiveAcquisitionBasisFloorCents:
+                    slice.objectiveCostFloorCents,
+                }
+              : {}),
             referenceProceedsCents: reference[index]!,
             economicSubstance: "genuine",
             ownershipUnits: slice.ownershipPpm,
@@ -452,10 +458,20 @@ export function recordBusinessPurchaseBasis(
             costCents: price,
             ...(close
               ? {
+                  objectiveCostFloorCents: cents(
+                    reference.reduce(
+                      (total, amount, index) =>
+                        total + Math.max(amount, proceeds[index]!),
+                      0,
+                    ),
+                  ),
                   settledExposureThroughQuarter: 0,
                   slices: slices.map((slice, index) => ({
                     acquiredQuarter: quarter,
                     costCents: proceeds[index]!,
+                    objectiveCostFloorCents: cents(
+                      Math.max(proceeds[index]!, reference[index]!),
+                    ),
                     ownershipPpm: slice.ownershipPpm,
                     settledExposureThroughQuarter: 0,
                     previousTransfers: transfers[index]!.previousTransfers,

@@ -522,6 +522,14 @@ export function measurePlayerObjectives(
         -(entry.financingCostsCents ?? 0),
         -(entry.companyClaimsPaidCents ?? 0),
       ]);
+      const objectiveBasis =
+        entry.objectiveAcquisitionBasisFloorCents ??
+        entry.acquisitionBasisCents;
+      nonnegative(objectiveBasis);
+      if (objectiveBasis < entry.acquisitionBasisCents)
+        throw new Error(
+          "Objective entry reference is below actual acquisition cost",
+        );
       let credited = Math.min(0, actualGain);
       const seasoned =
         entry.settledExposureThroughQuarter >=
@@ -537,14 +545,18 @@ export function measurePlayerObjectives(
               sum([
                 Math.min(entry.proceedsCents, entry.referenceProceedsCents),
                 -entry.saleFeesCents,
-                -entry.acquisitionBasisCents,
+                -objectiveBasis,
                 entry.assetCashReleasedCents ?? 0,
                 -(entry.financingCostsCents ?? 0),
                 -(entry.companyClaimsPaidCents ?? 0),
               ]),
             );
           }
-        } else credited = actualGain;
+        } else
+          credited = Math.max(
+            0,
+            sum([actualGain, entry.acquisitionBasisCents, -objectiveBasis]),
+          );
       }
       creditedGains = sum([creditedGains, credited]);
       const transaction = transactions.get(entry.transactionId) ?? {

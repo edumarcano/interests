@@ -77,8 +77,13 @@ function lots(
       {
         acquiredQuarter: basis.acquiredQuarter,
         settledExposureThroughQuarter: basis.settledExposureThroughQuarter,
-        previousTransfers: basis.previousTransfers,
+        ...(basis.previousTransfers
+          ? { previousTransfers: basis.previousTransfers }
+          : {}),
         costCents: basis.costCents,
+        ...(basis.objectiveCostFloorCents !== undefined
+          ? { objectiveCostFloorCents: basis.objectiveCostFloorCents }
+          : {}),
         ownershipPpm: basis.ownershipPpm,
       },
     ]
@@ -99,6 +104,15 @@ function summarize(slices: readonly StakeBasisSlice[]): AssetAcquisitionBasis {
       (cost, slice) => addCents(cost, slice.costCents),
       cents(0),
     ),
+    ...(slices.some((slice) => slice.objectiveCostFloorCents !== undefined)
+      ? {
+          objectiveCostFloorCents: slices.reduce(
+            (cost, slice) =>
+              addCents(cost, slice.objectiveCostFloorCents ?? slice.costCents),
+            cents(0),
+          ),
+        }
+      : {}),
     ownershipPpm: ownershipPpm(
       slices.reduce((units, slice) => units + slice.ownershipPpm, 0),
     ),
@@ -186,6 +200,10 @@ function salePosting(
     purchaseCost,
     disposal.disposedSlices,
   );
+  const purchaseReferenceCosts = allocateStakeSliceCents(
+    addCents(reference, buyerFee),
+    disposal.disposedSlices,
+  );
   const transfers = disposal.disposedSlices.map((slice, index) =>
     recordOwnershipTransfer(
       {
@@ -200,6 +218,12 @@ function salePosting(
         proceedsCents: addCents(slice.netProceedsCents, feeSlices[index]!),
         saleFeesCents: feeSlices[index]!,
         acquisitionBasisCents: slice.costCents,
+        ...(slice.objectiveCostFloorCents !== undefined
+          ? {
+              objectiveAcquisitionBasisFloorCents:
+                slice.objectiveCostFloorCents,
+            }
+          : {}),
         referenceProceedsCents: referenceSlices[index]!,
         economicSubstance: "genuine",
         ownershipUnits: slice.ownershipPpm,
@@ -213,6 +237,9 @@ function salePosting(
   disposal.disposedSlices.forEach((slice, index) => {
     buyerSlices = addStakeAcquisitionSlice(buyerSlices, {
       costCents: purchaseCosts[index]!,
+      objectiveCostFloorCents: cents(
+        Math.max(purchaseCosts[index]!, purchaseReferenceCosts[index]!),
+      ),
       acquiredQuarter: state.currentQuarter,
       ownershipPpm: slice.ownershipPpm,
       settledExposureThroughQuarter: 0,
@@ -307,6 +334,16 @@ function issuancePosting(
     amounts[playerId] = amountCents;
   }
   const owners = diluteBusinessOwnership(asset.ownershipByPlayerPpm, grants);
+  const postMoneyEquity = cents(
+    Math.max(
+      0,
+      Object.values(amounts).reduce(
+        (equity, amount) => addCents(equity, amount),
+        calculateBusinessEquity(asset, state.finance.loansById)
+          .equityValueCents,
+      ),
+    ),
+  );
   const byPlayer = { ...state.progress.byPlayer };
   const postings: CapitalPosting[] = [];
   for (const playerId of state.playerOrder) {
@@ -322,6 +359,16 @@ function issuancePosting(
       slices = addStakeAcquisitionSlice(slices, {
         acquiredQuarter: state.currentQuarter,
         costCents: amountCents,
+        objectiveCostFloorCents: cents(
+          Math.max(
+            amountCents,
+            new FinanceDecimal(postMoneyEquity)
+              .times(granted)
+              .div(TOTAL_OWNERSHIP_PPM)
+              .round()
+              .toNumber(),
+          ),
+        ),
         ownershipPpm: ownershipPpm(granted),
       });
       postings.push({

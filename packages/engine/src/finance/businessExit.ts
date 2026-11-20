@@ -337,6 +337,9 @@ export function draftMatchedBusinessExit(
       const slices = basis.slices ?? [
         {
           costCents: basis.costCents,
+          ...(basis.objectiveCostFloorCents !== undefined
+            ? { objectiveCostFloorCents: basis.objectiveCostFloorCents }
+            : {}),
           ownershipPpm: basis.ownershipPpm,
           acquiredQuarter: basis.acquiredQuarter,
           settledExposureThroughQuarter: basis.settledExposureThroughQuarter,
@@ -390,6 +393,12 @@ export function draftMatchedBusinessExit(
             saleFeesCents: feeSlices[index]!,
             companyClaimsPaidCents: claimSlices[index]!,
             acquisitionBasisCents: slice.costCents,
+            ...(slice.objectiveCostFloorCents !== undefined
+              ? {
+                  objectiveAcquisitionBasisFloorCents:
+                    slice.objectiveCostFloorCents,
+                }
+              : {}),
             referenceProceedsCents: null,
             economicSubstance: "genuine" as const,
             ownershipUnits: slice.ownershipPpm,

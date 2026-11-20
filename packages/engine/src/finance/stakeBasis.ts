@@ -11,6 +11,7 @@ export interface StakeBasisSlice {
   readonly settledExposureThroughQuarter?: number;
   readonly previousTransfers?: readonly OwnershipTransferExposure[];
   readonly costCents: Cents;
+  readonly objectiveCostFloorCents?: Cents;
   readonly acquiredQuarter: number;
   readonly ownershipPpm: OwnershipPpm;
 }
@@ -32,6 +33,9 @@ function requireSlice(slice: StakeBasisSlice): void {
     throw new TypeError("Stake basis slices must be plain records");
   if (
     !isNonNegativeCents(slice.costCents) ||
+    (slice.objectiveCostFloorCents !== undefined &&
+      (!isNonNegativeCents(slice.objectiveCostFloorCents) ||
+        slice.objectiveCostFloorCents < slice.costCents)) ||
     !Number.isSafeInteger(slice.acquiredQuarter) ||
     slice.acquiredQuarter < 0 ||
     !Number.isSafeInteger(slice.ownershipPpm) ||
@@ -164,6 +168,16 @@ export function disposeStakeBasis(
       .round()
       .toNumber();
     removedCost += removed;
+    const removedObjectiveFloor =
+      slice.objectiveCostFloorCents === undefined
+        ? undefined
+        : cents(
+            new FinanceDecimal(slice.objectiveCostFloorCents)
+              .times(soldPpm)
+              .dividedBy(slice.ownershipPpm)
+              .round()
+              .toNumber(),
+          );
     const transferred = slice.previousTransfers?.map((transfer) => ({
       ...transfer,
       ownershipUnits: new FinanceDecimal(transfer.ownershipUnits)
@@ -179,6 +193,9 @@ export function disposeStakeBasis(
         acquiredQuarter: slice.acquiredQuarter,
         ownershipPpm: ownershipPpm(soldPpm),
         costCents: cents(removed),
+        ...(removedObjectiveFloor !== undefined
+          ? { objectiveCostFloorCents: removedObjectiveFloor }
+          : {}),
         netProceedsCents: cents(allocatedProceeds),
       });
     if (soldPpm < slice.ownershipPpm)
@@ -199,6 +216,13 @@ export function disposeStakeBasis(
         acquiredQuarter: slice.acquiredQuarter,
         ownershipPpm: ownershipPpm(slice.ownershipPpm - soldPpm),
         costCents: cents(slice.costCents - removed),
+        ...(removedObjectiveFloor !== undefined
+          ? {
+              objectiveCostFloorCents: cents(
+                slice.objectiveCostFloorCents! - removedObjectiveFloor,
+              ),
+            }
+          : {}),
       });
   });
   return {

@@ -101,6 +101,16 @@ export function collectPlayerObjectiveEvidence(
       record.referenceProceedsCents === null
         ? null
         : allocateDisposalCents(record.referenceProceedsCents, weights);
+    const objectiveBasisExcess =
+      record.objectiveAcquisitionBasisFloorCents === undefined
+        ? null
+        : allocateDisposalCents(
+            cents(
+              record.objectiveAcquisitionBasisFloorCents -
+                record.acquisitionBasisCents,
+            ),
+            weights,
+          );
     return weights.flatMap((weight, index) =>
       weight === 0
         ? []
@@ -112,6 +122,13 @@ export function collectPlayerObjectiveEvidence(
               proceedsCents: amounts[0]![index]!,
               saleFeesCents: amounts[1]![index]!,
               acquisitionBasisCents: amounts[2]![index]!,
+              ...(objectiveBasisExcess
+                ? {
+                    objectiveAcquisitionBasisFloorCents: cents(
+                      amounts[2]![index]! + objectiveBasisExcess[index]!,
+                    ),
+                  }
+                : {}),
               assetCashReleasedCents: amounts[3]![index]!,
               financingCostsCents: amounts[4]![index]!,
               companyClaimsPaidCents: amounts[5]![index]!,

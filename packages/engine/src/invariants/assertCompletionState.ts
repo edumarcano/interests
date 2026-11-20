@@ -207,6 +207,14 @@ export function assertCompletionState(state: GameState): void {
           integer(money);
         if (disposal.referenceProceedsCents !== null)
           integer(disposal.referenceProceedsCents);
+        if (disposal.objectiveAcquisitionBasisFloorCents !== undefined) {
+          integer(disposal.objectiveAcquisitionBasisFloorCents);
+          if (
+            disposal.objectiveAcquisitionBasisFloorCents <
+            disposal.acquisitionBasisCents
+          )
+            throw new Error("Objective disposal floor is below actual basis");
+        }
       }
     }
     record(progress.assetsById);
@@ -270,6 +278,11 @@ export function assertCompletionState(state: GameState): void {
           state.lastSettledQuarter,
         );
       integer(acquisition.costCents);
+      if (acquisition.objectiveCostFloorCents !== undefined) {
+        integer(acquisition.objectiveCostFloorCents);
+        if (acquisition.objectiveCostFloorCents < acquisition.costCents)
+          throw new Error("Objective acquisition floor is below actual basis");
+      }
       integer(acquisition.acquiredQuarter);
       integer(acquisition.ownershipPpm, 1);
       if (
@@ -284,6 +297,7 @@ export function assertCompletionState(state: GameState): void {
         )
           throw new Error("Invalid acquisition slices");
         let cost = 0;
+        let objectiveFloor = 0;
         let units = 0;
         let quarter = 0;
         for (const slice of acquisition.slices) {
@@ -296,9 +310,15 @@ export function assertCompletionState(state: GameState): void {
               state.lastSettledQuarter,
             );
           integer(slice.costCents);
+          if (slice.objectiveCostFloorCents !== undefined) {
+            integer(slice.objectiveCostFloorCents);
+            if (slice.objectiveCostFloorCents < slice.costCents)
+              throw new Error("Objective slice floor is below actual basis");
+          }
           integer(slice.ownershipPpm, 1);
           integer(slice.acquiredQuarter, quarter);
           cost += slice.costCents;
+          objectiveFloor += slice.objectiveCostFloorCents ?? slice.costCents;
           units += slice.ownershipPpm;
           quarter = slice.acquiredQuarter;
           if (cost > acquisition.costCents || units > acquisition.ownershipPpm)
@@ -306,6 +326,8 @@ export function assertCompletionState(state: GameState): void {
         }
         if (
           cost !== acquisition.costCents ||
+          objectiveFloor !==
+            (acquisition.objectiveCostFloorCents ?? acquisition.costCents) ||
           units !== acquisition.ownershipPpm ||
           quarter !== acquisition.acquiredQuarter
         )

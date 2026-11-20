@@ -50,6 +50,7 @@ export interface CanonicalDisposalRecord {
   readonly financingCostsCents?: Cents;
   readonly companyClaimsPaidCents?: Cents;
   readonly acquisitionBasisCents: Cents;
+  readonly objectiveAcquisitionBasisFloorCents?: Cents;
   readonly referenceProceedsCents: Cents | null;
   readonly economicSubstance: "genuine" | "circular";
   readonly ownershipUnits: number;
@@ -73,6 +74,8 @@ export interface AssetAcquisitionBasis {
   readonly settledExposureThroughQuarter?: number;
   readonly previousTransfers?: readonly OwnershipTransferExposure[];
   readonly costCents: Cents;
+  /** Independent entry value for negotiated player capital, separate from paid cost. */
+  readonly objectiveCostFloorCents?: Cents;
   readonly acquiredQuarter: number;
   readonly ownershipPpm: OwnershipPpm;
   readonly slices?: readonly StakeBasisSlice[];

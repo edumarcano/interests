@@ -105,6 +105,14 @@ export function expandBusinessAndAdvanceSpotlight(
                 [asset.id]: {
                   ...basis,
                   costCents,
+                  ...(basis.objectiveCostFloorCents !== undefined
+                    ? {
+                        objectiveCostFloorCents: addCents(
+                          basis.objectiveCostFloorCents,
+                          amount,
+                        ),
+                      }
+                    : {}),
                   ...(sliceCosts && basis.slices
                     ? {
                         slices: basis.slices.map((slice, index) => ({
@@ -113,6 +121,14 @@ export function expandBusinessAndAdvanceSpotlight(
                             slice.costCents,
                             sliceCosts[index]!,
                           ),
+                          ...(slice.objectiveCostFloorCents !== undefined
+                            ? {
+                                objectiveCostFloorCents: addCents(
+                                  slice.objectiveCostFloorCents,
+                                  sliceCosts[index]!,
+                                ),
+                              }
+                            : {}),
                         })),
                       }
                     : {}),
