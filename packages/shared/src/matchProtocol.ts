@@ -23,6 +23,19 @@ export interface MarketLoanQuoteView {
     | null;
 }
 
+export type StandingFinaleOfferView =
+  | {
+      readonly kind: "financing";
+      readonly opportunityId: string;
+      readonly quote: MarketLoanQuoteView;
+    }
+  | {
+      readonly kind: "landmark";
+      readonly name: string;
+      readonly opportunityId: string;
+      readonly quotes: readonly RecurringAcquisitionQuote[];
+    };
+
 export interface ChooseObjectiveCommandPayload {
   readonly type: "CHOOSE_OBJECTIVE";
   readonly objectiveId: string;
@@ -709,6 +722,7 @@ export interface ObjectiveEvaluationView {
 }
 
 export interface MatchSelfFinancialDetailsView {
+  readonly standingFinaleOffer?: StandingFinaleOfferView;
   readonly formerWorkClaims?: readonly {
     readonly assetId: string;
     readonly amountCents: number;

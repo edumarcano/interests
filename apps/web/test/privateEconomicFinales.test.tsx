@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { BusinessCapitalPanel } from "../src/components/BusinessCapitalPanel";
 import { RecurringBusinessExitPanel } from "../src/components/RecurringBusinessExitPanel";
 import { RecurringOpportunityPanel } from "../src/components/RecurringOpportunityPanel";
+import { StandingFinaleOffer } from "../src/components/StandingFinaleOffer";
 
 afterEach(cleanup);
 function match(
@@ -108,6 +109,48 @@ function expansionDraft() {
 }
 
 describe("private explicit economic finale controls", () => {
+  it("offers the standing Financier close only as an explicit attempt", async () => {
+    const before = match("financier");
+    const current: MatchPlayerView = {
+      ...before,
+      self: {
+        ...before.self,
+        recurringOpportunity: null,
+        financialDetails: {
+          ...before.self.financialDetails,
+          standingFinaleOffer: {
+            kind: "financing",
+            opportunityId: "opportunity-9",
+            quote: before.self.recurringOpportunity!.marketLoanQuote!,
+          },
+        },
+      },
+    };
+    const send = vi.fn().mockResolvedValue({ ok: true });
+    const { rerender } = render(
+      <StandingFinaleOffer match={current} isPaused onSendCommand={send} />,
+    );
+    const button = screen.getByRole<HTMLButtonElement>("button", {
+      name: "Pursue finale with this loan",
+    });
+    expect(button.disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: /^Fund .* loan$/ })).toBeNull();
+    rerender(
+      <StandingFinaleOffer
+        match={current}
+        isPaused={false}
+        onSendCommand={send}
+      />,
+    );
+    fireEvent.click(button);
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith({
+        type: "PURSUE_FINALE",
+        action: { type: "FUND_RECURRING_LOAN", opportunityId: "opportunity-9" },
+      }),
+    );
+  });
+
   it("keeps ordinary market funding separate from the eligible Financier's explicit wrapper", async () => {
     const send = vi.fn().mockResolvedValue({ ok: true });
     render(

@@ -16,6 +16,7 @@ import { PauseBanner } from "./PauseBanner.js";
 import { RecurringOpportunityPanel } from "./RecurringOpportunityPanel";
 import { RoundStartView } from "./RoundStartView.js";
 import { SpotlightView } from "./SpotlightView.js";
+import { StandingFinaleOffer } from "./StandingFinaleOffer";
 
 interface Props {
   roomCode?: string;
@@ -72,6 +73,11 @@ export const MatchView: React.FC<Props> = ({
         onSendCommand={onSendCommand}
       />
       <ObjectiveRequirements self={match.self} />
+      <StandingFinaleOffer
+        match={match}
+        isPaused={isPaused}
+        onSendCommand={onSendCommand}
+      />
       {match.phase === "ready-for-first-round" && (
         <CareerPanel
           match={match}

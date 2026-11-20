@@ -35,6 +35,7 @@ import {
 import { evaluateObjective } from "./evaluate";
 import { measurePlayerObjectives } from "./measurements";
 import type { ObjectiveMeasurements } from "./model";
+import { stageStandingFinaleOffer } from "./standingFinaleOffer";
 
 export interface ObjectiveFinaleRoute<Facts> {
   readonly objectiveId: ObjectiveId;
@@ -346,17 +347,33 @@ function pursueEconomicFinale(
   const precondition = finalePrecondition(state, actor, objectiveId);
   if (precondition) return rejection(state, precondition);
 
+  const standing =
+    ((action.type === "ACQUIRE_RECURRING_OPPORTUNITY" &&
+      objectiveId === "property-magnate") ||
+      (action.type === "FUND_RECURRING_LOAN" && objectiveId === "financier")) &&
+    action.opportunityId === `opportunity-${state.counters.opportunity + 1}`
+      ? stageStandingFinaleOffer(state, actor, objectiveId)
+      : null;
+  const offered = standing?.state ?? state;
+  const retainOriginalOnFailure = (result: ActionResult) =>
+    result.ok ? result : rejection(state, result.code);
+
   switch (action.type) {
     case "ACQUIRE_RECURRING_OPPORTUNITY": {
       if (!Object.hasOwn(acquisitionRoutes, objectiveId))
         return rejection(state, "FINALE_ACTION_UNAVAILABLE");
       const accepts =
         acquisitionRoutes[objectiveId as keyof typeof acquisitionRoutes];
-      return acquireRecurringOpportunity(state, actor, action, (input) =>
-        finalizeObjectiveAction(input, {
-          objectiveId,
-          qualifies: ({ facts }) => accepts(facts),
-        }),
+      return retainOriginalOnFailure(
+        acquireRecurringOpportunity(offered, actor, action, (input) =>
+          finalizeObjectiveAction(
+            { ...input, before: state },
+            {
+              objectiveId,
+              qualifies: ({ facts }) => accepts(facts),
+            },
+          ),
+        ),
       );
     }
     case "SELL_RECURRING_BUSINESS":
@@ -385,8 +402,13 @@ function pursueEconomicFinale(
       break;
     case "FUND_RECURRING_LOAN":
       if (objectiveId === "financier")
-        return fundRecurringLoan(state, actor, action.opportunityId, (input) =>
-          finalizeObjectiveAction(input, financierRoute),
+        return retainOriginalOnFailure(
+          fundRecurringLoan(offered, actor, action.opportunityId, (input) =>
+            finalizeObjectiveAction(
+              { ...input, before: state },
+              financierRoute,
+            ),
+          ),
         );
       break;
     case "EXPAND_BUSINESS":

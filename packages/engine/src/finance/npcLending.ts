@@ -1,6 +1,7 @@
 import {
   BANK_CREDIT_GRADES,
   BANK_LENDING_RULES,
+  FINANCIER_FINALE_BORROWER,
   MARKET_BORROWER_TEMPLATES,
 } from "@interests/rules";
 import type {
@@ -37,9 +38,12 @@ export function materializeNpcFundingTerms(
   principalCents: number,
   openingBaseRateBps: number,
 ): FrozenNpcFundingTerms | null {
-  const template = MARKET_BORROWER_TEMPLATES.find(
-    (row) => row.cardTemplateId === cardTemplateId,
-  );
+  const template =
+    cardTemplateId === FINANCIER_FINALE_BORROWER.cardTemplateId
+      ? FINANCIER_FINALE_BORROWER
+      : MARKET_BORROWER_TEMPLATES.find(
+          (row) => row.cardTemplateId === cardTemplateId,
+        );
   if (
     !template ||
     !isNonNegativeCents(openingBaseRateBps) ||

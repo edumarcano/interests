@@ -94,6 +94,14 @@ export function assertRecurringContentState(state: GameState): void {
       card.investigationFeeCents < 0
     )
       throw new Error("Invalid recurring template terms");
+    if (
+      template.finaleOnly &&
+      (state.result?.kind !== "objective-victory" ||
+        state.result.winnerPlayerId !== player ||
+        state.players[player]?.selectedObjectiveId !== "financier" ||
+        card.status !== "funded")
+    )
+      throw new Error("Invalid qualified market borrowing outcome");
     if (template.action === "npc-financing") {
       const terms = card.npcFundingTerms;
       const expected =

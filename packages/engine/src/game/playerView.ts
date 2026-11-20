@@ -38,6 +38,7 @@ import { propertyManagement, propertyOffers } from "../finance/propertyActions";
 import type { GameState } from "../model/gameState.js";
 import { evaluateObjective } from "../objectives/evaluate";
 import { measurePlayerObjectives } from "../objectives/measurements";
+import { projectStandingFinaleOffer } from "../objectives/standingFinaleOffer";
 import { projectRecurringOpportunity } from "../opportunities/recurring";
 import { projectBusinessAuction } from "../transactions/businessAuctionTerms";
 import { planBusinessCapital } from "../transactions/businessCapitalTerms";
@@ -509,6 +510,14 @@ export function projectPlayerGameState(
       if (!(error instanceof RangeError)) throw error;
     }
   }
+  const standingFinaleOffer =
+    objectiveEvaluation?.status === "eligible" && selfPlayer.selectedObjectiveId
+      ? projectStandingFinaleOffer(
+          state,
+          playerId,
+          selfPlayer.selectedObjectiveId,
+        )
+      : undefined;
   const self: PureSelfView = {
     propertyOffers: offers,
     propertyManagement: management,
@@ -529,6 +538,7 @@ export function projectPlayerGameState(
             : [],
       ),
       objectiveEvaluation,
+      ...(standingFinaleOffer ? { standingFinaleOffer } : {}),
       careerOffers: getCareerOffers(state, playerId),
       annualLaborCompensationCents: currentAnnualLaborCompensation(
         state,
