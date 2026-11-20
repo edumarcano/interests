@@ -9,12 +9,14 @@ import type {
 } from "@interests/shared";
 import type React from "react";
 import { CareerPanel } from "./CareerPanel";
+import { FinishedMatchView } from "./FinishedMatchView";
 import { ObjectiveRequirements } from "./ObjectiveRequirements";
 import { ObjectiveSelection } from "./ObjectiveSelection.js";
 import { PauseBanner } from "./PauseBanner.js";
 import { RecurringOpportunityPanel } from "./RecurringOpportunityPanel";
 import { RoundStartView } from "./RoundStartView.js";
 import { SpotlightView } from "./SpotlightView.js";
+import { StandingFinaleOffer } from "./StandingFinaleOffer";
 
 interface Props {
   roomCode?: string;
@@ -35,6 +37,7 @@ export const MatchView: React.FC<Props> = ({
   onSendCommand,
   onResumeRoom,
 }) => {
+  if (match.result) return <FinishedMatchView match={match} />;
   const isPaused = pauseReasons.length > 0;
   const hasSystemFault = pauseReasons.includes("SYSTEM_FAULT");
   const canResume =
@@ -70,6 +73,11 @@ export const MatchView: React.FC<Props> = ({
         onSendCommand={onSendCommand}
       />
       <ObjectiveRequirements self={match.self} />
+      <StandingFinaleOffer
+        match={match}
+        isPaused={isPaused}
+        onSendCommand={onSendCommand}
+      />
       {match.phase === "ready-for-first-round" && (
         <CareerPanel
           match={match}

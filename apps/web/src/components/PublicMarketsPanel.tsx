@@ -45,6 +45,20 @@ export function PublicMarketsPanel({
   >([]);
   const [pending, setPending] = useState<"preview" | "trade" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [finaleReview, setFinaleReview] = useState<{
+    quote: PublicMarketTradePreview;
+    objectiveId: string;
+  } | null>(null);
+  const objectiveId = match.self.selectedObjectiveId;
+  const evaluation = match.self.financialDetails.objectiveEvaluation;
+  const canPursueFinale =
+    evaluation?.status === "eligible" &&
+    evaluation.objectiveId === objectiveId &&
+    ["capital-allocator", "deal-maker", "wealth-architect"].includes(
+      objectiveId ?? "",
+    );
+  const objectiveName =
+    match.self.selectedObjective?.name ?? "selected objective";
   const generation = useRef(0);
   const canTrade =
     !isPaused &&
@@ -63,6 +77,7 @@ export function PublicMarketsPanel({
       [id]: { side: "buy", amount: "", ...current[id], ...update },
     }));
     setQuote(null);
+    setFinaleReview(null);
     setError(null);
     setPending(null);
   };
@@ -70,6 +85,7 @@ export function PublicMarketsPanel({
     const requestGeneration = ++generation.current;
     setError(null);
     setQuote(null);
+    setFinaleReview(null);
     try {
       const trades = funds.flatMap((fund): PublicMarketTradeLeg[] => {
         const draft = drafts[fund.id];
@@ -97,19 +113,30 @@ export function PublicMarketsPanel({
       if (generation.current === requestGeneration) setPending(null);
     }
   };
-  const execute = async () => {
+  const execute = async (intent: "ordinary" | "finale") => {
     if (!quote || quote.revision !== match.revision || !canTrade || pending)
+      return;
+    if (
+      intent === "finale" &&
+      (!canPursueFinale ||
+        finaleReview?.quote !== quote ||
+        finaleReview.objectiveId !== objectiveId)
+    )
       return;
     setPending("trade");
     setError(null);
     try {
-      const result = await onSendCommand({
-        type: "TRADE_PUBLIC_MARKETS",
+      const action = {
+        type: "TRADE_PUBLIC_MARKETS" as const,
         trades: quotedTrades,
-      });
+      };
+      const result = await onSendCommand(
+        intent === "finale" ? { type: "PURSUE_FINALE", action } : action,
+      );
       if (!result.ok) setError(result.error.message);
       else {
         setQuote(null);
+        setFinaleReview(null);
         setDrafts({});
       }
     } catch (cause) {
@@ -215,7 +242,7 @@ export function PublicMarketsPanel({
           <button
             type="button"
             className="btn-primary"
-            onClick={execute}
+            onClick={() => execute("ordinary")}
             disabled={
               !canTrade || pending !== null || quote.revision !== match.revision
             }
@@ -224,7 +251,82 @@ export function PublicMarketsPanel({
               ? "Trading…"
               : "Confirm trades and finish spotlight"}
           </button>
+          {canPursueFinale && objectiveId && (
+            <button
+              type="button"
+              className="btn-secondary"
+              data-testid="review-market-finale"
+              disabled={
+                !canTrade ||
+                pending !== null ||
+                quote.revision !== match.revision
+              }
+              onClick={() => setFinaleReview({ quote, objectiveId })}
+            >
+              Review trades as {objectiveName} finale
+            </button>
+          )}
         </div>
+      )}
+      {finaleReview && quote === finaleReview.quote && (
+        <dialog
+          open
+          aria-label="Confirm market finale"
+          style={{
+            position: "fixed",
+            inset: "auto 1rem 1rem",
+            margin: "auto",
+            maxWidth: "32rem",
+            width: "calc(100% - 2rem)",
+            maxHeight: "80vh",
+            overflowY: "auto",
+            zIndex: 20,
+          }}
+        >
+          <h4>Pursue {objectiveName} finale</h4>
+          <p>
+            Total fees {money(quote.totalFeesCents)} · Cash change{" "}
+            {money(quote.cashImpactCents)} · Resulting cash{" "}
+            {money(quote.resultingCashCents)}
+          </p>
+          <p>
+            This explicitly requests your selected finale with the quoted
+            trades. The server checks the required trade amount, eligibility and
+            resulting position before awarding a win.
+          </p>
+          {(!canPursueFinale ||
+            finaleReview.objectiveId !== objectiveId ||
+            quote.revision !== match.revision) && (
+            <p>
+              Your position changed. Cancel and review your eligibility and
+              trades again.
+            </p>
+          )}
+          <button
+            type="button"
+            data-testid="confirm-market-finale"
+            disabled={
+              !canTrade ||
+              pending !== null ||
+              !canPursueFinale ||
+              finaleReview.objectiveId !== objectiveId ||
+              quote.revision !== match.revision
+            }
+            onClick={() => execute("finale")}
+          >
+            {pending === "trade"
+              ? "Submitting…"
+              : "Confirm trades and pursue finale"}
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={pending === "trade"}
+            onClick={() => setFinaleReview(null)}
+          >
+            Cancel finale
+          </button>
+        </dialog>
       )}
       {!canTrade && (
         <p>

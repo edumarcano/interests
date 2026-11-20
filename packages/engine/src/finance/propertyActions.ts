@@ -786,21 +786,29 @@ export function draftPropertyOwnerAction(
               },
             },
           };
-          // Original acquisition debt is a funding source, never a gain or an extra cost.
-          const netEconomicProceeds = cents(
+          // Allocate actual consideration and closing costs without treating loan principal as a gain or expense.
+          const shares = (amount: number) =>
+            allocateProportionalCents(
+              cents(amount),
+              asset.ownershipByPlayerPpm,
+            );
+          const financingCosts =
+            quote.payoffCents -
+            assetBankLiens(state, asset.id).reduce(
+              (sum, loan) => sum + loan.outstandingPrincipalCents,
+              0,
+            );
+          const grossShares = shares(asset.marketValueCents);
+          const cashShares = shares(asset.cashCents ?? 0);
+          const feeShares = shares(quote.saleFeeCents);
+          const financingShares = shares(financingCosts);
+          const economicShares = shares(
             asset.marketValueCents +
               (asset.cashCents ?? 0) -
               quote.saleFeeCents -
-              (quote.payoffCents -
-                assetBankLiens(state, asset.id).reduce(
-                  (sum, loan) => sum + loan.outstandingPrincipalCents,
-                  0,
-                )),
+              financingCosts,
           );
-          const economicShares = allocateProportionalCents(
-            netEconomicProceeds,
-            asset.ownershipByPlayerPpm,
-          );
+          const disposalGroup = `property:${state.revision + 1}:${asset.id}`;
           const reference = cents(asset.marketValueCents - quote.payoffCents);
           const referenceShares = allocateProportionalCents(
             cents(Math.abs(reference)),
@@ -824,6 +832,28 @@ export function draftPropertyOwnerAction(
               realizedGainsCents: cents(
                 progress.realizedGainsCents + proceeds - basis.costCents,
               ),
+              disposalEvidence: [
+                ...(progress.disposalEvidence ?? []),
+                {
+                  disposalId: `${disposalGroup}:${owner}`,
+                  transactionId: disposalGroup,
+                  underlyingAssetId: asset.id,
+                  category: "property",
+                  counterparty: { kind: "non-player", id: "property-market" },
+                  acquiredQuarter: basis.acquiredQuarter,
+                  settledExposureThroughQuarter:
+                    basis.settledExposureThroughQuarter ?? 0,
+                  soldQuarter: state.currentQuarter,
+                  proceedsCents: grossShares[owner]!,
+                  assetCashReleasedCents: cashShares[owner]!,
+                  saleFeesCents: feeShares[owner]!,
+                  financingCostsCents: financingShares[owner]!,
+                  acquisitionBasisCents: basis.costCents,
+                  referenceProceedsCents: null,
+                  economicSubstance: "genuine",
+                  ownershipUnits: basis.ownershipPpm,
+                },
+              ],
               disposals: [
                 ...progress.disposals,
                 {

@@ -1,8 +1,8 @@
 # Development status
 
-**Updated:** 2026-11-19
+**Updated:** 2026-11-20
 **Active milestone:** 7, full gameplay rules and content  
-**Current focus:** Verify the combined operating-economy and recurring-content branch for packet 7. Objective finales and terminal persistence are in separate packet 8 worktrees. The M7 stack remains open and unmerged.
+**Current focus:** Finish verification and delivery of objective finales and ordinary complete-match acceptance. The M7 stack remains open and unmerged.
 
 ## Milestone 6: physical playtest outcome
 
@@ -38,7 +38,7 @@ The default Windows test run again hit fork-worker exit code 3221226505; a bound
 
 ## M7 completion delivery
 
-ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The local stack implements financial foundations, public markets, careers, bank and property finance, multiplayer capital and recurring economic choices through packet 7. Winning finales and complete-match payment and result proof remain in packets 8 and 9.
+ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The local stack implements the full economic loop and explicit objective finales. Packet 9 records the ordinary match evidence, while the open M7 PRs retain their individual review boundaries.
 
 | Packet | Deliverable | Current state |
 | --- | --- | --- |
@@ -48,9 +48,9 @@ ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. T
 | 4 | Careers, executive ownership, resignation and equal-cost management conversion | Delivered in open [PR #39](https://github.com/edumarcano/interests/pull/39), `codex/m7-career-labor`, stacked on #38; unmerged |
 | 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Delivered in open [PR #40](https://github.com/edumarcano/interests/pull/40), stacked on #39; both Remora review axes passed; unmerged |
 | 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Delivered in open [PR #41](https://github.com/edumarcano/interests/pull/41), stacked on #40; both Remora review axes passed; unmerged |
-| 7 | Operating economy, recurring private/public content and non-player alternatives | Delivered in open [PR #42](https://github.com/edumarcano/interests/pull/42), stacked on #41. Both Remora review axes passed locally; hosted CI pending. |
-| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Pure evaluation, canonical evidence and durable Q32 draw verified in isolation; the private finale coordinator and route integrations are in progress |
-| 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | Pending |
+| 7 | Operating economy, recurring private/public content and non-player alternatives | Delivered in open [PR #42](https://github.com/edumarcano/interests/pull/42), stacked on #41. Both Remora review axes passed locally. Hosted CI #121 passed on `725c642`. |
+| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Delivered in open [PR #43](https://github.com/edumarcano/interests/pull/43), stacked on #42. Both Remora review axes passed. Local typecheck, lint, build, 1,120 tests and focused four-browser Q32 draw and restart passed. |
+| 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | All eight ordinary command witnesses and a four-client browser winner verified locally; final integrated checks and publication pending. |
 
 Each packet requires relevant behavior tests, typecheck, lint, tests and Remora split-axis review. Browser-facing changes also require build and applicable E2E proof. Record actual PR/head/check state here as delivery changes; leave every PR unmerged unless the user explicitly approves merging.
 
@@ -106,7 +106,7 @@ The combined stack at `d57d3e8` passed 868 unit/integration tests, all 13 produc
 
 ### Packet 7 implementation and verification
 
-PR #41 remains open and unmerged at `c5adba4`; hosted CI run #119 passed. Packet 7 is open and unmerged in [PR #42](https://github.com/edumarcano/interests/pull/42) on `codex/m7-npc-lending`. ARCH-047 and ARCH-048 describe the operating and discovery contracts. The economy adjusts rates and credit, inflation, occupancy, property value and realized company performance. Rate resets, renovation and expansion preserve the closing quarter’s earned rights. A sole owner may explicitly fund an expansion shortfall from personal cash; the contribution and company expenditure reconcile atomically and preserve ownership dates.
+PR #41 remains open and unmerged at `c5adba4`; hosted CI run #119 passed. Packet 7 is open, mergeable and unmerged in [PR #42](https://github.com/edumarcano/interests/pull/42) at `725c642`; hosted CI run #121 passed. ARCH-047 and ARCH-048 describe the operating and discovery contracts. The economy adjusts rates and credit, inflation, occupancy, property value and realized company performance. Rate resets, renovation and expansion preserve the closing quarter’s earned rights. A sole owner may explicitly fund an expansion shortfall from personal cash; the contribution and company expenditure reconcile atomically and preserve ownership dates.
 
 Ordinary setup creates one private card per seat each quarter without the Q1 demonstration company. Focus, capacity and holdings influence later discovery without reading hidden objectives. Diligence reveals stable facts after the fee. Cash and bank acquisition use exact engine quotes and booked cash, fees, reserves, ownership basis and canonical debt. The catalogue includes a $650k residential court, $1.1M commercial center and $1M managed service group; residential and commercial types persist on the owned asset. Shared catalogue purchases take unanimous same-terms buyer commitments, then use the existing mortgage and purchase path with one loan. The lead retains their own personal reserve.
 
@@ -116,17 +116,19 @@ Verified component journeys include an ordinary 60/40 shared bank purchase and j
 
 The `ordinary-npc-close-0` command evidence closed bank-backed purchases in Q5 and cash purchases in Q12/Q14 on the same acquisition implementation. The Q5 company paid $99,650 price, $1,993 fee and $44,639.81 buyer cash with a $59,790 balance-sheet loan. The `landmark-content-0` proof acquired the residential court in Q9, commercial center in Q15 and service group in Q16 through ordinary commands. These receipts prove funded paths and remain tied to their tested content revisions. Browser proofs use production commands and real sessions; explicitly synthetic fixtures cover counter, loan and qualification boundaries.
 
-### Packet 8 integration status
-
-The pure evaluator passed at `5203855`, property/financing evidence at `a2fd825`, and canonical disposal evidence at `adfa7f9` with 907 tests on its isolated branch. The terminal economy port `61d89ab` settles Q32 once, records its actual earnings and skips Q33 rates, plans, basis and random draws. It passed 57 focused engine and UI cases, the SQLite fault/restart integration and an ordinary four-client draw after 164 accepted commands. The private finale coordinator and career routes are verified in isolation at `eec1817`, with qualitative private progress at `e2af6bc`. Their terminal and economic route integration remains in progress. Packet 9 still requires ordinary command journeys for every objective and a four-browser legitimate winner with durable public result.
-
 ### Packet 7 purchased-company performance
 
-New local, regional, mature-service and Executive ownership companies now use explicit necessary-labor calibration under the existing regime rules. Their closing revenue, after-labor profit, operating value, cash accounting and opening income entitlement stay unchanged. The model begins in acquisition quarter + 1, preserving fourth-spotlight closes and omitting zero-entitlement prehistory. Fixed labor is $60k local/Executive, $180k regional and $360k mature-service; actual stored profit determines the matching variable-cost reference and rational opening multiple. ARCH-048 records the content assumptions.
+Local, regional, mature-service and Executive ownership companies use authored fixed necessary labor under the same operating rules. Closing revenue, after-labor profit, value and cash still reconcile to the quote. The model begins in acquisition quarter + 1 and preserves the original first earned operating quarter. Fixed annual labor is $60k for local and Executive companies, $180k for regional companies and $360k for mature-service companies. ARCH-048 records these prototype assumptions.
 
-All 61 focused financial/career cases and six typechecks pass. Lint passes with 1,415 warnings and four infos; local harness and diff checks pass. The full suite passes 984 of 985 tests: the remaining existing server property fixture assumes one holding after a purchase even when the seat already owns an opening property (`matchRoundOrchestration.test.ts:1353`, actual two). That fixture uses no new managed purchase or Executive command; the property fixture correction remains a separate integration step. Five earlier assertions of absent models/null labor now assert exact authored models, and the landmark synthetic card explicitly constructs its own action metadata instead of retaining a generated business buyer.
+The `managed-proof-0` ordinary command proof repeats byte-for-byte for local purchase in Q3, regional in Q9, mature service group in Q12 and Executive ownership in Q4. Each then settles two earned quarters with actual costs and bounded operating movement. The accepted packet 7 suite includes the property fixture correction, which checks the financed property by ID even when the player also has an opening rental.
 
-An ordinary command proof (`managed-proof-0`) repeats byte-for-byte for local purchase in Q3, regional in Q9, mature service group in Q12 and Executive ownership in Q4, followed by two actual earned quarters each. It changes no starting cash/assets, fixed outcomes or thresholds. Actual first-quarter earnings match stored after-labor profit / 4, labor stays fixed, bounded future revenue/profit move, and histories start only after acquisition. This is deterministic accounting evidence; generic valuation integration, complete-match acceptance and human balance findings remain separate.
+### Packet 8 objective and terminal implementation
+
+The evaluator measures current ownership, cash, leverage and four actual completed quarters. It applies the approved objective safeguards to canonical interest receipts and dated disposals. An independently valued entry floor limits objective gain credit after a discounted negotiated ownership purchase. The actual cash cost and losses remain in the financial records, and genuine non-player bargains retain their actual cost for objectives. Only the recipient sees qualitative progress, exact requirements and explicit finale controls. `PURSUE_FINALE` reuses the owning economic close, checks eligibility before and after its immediate effects, and commits a winner without advancing the spotlight. Qualifying Magnates and Financiers have private standing offers alongside ordinary options, which permit a finale regardless of the current card. Explicit rejections leave funds, journals, counters and RNG intact.
+
+The Q32 draw settles the actual final quarter once, records earned Q29–Q32 observations and retains Q32 opening entitlements. Q32 market returns apply. Q33 content, operating preparation, rate changes, basis and randomness are skipped. A four-client HTTP, socket and SQLite test plays through 164 accepted commands and uses an explicitly synthetic temporary-database trigger to demonstrate complete rollback when the terminal status write fails. The retry commits once. Terminal reads and receipt retries remain available after restart, with no active-match pause controls. A four-browser production-build run reaches the same draw and preserves the host's final view with peers offline.
+
+All eight objectives have reached legitimate winners in ordinary engine command runs. Financier funds $150,000 from existing cash in Q26 through its standing offer. An ordinary Executive Owner match won in Q16 in four browsers and preserved the result and exact ownership closing after process restart. Packet 9 retains the full witness and restart evidence.
 
 ## M7 completion and M8 handoff
 

@@ -18,12 +18,14 @@ import {
   quoteBusinessAcquisitionBankLoan,
 } from "../finance/businessBankOrigination";
 import type { JournalEntry } from "../finance/journal";
+import type { Cents } from "../finance/money";
 import { basisPoints, cents } from "../finance/money";
 import { ownershipPpm } from "../finance/ownership";
 import { type CashPostingRequest, postCash } from "../finance/posting";
 import { calculatePropertyCashFlow } from "../finance/property";
 import type { ActionErrorCode, ActionResult } from "../game/actions";
 import { nextDeterministicId } from "../game/deterministicIds";
+import type { EconomicActionFinalizer } from "../game/finalization";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "../game/round";
 import type { Asset, AssetBankLoan, GameState } from "../model/gameState";
 import { getAvailableCashCents } from "../transactions/reservations";
@@ -252,11 +254,21 @@ export function getRecurringAcquisitionQuotes(
   }
 }
 
+export interface RecurringAcquisitionRealizedFacts {
+  readonly kind: "recurring-acquisition";
+  readonly assetKind: "business" | "property";
+  readonly assetId: AssetId;
+  readonly priceCents: Cents;
+  readonly buyerCashCents: Cents;
+  readonly borrowedPrincipalCents: Cents;
+}
+
 /** Atomic secondary NPC purchase: actual cash, canonical debt, ownership and one spotlight. */
 export function acquireRecurringOpportunity(
   state: GameState,
   player: PlayerId,
   command: AcquireRecurringCommand,
+  finalize?: EconomicActionFinalizer<RecurringAcquisitionRealizedFacts>,
 ): ActionResult {
   const reject = (code: ActionErrorCode): ActionResult => ({
     ok: false,
@@ -468,6 +480,25 @@ export function acquireRecurringOpportunity(
         },
       },
     };
+    if (finalize) {
+      const acquisition =
+        draft.progress.byPlayer[player]!.assetsById[asset.id]!.acquisition!;
+      const result = finalize({
+        before: state,
+        draft,
+        actorPlayerId: player,
+        journalEntries: journals,
+        facts: {
+          kind: "recurring-acquisition",
+          assetKind: asset.kind,
+          assetId: asset.id,
+          priceCents: cents(acquisition.considerationCents),
+          buyerCashCents: cents(acquisition.buyerCashCents),
+          borrowedPrincipalCents: cents(acquisition.bankPrincipalCents),
+        },
+      });
+      return result.ok ? result : reject(result.code);
+    }
     const advanced = advanceSpotlight(draft, player);
     if (!advanced.ok) return reject(advanced.code);
     return {

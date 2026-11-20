@@ -354,6 +354,20 @@ describe("canonical progress accounting", () => {
     const cured = settle(state);
     const paid = cured.settlementOutcome.loanPayments;
     expect(
+      (cured.state.finance.loansById[one.id] as PlayerLoan)
+        .settledInterestReceipts,
+    ).toEqual([
+      { quarter: 2, receivedCents: 0, currentEarnedCents: 0 },
+      { quarter: 3, receivedCents: 500, currentEarnedCents: 250 },
+    ]);
+    expect(
+      (cured.state.finance.loansById[two.id] as PlayerLoan)
+        .settledInterestReceipts,
+    ).toEqual([
+      { quarter: 2, receivedCents: 0, currentEarnedCents: 0 },
+      { quarter: 3, receivedCents: 500, currentEarnedCents: 250 },
+    ]);
+    expect(
       cured.state.progress.byPlayer[lender]?.financingInterestReceivedCents,
     ).toBe(1_000);
     expect(paid.reduce((sum, p) => sum + p.principalPaidCents, 0)).toBe(20_000);
@@ -439,7 +453,7 @@ describe("canonical progress accounting", () => {
     ).toBeUndefined();
     expect(
       closed.state.progress.byPlayer[buyer]?.assetsById[opportunity.assetId],
-    ).toEqual({
+    ).toMatchObject({
       costCents: 5_000_000,
       acquiredQuarter: 1,
       ownershipPpm: 1_000_000,

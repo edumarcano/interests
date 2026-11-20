@@ -1,6 +1,10 @@
-import { OBJECTIVE_MEASUREMENT_RULES } from "@interests/rules";
-import type { AssetId, PlayerId } from "@interests/shared";
+import {
+  OBJECTIVE_MEASUREMENT_RULES,
+  PUBLIC_MARKET_INSTRUMENT_IDS,
+} from "@interests/rules";
+import type { AssetId, PlayerId, TransactionId } from "@interests/shared";
 import type {
+  PlayerProgress,
   ProgressState,
   QuarterObservation,
   SourceObservation,
@@ -14,6 +18,11 @@ import type {
 } from "../model/gameState";
 import { calculateBusinessEquity } from "./business";
 import { FinanceDecimal } from "./decimal";
+import {
+  allocateDisposalCents,
+  fundExposure,
+  recordOwnershipTransfer,
+} from "./disposalEvidence";
 import type { JournalEntry } from "./journal";
 import { beneficialBorrowerId, isLenderLoan } from "./loanParties";
 import { type Cents, cents } from "./money";
@@ -65,6 +74,28 @@ export function createProgress(
                 : { kind: "not-working" },
             focus: "general",
             publicMarketBasis: { ...finance.publicMarketsByPlayer[playerId]! },
+            disposalEvidence: [],
+            publicMarketExposure: Object.fromEntries(
+              PUBLIC_MARKET_INSTRUMENT_IDS.map((instrumentId) => [
+                instrumentId,
+                finance.publicMarketsByPlayer[playerId]![instrumentId]
+                  ? [
+                      {
+                        acquiredQuarter: 0,
+                        settledExposureThroughQuarter: 0,
+                        valueCents:
+                          finance.publicMarketsByPlayer[playerId]![
+                            instrumentId
+                          ],
+                        costCents:
+                          finance.publicMarketsByPlayer[playerId]![
+                            instrumentId
+                          ],
+                      },
+                    ]
+                  : [],
+              ]),
+            ) as unknown as NonNullable<PlayerProgress["publicMarketExposure"]>,
             assetsById: Object.fromEntries(
               owned.map((asset) => {
                 const equity =
@@ -80,6 +111,7 @@ export function createProgress(
                       asset.ownershipByPlayerPpm,
                     )[playerId]!,
                     acquiredQuarter: 0,
+                    settledExposureThroughQuarter: 0,
                     ownershipPpm: asset.ownershipByPlayerPpm[playerId]!,
                   },
                 ];
@@ -103,6 +135,8 @@ export function recordQuarterObservations(
   state: GameState,
   outcome: SettlementOutcome,
   journals: readonly JournalEntry[],
+  revaluedMarkets: FinanceState["publicMarketsByPlayer"] = state.finance
+    .publicMarketsByPlayer,
 ): ProgressState {
   const byPlayer = { ...state.progress.byPlayer };
   for (const playerId of state.playerOrder) {
@@ -118,6 +152,7 @@ export function recordQuarterObservations(
       category: SourceObservation["category"],
       amount: number,
       debt = 0,
+      personalDebt = 0,
     ) => {
       const old = sources[key];
       sources[key] = {
@@ -126,6 +161,13 @@ export function recordQuarterObservations(
           (old?.recurringReceivedCents ?? 0) + amount,
         ),
         debtServiceOwedCents: cents((old?.debtServiceOwedCents ?? 0) + debt),
+        ...(personalDebt > 0 || old?.personalDebtServiceOwedCents !== undefined
+          ? {
+              personalDebtServiceOwedCents: cents(
+                (old?.personalDebtServiceOwedCents ?? 0) + personalDebt,
+              ),
+            }
+          : {}),
       };
     };
     for (const entry of journals) {
@@ -183,7 +225,13 @@ export function recordQuarterObservations(
         owed = cents(owed + payment.dueCents);
         paid = cents(paid + payment.paidCents);
         if (loan.kind === "legacy-bank-loan" && loan.relatedAssetId)
-          add(`asset:${loan.relatedAssetId}`, "property", 0, payment.dueCents);
+          add(
+            `asset:${loan.relatedAssetId}`,
+            "property",
+            0,
+            payment.dueCents,
+            payment.dueCents,
+          );
       }
       if (payment.lenderPlayerId === playerId && isLenderLoan(loan)) {
         financingInterest = cents(
@@ -242,6 +290,54 @@ export function recordQuarterObservations(
     };
     byPlayer[playerId] = {
       ...previous,
+      assetsById: Object.fromEntries(
+        Object.entries(previous.assetsById).map(([id, basis]) => [
+          id,
+          {
+            ...basis,
+            settledExposureThroughQuarter:
+              basis.acquiredQuarter < outcome.quarter
+                ? outcome.quarter
+                : (basis.settledExposureThroughQuarter ?? 0),
+            ...(basis.slices
+              ? {
+                  slices: basis.slices.map((slice) => ({
+                    ...slice,
+                    settledExposureThroughQuarter:
+                      slice.acquiredQuarter < outcome.quarter
+                        ? outcome.quarter
+                        : (slice.settledExposureThroughQuarter ?? 0),
+                  })),
+                }
+              : {}),
+          },
+        ]),
+      ),
+      publicMarketExposure: Object.fromEntries(
+        PUBLIC_MARKET_INSTRUMENT_IDS.map((instrumentId) => {
+          const slices = fundExposure(
+            previous,
+            instrumentId,
+            state.finance.publicMarketsByPlayer[playerId]![instrumentId],
+            outcome.quarter,
+          );
+          const values = allocateDisposalCents(
+            revaluedMarkets[playerId]![instrumentId],
+            slices.map((slice) => slice.valueCents),
+          );
+          return [
+            instrumentId,
+            slices.map((slice, index) => ({
+              ...slice,
+              valueCents: values[index]!,
+              settledExposureThroughQuarter:
+                slice.acquiredQuarter < outcome.quarter
+                  ? outcome.quarter
+                  : slice.settledExposureThroughQuarter,
+            })),
+          ];
+        }),
+      ) as unknown as NonNullable<PlayerProgress["publicMarketExposure"]>,
       financingInterestReceivedCents: financingInterest,
       quarters: [...previous.quarters, observation].slice(
         -OBJECTIVE_MEASUREMENT_RULES.lookbackQuarters,
@@ -259,6 +355,10 @@ export function recordBusinessPurchaseBasis(
   asset: Asset,
   price: Cents,
   quarter: number,
+  close?: {
+    readonly transactionId: TransactionId;
+    readonly loansById: FinanceState["loansById"];
+  },
 ): ProgressState {
   const sellerProgress = progress.byPlayer[seller]!;
   const acquisition = sellerProgress.assetsById[asset.id];
@@ -272,6 +372,52 @@ export function recordBusinessPurchaseBasis(
   const sellerBasis = { ...sellerProgress.assetsById };
   delete sellerBasis[asset.id];
   const buyerProgress = progress.byPlayer[buyer]!;
+  const slices = acquisition.slices ?? [acquisition];
+  const proceeds = allocateDisposalCents(
+    price,
+    slices.map((slice) => slice.ownershipPpm),
+  );
+  const equity =
+    asset.kind === "business"
+      ? calculateBusinessEquity(asset, close?.loansById ?? {}).equityValueCents
+      : asset.marketValueCents;
+  const reference = allocateDisposalCents(
+    cents(Math.max(0, equity)),
+    slices.map((slice) => slice.ownershipPpm),
+  );
+  const transfers = close
+    ? slices.map((slice, index) =>
+        recordOwnershipTransfer(
+          {
+            disposalId: `${close.transactionId}:${seller}:${asset.id}:${index}`,
+            transactionId: close.transactionId,
+            underlyingAssetId: asset.id,
+            category: asset.kind,
+            counterparty: { kind: "player", id: buyer },
+            acquiredQuarter: slice.acquiredQuarter,
+            settledExposureThroughQuarter:
+              slice.settledExposureThroughQuarter ?? 0,
+            soldQuarter: quarter,
+            proceedsCents: proceeds[index]!,
+            saleFeesCents: cents(0),
+            acquisitionBasisCents: slice.costCents,
+            ...(slice.objectiveCostFloorCents !== undefined
+              ? {
+                  objectiveAcquisitionBasisFloorCents:
+                    slice.objectiveCostFloorCents,
+                }
+              : {}),
+            referenceProceedsCents: reference[index]!,
+            economicSubstance: "genuine",
+            ownershipUnits: slice.ownershipPpm,
+          },
+          seller,
+          buyer,
+          slice.previousTransfers,
+        ),
+      )
+    : [];
+
   return {
     byPlayer: {
       ...progress.byPlayer,
@@ -279,6 +425,14 @@ export function recordBusinessPurchaseBasis(
         ...sellerProgress,
         assetsById: sellerBasis,
         realizedGainsCents,
+        ...(close
+          ? {
+              disposalEvidence: [
+                ...(sellerProgress.disposalEvidence ?? []),
+                ...transfers.map((transfer) => transfer.record),
+              ],
+            }
+          : {}),
         disposals: [
           ...sellerProgress.disposals,
           {
@@ -302,6 +456,28 @@ export function recordBusinessPurchaseBasis(
           ...buyerProgress.assetsById,
           [asset.id]: {
             costCents: price,
+            ...(close
+              ? {
+                  objectiveCostFloorCents: cents(
+                    reference.reduce(
+                      (total, amount, index) =>
+                        total + Math.max(amount, proceeds[index]!),
+                      0,
+                    ),
+                  ),
+                  settledExposureThroughQuarter: 0,
+                  slices: slices.map((slice, index) => ({
+                    acquiredQuarter: quarter,
+                    costCents: proceeds[index]!,
+                    objectiveCostFloorCents: cents(
+                      Math.max(proceeds[index]!, reference[index]!),
+                    ),
+                    ownershipPpm: slice.ownershipPpm,
+                    settledExposureThroughQuarter: 0,
+                    previousTransfers: transfers[index]!.previousTransfers,
+                  })),
+                }
+              : {}),
             acquiredQuarter: quarter,
             ownershipPpm: asset.ownershipByPlayerPpm[buyer]!,
           },

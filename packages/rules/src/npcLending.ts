@@ -1,4 +1,4 @@
-import type { BANK_CREDIT_GRADES } from "./completion";
+import { type BANK_CREDIT_GRADES, OBJECTIVE_TARGETS } from "./completion";
 
 type MarketCreditGrade = (typeof BANK_CREDIT_GRADES)[number]["id"];
 interface MarketBorrowerTemplate {
@@ -11,6 +11,18 @@ interface MarketBorrowerTemplate {
   readonly quarterlyRepaymentCapacityCents: number;
   readonly size: "small" | "medium" | "large";
 }
+
+/** Standing purchase-order borrower offered privately only as a qualified finale. */
+export const FINANCIER_FINALE_BORROWER = Object.freeze({
+  cardTemplateId: "equipment-renewal-finale",
+  borrowerId: "equipment-renewal-project",
+  name: "Equipment renewal project",
+  principalCents: OBJECTIVE_TARGETS.financier.finalePrincipalCents,
+  creditGrade: "good",
+  termQuarters: 6,
+  quarterlyRepaymentCapacityCents: 3_000_000,
+  size: "large",
+} as const satisfies MarketBorrowerTemplate);
 
 /** Prototype borrowers within the authored financing bands; these are not balance findings. */
 export const MARKET_BORROWER_TEMPLATES: readonly MarketBorrowerTemplate[] =

@@ -9,6 +9,7 @@ import { projectPlayerGameState } from "../game/playerView";
 import { getActiveSpotlightPlayerId } from "../game/round";
 import { assertGameState } from "../invariants/assertGameState";
 import type { GameState } from "../model/gameState";
+import { measurePlayerObjectives } from "../objectives/measurements";
 
 const players = ["a", "b", "c", "d"].map(asPlayerId);
 const [host] = players as [PlayerId, ...PlayerId[]];
@@ -143,6 +144,11 @@ describe("ordinary recurring market lending", () => {
     expect(restored).toEqual(funded.state);
     const afterOpening = advanceQuarter(restored);
     expect(afterOpening.finance.loansById[loanId]).toEqual(loan);
+    expect(measurePlayerObjectives(afterOpening, player)).toMatchObject({
+      performingFinancingBookCents: quote.principalCents,
+      earnedFinancingProfitCents: 0,
+      distinctPerformingBorrowers: quote.principalCents >= 5_000_000 ? 1 : 0,
+    });
     const afterPayment = advanceQuarter(afterOpening);
     expect(afterPayment.finance.loansById[loanId]).toMatchObject({
       kind: "npc-loan",
@@ -153,6 +159,13 @@ describe("ordinary recurring market lending", () => {
     expect(
       afterPayment.finance.loansById[loanId]!.outstandingPrincipalCents,
     ).toBeLessThan(quote.principalCents);
+    const paidInterest = afterPayment.finance.lastSettlement?.loanPayments.find(
+      (row) => row.loanId === loanId,
+    )?.interestPaidCents;
+    expect(paidInterest).toBeGreaterThan(0);
+    expect(
+      measurePlayerObjectives(afterPayment, player).earnedFinancingProfitCents,
+    ).toBe(paidInterest);
   });
 
   it("retains the original snapshot when the final spotlight cannot settle", () => {

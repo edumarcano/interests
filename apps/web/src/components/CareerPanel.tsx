@@ -31,12 +31,38 @@ export function CareerPanel({
     !match.businessCapital &&
     !match.businessAuction &&
     !pending;
+  const evaluation = details.objectiveEvaluation;
+  const eligibleFinale =
+    match.phase === "ready-for-first-round" &&
+    evaluation?.status === "eligible" &&
+    evaluation.objectiveId === match.self.selectedObjectiveId;
+  const independentFinale =
+    eligibleFinale && evaluation?.objectiveId === "independent";
+  const executiveOffers =
+    eligibleFinale && evaluation?.objectiveId === "executive-owner"
+      ? details.careerOffers.filter(
+          (offer) =>
+            offer.role === "executive" &&
+            offer.ownershipPosition !== null &&
+            offer.ownershipCostCents > 0,
+        )
+      : [];
   async function send(command: PlayerCommand) {
     setPending(true);
     setError("");
     try {
       const result = await onSendCommand(command);
-      if (!result.ok) setError(result.error.message);
+      if (!result.ok) {
+        const message = result.error.message;
+        setError(
+          command.type === "PURSUE_FINALE" && message === "FINALE_INELIGIBLE"
+            ? "The finale requirements are not met for this attempt. No changes were made."
+            : command.type === "PURSUE_FINALE" &&
+                message === "FINALE_ACTION_UNAVAILABLE"
+              ? "This finale action is unavailable. No changes were made."
+              : message,
+        );
+      }
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Career command failed",
@@ -141,6 +167,64 @@ export function CareerPanel({
             ? "Hire management and stop owner work"
             : "Resign from employment"}
         </button>
+      )}
+      {(independentFinale || executiveOffers.length > 0) && (
+        <section
+          aria-label="Your private career finale"
+          style={{ marginTop: "1rem" }}
+        >
+          <h3>Attempt your finale</h3>
+          <p>
+            Your requirements are checked again after the action and its costs.
+            A failed attempt makes no changes. A successful attempt ends the
+            match.
+          </p>
+          {independentFinale && (
+            <button
+              className="btn-gold"
+              style={{ maxWidth: "100%", whiteSpace: "normal" }}
+              type="button"
+              disabled={!canAct}
+              onClick={() =>
+                void send({
+                  type: "PURSUE_FINALE",
+                  action:
+                    details.labor.kind === "not-working"
+                      ? { type: "CONFIRM_INDEPENDENCE" }
+                      : { type: "RESIGN_LABOR" },
+                })
+              }
+            >
+              {details.labor.kind === "not-working"
+                ? "Attempt Independent finale: confirm independence"
+                : details.labor.kind === "owner-work"
+                  ? "Attempt Independent finale with management"
+                  : "Attempt Independent finale by resigning"}
+            </button>
+          )}
+          {executiveOffers.map((offer) => (
+            <div key={offer.id} style={{ marginTop: "0.75rem" }}>
+              <p>
+                {offer.name}: total cash required{" "}
+                {money(offer.totalCashRequiredCents)}.
+              </p>
+              <button
+                className="btn-gold"
+                style={{ maxWidth: "100%", whiteSpace: "normal" }}
+                type="button"
+                disabled={!canAct || !offer.affordable}
+                onClick={() =>
+                  void send({
+                    type: "PURSUE_FINALE",
+                    action: { type: "ACCEPT_CAREER_OFFER", offerId: offer.id },
+                  })
+                }
+              >
+                Attempt Executive Owner finale: {offer.name}
+              </button>
+            </div>
+          ))}
+        </section>
       )}
       {error && <p role="alert">{error}</p>}
     </section>

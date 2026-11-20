@@ -92,7 +92,15 @@ export interface BusinessQuarterBasis {
   readonly ownershipByPlayerPpm: Readonly<Record<PlayerId, OwnershipPpm>>;
 }
 
+export interface PlayerLoanInterestReceipt {
+  readonly quarter: number;
+  readonly receivedCents: Cents;
+  readonly currentEarnedCents: Cents;
+}
+
 export interface PlayerLoan extends LoanPaymentAccounting {
+  /** Actual processed payments only; absent old evidence is never reconstructed. */
+  readonly settledInterestReceipts?: readonly PlayerLoanInterestReceipt[];
   readonly id: LoanId;
   readonly kind: "player-loan";
   readonly lenderPlayerId: PlayerId;

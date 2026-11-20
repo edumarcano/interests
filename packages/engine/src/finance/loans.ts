@@ -223,6 +223,7 @@ export function originateConfirmedPlayerLoan(
     unpaidInterestCents: cents(0),
     lastProcessedQuarter: 0,
     originatedQuarter: request.quarter,
+    settledInterestReceipts: [],
     ...(request.relatedTransactionId !== undefined
       ? { fundedTransactionId: request.relatedTransactionId }
       : {}),

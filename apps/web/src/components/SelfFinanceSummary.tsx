@@ -3,9 +3,13 @@ import type React from "react";
 
 interface Props {
   self: MatchSelfView;
+  isFinal?: boolean;
 }
 
-export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
+export const SelfFinanceSummary: React.FC<Props> = ({
+  self,
+  isFinal = false,
+}) => {
   const formatCents = (amount: number): string =>
     `$${(amount / 100).toLocaleString("en-US", {
       minimumFractionDigits: 0,
@@ -197,7 +201,8 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
                       Company equity: {formatCents(asset.equityValueCents)}
                     </>
                   )}
-                  {asset.incomeTreatment === "work-and-ownership" ? (
+                  {asset.incomeTreatment === "work-and-ownership" &&
+                  asset.payoutQuarter != null ? (
                     <>
                       <br />
                       Expected work pay Q{asset.payoutQuarter}:{" "}
@@ -311,8 +316,9 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
             </div>
           ))}
           <small>
-            Missed payments remain due. Play continues and later settlements
-            collect affordable amounts.
+            {isFinal
+              ? "Unpaid claims remain recorded in the final accounts."
+              : "Missed payments remain due. Play continues and later settlements collect affordable amounts."}
           </small>
         </section>
       )}
@@ -372,7 +378,7 @@ export const SelfFinanceSummary: React.FC<Props> = ({ self }) => {
                 <span style={{ color: "var(--text-secondary)" }}>
                   {formatCents(loan.outstandingPrincipalCents)} @{" "}
                   {formatBps(loan.annualRateBps)}
-                  {loan.amountDueCents !== undefined && (
+                  {!isFinal && loan.amountDueCents !== undefined && (
                     <>
                       <br />
                       Due this quarter: {formatCents(loan.amountDueCents)}

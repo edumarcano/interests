@@ -7,7 +7,13 @@ function label(key: string) {
     .replace(/([A-Z])/g, " $1")
     .toLowerCase();
 }
-export function ObjectiveRequirements({ self }: { self: MatchSelfView }) {
+export function ObjectiveRequirements({
+  self,
+  isFinal = false,
+}: {
+  self: MatchSelfView;
+  isFinal?: boolean;
+}) {
   const details = self.financialDetails;
   if (!details) return null;
   return (
@@ -18,13 +24,14 @@ export function ObjectiveRequirements({ self }: { self: MatchSelfView }) {
     >
       <h2>Your private finances</h2>
       <p>
-        Employment from next quarter: {money(details.quarterlyIncomeCents)};
-        living costs: {money(details.quarterlyLivingExpenseCents)} per quarter.
+        {isFinal ? "Employment at closing:" : "Employment from next quarter:"}{" "}
+        {money(details.quarterlyIncomeCents)}; living costs:{" "}
+        {money(details.quarterlyLivingExpenseCents)} per quarter.
       </p>
       <p>
-        Earned this quarter: {money(details.entitledQuarterlyIncomeCents)}{" "}
-        employment; {money(details.entitledQuarterlyLivingExpenseCents)} living
-        costs due.
+        {isFinal ? "Final-quarter entitlement:" : "Earned this quarter:"}{" "}
+        {money(details.entitledQuarterlyIncomeCents)} employment;{" "}
+        {money(details.entitledQuarterlyLivingExpenseCents)} living costs due.
       </p>
       {details.formerWorkClaims?.map((claim) => (
         <p key={claim.assetId}>
@@ -34,7 +41,7 @@ export function ObjectiveRequirements({ self }: { self: MatchSelfView }) {
       <h3>Public funds</h3>
       {details.publicMarkets.map((fund) => (
         <p key={fund.id}>
-          {fund.id}: value {money(fund.valueCents)}; cost basis{" "}
+          {fund.name ?? fund.id}: value {money(fund.valueCents)}; cost basis{" "}
           {money(fund.basisCents)}.
         </p>
       ))}
@@ -54,6 +61,35 @@ export function ObjectiveRequirements({ self }: { self: MatchSelfView }) {
         Performance history: {details.completedObservationQuarters} of 4
         completed quarters. Missing quarters count as zero.
       </p>
+      {!isFinal && self.selectedObjectiveId && (
+        <section aria-label="Your objective progress">
+          <h4>Current progress</h4>
+          {details.objectiveEvaluation?.objectiveId ===
+          self.selectedObjectiveId ? (
+            <>
+              <p role="status">
+                {details.objectiveEvaluation.status === "eligible"
+                  ? "Requirements met."
+                  : "Requirements are still outstanding."}
+              </p>
+              <p>Victory requires a successful, explicitly pursued finale.</p>
+              <ul style={{ paddingInlineStart: "1.25rem" }}>
+                {details.objectiveEvaluation.checks.map((check) => (
+                  <li key={check.id}>
+                    <strong>{check.met ? "Met" : "Still needed"}:</strong>{" "}
+                    {check.label}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p>
+              Progress is unavailable. You can inspect the exact requirements
+              below.
+            </p>
+          )}
+        </section>
+      )}
       {details.objectiveRequirements
         .filter(
           (requirement) =>

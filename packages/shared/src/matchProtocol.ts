@@ -23,6 +23,19 @@ export interface MarketLoanQuoteView {
     | null;
 }
 
+export type StandingFinaleOfferView =
+  | {
+      readonly kind: "financing";
+      readonly opportunityId: string;
+      readonly quote: MarketLoanQuoteView;
+    }
+  | {
+      readonly kind: "landmark";
+      readonly name: string;
+      readonly opportunityId: string;
+      readonly quotes: readonly RecurringAcquisitionQuote[];
+    };
+
 export interface ChooseObjectiveCommandPayload {
   readonly type: "CHOOSE_OBJECTIVE";
   readonly objectiveId: string;
@@ -109,6 +122,19 @@ export interface AcceptCareerOfferCommandPayload {
 }
 export interface ResignLaborCommandPayload {
   readonly type: "RESIGN_LABOR";
+}
+/** Explicit owner-only request. Eligibility, target objective and effects remain engine-owned. */
+export interface PursueFinaleCommandPayload {
+  readonly type: "PURSUE_FINALE";
+  readonly action:
+    | ResignLaborCommandPayload
+    | AcceptCareerOfferCommandPayload
+    | TradePublicMarketsCommandPayload
+    | ExpandBusinessCommandPayload
+    | AcquireRecurringCommand
+    | SellRecurringBusinessCommand
+    | FundRecurringLoanCommand
+    | { readonly type: "CONFIRM_INDEPENDENCE" };
 }
 export interface CareerOfferView {
   readonly id: string;
@@ -542,6 +568,7 @@ export interface RecurringOpportunityView {
 export type PlayerCommand =
   | SellRecurringBusinessCommand
   | PropertyAcquisitionCommand
+  | PursueFinaleCommandPayload
   | BusinessAuctionCommand
   | JointPropertyCommand
   | BusinessCapitalCommand
@@ -681,11 +708,26 @@ export type MatchResultView =
       readonly completedQuarter: number;
     }
   | { readonly kind: "safety-draw"; readonly completedQuarter: number };
+export interface ObjectiveEvaluationView {
+  readonly objectiveId: string;
+  readonly status: "eligible" | "ineligible";
+  readonly checks: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly met: boolean;
+    readonly actual: number;
+    readonly target: number;
+    readonly comparison: "minimum" | "maximum" | "required";
+  }[];
+}
+
 export interface MatchSelfFinancialDetailsView {
+  readonly standingFinaleOffer?: StandingFinaleOfferView;
   readonly formerWorkClaims?: readonly {
     readonly assetId: string;
     readonly amountCents: number;
   }[];
+  readonly objectiveEvaluation: ObjectiveEvaluationView | null;
   readonly careerOffers: readonly CareerOfferView[];
   readonly annualLaborCompensationCents: number | null;
   readonly quarterlyIncomeCents: number;

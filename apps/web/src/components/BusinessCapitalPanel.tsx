@@ -177,6 +177,24 @@ export function BusinessCapitalPanel({
         )
       : 0;
 
+  const directExpansion =
+    expansionCompany && draft && terms?.kind === "company-expansion"
+      ? {
+          type: "EXPAND_BUSINESS" as const,
+          assetId: draft.assetId,
+          investmentCents: terms.investmentCents,
+          ...(ownerContribution > 0
+            ? { ownerContributionCents: ownerContribution }
+            : {}),
+        }
+      : null;
+  const objective = match.self.financialDetails?.objectiveEvaluation;
+  const canPursueExpansionFinale =
+    !binding &&
+    directExpansion &&
+    objective?.status === "eligible" &&
+    objective.objectiveId === "founder";
+
   return (
     <section className="card business-capital" aria-label="Business capital">
       <h3>Business capital</h3>
@@ -578,15 +596,8 @@ export function BusinessCapitalPanel({
               void send(
                 binding
                   ? { type: "REVISE_BUSINESS_CAPITAL", ...binding, terms }
-                  : expansionCompany && terms.kind === "company-expansion"
-                    ? {
-                        type: "EXPAND_BUSINESS",
-                        assetId: draft.assetId,
-                        investmentCents: terms.investmentCents,
-                        ...(ownerContribution > 0
-                          ? { ownerContributionCents: ownerContribution }
-                          : {}),
-                      }
+                  : directExpansion
+                    ? directExpansion
                     : {
                         type: "OPEN_BUSINESS_CAPITAL",
                         assetId: draft.assetId,
@@ -601,6 +612,21 @@ export function BusinessCapitalPanel({
                 ? "Fund expansion"
                 : "Send business proposal"}
           </button>
+          {canPursueExpansionFinale && (
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={
+                disabled || ownerContribution > match.self.availableCashCents
+              }
+              onClick={() =>
+                directExpansion &&
+                void send({ type: "PURSUE_FINALE", action: directExpansion })
+              }
+            >
+              Pursue finale with this expansion
+            </button>
+          )}
           <button
             type="button"
             className="btn-secondary"

@@ -7,12 +7,14 @@ export function MarketLoanOffer({
   isBlocked,
   isSubmitting,
   onFund,
+  onPursueFinale,
 }: {
   quote: MarketLoanQuoteView;
   isSpotlight: boolean;
   isBlocked: boolean;
   isSubmitting: boolean;
-  onFund: () => void;
+  onFund?: () => void;
+  onPursueFinale?: () => void;
 }) {
   return (
     <div>
@@ -51,14 +53,30 @@ export function MarketLoanOffer({
       {quote.canFund && !isSpotlight && (
         <p>You can fund this loan during your spotlight.</p>
       )}
-      <button
-        type="button"
-        className="btn-primary"
-        disabled={isBlocked || !isSpotlight || !quote.canFund}
-        onClick={onFund}
-      >
-        {isSubmitting ? "Funding…" : `Fund ${money(quote.principalCents)} loan`}
-      </button>
+      {onFund && (
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={isBlocked || !isSpotlight || !quote.canFund}
+          onClick={onFund}
+        >
+          {isSubmitting
+            ? "Funding…"
+            : `Fund ${money(quote.principalCents)} loan`}
+        </button>
+      )}
+      {onPursueFinale && (
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={isBlocked || !isSpotlight || !quote.canFund}
+          onClick={onPursueFinale}
+        >
+          {isSubmitting && !onFund
+            ? "Funding…"
+            : "Pursue finale with this loan"}
+        </button>
+      )}
     </div>
   );
 }

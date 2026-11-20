@@ -79,6 +79,9 @@ export function RecurringOpportunityPanel({
   const card = match.self.recurringOpportunity;
   if (!card || match.phase !== "ready-for-first-round") return null;
   const blocked = isPaused || pending !== null;
+  const objective = match.self.financialDetails?.objectiveEvaluation;
+  const canPursueLendingFinale =
+    objective?.status === "eligible" && objective.objectiveId === "financier";
   async function send(
     command: PlayerCommand,
     kind: "focus" | "investigate" | "fund",
@@ -162,6 +165,21 @@ export function RecurringOpportunityPanel({
           }
           isBlocked={blocked}
           isSubmitting={pending === "fund"}
+          onPursueFinale={
+            canPursueLendingFinale
+              ? () =>
+                  send(
+                    {
+                      type: "PURSUE_FINALE",
+                      action: {
+                        type: "FUND_RECURRING_LOAN",
+                        opportunityId: card.id,
+                      },
+                    },
+                    "fund",
+                  )
+              : undefined
+          }
           onFund={() =>
             send(
               { type: "FUND_RECURRING_LOAN", opportunityId: card.id },
