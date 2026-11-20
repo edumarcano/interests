@@ -2,7 +2,7 @@
 
 **Updated:** 2026-11-20
 **Active milestone:** 7, full gameplay rules and content  
-**Current focus:** Finish verification and delivery of objective finales and ordinary complete-match acceptance. The M7 stack remains open and unmerged.
+**Current focus:** Review the delivered M7 stack in order. All nine PRs are open and require explicit approval to merge. The ordinary match acceptance evidence and M8 handoff are below.
 
 ## Milestone 6: physical playtest outcome
 
@@ -10,14 +10,14 @@ Four independent devices (Windows host laptop, phone, tablet, Linux laptop) succ
 
 Two limitations emerged:
 
-- **Limited content:** The initial private business opportunity is a deterministic Q1 fixture. Later quarters currently offer little to do beyond passing spotlights.
+- **Limited content:** The playtest used a deterministic Q1 private business fixture. Later quarters offered few economic choices.
 - **Settlement deadlock:** In a second match, the phone purchased the Q1 business using a player loan from the host (10% annual rate, three-quarter term). During Q3, the phone was the final spotlight player; passing returned `INSUFFICIENT_FUNDS` in red and did not advance the match. The final spotlight triggers settlement for *all* players, so the insolvent player and exact unpaid obligation are **not confirmed**. At that time, settlement rejected the entire quarter rather than handling defaults.
 
-The acquisition and repayment flow is playable, but prolonged financial gameplay remains incomplete.
+That playtest demonstrated the acquisition and repayment flow and identified the need for recurring choices and recoverable financial distress.
 
 ## Milestone 7: financial foundation
 
-| Area | Approved policy | Remaining work |
+| Area | Approved policy | Delivery |
 | --- | --- | --- |
 | **A4: business distributions** | Separate work pay and ownership returns; company cash/claims; Q1 starting-company operations; Q2 acquisition fixture; 80/20 surplus split | Starting-company performance, growth, labor exit, ownership and consent are implemented in the open M7 stack. Managed companies also use authored fixed labor and earned-quarter performance. |
 | **A5: default and insolvency** | Partial payments, explicit living/operating/work/loan claims, ordinary principal interest, fixed maturity and private recovery outcomes | Claims/cash cure, asset bank loans, market lending and shared closing are implemented on the local M7 stack. Foreclosure, bankruptcy, write-offs and secured player loans remain deferred. |
@@ -49,8 +49,8 @@ ARCH-040 records the approved M7 completion boundary. GAME_DESIGN owns the rules
 | 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Delivered in open [PR #40](https://github.com/edumarcano/interests/pull/40), stacked on #39; both Remora review axes passed; unmerged |
 | 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Delivered in open [PR #41](https://github.com/edumarcano/interests/pull/41), stacked on #40; both Remora review axes passed; unmerged |
 | 7 | Operating economy, recurring private/public content and non-player alternatives | Delivered in open [PR #42](https://github.com/edumarcano/interests/pull/42), stacked on #41. Both Remora review axes passed locally. Hosted CI #121 passed on `725c642`. |
-| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Delivered in open [PR #43](https://github.com/edumarcano/interests/pull/43), stacked on #42. Both Remora review axes passed. Local typecheck, lint, build, 1,120 tests and 20 Chromium scenarios passed. |
-| 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | Both Remora review axes passed. Local typecheck, lint, build, 1,128 tests and 21 Chromium scenarios passed. Publication pending. |
+| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Delivered in open [PR #43](https://github.com/edumarcano/interests/pull/43), stacked on #42. Both Remora review axes passed. Local typecheck, lint, build, 1,120 tests and 20 Chromium scenarios passed. Hosted CI #123 passed on `49fd72c`. |
+| 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | Delivered in open [PR #44](https://github.com/edumarcano/interests/pull/44), stacked on #43. Both Remora review axes passed. Local typecheck, lint, build, 1,128 tests and 21 Chromium scenarios passed. |
 
 Each packet requires relevant behavior tests, typecheck, lint, tests and Remora split-axis review. Browser-facing changes also require build and applicable E2E proof. Record actual PR/head/check state here as delivery changes; leave every PR unmerged unless the user explicitly approves merging.
 
