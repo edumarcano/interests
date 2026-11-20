@@ -38,7 +38,7 @@ The default Windows test run again hit fork-worker exit code 3221226505; a bound
 
 ## M7 completion delivery
 
-ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The local stack implements the full economic loop and explicit objective finales. Packet 9 records the ordinary match evidence, while the open M7 PRs retain their individual review boundaries.
+ARCH-040 records the approved M7 completion boundary. GAME_DESIGN owns the rules. The stack implements the full economic loop and explicit objective finales. Packet 9 records the ordinary match evidence, and each of the open M7 PRs retains its review boundary.
 
 | Packet | Deliverable | Current state |
 | --- | --- | --- |
@@ -49,8 +49,8 @@ ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. T
 | 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Delivered in open [PR #40](https://github.com/edumarcano/interests/pull/40), stacked on #39; both Remora review axes passed; unmerged |
 | 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Delivered in open [PR #41](https://github.com/edumarcano/interests/pull/41), stacked on #40; both Remora review axes passed; unmerged |
 | 7 | Operating economy, recurring private/public content and non-player alternatives | Delivered in open [PR #42](https://github.com/edumarcano/interests/pull/42), stacked on #41. Both Remora review axes passed locally. Hosted CI #121 passed on `725c642`. |
-| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Delivered in open [PR #43](https://github.com/edumarcano/interests/pull/43), stacked on #42. Both Remora review axes passed. Local typecheck, lint, build, 1,120 tests and focused four-browser Q32 draw and restart passed. |
-| 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | All eight ordinary command witnesses and a four-client browser winner verified locally; final integrated checks and publication pending. |
+| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Delivered in open [PR #43](https://github.com/edumarcano/interests/pull/43), stacked on #42. Both Remora review axes passed. Local typecheck, lint, build, 1,120 tests and 20 Chromium scenarios passed. |
+| 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | Both Remora review axes passed. Local typecheck, lint, build, 1,128 tests and 21 Chromium scenarios passed. Publication pending. |
 
 Each packet requires relevant behavior tests, typecheck, lint, tests and Remora split-axis review. Browser-facing changes also require build and applicable E2E proof. Record actual PR/head/check state here as delivery changes; leave every PR unmerged unless the user explicitly approves merging.
 
@@ -139,15 +139,15 @@ The engine suite replays eight fixed ordinary matches through the production `ap
 | Founder | 31 | Matched independent business sale for $1,198,031.29 net |
 | Property Magnate | 31 | Landmark property acquisition with retained portfolio eligibility |
 | Independent | 25 | Leave active work after qualifying on earned non-labor income |
-| Capital Allocator | 26 | Deploy the required capital and retain diversification |
+| Capital Allocator | 26 | Invest $150,000 in the income fund and retain diversification |
 | Financier | 26 | Fund a $150,000 standing market contract and retain its book and liquidity |
 | Deal Maker | 30 | Deploy $400,000 after seasoned stock sales and an independent company exit |
 | Executive Owner | 16 | Accept a $100,000 executive ownership position plus its $2,000 fee |
-| Wealth Architect | 27 | Deploy or reallocate $200,000 with the required position intact |
+| Wealth Architect | 27 | Invest $200,000 in the income fund with the required position intact |
 
 A separate production-build Playwright test drives four independent browser clients through room creation, ordinary setup, varied career and market actions and an explicit Executive Owner win in Q16. The launcher fixes the match seed through a server-owned test dependency. The default server uses crypto-generated seeds. The browser performs normal credential, lobby, host-start and gameplay flows, and server persistence checks exactly one accepted finale, two closing journal entries and one result event. All four clients see the same permitted winner and retain their private information after reload and process restart. The final Q16 revision retains Q15 as the last settlement. The Q32 no-finale flow retains its own ordinary browser and SQLite restart proof, with one actual Q32 settlement and no Q33 preparation.
 
-To rerun the focused evidence, use `pnpm test packages/engine/src/objectives/ordinaryAcceptance.test.ts` and `pnpm exec playwright test apps/web/e2e/objectiveVictory.spec.ts apps/web/e2e/safetyDraw.spec.ts` after building the web app. Exact run status and PR links remain above and in the packet verification entries.
+To rerun the focused evidence, use `pnpm test packages/engine/src/objectives/ordinaryAcceptance.test.ts` and `pnpm exec playwright test apps/web/e2e/objectiveVictory.spec.ts apps/web/e2e/safetyDraw.spec.ts` after building the web app. The integrated revision passed typecheck, lint with warnings, build, 1,128 Vitest cases and 21 Chromium scenarios. The Remora local manifest and hash check passed.
 
 ## M7 completion and M8 handoff
 
