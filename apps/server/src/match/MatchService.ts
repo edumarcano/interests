@@ -43,6 +43,8 @@ export class MatchService {
     private readonly setupScenario:
       | "standard-v1"
       | "q1-business-diagnostic" = "standard-v1",
+    private readonly nextMatchSeed = () =>
+      crypto.randomBytes(32).toString("base64url"),
   ) {}
 
   setCoordinator(coordinator: RoomConnectionCoordinator): void {
@@ -166,7 +168,7 @@ export class MatchService {
       ];
 
       const matchId = asMatchId(crypto.randomBytes(16).toString("base64url"));
-      const seed = crypto.randomBytes(32).toString("base64url");
+      const seed = this.nextMatchSeed();
 
       // Pure engine setup
       const initialGameState = createGame({

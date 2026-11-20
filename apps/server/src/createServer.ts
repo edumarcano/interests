@@ -30,6 +30,7 @@ export interface CreateServerOptions {
   repository?: LobbyRepository;
   matchRepository?: MatchRepository;
   matchService?: MatchService;
+  matchSeedSource?: () => string;
 }
 
 export interface GameServer {
@@ -148,6 +149,7 @@ export function createServer(options: CreateServerOptions = {}): GameServer {
           options.repository,
           coordinator,
           config.setupScenario,
+          options.matchSeedSource,
         )
       : undefined);
 
