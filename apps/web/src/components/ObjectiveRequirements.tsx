@@ -41,7 +41,7 @@ export function ObjectiveRequirements({
       <h3>Public funds</h3>
       {details.publicMarkets.map((fund) => (
         <p key={fund.id}>
-          {fund.id}: value {money(fund.valueCents)}; cost basis{" "}
+          {fund.name ?? fund.id}: value {money(fund.valueCents)}; cost basis{" "}
           {money(fund.basisCents)}.
         </p>
       ))}
@@ -61,7 +61,7 @@ export function ObjectiveRequirements({
         Performance history: {details.completedObservationQuarters} of 4
         completed quarters. Missing quarters count as zero.
       </p>
-      {self.selectedObjectiveId && (
+      {!isFinal && self.selectedObjectiveId && (
         <section aria-label="Your objective progress">
           <h4>Current progress</h4>
           {details.objectiveEvaluation?.objectiveId ===

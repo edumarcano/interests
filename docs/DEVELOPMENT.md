@@ -1,8 +1,8 @@
 # Development status
 
-**Updated:** 2026-11-19
+**Updated:** 2026-11-20
 **Active milestone:** 7, full gameplay rules and content  
-**Current focus:** Verify the combined operating-economy and recurring-content branch for packet 7. Objective finales and terminal persistence are in separate packet 8 worktrees. The M7 stack remains open and unmerged.
+**Current focus:** Finish verification and delivery of objective finales and ordinary complete-match acceptance. The M7 stack remains open and unmerged.
 
 ## Milestone 6: physical playtest outcome
 
@@ -38,7 +38,7 @@ The default Windows test run again hit fork-worker exit code 3221226505; a bound
 
 ## M7 completion delivery
 
-ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The local stack implements financial foundations, public markets, careers, bank and property finance, multiplayer capital and recurring economic choices through packet 7. Winning finales and complete-match payment and result proof remain in packets 8 and 9.
+ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The local stack implements the full economic loop and explicit objective finales. Packet 9 records the ordinary match evidence, while the open M7 PRs retain their individual review boundaries.
 
 | Packet | Deliverable | Current state |
 | --- | --- | --- |
@@ -49,8 +49,8 @@ ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. T
 | 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Delivered in open [PR #40](https://github.com/edumarcano/interests/pull/40), stacked on #39; both Remora review axes passed; unmerged |
 | 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Delivered in open [PR #41](https://github.com/edumarcano/interests/pull/41), stacked on #40; both Remora review axes passed; unmerged |
 | 7 | Operating economy, recurring private/public content and non-player alternatives | Delivered in open [PR #42](https://github.com/edumarcano/interests/pull/42), stacked on #41. Both Remora review axes passed locally. Hosted CI #121 passed on `725c642`. |
-| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Pure evaluation, canonical evidence and durable Q32 draw verified in isolation; the private finale coordinator and route integrations are in progress |
-| 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | Pending |
+| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Private evaluations, explicit finales, standing offers and durable winner/draw integrated locally; final exact-head review and verification under way. |
+| 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | All eight ordinary command witnesses and a four-client browser winner verified locally; final integrated checks and publication pending. |
 
 Each packet requires relevant behavior tests, typecheck, lint, tests and Remora split-axis review. Browser-facing changes also require build and applicable E2E proof. Record actual PR/head/check state here as delivery changes; leave every PR unmerged unless the user explicitly approves merging.
 
@@ -116,27 +116,19 @@ Verified component journeys include an ordinary 60/40 shared bank purchase and j
 
 The `ordinary-npc-close-0` command evidence closed bank-backed purchases in Q5 and cash purchases in Q12/Q14 on the same acquisition implementation. The Q5 company paid $99,650 price, $1,993 fee and $44,639.81 buyer cash with a $59,790 balance-sheet loan. The `landmark-content-0` proof acquired the residential court in Q9, commercial center in Q15 and service group in Q16 through ordinary commands. These receipts prove funded paths and remain tied to their tested content revisions. Browser proofs use production commands and real sessions; explicitly synthetic fixtures cover counter, loan and qualification boundaries.
 
-### Packet 8 integration status
-
-The pure evaluator passed at `5203855`, property/financing evidence at `a2fd825`, and canonical disposal evidence at `adfa7f9` with 907 tests on its isolated branch. The terminal economy port `61d89ab` settles Q32 once, records its actual earnings and skips Q33 rates, plans, basis and random draws. It passed 57 focused engine and UI cases, the SQLite fault/restart integration and an ordinary four-client draw after 164 accepted commands. The local packet 8 worktree is based on PR #42. It joins canonical financing and disposal evidence, all eight private finale routes, qualitative progress, explicit browser controls and durable final-result persistence. Seeded ordinary commands reached all eight legitimate winners, and a separate four-browser Executive Owner match preserved its qualified win after restart. Financier and Magnate standing alternatives avoid dependence on a random draw once eligible; the witnessed Financier funded exactly $150,000 in Q26. The combined proof and final acceptance report belong to packet 9. The backend and progress checkpoint at `b3426a7` passed 1,069 tests and all six typechecks. Final UI verification and review are underway. Packet 9 still requires ordinary command journeys for every objective and a four-browser legitimate winner with durable public result.
-
 ### Packet 7 purchased-company performance
 
-New local, regional, mature-service and Executive ownership companies now use explicit necessary-labor calibration under the existing regime rules. Their closing revenue, after-labor profit, operating value, cash accounting and opening income entitlement stay unchanged. The model begins in acquisition quarter + 1, preserving fourth-spotlight closes and omitting zero-entitlement prehistory. Fixed labor is $60k local/Executive, $180k regional and $360k mature-service; actual stored profit determines the matching variable-cost reference and rational opening multiple. ARCH-048 records the content assumptions.
+Local, regional, mature-service and Executive ownership companies use authored fixed necessary labor under the same operating rules. Closing revenue, after-labor profit, value and cash still reconcile to the quote. The model begins in acquisition quarter + 1 and preserves the original first earned operating quarter. Fixed annual labor is $60k for local and Executive companies, $180k for regional companies and $360k for mature-service companies. ARCH-048 records these prototype assumptions.
 
-All 61 focused financial/career cases and six typechecks pass. Lint passes with 1,415 warnings and four infos; local harness and diff checks pass. The full suite passes 984 of 985 tests: the remaining existing server property fixture assumes one holding after a purchase even when the seat already owns an opening property (`matchRoundOrchestration.test.ts:1353`, actual two). That fixture uses no new managed purchase or Executive command; the property fixture correction remains a separate integration step. Five earlier assertions of absent models/null labor now assert exact authored models, and the landmark synthetic card explicitly constructs its own action metadata instead of retaining a generated business buyer.
+The `managed-proof-0` ordinary command proof repeats byte-for-byte for local purchase in Q3, regional in Q9, mature service group in Q12 and Executive ownership in Q4. Each then settles two earned quarters with actual costs and bounded operating movement. The accepted packet 7 suite includes the property fixture correction, which checks the financed property by ID even when the player also has an opening rental.
 
-An ordinary command proof (`managed-proof-0`) repeats byte-for-byte for local purchase in Q3, regional in Q9, mature service group in Q12 and Executive ownership in Q4, followed by two actual earned quarters each. It changes no starting cash/assets, fixed outcomes or thresholds. Actual first-quarter earnings match stored after-labor profit / 4, labor stays fixed, bounded future revenue/profit move, and histories start only after acquisition. This is deterministic accounting evidence; generic valuation integration, complete-match acceptance and human balance findings remain separate.
+### Packet 8 objective and terminal implementation
 
-### Packet 8 local checkpoint
+The evaluator measures current ownership, cash, leverage and four actual completed quarters. It applies the approved objective safeguards to canonical interest receipts and dated disposals. Only the recipient sees qualitative progress, exact requirements and explicit finale controls. `PURSUE_FINALE` reuses the owning economic close, checks eligibility before and after its immediate effects, and commits a winner without advancing the spotlight. Qualifying Magnates and Financiers have private standing offers alongside ordinary options, which permit a finale regardless of the current card. Explicit rejections leave funds, journals, counters and RNG intact.
 
-Pure engine measurements and all eight eligibility evaluations are implemented in `packages/engine/src/objectives`, with rules-owned qualification constants and 34 focused qualifying/near-miss/exploit cases. The internal supplement accepts only authoritative persisted economic evidence; property asset claims, genuine lending receipts/funding and complete signed disposal history still require integration with their owning packets. It is not a browser command contract. Ordinary win reachability and objective finales remain unimplemented at this checkpoint.
+The Q32 draw settles the actual final quarter once, records earned Q29–Q32 observations and retains Q32 opening entitlements. Q32 market returns apply. Q33 content, operating preparation, rate changes, basis and randomness are skipped. A four-client HTTP, socket and SQLite test plays through 164 accepted commands and uses an explicitly synthetic temporary-database trigger to demonstrate complete rollback when the terminal status write fails. The retry commits once. Terminal reads and receipt retries remain available after restart, with no active-match pause controls. A four-browser production-build run reaches the same draw and preserves the host's final view with peers offline.
 
-The Q32 draw runs through ordinary commands without injected wealth or a reduced horizon. The fourth spotlight settles Q32 exactly once, retains Q29-Q32 observations, writes a terminal draw and consumes Q32 price noise without a Q33 regime/content draw or entitlement basis. Generic round and persistence plumbing preserves a separately validated terminal result before advancing; it does not create objective victories. ARCH-050 records the contracts and compatibility targets. The port to the full economy also skips Q33 rates, occupancy, operating forecasts and content, while retaining actual Q32 business observations.
-
-The four-client HTTP/socket/SQLite proof executes 164 accepted commands through the real horizon. A trigger in its temporary database deliberately rejects the terminal room-status update, proving that cash, snapshot, operational status, events and receipt roll back together; an identical retry then commits once. Accepted receipt retry, terminal command rejection, controller replacement, credential recovery, database/server restart and terminal HTTP/bootstrap views preserve the final result without active-match pause controls. The four-browser production-build journey likewise plays all 32 quarters, checks the identical public draw for all clients and preserves the host's final phone view after reload and process restart with the other players offline.
-
-All 769 tests, six TypeScript projects, lint (872 warnings and three infos), the production build and all eight browser scenarios pass locally, including the real-horizon draw with offline peers after restart. Remora local manifest/hash consistency passes without trusted-source provenance verification. A standalone ordinary command harness repeats the 32-quarter journey identically at revision 164, settlement count 32 and entitlement-basis quarter 32. This is safety-draw evidence, not a completed objective win, balance result or M7 completion claim. The branch is local and unmerged; independent integration review and publication remain pending.
+All eight objectives have reached legitimate winners in ordinary engine command runs. Financier funds $150,000 from existing cash in Q26 through its standing offer. An ordinary Executive Owner match won in Q16 in four browsers and preserved the result and exact ownership closing after process restart. Packet 9 retains the full witness and restart evidence.
 
 ## M7 completion and M8 handoff
 

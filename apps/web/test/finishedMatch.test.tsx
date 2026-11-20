@@ -73,6 +73,10 @@ it("renders the durable draw and own Q32 finances without setup, resume, career 
   expect(screen.queryByTestId("pause-banner")).toBeNull();
   expect(screen.queryByText(/Play continues/)).toBeNull();
   expect(
+    screen.queryByRole("region", { name: "Your objective progress" }),
+  ).toBeNull();
+  expect(screen.queryByText(/Due this quarter/)).toBeNull();
+  expect(
     screen.getByText("Unpaid claims remain recorded in the final accounts."),
   ).toBeTruthy();
   expect(screen.queryByRole("button")).toBeNull();

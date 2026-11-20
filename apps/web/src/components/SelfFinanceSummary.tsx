@@ -378,7 +378,7 @@ export const SelfFinanceSummary: React.FC<Props> = ({
                 <span style={{ color: "var(--text-secondary)" }}>
                   {formatCents(loan.outstandingPrincipalCents)} @{" "}
                   {formatBps(loan.annualRateBps)}
-                  {loan.amountDueCents !== undefined && (
+                  {!isFinal && loan.amountDueCents !== undefined && (
                     <>
                       <br />
                       Due this quarter: {formatCents(loan.amountDueCents)}
