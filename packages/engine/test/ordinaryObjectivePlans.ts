@@ -25,7 +25,9 @@ export interface OrdinaryObjectivePlan {
     readonly quarter: number;
     readonly commands: readonly WirePlayerCommand[];
   }[];
-  /** Kept ordinary so the test must explicitly request its finale variant. */
+  /** Standing offers may close only inside an explicit finale. */
+  readonly standingFinaleOffer?: true;
+  /** Stored as the nested economic action, so replay must explicitly request its finale. */
   readonly finalAction: Exclude<
     PursueFinaleCommandPayload["action"],
     { readonly type: "CONFIRM_INDEPENDENCE" }
@@ -1360,6 +1362,130 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
       opportunityId: "opportunity-124",
       quoteId:
         "opportunity-124:exit:157:asset-3:121861538:1646842:3705251:0:0:119803129",
+    },
+  },
+  {
+    objectiveId: "financier",
+    seed: "m7-acceptance-financier-7",
+    winnerId: "player-2",
+    profileId: "high-income-professional",
+    initialFocus: "financing",
+    winningQuarter: 26,
+    acceptedCommandCount: 132,
+    actions: [
+      {
+        quarter: 1,
+        commands: [
+          {
+            type: "ACCEPT_CAREER_OFFER",
+            offerId: "career:1:major:15000000:employment",
+          },
+        ],
+      },
+      {
+        quarter: 3,
+        commands: [
+          {
+            type: "ACCEPT_CAREER_OFFER",
+            offerId: "career:3:major:18000000:employment",
+          },
+        ],
+      },
+      {
+        quarter: 5,
+        commands: [
+          {
+            type: "ACCEPT_CAREER_OFFER",
+            offerId: "career:5:major:21600000:employment",
+          },
+        ],
+      },
+      {
+        quarter: 6,
+        commands: [
+          {
+            type: "FUND_RECURRING_LOAN",
+            opportunityId: "opportunity-22",
+          },
+        ],
+      },
+      {
+        quarter: 7,
+        commands: [
+          {
+            type: "ACCEPT_CAREER_OFFER",
+            offerId: "career:7:major:25920000:employment",
+          },
+        ],
+      },
+      {
+        quarter: 8,
+        commands: [
+          {
+            type: "FUND_RECURRING_LOAN",
+            opportunityId: "opportunity-30",
+          },
+        ],
+      },
+      {
+        quarter: 9,
+        commands: [
+          {
+            type: "ACCEPT_CAREER_OFFER",
+            offerId: "career:9:major:31104000:employment",
+          },
+        ],
+      },
+      {
+        quarter: 13,
+        commands: [
+          {
+            type: "FUND_RECURRING_LOAN",
+            opportunityId: "opportunity-50",
+          },
+        ],
+      },
+      {
+        quarter: 14,
+        commands: [
+          {
+            type: "FUND_RECURRING_LOAN",
+            opportunityId: "opportunity-54",
+          },
+        ],
+      },
+      {
+        quarter: 20,
+        commands: [
+          {
+            type: "FUND_RECURRING_LOAN",
+            opportunityId: "opportunity-78",
+          },
+        ],
+      },
+      {
+        quarter: 21,
+        commands: [
+          {
+            type: "FUND_RECURRING_LOAN",
+            opportunityId: "opportunity-82",
+          },
+        ],
+      },
+      {
+        quarter: 25,
+        commands: [
+          {
+            type: "FUND_RECURRING_LOAN",
+            opportunityId: "opportunity-98",
+          },
+        ],
+      },
+    ],
+    standingFinaleOffer: true,
+    finalAction: {
+      type: "FUND_RECURRING_LOAN",
+      opportunityId: "opportunity-105",
     },
   },
 ];

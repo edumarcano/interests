@@ -4,14 +4,18 @@ import {
   ORDINARY_OBJECTIVE_PLANS,
   type OrdinaryObjectivePlan,
 } from "../../test/ordinaryObjectivePlans";
+import { getCareerOffers } from "../game/career";
 import { createGame } from "../game/createGame";
 import {
   applyPlayerCommand,
   type WirePlayerCommand,
 } from "../game/playerCommand";
+import { projectPlayerGameState } from "../game/playerView";
 import { getActiveSpotlightPlayerId } from "../game/round";
 import { assertGameState } from "../invariants/assertGameState";
 import type { GameState } from "../model/gameState";
+import { evaluateObjective } from "./evaluate";
+import { measurePlayerObjectives } from "./measurements";
 
 const players = ["player-1", "player-2", "player-3", "player-4"].map(
   asPlayerId,
@@ -54,6 +58,7 @@ function replayToFinale(plan: OrdinaryObjectivePlan) {
   send(winner, { type: "SET_FOCUS", focus: plan.initialFocus });
 
   const consumedQuarters: number[] = [];
+  let closestIneligible: { state: GameState; outstanding: number } | undefined;
   while (state.currentQuarter <= plan.winningQuarter) {
     send(asPlayerId("player-1"), { type: "BEGIN_ROUND" });
     while (state.round?.stage === "spotlight") {
@@ -61,7 +66,25 @@ function replayToFinale(plan: OrdinaryObjectivePlan) {
       if (!actor) throw new Error("Missing ordinary spotlight actor");
       if (actor === winner) {
         if (state.currentQuarter === plan.winningQuarter)
-          return { state, accepted, consumedQuarters, winner };
+          return {
+            state,
+            accepted,
+            consumedQuarters,
+            winner,
+            closestIneligible,
+          };
+        const evaluation = evaluateObjective(
+          measurePlayerObjectives(state, winner),
+          plan.objectiveId,
+        );
+        const outstanding = evaluation.checks.filter(
+          (check) => !check.met,
+        ).length;
+        if (
+          outstanding > 0 &&
+          outstanding <= (closestIneligible?.outstanding ?? Infinity)
+        )
+          closestIneligible = { state, outstanding };
         const actions = plan.actions.find(
           (row) => row.quarter === state.currentQuarter,
         );
@@ -92,16 +115,118 @@ function complete(plan: OrdinaryObjectivePlan) {
   expect(before.currentQuarter).toBe(plan.winningQuarter);
   expect(before.lastSettledQuarter).toBe(plan.winningQuarter - 1);
   const unchanged = JSON.stringify(before);
+  const command = { type: "PURSUE_FINALE", action: plan.finalAction } as const;
+  function rejectsUnchanged(
+    state: GameState,
+    actor: PlayerId,
+    attempt: WirePlayerCommand,
+  ) {
+    const outcome = applyPlayerCommand(state, actor, attempt);
+    expect(outcome.ok).toBe(false);
+    expect(outcome.state).toBe(state);
+    expect(outcome.journalEntries).toEqual([]);
+    return outcome;
+  }
+  if (!replay.closestIneligible)
+    throw new Error("Expected a real earlier ineligible position");
+  expect(
+    rejectsUnchanged(replay.closestIneligible.state, winner, command),
+  ).toMatchObject({ code: "FINALE_INELIGIBLE" });
+  rejectsUnchanged(
+    before,
+    players.find((player) => player !== winner)!,
+    command,
+  );
+  const forgedWinner = { ...command, winnerPlayerId: winner };
+  expect(rejectsUnchanged(before, winner, forgedWinner)).toMatchObject({
+    code: "INVALID_ACTION",
+  });
+
+  let failedAction:
+    | typeof command.action
+    | { readonly type: "CONFIRM_INDEPENDENCE" };
+  switch (command.action.type) {
+    case "ACCEPT_CAREER_OFFER": {
+      const ordinaryRole = getCareerOffers(before, winner).find(
+        (offer) => offer.ownershipCostCents === 0 && offer.affordable,
+      );
+      if (!ordinaryRole)
+        throw new Error("Expected a nonownership career alternative");
+      failedAction = { type: "ACCEPT_CAREER_OFFER", offerId: ordinaryRole.id };
+      break;
+    }
+    case "RESIGN_LABOR":
+      failedAction = { type: "CONFIRM_INDEPENDENCE" };
+      break;
+    case "ACQUIRE_RECURRING_OPPORTUNITY":
+    case "SELL_RECURRING_BUSINESS":
+      failedAction = { ...command.action, quoteId: "expired-quote" };
+      break;
+    case "FUND_RECURRING_LOAN":
+      failedAction = { ...command.action, opportunityId: "expired-offer" };
+      break;
+    default:
+      failedAction = {
+        type: "TRADE_PUBLIC_MARKETS",
+        trades: [
+          {
+            instrumentId: "income-defensive-fund",
+            buyCents: 100,
+            sellCents: 0,
+          },
+        ],
+      };
+  }
+  rejectsUnchanged(before, winner, {
+    type: "PURSUE_FINALE",
+    action: failedAction,
+  });
 
   // Branch from the same ordinary position: eligibility is never an implicit win.
   const ordinary = applyPlayerCommand(before, winner, plan.finalAction);
-  expect(ordinary.ok).toBe(true);
-  if (!ordinary.ok) throw new Error(ordinary.code);
-  assertGameState(ordinary.state);
-  expect(ordinary.state.result).toBeNull();
-  expect(ordinary.state.phase).toBe("ready-for-first-round");
+  if (plan.standingFinaleOffer) {
+    const own = projectPlayerGameState(before, winner).self;
+    expect(own.financialDetails.standingFinaleOffer).toMatchObject({
+      kind: "financing",
+      opportunityId: "opportunity-105",
+      quote: { principalCents: 15_000_000, canFund: true },
+    });
+    expect(own.recurringOpportunity?.id).not.toBe("opportunity-105");
+    expect(ordinary).toMatchObject({
+      ok: false,
+      state: before,
+      journalEntries: [],
+    });
+  } else {
+    if (!ordinary.ok) throw new Error(ordinary.code);
+    assertGameState(ordinary.state);
+    expect(ordinary.state.result).toBeNull();
+    expect(ordinary.state.phase).toBe("ready-for-first-round");
+  }
 
-  const command = { type: "PURSUE_FINALE", action: plan.finalAction } as const;
+  if (plan.objectiveId === "property-magnate") {
+    const offer = projectPlayerGameState(before, winner).self.financialDetails
+      .standingFinaleOffer;
+    if (offer?.kind !== "landmark")
+      throw new Error("Expected standing landmark offer");
+    const quote = offer.quotes.find((route) => route.canClose);
+    if (!quote) throw new Error("Expected affordable standing landmark");
+    const closed = applyPlayerCommand(before, winner, {
+      type: "PURSUE_FINALE",
+      action: {
+        type: "ACQUIRE_RECURRING_OPPORTUNITY",
+        opportunityId: offer.opportunityId,
+        quoteId: quote.id,
+      },
+    });
+    if (!closed.ok) throw new Error(closed.code);
+    expect(closed.state.result).toEqual({
+      kind: "objective-victory",
+      winnerPlayerId: winner,
+      completedQuarter: before.currentQuarter,
+    });
+  }
+
   const finale = applyPlayerCommand(before, winner, command);
   expect(finale.ok).toBe(true);
   if (!finale.ok) throw new Error(finale.code);

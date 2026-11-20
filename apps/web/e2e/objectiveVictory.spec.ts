@@ -161,6 +161,9 @@ test("four ordinary browser clients produce one explicit Executive Owner winner 
       );
       await expect(page.getByTestId("pause-banner")).toHaveCount(0);
       await expect(page.getByTestId("pass-spotlight-btn")).toHaveCount(0);
+      await expect(
+        page.getByRole("region", { name: "Your objective progress" }),
+      ).toHaveCount(0);
     }
     const terminal = await Promise.all(pages.map(view));
     for (const match of terminal) {
