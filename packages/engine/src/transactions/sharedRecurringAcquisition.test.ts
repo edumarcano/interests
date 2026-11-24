@@ -90,6 +90,18 @@ it.each(["cash", "bank-fixed", "player-loan"] as const)(
     send(lead, { type: "OPEN_SHARED_RECURRING_ACQUISITION", terms });
     const original = state.activeTransaction;
     expect(original?.kind).toBe("shared-recurring-acquisition");
+    expect(
+      applyPlayerCommand(state, lead, {
+        type: "INVESTIGATE_OPPORTUNITY",
+        opportunityId: card.id,
+      }),
+    ).toMatchObject({
+      ok: false,
+      code: "ACTIVE_TRANSACTION",
+      state,
+      journalEntries: [],
+    });
+
     if (original?.kind !== "shared-recurring-acquisition")
       throw new Error("Missing proposal");
     const firstBinding = {

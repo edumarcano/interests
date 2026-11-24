@@ -514,7 +514,8 @@ export function investigateRecurringOpportunity(
       | "ALREADY_INVESTIGATED"
       | "INVALID_ACTION"
       | "INSUFFICIENT_AVAILABLE_CASH"
-      | "JOURNAL_ID_EXHAUSTED",
+      | "JOURNAL_ID_EXHAUSTED"
+      | "ACTIVE_TRANSACTION",
   ): ActionResult => ({ ok: false, state, code, journalEntries: [] });
   if (state.phase !== "ready-for-first-round") return reject("WRONG_PHASE");
   const card = state.content.cardsByPlayer[player];
@@ -525,6 +526,11 @@ export function investigateRecurringOpportunity(
     card.createdQuarter !== state.currentQuarter
   )
     return reject("OPPORTUNITY_NOT_AVAILABLE");
+  if (
+    state.activeTransaction?.kind === "shared-recurring-acquisition" &&
+    state.activeTransaction.leadPlayerId === player
+  )
+    return reject("ACTIVE_TRANSACTION");
   if (card.investigated) return reject("ALREADY_INVESTIGATED");
   if (!card.facts) return reject("INVALID_ACTION");
   if (getAvailableCashCents(state, player) < card.investigationFeeCents)
