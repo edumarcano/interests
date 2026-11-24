@@ -453,6 +453,45 @@ export interface AcquireRecurringCommand {
   readonly opportunityId: string;
   readonly quoteId: string;
 }
+export interface SharedRecurringAcquisitionTerms {
+  readonly opportunityId: string;
+  readonly route: RecurringAcquisitionRoute;
+  readonly leadCashCents: number;
+  readonly partnerPlayerId: string;
+  readonly partnerOwnershipPpm: number;
+}
+export type SharedRecurringAcquisitionCommand =
+  | {
+      readonly type: "OPEN_SHARED_RECURRING_ACQUISITION";
+      readonly terms: SharedRecurringAcquisitionTerms;
+    }
+  | {
+      readonly type: "REVISE_SHARED_RECURRING_ACQUISITION";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly terms: SharedRecurringAcquisitionTerms;
+    }
+  | {
+      readonly type:
+        | "CONFIRM_SHARED_RECURRING_ACQUISITION"
+        | "WITHDRAW_SHARED_RECURRING_ACQUISITION"
+        | "CLOSE_SHARED_RECURRING_ACQUISITION"
+        | "CANCEL_SHARED_RECURRING_ACQUISITION";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+    };
+export interface SharedRecurringAcquisitionView {
+  readonly id: string;
+  readonly leadPlayerId: PlayerId;
+  readonly name: string;
+  readonly termsRevision: number;
+  readonly terms: SharedRecurringAcquisitionTerms;
+  readonly quote: Omit<
+    RecurringAcquisitionQuote,
+    "id" | "personalReserveCents" | "canClose"
+  >;
+  readonly confirmedPlayerIds: readonly PlayerId[];
+}
 export interface FundRecurringLoanCommand {
   readonly type: "FUND_RECURRING_LOAN";
   readonly opportunityId: string;
@@ -542,6 +581,7 @@ export interface RecurringOpportunityView {
 export type PlayerCommand =
   | SellRecurringBusinessCommand
   | PropertyAcquisitionCommand
+  | SharedRecurringAcquisitionCommand
   | BusinessAuctionCommand
   | JointPropertyCommand
   | BusinessCapitalCommand
@@ -803,6 +843,7 @@ export interface MatchPlayerView {
   readonly hasActiveTransaction?: boolean;
   readonly jointProperty?: JointPropertyView | null;
   readonly propertyAcquisition?: PropertyAcquisitionView | null;
+  readonly sharedRecurringAcquisition?: SharedRecurringAcquisitionView | null;
   readonly economicConditions?: MatchEconomicConditionsView;
   readonly result: MatchResultView | null;
   readonly matchId: MatchId;

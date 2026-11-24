@@ -3,6 +3,7 @@ import {
   COMPLETION_ECONOMY_TARGETS,
   MARKET_BORROWER_TEMPLATES,
   OBJECTIVE_MEASUREMENT_RULES,
+  PROFILES,
   RECURRING_CONTENT_RULES,
   RECURRING_CONTENT_TEMPLATES,
   type RecurringCategory,
@@ -102,6 +103,11 @@ function ownsCategory(
   return false;
 }
 
+// Discovery uses a Standard V1 affordability assumption, independent of peers' private cash.
+const ASSUMED_PARTNER_CASH_CENTS = Math.max(
+  ...Object.values(PROFILES).map((profile) => profile.startingCashCents),
+);
+
 /** Use the authored variation bounds to check cash and bank capacity without rerolls. */
 function canAcquireTemplate(
   state: GameState,
@@ -145,15 +151,23 @@ function canAcquireTemplate(
     .toNumber();
   const cash = getAvailableCashCents(state, player);
   const cashPrice = askingPriceCents + fee;
-  if (cash < cashPrice - maximumPrincipal) return false;
-  if (business && cash >= cashPrice) return true;
   const borrower = bankBorrowerStrength(state, player);
+  const personalReserve = borrower.personalQuarterlyObligationsCents;
+  const cashContribution = cash - (business ? 0 : personalReserve);
   if (
-    !business &&
-    cash - cashPrice >= borrower.personalQuarterlyObligationsCents
+    cashContribution >= cashPrice ||
+    (cashContribution > 0 &&
+      cashPrice - cashContribution <= ASSUMED_PARTNER_CASH_CENTS)
   )
     return true;
-  if (borrower.overdue) return false;
+  const availableForFinancedPurchase = cash - personalReserve;
+  if (
+    borrower.overdue ||
+    availableForFinancedPurchase <= 0 ||
+    cashPrice - maximumPrincipal - availableForFinancedPurchase >
+      ASSUMED_PARTNER_CASH_CENTS
+  )
+    return false;
   const facts =
     template.facts.kind === "business"
       ? {
@@ -193,8 +207,21 @@ function canAcquireTemplate(
       },
     },
   };
-  return getRecurringAcquisitionQuotes(draft, player, id).some(
-    (quote) => quote.canClose,
+  return (
+    getRecurringAcquisitionQuotes(draft, player, id).some(
+      (quote) => quote.canClose,
+    ) ||
+    getRecurringAcquisitionQuotes(
+      draft,
+      player,
+      id,
+      availableForFinancedPurchase,
+    ).some(
+      (quote) =>
+        quote.canClose &&
+        quote.cashRequiredCents - availableForFinancedPurchase <=
+          ASSUMED_PARTNER_CASH_CENTS,
+    )
   );
 }
 

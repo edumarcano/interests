@@ -25,6 +25,7 @@ import type {
   PropertyOfferView,
   RecurringOpportunityView,
   SelfSettlementView,
+  SharedRecurringAcquisitionView,
   TransactionId,
 } from "@interests/shared";
 import { calculatePlayerLoanSchedule } from "../finance/amortization";
@@ -57,6 +58,7 @@ import {
   getAvailableCashCents,
   getReservedCashCents,
 } from "../transactions/reservations.js";
+import { projectSharedRecurringAcquisition } from "../transactions/sharedRecurringAcquisition";
 import { currentAnnualLaborCompensation, getCareerOffers } from "./career";
 import { getActiveSpotlightPlayerId, getSpotlightOrder } from "./round.js";
 
@@ -180,6 +182,7 @@ export interface PurePlayerProjection {
   readonly hasActiveTransaction: boolean;
   readonly jointProperty: JointPropertyView | null;
   readonly propertyAcquisition: PropertyAcquisitionView | null;
+  readonly sharedRecurringAcquisition: SharedRecurringAcquisitionView | null;
   readonly economicConditions: MatchEconomicConditionsView;
   readonly result: MatchResultView | null;
   readonly matchId: MatchId;
@@ -885,6 +888,10 @@ export function projectPlayerGameState(
     hasActiveTransaction: state.activeTransaction !== null,
     jointProperty,
     propertyAcquisition,
+    sharedRecurringAcquisition: projectSharedRecurringAcquisition(
+      state,
+      playerId,
+    ),
     economicConditions: {
       baseRateBps: state.economy.baseRateBps,
       annualInflationBps:
