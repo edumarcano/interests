@@ -30,7 +30,7 @@ export * from "./transactions/cashBusinessPurchase";
 export * from "./transactions/model";
 export * from "./transactions/reservations";
 
-export const ENGINE_VERSION = "0.0.11";
+export const ENGINE_VERSION = "0.0.15";
 
 export const WORKSPACE_COMPATIBILITY = {
   engine: ENGINE_VERSION,
