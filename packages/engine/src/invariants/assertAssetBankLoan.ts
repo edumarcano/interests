@@ -1,5 +1,8 @@
 import { BANK_LENDING_RULES } from "@interests/rules";
-import { calculateAmortizingSchedule } from "../finance/amortization";
+import {
+  calculateAmortizingSchedule,
+  calculateVariableMortgagePayment,
+} from "../finance/amortization";
 import { isNonNegativeCents } from "../finance/money";
 import type { AssetBankLoan, GameState } from "../model/gameState";
 export function assertAssetBankLoan(
@@ -55,12 +58,6 @@ export function assertAssetBankLoan(
     !loan.paymentBasisPrincipalCents ||
     loan.paymentBasisPrincipalCents > loan.originalPrincipalCents ||
     loan.paymentBasisPrincipalCents < loan.outstandingPrincipalCents ||
-    loan.scheduledQuarterlyPaymentCents !==
-      calculateAmortizingSchedule({
-        principalCents: loan.paymentBasisPrincipalCents,
-        annualRateBps: loan.annualRateBps,
-        termQuarters: loan.maturityQuarter - loan.paymentResetQuarter + 1,
-      })[0]?.paymentCents ||
     (asset.kind === "property" &&
       (asset.cashCents === undefined ||
         asset.debtServiceReserveCents === undefined))
@@ -73,4 +70,15 @@ export function assertAssetBankLoan(
       loan.purpose !== "property-mortgage")
   )
     throw new Error("Invalid asset bank pricing");
+  const paymentBasis = {
+    principalCents: loan.paymentBasisPrincipalCents,
+    annualRateBps: loan.annualRateBps,
+    termQuarters: loan.maturityQuarter - loan.paymentResetQuarter + 1,
+  };
+  const expectedPayment =
+    loan.pricing.kind === "variable"
+      ? calculateVariableMortgagePayment(paymentBasis)
+      : calculateAmortizingSchedule(paymentBasis)[0]!.paymentCents;
+  if (loan.scheduledQuarterlyPaymentCents !== expectedPayment)
+    throw new Error("Invalid asset loan payment basis");
 }
