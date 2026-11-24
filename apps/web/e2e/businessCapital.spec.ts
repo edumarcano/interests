@@ -171,6 +171,9 @@ for (const mode of ["cash", "financed", "auction", "equity"] as const) {
             [buyer, "12"],
             [rival, "8"],
           ] as const) {
+            await expect(invitation(investor.page)).toContainText(
+              `Business ${assetId}`,
+            );
             await invitation(investor.page)
               .getByLabel("Investment 1 stake (%)")
               .fill(stake);
@@ -195,6 +198,9 @@ for (const mode of ["cash", "financed", "auction", "equity"] as const) {
             .click();
           await expect(invitation(rival.page)).toContainText(
             "Selected for confirmation.",
+          );
+          await expect(invitation(rival.page)).toContainText(
+            `Business ${assetId}`,
           );
           await invitation(rival.page)
             .getByRole("button", { name: "Confirm selected investment" })
