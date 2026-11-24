@@ -837,19 +837,19 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
   },
   {
     objectiveId: "deal-maker",
-    seed: "deal-maker-production-3",
-    winnerId: "player-3",
-    profileId: "early-stage-entrepreneur",
+    seed: "deal-maker-production-9",
+    winnerId: "player-1",
+    profileId: "self-employed-operator",
     initialFocus: "business",
     winningQuarter: 30,
-    acceptedCommandCount: 153,
+    acceptedCommandCount: 155,
     actions: [
       {
         quarter: 1,
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:1:major:3600000:owner-work",
+            offerId: "career:1:major:8400000:owner-work",
           },
         ],
       },
@@ -858,7 +858,18 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:3:major:4320000:employment",
+            offerId: "career:3:major:10080000:employment",
+          },
+        ],
+      },
+      {
+        quarter: 4,
+        commands: [
+          {
+            type: "BUY_PROPERTY",
+            catalogueId: "residential-duplex",
+            rateKind: "variable",
+            principalCents: 7000000,
           },
         ],
       },
@@ -867,7 +878,22 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:5:major:5184000:employment",
+            offerId: "career:5:major:12096000:employment",
+          },
+        ],
+      },
+      {
+        quarter: 6,
+        commands: [
+          {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 5162563,
+                sellCents: 0,
+              },
+            ],
           },
         ],
       },
@@ -876,7 +902,7 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:7:major:6220800:employment",
+            offerId: "career:7:major:14515200:employment",
           },
         ],
       },
@@ -884,14 +910,10 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         quarter: 8,
         commands: [
           {
-            type: "TRADE_PUBLIC_MARKETS",
-            trades: [
-              {
-                instrumentId: "growth-fund",
-                buyCents: 3535009,
-                sellCents: 0,
-              },
-            ],
+            type: "SELL_RECURRING_BUSINESS",
+            opportunityId: "opportunity-29",
+            quoteId:
+              "opportunity-29:exit:42:asset-1:8669174:1675769:310348:0:0:8403917:loan-2:1598704:31974",
           },
         ],
       },
@@ -900,7 +922,22 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:9:major:7464960:employment",
+            offerId: "career:9:major:17418240:employment",
+          },
+        ],
+      },
+      {
+        quarter: 10,
+        commands: [
+          {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 19180509,
+                sellCents: 0,
+              },
+            ],
           },
         ],
       },
@@ -908,10 +945,14 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         quarter: 11,
         commands: [
           {
-            type: "BUY_PROPERTY",
-            catalogueId: "residential-duplex",
-            rateKind: "variable",
-            principalCents: 7000000,
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 3949591,
+                sellCents: 0,
+              },
+            ],
           },
         ],
       },
@@ -923,7 +964,22 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
             trades: [
               {
                 instrumentId: "growth-fund",
-                buyCents: 3552587,
+                buyCents: 3912757,
+                sellCents: 0,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        quarter: 13,
+        commands: [
+          {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 3912820,
                 sellCents: 0,
               },
             ],
@@ -938,7 +994,22 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
             trades: [
               {
                 instrumentId: "growth-fund",
-                buyCents: 4113115,
+                buyCents: 3914142,
+                sellCents: 0,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        quarter: 15,
+        commands: [
+          {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 3915892,
                 sellCents: 0,
               },
             ],
@@ -953,7 +1024,22 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
             trades: [
               {
                 instrumentId: "growth-fund",
-                buyCents: 4129322,
+                buyCents: 3905455,
+                sellCents: 0,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        quarter: 17,
+        commands: [
+          {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 3919689,
                 sellCents: 0,
               },
             ],
@@ -968,7 +1054,22 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
             trades: [
               {
                 instrumentId: "growth-fund",
-                buyCents: 4203283,
+                buyCents: 3965589,
+                sellCents: 0,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        quarter: 19,
+        commands: [
+          {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 3951606,
                 sellCents: 0,
               },
             ],
@@ -983,8 +1084,23 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
             trades: [
               {
                 instrumentId: "growth-fund",
-                buyCents: 4238633,
+                buyCents: 3953029,
                 sellCents: 0,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        quarter: 21,
+        commands: [
+          {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 0,
+                sellCents: 10000000,
               },
             ],
           },
@@ -998,8 +1114,23 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
             trades: [
               {
                 instrumentId: "growth-fund",
-                buyCents: 4009428,
-                sellCents: 0,
+                buyCents: 0,
+                sellCents: 10000000,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        quarter: 23,
+        commands: [
+          {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 0,
+                sellCents: 10000000,
               },
             ],
           },
@@ -1013,7 +1144,7 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
             trades: [
               {
                 instrumentId: "growth-fund",
-                buyCents: 3922771,
+                buyCents: 46032260,
                 sellCents: 0,
               },
             ],
@@ -1059,7 +1190,22 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
               {
                 instrumentId: "growth-fund",
                 buyCents: 0,
-                sellCents: 20898021,
+                sellCents: 25000000,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        quarter: 28,
+        commands: [
+          {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 0,
+                sellCents: 25000000,
               },
             ],
           },
@@ -1069,10 +1215,14 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         quarter: 29,
         commands: [
           {
-            type: "SELL_RECURRING_BUSINESS",
-            opportunityId: "opportunity-115",
-            quoteId:
-              "opportunity-115:exit:148:asset-3:26400313:6580586:989427:0:0:31991472",
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 0,
+                sellCents: 25000000,
+              },
+            ],
           },
         ],
       },
@@ -1094,8 +1244,8 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
     winnerId: "player-4",
     profileId: "small-business-owner",
     initialFocus: "business",
-    winningQuarter: 31,
-    acceptedCommandCount: 158,
+    winningQuarter: 30,
+    acceptedCommandCount: 154,
     actions: [
       {
         quarter: 1,
@@ -1414,23 +1564,12 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
           },
         ],
       },
-      {
-        quarter: 30,
-        commands: [
-          {
-            type: "EXPAND_BUSINESS",
-            assetId: "asset-3",
-            investmentCents: 7194580,
-            ownerContributionCents: 5604483,
-          },
-        ],
-      },
     ],
     finalAction: {
       type: "SELL_RECURRING_BUSINESS",
-      opportunityId: "opportunity-124",
+      opportunityId: "opportunity-120",
       quoteId:
-        "opportunity-124:exit:157:asset-3:121861538:1646842:3705251:0:0:119803129",
+        "opportunity-120:exit:153:asset-3:114877628:1590097:3494032:0:0:112973693",
     },
   },
   {
@@ -1439,8 +1578,8 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
     winnerId: "player-2",
     profileId: "high-income-professional",
     initialFocus: "financing",
-    winningQuarter: 26,
-    acceptedCommandCount: 132,
+    winningQuarter: 29,
+    acceptedCommandCount: 148,
     actions: [
       {
         quarter: 1,
@@ -1461,20 +1600,20 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         ],
       },
       {
+        quarter: 4,
+        commands: [
+          {
+            type: "FUND_RECURRING_LOAN",
+            opportunityId: "opportunity-14",
+          },
+        ],
+      },
+      {
         quarter: 5,
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
             offerId: "career:5:major:21600000:employment",
-          },
-        ],
-      },
-      {
-        quarter: 6,
-        commands: [
-          {
-            type: "FUND_RECURRING_LOAN",
-            opportunityId: "opportunity-22",
           },
         ],
       },
@@ -1488,15 +1627,6 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         ],
       },
       {
-        quarter: 8,
-        commands: [
-          {
-            type: "FUND_RECURRING_LOAN",
-            opportunityId: "opportunity-30",
-          },
-        ],
-      },
-      {
         quarter: 9,
         commands: [
           {
@@ -1506,11 +1636,11 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         ],
       },
       {
-        quarter: 13,
+        quarter: 10,
         commands: [
           {
             type: "FUND_RECURRING_LOAN",
-            opportunityId: "opportunity-50",
+            opportunityId: "opportunity-38",
           },
         ],
       },
@@ -1524,29 +1654,38 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         ],
       },
       {
-        quarter: 20,
+        quarter: 19,
         commands: [
           {
             type: "FUND_RECURRING_LOAN",
-            opportunityId: "opportunity-78",
+            opportunityId: "opportunity-74",
           },
         ],
       },
       {
-        quarter: 21,
+        quarter: 24,
         commands: [
           {
             type: "FUND_RECURRING_LOAN",
-            opportunityId: "opportunity-82",
+            opportunityId: "opportunity-94",
           },
         ],
       },
       {
-        quarter: 25,
+        quarter: 27,
         commands: [
           {
             type: "FUND_RECURRING_LOAN",
-            opportunityId: "opportunity-98",
+            opportunityId: "opportunity-106",
+          },
+        ],
+      },
+      {
+        quarter: 28,
+        commands: [
+          {
+            type: "FUND_RECURRING_LOAN",
+            opportunityId: "opportunity-110",
           },
         ],
       },
@@ -1554,7 +1693,7 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
     standingFinaleOffer: true,
     finalAction: {
       type: "FUND_RECURRING_LOAN",
-      opportunityId: "opportunity-105",
+      opportunityId: "opportunity-117",
     },
   },
 ];
