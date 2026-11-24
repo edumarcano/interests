@@ -852,6 +852,7 @@ export function projectPlayerGameState(
       if (slots.length) {
         businessEquityInvitation = {
           transactionId: capital.id,
+          assetId: capital.assetId,
           issuerPlayerId: capital.initiatorPlayerId,
           termsRevision: capital.termsRevision,
           slots,

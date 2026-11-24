@@ -863,6 +863,7 @@ export interface MatchPlayerView {
 
 export interface BusinessEquityInvitationView {
   readonly transactionId: string;
+  readonly assetId: string;
   readonly issuerPlayerId: string;
   readonly termsRevision: number;
   readonly slots: readonly {

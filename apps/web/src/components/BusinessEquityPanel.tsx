@@ -53,9 +53,10 @@ export function BusinessEquityPanel({
     >
       <h3>Company investment invitations</h3>
       <p>
-        {issuer ?? "A player"} is raising company cash. Offer the percentage you
-        want after issuance. Cash is held while your offer stands. This buys
-        ownership; it is not a loan.
+        {issuer ?? "A player"} is raising cash for{" "}
+        <strong>Business {invitation.assetId}</strong>. Offer the ownership
+        percentage you want after issuance. Cash is held while your offer
+        stands.
       </p>
       {invitation.slots.map(({ slot, amountCents }) => {
         const offer = invitation.ownOffers.find((row) => row.slot === slot);
