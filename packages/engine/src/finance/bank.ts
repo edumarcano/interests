@@ -16,7 +16,7 @@ import type {
 import { getAvailableCashCents } from "../transactions/reservations";
 import {
   calculateAmortizingPayment,
-  calculateAmortizingSchedule,
+  calculateVariableMortgagePayment,
 } from "./amortization";
 import { planBusinessSettlement } from "./businessSettlement";
 import { FinanceDecimal } from "./decimal";
@@ -56,13 +56,15 @@ export function bankBorrowerStrength(state: GameState, playerId: PlayerId) {
     (loan) => !isAssetBorrower(loan) && loan.borrowerPlayerId === playerId,
   );
   const debt = cents(
-    personal.reduce(
-      (sum, loan) =>
-        sum +
-        (calculateLoanObligation(loan, state.currentQuarter)?.amountDueCents ??
-          0),
-      0,
-    ),
+    personal.reduce((sum, loan) => {
+      const dueQuarter =
+        loan.kind === "player-loan"
+          ? Math.max(state.currentQuarter, loan.originatedQuarter + 1)
+          : state.currentQuarter;
+      return (
+        sum + (calculateLoanObligation(loan, dueQuarter)?.amountDueCents ?? 0)
+      );
+    }, 0),
   );
   const obligations = cents(
     state.finance.recurringByPlayer[playerId]!.quarterlyLivingExpenseCents +
@@ -275,11 +277,11 @@ export function resetVariableAssetLoan(
     annualRateBps,
     paymentResetQuarter: Math.min(nextQuarter, loan.maturityQuarter),
     paymentBasisPrincipalCents: loan.outstandingPrincipalCents,
-    scheduledQuarterlyPaymentCents: calculateAmortizingSchedule({
+    scheduledQuarterlyPaymentCents: calculateVariableMortgagePayment({
       principalCents: loan.outstandingPrincipalCents,
       annualRateBps,
       termQuarters: remaining,
-    })[0]!.paymentCents,
+    }),
   };
 }
 export function bankPayoff(state: GameState, loan: Loan) {
