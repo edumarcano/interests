@@ -453,13 +453,28 @@ export interface AcquireRecurringCommand {
   readonly opportunityId: string;
   readonly quoteId: string;
 }
-export interface SharedRecurringAcquisitionTerms {
+interface SharedRecurringAcquisitionCommon {
   readonly opportunityId: string;
-  readonly route: RecurringAcquisitionRoute;
   readonly leadCashCents: number;
   readonly partnerPlayerId: string;
-  readonly partnerOwnershipPpm: number;
 }
+export interface RecurringPlayerLoanTerms {
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
+}
+export type SharedRecurringAcquisitionTerms = SharedRecurringAcquisitionCommon &
+  (
+    | {
+        readonly route: RecurringAcquisitionRoute;
+        readonly partnerOwnershipPpm: number;
+        readonly playerLoan?: never;
+      }
+    | {
+        readonly route: "cash";
+        readonly playerLoan: RecurringPlayerLoanTerms;
+        readonly partnerOwnershipPpm?: never;
+      }
+  );
 export type SharedRecurringAcquisitionCommand =
   | {
       readonly type: "OPEN_SHARED_RECURRING_ACQUISITION";
@@ -491,6 +506,7 @@ export interface SharedRecurringAcquisitionView {
     "id" | "personalReserveCents" | "canClose"
   >;
   readonly confirmedPlayerIds: readonly PlayerId[];
+  readonly playerLoanPayments?: readonly number[];
 }
 export interface FundRecurringLoanCommand {
   readonly type: "FUND_RECURRING_LOAN";

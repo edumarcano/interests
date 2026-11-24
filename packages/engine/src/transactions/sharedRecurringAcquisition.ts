@@ -6,6 +6,7 @@ import {
   type SharedRecurringAcquisitionTerms,
   type SharedRecurringAcquisitionView,
 } from "@interests/shared";
+import { calculatePlayerLoanSchedule } from "../finance/amortization";
 import type { ActionErrorCode, ActionResult } from "../game/actions";
 import { nextDeterministicId } from "../game/deterministicIds";
 import {
@@ -18,6 +19,7 @@ import {
   acquireRecurringOpportunity,
   getRecurringAcquisitionQuotes,
 } from "../opportunities/recurringPurchase";
+import { borrowerHasArrears } from "./businessLoanOffers";
 import type { SharedRecurringAcquisitionTransaction } from "./model";
 
 function quoteSharedAcquisition(
@@ -31,36 +33,74 @@ function quoteSharedAcquisition(
     !state.playerOrder.includes(asPlayerId(terms.partnerPlayerId)) ||
     terms.partnerPlayerId === lead ||
     !Number.isSafeInteger(terms.leadCashCents) ||
-    terms.leadCashCents <= 0 ||
+    terms.leadCashCents <= 0
+  )
+    return undefined;
+  if (terms.playerLoan) {
+    if (
+      terms.route !== "cash" ||
+      terms.partnerOwnershipPpm !== undefined ||
+      borrowerHasArrears(state, lead) ||
+      state.counters.loan >= Number.MAX_SAFE_INTEGER
+    )
+      return undefined;
+  } else if (
     !Number.isSafeInteger(terms.partnerOwnershipPpm) ||
     terms.partnerOwnershipPpm <= 0 ||
     terms.partnerOwnershipPpm >= 1_000_000
-  )
+  ) {
     return undefined;
+  }
   // Repricing considers the lead's proposed contribution exactly once.
-  return getRecurringAcquisitionQuotes(
+  const quote = getRecurringAcquisitionQuotes(
     { ...state, activeTransaction: null },
     lead,
     terms.opportunityId,
     terms.leadCashCents,
     transactionId,
-    {
-      playerId: asPlayerId(terms.partnerPlayerId),
-      ownershipPpm: terms.partnerOwnershipPpm,
-    },
-  ).find((quote) => quote.route === terms.route && quote.canClose);
+    terms.playerLoan
+      ? undefined
+      : {
+          playerId: asPlayerId(terms.partnerPlayerId),
+          ownershipPpm: terms.partnerOwnershipPpm,
+        },
+  ).find((item) => item.route === terms.route && item.canClose);
+  if (quote && terms.playerLoan) {
+    try {
+      calculatePlayerLoanSchedule({
+        ...terms.playerLoan,
+        principalCents: quote.cashRequiredCents - terms.leadCashCents,
+      });
+    } catch (error) {
+      if (error instanceof RangeError) return undefined;
+      throw error;
+    }
+  }
+  return quote;
 }
 
 function normalizeTerms(
   terms: SharedRecurringAcquisitionTerms,
 ): SharedRecurringAcquisitionTerms {
-  return {
+  const common = {
     opportunityId: terms.opportunityId,
-    route: terms.route,
     leadCashCents: terms.leadCashCents,
     partnerPlayerId: terms.partnerPlayerId,
-    partnerOwnershipPpm: terms.partnerOwnershipPpm,
   };
+  return terms.playerLoan
+    ? {
+        ...common,
+        route: "cash",
+        playerLoan: {
+          annualRateBps: terms.playerLoan.annualRateBps,
+          termQuarters: terms.playerLoan.termQuarters,
+        },
+      }
+    : {
+        ...common,
+        route: terms.route,
+        partnerOwnershipPpm: terms.partnerOwnershipPpm,
+      };
 }
 
 function contribution(
@@ -133,6 +173,17 @@ export function projectSharedRecurringAcquisition(
       cashRequiredCents: tx.quote.cashRequiredCents,
     },
     confirmedPlayerIds: tx.confirmedPlayerIds,
+    ...(tx.terms.playerLoan
+      ? {
+          playerLoanPayments: calculatePlayerLoanSchedule({
+            ...tx.terms.playerLoan,
+            principalCents: contribution(
+              tx,
+              asPlayerId(tx.terms.partnerPlayerId),
+            ),
+          }).map((row) => row.paymentCents),
+        }
+      : {}),
   };
 }
 
@@ -254,7 +305,9 @@ export function applySharedRecurringAcquisitionCommand(
           transactionId: tx.id,
           leadCashCents: tx.terms.leadCashCents,
           partnerPlayerId: asPlayerId(tx.terms.partnerPlayerId),
-          partnerOwnershipPpm: tx.terms.partnerOwnershipPpm,
+          ...(tx.terms.playerLoan
+            ? { playerLoan: tx.terms.playerLoan }
+            : { partnerOwnershipPpm: tx.terms.partnerOwnershipPpm }),
         },
       );
       return result.ok ? result : reject(result.code);

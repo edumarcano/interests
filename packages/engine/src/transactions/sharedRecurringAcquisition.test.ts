@@ -1,4 +1,7 @@
-import { asPlayerId } from "@interests/shared";
+import {
+  asPlayerId,
+  type SharedRecurringAcquisitionTerms,
+} from "@interests/shared";
 import { expect, it } from "vitest";
 import { cents } from "../finance/money";
 import { createGame } from "../game/createGame";
@@ -40,7 +43,7 @@ it("discovers realistic partnership purchases independently of private rival fin
   expect(recurringCandidateWeights(privateChange, partner)).toEqual(templates);
 });
 
-it.each(["cash", "bank-fixed"] as const)(
+it.each(["cash", "bank-fixed", "player-loan"] as const)(
   "closes a genuine ordinary card with named partners using %s only after both confirm the same terms",
   (route) => {
     let state = createGame({
@@ -66,17 +69,24 @@ it.each(["cash", "bank-fixed"] as const)(
     send(lead, { type: "BEGIN_ROUND" });
     const card = state.content.cardsByPlayer[lead]!;
     expect(card.templateId).toBe("local-service-company");
+    const venue = route === "player-loan" ? "cash" : route;
     const solo = getRecurringAcquisitionQuotes(state, lead, card.id).find(
-      (quote) => quote.route === route,
+      (quote) => quote.route === venue,
     )!;
     expect(solo.canClose).toBe(false);
-    const terms = {
+    const common = {
       opportunityId: card.id,
-      route,
       leadCashCents: 100_000,
       partnerPlayerId: partner,
-      partnerOwnershipPpm: 600_000,
     };
+    const terms: SharedRecurringAcquisitionTerms =
+      route === "player-loan"
+        ? {
+            ...common,
+            route: "cash" as const,
+            playerLoan: { annualRateBps: 611, termQuarters: 5 },
+          }
+        : { ...common, route, partnerOwnershipPpm: 600_000 };
     send(lead, { type: "OPEN_SHARED_RECURRING_ACQUISITION", terms });
     const original = state.activeTransaction;
     expect(original?.kind).toBe("shared-recurring-acquisition");
@@ -116,7 +126,9 @@ it.each(["cash", "bank-fixed"] as const)(
     send(lead, {
       type: "REVISE_SHARED_RECURRING_ACQUISITION",
       ...firstBinding,
-      terms: { ...terms, partnerOwnershipPpm: 700_000 },
+      terms: terms.playerLoan
+        ? { ...terms, playerLoan: { annualRateBps: 612, termQuarters: 5 } }
+        : { ...terms, partnerOwnershipPpm: 700_000 },
     });
     expect(getReservedCashCents(state, lead)).toBe(0);
     expect(getReservedCashCents(state, partner)).toBe(0);
@@ -150,10 +162,11 @@ it.each(["cash", "bank-fixed"] as const)(
     const assetId = state.content.cardsByPlayer[lead]!.acquiredAssetId!;
     const acquired = state.finance.assetsById[assetId]!;
     const partnerCash = original.quote.cashRequiredCents - terms.leadCashCents;
-    expect(acquired.ownershipByPlayerPpm).toEqual({
-      [lead]: 300_000,
-      [partner]: 700_000,
-    });
+    expect(acquired.ownershipByPlayerPpm).toEqual(
+      route === "player-loan"
+        ? { [lead]: 1_000_000 }
+        : { [lead]: 300_000, [partner]: 700_000 },
+    );
     expect(acquired.cashCents).toBe(original.quote.assetReserveCents);
     expect(state.finance.cashByPlayer[lead]).toBe(
       before.finance.cashByPlayer[lead]! - terms.leadCashCents,
@@ -161,24 +174,54 @@ it.each(["cash", "bank-fixed"] as const)(
     expect(state.finance.cashByPlayer[partner]).toBe(
       before.finance.cashByPlayer[partner]! - partnerCash,
     );
-    expect(state.progress.byPlayer[lead]!.assetsById[assetId]).toMatchObject({
-      costCents: terms.leadCashCents,
-      acquisition: {
-        transactionId: original.id,
-        buyerCashByPlayer: {
-          [lead]: terms.leadCashCents,
-          [partner]: partnerCash,
+    if (route === "player-loan") {
+      expect(state.progress.byPlayer[lead]!.assetsById[assetId]).toMatchObject({
+        costCents: original.quote.cashRequiredCents,
+        acquisition: { transactionId: original.id },
+      });
+      expect(
+        state.progress.byPlayer[partner]!.assetsById[assetId],
+      ).toBeUndefined();
+      expect(Object.values(state.finance.loansById)).toContainEqual(
+        expect.objectContaining({
+          kind: "player-loan",
+          lenderPlayerId: partner,
+          borrowerPlayerId: lead,
+          originalPrincipalCents: partnerCash,
+          annualRateBps: 612,
+          termQuarters: 5,
+          fundedTransactionId: original.id,
+        }),
+      );
+      expect(
+        receipt.journalEntries.filter(
+          (entry) => entry.reason === "loan-origination",
+        ),
+      ).toHaveLength(1);
+    } else {
+      expect(state.progress.byPlayer[lead]!.assetsById[assetId]).toMatchObject({
+        costCents: terms.leadCashCents,
+        acquisition: {
+          transactionId: original.id,
+          buyerCashByPlayer: {
+            [lead]: terms.leadCashCents,
+            [partner]: partnerCash,
+          },
         },
-      },
-    });
-    expect(
-      state.progress.byPlayer[partner]!.assetsById[assetId]?.costCents,
-    ).toBe(partnerCash);
+      });
+      expect(
+        state.progress.byPlayer[partner]!.assetsById[assetId]?.costCents,
+      ).toBe(partnerCash);
+    }
     expect(
       receipt.journalEntries
         .filter((entry) => entry.reason === "recurring-acquisition-equity")
         .map((entry) => entry.amountCents),
-    ).toEqual([terms.leadCashCents, partnerCash]);
+    ).toEqual(
+      route === "player-loan"
+        ? [original.quote.cashRequiredCents]
+        : [terms.leadCashCents, partnerCash],
+    );
     expect(
       receipt.journalEntries.filter(
         (entry) => entry.reason === "asset-bank-loan-origination",

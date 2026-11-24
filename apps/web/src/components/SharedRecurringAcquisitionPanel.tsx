@@ -4,6 +4,7 @@ import type {
   PlayerCommand,
   RecurringAcquisitionRoute,
   SharedRecurringAcquisitionCommand,
+  SharedRecurringAcquisitionTerms,
 } from "@interests/shared";
 import { useState } from "react";
 import { money } from "./CareerPanel";
@@ -37,22 +38,44 @@ export function SharedRecurringAcquisitionDraft({
     tx ? String(tx.terms.leadCashCents / 100) : "",
   );
   const [ownership, setOwnership] = useState(
-    tx ? String(tx.terms.partnerOwnershipPpm / 10_000) : "",
+    tx?.terms.partnerOwnershipPpm
+      ? String(tx.terms.partnerOwnershipPpm / 10_000)
+      : "",
   );
+  const [funding, setFunding] = useState<"equity" | "player-loan">(
+    tx?.terms.playerLoan ? "player-loan" : "equity",
+  );
+  const [rate, setRate] = useState(
+    tx?.terms.playerLoan ? String(tx.terms.playerLoan.annualRateBps / 100) : "",
+  );
+  const [term, setTerm] = useState(tx?.terms.playerLoan?.termQuarters ?? 4);
   const [route, setRoute] = useState(tx?.terms.route ?? routes[0] ?? "cash");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const leadCash = scaledInput(cash, 100, 2);
   const partnerOwnership = scaledInput(ownership, 10_000, 4);
+  const annualRateBps = /^0+(?:\.0{1,2})?$/.test(rate.trim())
+    ? 0
+    : scaledInput(rate, 100, 2);
+  const hasValidTerms =
+    funding === "equity"
+      ? Boolean(partnerOwnership && partnerOwnership < 1_000_000)
+      : annualRateBps !== null;
   async function propose() {
-    if (!leadCash || !partnerOwnership) return;
-    const terms = {
+    if (!leadCash || !hasValidTerms) return;
+    const common = {
       opportunityId,
-      route,
       leadCashCents: leadCash,
       partnerPlayerId: partner,
-      partnerOwnershipPpm: partnerOwnership,
     };
+    const terms: SharedRecurringAcquisitionTerms =
+      funding === "player-loan"
+        ? {
+            ...common,
+            route: "cash",
+            playerLoan: { annualRateBps: annualRateBps!, termQuarters: term },
+          }
+        : { ...common, route, partnerOwnershipPpm: partnerOwnership! };
     setPending(true);
     setError("");
     try {
@@ -97,20 +120,36 @@ export function SharedRecurringAcquisitionDraft({
           </select>
         </label>
         <label>
-          Funding
+          Partner funding
           <select
-            value={route}
+            value={funding}
             onChange={(event) =>
-              setRoute(event.target.value as RecurringAcquisitionRoute)
+              setFunding(
+                event.target.value === "player-loan" ? "player-loan" : "equity",
+              )
             }
           >
-            {routes.map((item) => (
-              <option key={item} value={item}>
-                {routeNames[item]}
-              </option>
-            ))}
+            <option value="equity">Shared ownership</option>
+            <option value="player-loan">Fixed player loan</option>
           </select>
         </label>
+        {funding === "equity" && (
+          <label>
+            Purchase funding
+            <select
+              value={route}
+              onChange={(event) =>
+                setRoute(event.target.value as RecurringAcquisitionRoute)
+              }
+            >
+              {routes.map((item) => (
+                <option key={item} value={item}>
+                  {routeNames[item]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Your cash contribution ($)
           <input
@@ -119,27 +158,48 @@ export function SharedRecurringAcquisitionDraft({
             onChange={(event) => setCash(event.target.value)}
           />
         </label>
-        <label>
-          Partner ownership (%)
-          <input
-            value={ownership}
-            inputMode="decimal"
-            onChange={(event) => setOwnership(event.target.value)}
-          />
-        </label>
+        {funding === "equity" ? (
+          <label>
+            Partner ownership (%)
+            <input
+              value={ownership}
+              inputMode="decimal"
+              onChange={(event) => setOwnership(event.target.value)}
+            />
+          </label>
+        ) : (
+          <>
+            <label>
+              Fixed APR (%)
+              <input
+                value={rate}
+                inputMode="decimal"
+                onChange={(event) => setRate(event.target.value)}
+              />
+            </label>
+            <label>
+              Repayment term (quarters)
+              <select
+                value={term}
+                onChange={(event) => setTerm(Number(event.target.value))}
+              >
+                {[2, 3, 4, 5, 6, 7, 8].map((quarters) => (
+                  <option key={quarters}>{quarters}</option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
         <p>
-          The partner contributes the rest of the cash required. Both players
-          review the exact amounts before confirming.
+          {funding === "player-loan"
+            ? "The lender supplies the remaining purchase cash. You retain ownership and owe the fixed installments."
+            : "The partner contributes the rest of the cash required in exchange for ownership."}
+          {" Both players review the exact amounts before confirming."}
         </p>
         <button
           type="button"
           className="btn-secondary"
-          disabled={
-            !partner ||
-            !leadCash ||
-            !partnerOwnership ||
-            partnerOwnership >= 1_000_000
-          }
+          disabled={!partner || !leadCash || !hasValidTerms}
           onClick={propose}
         >
           {tx ? "Send revised terms" : "Invite partner"}
@@ -156,7 +216,8 @@ export function SharedRecurringAcquisitionPanel(props: Props) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   if (!tx) return null;
-  const { partnerPlayerId, partnerOwnershipPpm, leadCashCents } = tx.terms;
+  const { partnerPlayerId, partnerOwnershipPpm, leadCashCents, playerLoan } =
+    tx.terms;
   const partnerCash = tx.quote.cashRequiredCents - leadCashCents;
   const isLead = tx.leadPlayerId === match.self.playerId;
   const isConfirmed = tx.confirmedPlayerIds.includes(match.self.playerId);
@@ -202,14 +263,31 @@ export function SharedRecurringAcquisitionPanel(props: Props) {
         Price {money(tx.quote.askingPriceCents)} · Fee{" "}
         {money(tx.quote.purchaseFeeCents)}
       </p>
-      <p>
-        {lead?.nickname} contributes {money(leadCashCents)} for{" "}
-        {(100 - partnerOwnershipPpm / 10_000).toFixed(4)}% ownership.
-      </p>
-      <p>
-        {partner?.nickname} contributes {money(partnerCash)} for{" "}
-        {(partnerOwnershipPpm / 10_000).toFixed(4)}% ownership.
-      </p>
+      {playerLoan ? (
+        <>
+          <p>
+            {lead?.nickname} contributes {money(leadCashCents)} and retains all
+            ownership.
+          </p>
+          <p>
+            {partner?.nickname} lends {money(partnerCash)} at{" "}
+            {(playerLoan.annualRateBps / 100).toFixed(2)}% fixed APR. Repayment
+            starts next quarter.
+          </p>
+          <p>Installments {tx.playerLoanPayments?.map(money).join(", ")}.</p>
+        </>
+      ) : (
+        <>
+          <p>
+            {lead?.nickname} contributes {money(leadCashCents)} for{" "}
+            {(100 - partnerOwnershipPpm / 10_000).toFixed(4)}% ownership.
+          </p>
+          <p>
+            {partner?.nickname} contributes {money(partnerCash)} for{" "}
+            {(partnerOwnershipPpm / 10_000).toFixed(4)}% ownership.
+          </p>
+        </>
+      )}
       {tx.quote.principalCents > 0 && (
         <p>
           {routeNames[tx.quote.route]} funds {money(tx.quote.principalCents)} at{" "}
@@ -219,7 +297,7 @@ export function SharedRecurringAcquisitionPanel(props: Props) {
           {money(tx.quote.assetReserveCents)}.
         </p>
       )}
-      <p>{tx.confirmedPlayerIds.length} of 2 buyers confirmed.</p>
+      <p>{tx.confirmedPlayerIds.length} of 2 participants confirmed.</p>
       {!isConfirmed && match.self.availableCashCents < ownContribution && (
         <p>You need {money(ownContribution)} in unreserved cash to confirm.</p>
       )}

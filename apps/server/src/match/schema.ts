@@ -239,15 +239,36 @@ const JointPropertyBoundFields = {
     .positive()
     .max(Number.MAX_SAFE_INTEGER),
 };
-const SharedRecurringAcquisitionTermsSchema = z
-  .object({
-    opportunityId: z.string().min(1).max(128),
-    route: z.enum(["cash", "bank-fixed", "bank-variable"]),
-    leadCashCents: positiveCents,
-    partnerPlayerId: transactionKey,
-    partnerOwnershipPpm: z.number().int().min(1).max(999_999),
-  })
-  .strict();
+const SharedRecurringAcquisitionCommon = {
+  opportunityId: z.string().min(1).max(128),
+  leadCashCents: positiveCents,
+  partnerPlayerId: transactionKey,
+};
+const SharedRecurringAcquisitionTermsSchema = z.union([
+  z
+    .object({
+      ...SharedRecurringAcquisitionCommon,
+      route: z.enum(["cash", "bank-fixed", "bank-variable"]),
+      partnerOwnershipPpm: z.number().int().min(1).max(999_999),
+    })
+    .strict(),
+  z
+    .object({
+      ...SharedRecurringAcquisitionCommon,
+      route: z.literal("cash"),
+      playerLoan: z
+        .object({
+          annualRateBps: z
+            .number()
+            .int()
+            .nonnegative()
+            .max(Number.MAX_SAFE_INTEGER),
+          termQuarters: z.number().int().min(2).max(8),
+        })
+        .strict(),
+    })
+    .strict(),
+]);
 
 const PropertyAcquisitionTermsSchema = z
   .object({

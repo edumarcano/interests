@@ -4,6 +4,7 @@ import type {
   PlayerId,
   RecurringAcquisitionQuote,
   RecurringAcquisitionRoute,
+  RecurringPlayerLoanTerms,
   TransactionId,
 } from "@interests/shared";
 import {
@@ -19,6 +20,7 @@ import {
   quoteBusinessAcquisitionBankLoan,
 } from "../finance/businessBankOrigination";
 import type { JournalEntry } from "../finance/journal";
+import { originateConfirmedPlayerLoan } from "../finance/loans";
 import { basisPoints, cents } from "../finance/money";
 import {
   allocateProportionalCents,
@@ -289,8 +291,13 @@ export function acquireRecurringOpportunity(
     readonly transactionId: TransactionId;
     readonly leadCashCents: number;
     readonly partnerPlayerId: PlayerId;
-    readonly partnerOwnershipPpm: number;
-  },
+  } & (
+    | { readonly partnerOwnershipPpm: number; readonly playerLoan?: never }
+    | {
+        readonly playerLoan: RecurringPlayerLoanTerms;
+        readonly partnerOwnershipPpm?: never;
+      }
+  ),
 ): ActionResult {
   const reject = (code: ActionErrorCode): ActionResult => ({
     ok: false,
@@ -315,7 +322,7 @@ export function acquireRecurringOpportunity(
     command.opportunityId,
     shared?.leadCashCents,
     shared?.transactionId,
-    shared
+    shared?.partnerOwnershipPpm
       ? {
           playerId: shared.partnerPlayerId,
           ownershipPpm: shared.partnerOwnershipPpm,
@@ -330,19 +337,21 @@ export function acquireRecurringOpportunity(
     const closeId = shared
       ? { id: shared.transactionId, counters: next.counters }
       : nextDeterministicId("transaction", next.counters);
-    const ownership: Readonly<Record<PlayerId, OwnershipPpm>> = shared
-      ? {
-          [player]: ownershipPpm(1_000_000 - shared.partnerOwnershipPpm),
-          [shared.partnerPlayerId]: ownershipPpm(shared.partnerOwnershipPpm),
-        }
-      : { [player]: ownershipPpm(1_000_000) };
-    const contributions: Readonly<Record<PlayerId, number>> = shared
-      ? {
-          [player]: shared.leadCashCents,
-          [shared.partnerPlayerId]:
-            quote.cashRequiredCents - shared.leadCashCents,
-        }
-      : { [player]: quote.cashRequiredCents };
+    const ownership: Readonly<Record<PlayerId, OwnershipPpm>> =
+      shared?.partnerOwnershipPpm
+        ? {
+            [player]: ownershipPpm(1_000_000 - shared.partnerOwnershipPpm),
+            [shared.partnerPlayerId]: ownershipPpm(shared.partnerOwnershipPpm),
+          }
+        : { [player]: ownershipPpm(1_000_000) };
+    const contributions: Readonly<Record<PlayerId, number>> =
+      shared?.partnerOwnershipPpm
+        ? {
+            [player]: shared.leadCashCents,
+            [shared.partnerPlayerId]:
+              quote.cashRequiredCents - shared.leadCashCents,
+          }
+        : { [player]: quote.cashRequiredCents };
     const initialAsset = {
       ...acquisitionAsset(terms, next.id),
       ownershipByPlayerPpm: ownership,
@@ -363,6 +372,28 @@ export function acquireRecurringOpportunity(
       },
     };
     const journals: JournalEntry[] = [];
+    if (shared?.playerLoan) {
+      const loan = originateConfirmedPlayerLoan(draft.finance, draft.counters, {
+        ...shared.playerLoan,
+        principalCents: quote.cashRequiredCents - shared.leadCashCents,
+        lenderPlayerId: shared.partnerPlayerId,
+        borrowerPlayerId: player,
+        quarter: state.currentQuarter,
+        relatedTransactionId: closeId.id,
+      });
+      if (!loan.ok)
+        return reject(
+          loan.code === "LOAN_ID_EXHAUSTED"
+            ? "COUNTER_EXHAUSTED"
+            : "INSUFFICIENT_FUNDS",
+        );
+      draft = { ...draft, finance: loan.finance, counters: loan.counters };
+      journals.push({
+        ...loan.entry,
+        relatedOpportunityId: terms.opportunityId,
+        relatedAssetId: asset.id,
+      });
+    }
     const post = (input: Omit<CashPostingRequest, "quarter">) => {
       if (!input.amountCents) return;
       const result = postCash(draft.finance, draft.counters, {
@@ -521,7 +552,9 @@ export function acquireRecurringOpportunity(
               bankPrincipalCents: quote.principalCents,
               reserveCents: quote.assetReserveCents,
               buyerCashCents: quote.cashRequiredCents,
-              ...(shared ? { buyerCashByPlayer: contributions } : {}),
+              ...(shared?.partnerOwnershipPpm
+                ? { buyerCashByPlayer: contributions }
+                : {}),
             },
           },
         },
