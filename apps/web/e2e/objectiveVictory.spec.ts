@@ -159,6 +159,9 @@ test("four ordinary browser clients produce one explicit Executive Owner winner 
       await expect(page.getByTestId("final-result-description")).toHaveText(
         "Morgan won in Quarter 16.",
       );
+      await expect(page.getByTestId("winning-economic-action")).toHaveText(
+        "Accepted an ownership-linked executive position.",
+      );
       await expect(page.getByTestId("pause-banner")).toHaveCount(0);
       await expect(page.getByTestId("pass-spotlight-btn")).toHaveCount(0);
       await expect(
@@ -185,6 +188,20 @@ test("four ordinary browser clients produce one explicit Executive Owner winner 
     expect(newCompany?.enterpriseValueCents).toBe(10_000_000);
     for (const rival of terminal.slice(1)) {
       expect(
+        rival.players.find((player) => player.playerId === "player-1")
+          ?.publicPosition,
+      ).toMatchObject({
+        assets: expect.arrayContaining([
+          {
+            assetId: newCompany?.id,
+            kind: "business",
+            ownershipPpm: 1_000_000,
+            partnerIds: [],
+          },
+        ]),
+        latestAction: { kind: "executive-ownership", quarter: 16 },
+      });
+      expect(
         rival.self.ownedAssets?.some((asset) => asset.id === newCompany?.id),
       ).toBeFalsy();
       expect(
@@ -209,8 +226,10 @@ test("four ordinary browser clients produce one explicit Executive Owner winner 
     });
     await server.restart();
     await Promise.all(pages.map((page) => page.reload()));
-    for (const page of pages)
+    for (const page of pages) {
       await expect(page.getByTestId("finished-match-view")).toBeVisible();
+      await expect(page.getByTestId("winning-economic-action")).toBeVisible();
+    }
     expect(await Promise.all(pages.map(view))).toEqual(terminal);
     for (const context of contexts.slice(1)) await context.close();
     await host.reload();

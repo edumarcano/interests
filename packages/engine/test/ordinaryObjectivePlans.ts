@@ -154,19 +154,19 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
   },
   {
     objectiveId: "independent",
-    seed: "m7-acceptance-independent-0",
-    winnerId: "player-1",
-    profileId: "disciplined-saver",
+    seed: "m7-acceptance-independent-2",
+    winnerId: "player-2",
+    profileId: "market-investor",
     initialFocus: "business",
-    winningQuarter: 25,
-    acceptedCommandCount: 128,
+    winningQuarter: 27,
+    acceptedCommandCount: 141,
     actions: [
       {
         quarter: 1,
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:1:major:7200000:employment",
+            offerId: "career:1:major:7600000:employment",
           },
         ],
       },
@@ -175,7 +175,7 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:3:major:8640000:employment",
+            offerId: "career:3:major:9120000:employment",
           },
         ],
       },
@@ -184,18 +184,7 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:5:major:10368000:employment",
-          },
-        ],
-      },
-      {
-        quarter: 6,
-        commands: [
-          {
-            type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-21",
-            quoteId:
-              "opportunity-21:bank-fixed:9824000:196480:3929600:825:186149:6277029:1097276",
+            offerId: "career:5:major:10944000:employment",
           },
         ],
       },
@@ -204,7 +193,7 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:7:major:12441600:employment",
+            offerId: "career:7:major:13132800:employment",
           },
         ],
       },
@@ -213,19 +202,19 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:9:major:14929920:employment",
+            offerId: "career:9:major:15759360:employment",
           },
         ],
       },
       {
-        quarter: 10,
+        quarter: 11,
         commands: [
           {
             type: "TRADE_PUBLIC_MARKETS",
             trades: [
               {
                 instrumentId: "income-defensive-fund",
-                buyCents: 8034139,
+                buyCents: 7297154,
                 sellCents: 0,
               },
             ],
@@ -236,14 +225,21 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         quarter: 12,
         commands: [
           {
-            type: "TRADE_PUBLIC_MARKETS",
-            trades: [
-              {
-                instrumentId: "growth-fund",
-                buyCents: 7940000,
-                sellCents: 0,
-              },
-            ],
+            type: "ACQUIRE_RECURRING_OPPORTUNITY",
+            opportunityId: "opportunity-46",
+            quoteId:
+              "opportunity-46:bank-fixed:9753000:195060:5851800:725:268340:4364600:1356894",
+          },
+        ],
+      },
+      {
+        quarter: 13,
+        commands: [
+          {
+            type: "ACQUIRE_RECURRING_OPPORTUNITY",
+            opportunityId: "opportunity-50",
+            quoteId:
+              "opportunity-50:bank-fixed:9839000:196780:3935600:775:183439:6283619:1363303",
           },
         ],
       },
@@ -251,14 +247,19 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         quarter: 14,
         commands: [
           {
-            type: "TRADE_PUBLIC_MARKETS",
-            trades: [
-              {
-                instrumentId: "broad-market-fund",
-                buyCents: 7961557,
-                sellCents: 0,
-              },
-            ],
+            type: "ACQUIRE_RECURRING_OPPORTUNITY",
+            opportunityId: "opportunity-54",
+            quoteId:
+              "opportunity-54:bank-fixed:9823000:196460:3929200:825:186130:6276390:1372965",
+          },
+        ],
+      },
+      {
+        quarter: 15,
+        commands: [
+          {
+            type: "SET_FOCUS",
+            focus: "property",
           },
         ],
       },
@@ -267,9 +268,9 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-61",
+            opportunityId: "opportunity-62",
             quoteId:
-              "opportunity-61:bank-fixed:65045500:1300910:53600000:625:991822:13738232:1139496",
+              "opportunity-62:bank-fixed:10188000:203760:2547000:775:118716:7963476:1367348",
           },
         ],
       },
@@ -277,10 +278,14 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         quarter: 18,
         commands: [
           {
-            type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-69",
-            quoteId:
-              "opportunity-69:bank-fixed:10104000:202080:6062400:725:277997:4521677:1150919",
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 5310241,
+                sellCents: 0,
+              },
+            ],
           },
         ],
       },
@@ -288,10 +293,14 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         quarter: 19,
         commands: [
           {
-            type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-73",
-            quoteId:
-              "opportunity-73:bank-fixed:10243000:204860:6145800:725:281822:4583882:1156674",
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 5157953,
+                sellCents: 0,
+              },
+            ],
           },
         ],
       },
@@ -299,8 +308,14 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         quarter: 20,
         commands: [
           {
-            type: "SET_FOCUS",
-            focus: "property",
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "income-defensive-fund",
+                buyCents: 5220900,
+                sellCents: 0,
+              },
+            ],
           },
         ],
       },
@@ -311,8 +326,8 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
             type: "TRADE_PUBLIC_MARKETS",
             trades: [
               {
-                instrumentId: "growth-fund",
-                buyCents: 6326933,
+                instrumentId: "broad-market-fund",
+                buyCents: 5338030,
                 sellCents: 0,
               },
             ],
@@ -326,8 +341,8 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
             type: "TRADE_PUBLIC_MARKETS",
             trades: [
               {
-                instrumentId: "broad-market-fund",
-                buyCents: 5031868,
+                instrumentId: "growth-fund",
+                buyCents: 5414179,
                 sellCents: 0,
               },
             ],
@@ -342,7 +357,7 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
             trades: [
               {
                 instrumentId: "income-defensive-fund",
-                buyCents: 5107921,
+                buyCents: 5448727,
                 sellCents: 0,
               },
             ],
@@ -356,8 +371,38 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
             type: "TRADE_PUBLIC_MARKETS",
             trades: [
               {
+                instrumentId: "broad-market-fund",
+                buyCents: 5481418,
+                sellCents: 0,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        quarter: 25,
+        commands: [
+          {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "growth-fund",
+                buyCents: 5543514,
+                sellCents: 0,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        quarter: 26,
+        commands: [
+          {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
                 instrumentId: "income-defensive-fund",
-                buyCents: 5157210,
+                buyCents: 5545054,
                 sellCents: 0,
               },
             ],
@@ -371,19 +416,19 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
   },
   {
     objectiveId: "capital-allocator",
-    seed: "m7-acceptance-capital-allocator-1",
+    seed: "m7-acceptance-capital-allocator-0",
     winnerId: "player-4",
-    profileId: "disciplined-saver",
+    profileId: "high-income-professional",
     initialFocus: "business",
-    winningQuarter: 26,
-    acceptedCommandCount: 134,
+    winningQuarter: 23,
+    acceptedCommandCount: 118,
     actions: [
       {
         quarter: 1,
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:1:major:7200000:employment",
+            offerId: "career:1:major:15000000:employment",
           },
         ],
       },
@@ -392,18 +437,7 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:3:major:8640000:employment",
-          },
-        ],
-      },
-      {
-        quarter: 4,
-        commands: [
-          {
-            type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-16",
-            quoteId:
-              "opportunity-16:bank-fixed:14680500:293610:9929252:775:213750:5258608:1089409",
+            offerId: "career:3:major:18000000:employment",
           },
         ],
       },
@@ -412,7 +446,18 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:5:major:10368000:employment",
+            offerId: "career:5:major:21600000:employment",
+          },
+        ],
+      },
+      {
+        quarter: 6,
+        commands: [
+          {
+            type: "ACQUIRE_RECURRING_OPPORTUNITY",
+            opportunityId: "opportunity-24",
+            quoteId:
+              "opportunity-24:bank-fixed:15367500:307350:11625000:675:226590:4276440:2276700",
           },
         ],
       },
@@ -421,7 +466,22 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:7:major:12441600:employment",
+            offerId: "career:7:major:25920000:employment",
+          },
+        ],
+      },
+      {
+        quarter: 8,
+        commands: [
+          {
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "income-defensive-fund",
+                buyCents: 7120701,
+                sellCents: 0,
+              },
+            ],
           },
         ],
       },
@@ -430,7 +490,7 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:9:major:14929920:employment",
+            offerId: "career:9:major:31104000:employment",
           },
         ],
       },
@@ -441,8 +501,8 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
             type: "TRADE_PUBLIC_MARKETS",
             trades: [
               {
-                instrumentId: "income-defensive-fund",
-                buyCents: 7979582,
+                instrumentId: "growth-fund",
+                buyCents: 10853569,
                 sellCents: 0,
               },
             ],
@@ -453,22 +513,26 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         quarter: 11,
         commands: [
           {
-            type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-44",
-            quoteId:
-              "opportunity-44:bank-fixed:9873000:197460:4936500:775:230091:5364051:1152310",
+            type: "TRADE_PUBLIC_MARKETS",
+            trades: [
+              {
+                instrumentId: "broad-market-fund",
+                buyCents: 7261200,
+                sellCents: 0,
+              },
+            ],
           },
         ],
       },
       {
-        quarter: 13,
+        quarter: 12,
         commands: [
           {
             type: "TRADE_PUBLIC_MARKETS",
             trades: [
               {
-                instrumentId: "growth-fund",
-                buyCents: 5734269,
+                instrumentId: "income-defensive-fund",
+                buyCents: 5063791,
                 sellCents: 0,
               },
             ],
@@ -479,51 +543,21 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         quarter: 15,
         commands: [
           {
-            type: "TRADE_PUBLIC_MARKETS",
-            trades: [
-              {
-                instrumentId: "broad-market-fund",
-                buyCents: 8149291,
-                sellCents: 0,
-              },
-            ],
+            type: "ACQUIRE_RECURRING_OPPORTUNITY",
+            opportunityId: "opportunity-60",
+            quoteId:
+              "opportunity-60:bank-fixed:15153000:303060:11625000:675:226590:4057650:2393305",
           },
         ],
       },
       {
-        quarter: 17,
-        commands: [
-          {
-            type: "TRADE_PUBLIC_MARKETS",
-            trades: [
-              {
-                instrumentId: "growth-fund",
-                buyCents: 6224375,
-                sellCents: 0,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        quarter: 20,
+        quarter: 22,
         commands: [
           {
             type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-80",
+            opportunityId: "opportunity-88",
             quoteId:
-              "opportunity-80:bank-fixed:10092000:201840:4036800:925:197454:6454494:1188721",
-          },
-        ],
-      },
-      {
-        quarter: 24,
-        commands: [
-          {
-            type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-96",
-            quoteId:
-              "opportunity-96:bank-fixed:39756000:795120:9939000:775:463257:31075377:1227797",
+              "opportunity-88:bank-fixed:40332000:806640:16132800:825:764227:25770067:2524907",
           },
         ],
       },
@@ -545,8 +579,8 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
     winnerId: "player-1",
     profileId: "self-employed-operator",
     initialFocus: "business",
-    winningQuarter: 27,
-    acceptedCommandCount: 139,
+    winningQuarter: 24,
+    acceptedCommandCount: 123,
     actions: [
       {
         quarter: 1,
@@ -639,24 +673,24 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         ],
       },
       {
-        quarter: 19,
+        quarter: 15,
         commands: [
           {
             type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-73",
+            opportunityId: "opportunity-57",
             quoteId:
-              "opportunity-73:bank-fixed:14961000:299220:10075000:675:196378:5381598:1473839",
+              "opportunity-57:bank-fixed:9836000:196720:3934400:825:186376:6284696:1485135",
           },
         ],
       },
       {
-        quarter: 20,
+        quarter: 23,
         commands: [
           {
             type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-77",
+            opportunityId: "opportunity-89",
             quoteId:
-              "opportunity-77:bank-fixed:111584000:2231680:89600000:625:1657971:25873651:1477524",
+              "opportunity-89:cash:14685000:293700:0:675:0:14978700:1503532",
           },
         ],
       },
@@ -674,19 +708,19 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
   },
   {
     objectiveId: "property-magnate",
-    seed: "m7-acceptance-property-magnate-5",
-    winnerId: "player-1",
-    profileId: "high-income-professional",
+    seed: "m7-acceptance-property-magnate-2",
+    winnerId: "player-3",
+    profileId: "corporate-climber",
     initialFocus: "property",
-    winningQuarter: 31,
-    acceptedCommandCount: 159,
+    winningQuarter: 32,
+    acceptedCommandCount: 165,
     actions: [
       {
         quarter: 1,
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:1:major:15000000:employment",
+            offerId: "career:1:major:10000000:employment",
           },
         ],
       },
@@ -695,7 +729,7 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:3:major:18000000:employment",
+            offerId: "career:3:major:12000000:employment",
           },
         ],
       },
@@ -704,7 +738,7 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:5:major:21600000:employment",
+            offerId: "career:5:major:14400000:employment",
           },
         ],
       },
@@ -713,7 +747,7 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:7:major:25920000:employment",
+            offerId: "career:7:major:17280000:employment",
           },
         ],
       },
@@ -722,29 +756,40 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACCEPT_CAREER_OFFER",
-            offerId: "career:9:major:31104000:employment",
+            offerId: "career:9:major:20736000:employment",
           },
         ],
       },
       {
-        quarter: 14,
+        quarter: 11,
         commands: [
           {
             type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-53",
+            opportunityId: "opportunity-43",
             quoteId:
-              "opportunity-53:bank-fixed:107822000:2156440:70514967:775:1518000:40981473:2385224",
+              "opportunity-43:cash:15003000:300060:0:675:0:15303060:1633125",
           },
         ],
       },
       {
-        quarter: 19,
+        quarter: 12,
         commands: [
           {
             type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-73",
+            opportunityId: "opportunity-47",
             quoteId:
-              "opportunity-73:bank-fixed:110066000:2201320:89600000:625:1657971:24325291:2471765",
+              "opportunity-47:bank-fixed:15259500:305190:11625000:675:226590:4166280:1642488",
+          },
+        ],
+      },
+      {
+        quarter: 20,
+        commands: [
+          {
+            type: "ACQUIRE_RECURRING_OPPORTUNITY",
+            opportunityId: "opportunity-79",
+            quoteId:
+              "opportunity-79:cash:14746500:294930:0:675:0:15041430:1584534",
           },
         ],
       },
@@ -753,17 +798,41 @@ export const ORDINARY_OBJECTIVE_PLANS: readonly OrdinaryObjectivePlan[] = [
         commands: [
           {
             type: "ACQUIRE_RECURRING_OPPORTUNITY",
-            opportunityId: "opportunity-81",
+            opportunityId: "opportunity-83",
             quoteId:
-              "opportunity-81:bank-fixed:110275000:2205500:84000000:675:1637295:30117795:2496773",
+              "opportunity-83:cash:14836500:296730:0:675:0:15133230:1594437",
+          },
+        ],
+      },
+      {
+        quarter: 27,
+        commands: [
+          {
+            type: "ACQUIRE_RECURRING_OPPORTUNITY",
+            opportunityId: "opportunity-107",
+            quoteId:
+              "opportunity-107:bank-fixed:107822000:2156440:67247684:825:1518000:44248756:1679966",
+          },
+        ],
+      },
+      {
+        quarter: 30,
+        commands: [
+          {
+            type: "ACQUIRE_RECURRING_OPPORTUNITY",
+            opportunityId: "opportunity-119",
+            quoteId:
+              "opportunity-119:cash:14893500:297870:0:775:0:15191370:1737305",
           },
         ],
       },
     ],
+    standingFinaleOffer: true,
     finalAction: {
       type: "ACQUIRE_RECURRING_OPPORTUNITY",
-      opportunityId: "opportunity-121",
-      quoteId: "opportunity-121:cash:66326000:1326520:0:625:0:67652520:2412586",
+      opportunityId: "opportunity-129",
+      quoteId:
+        "opportunity-129:bank-fixed:65000000:1300000:40731803:675:793928:26362125:1763463",
     },
   },
   {

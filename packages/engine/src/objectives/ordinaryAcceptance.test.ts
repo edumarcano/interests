@@ -186,12 +186,27 @@ function complete(plan: OrdinaryObjectivePlan) {
   const ordinary = applyPlayerCommand(before, winner, plan.finalAction);
   if (plan.standingFinaleOffer) {
     const own = projectPlayerGameState(before, winner).self;
-    expect(own.financialDetails.standingFinaleOffer).toMatchObject({
-      kind: "financing",
-      opportunityId: "opportunity-105",
-      quote: { principalCents: 15_000_000, canFund: true },
-    });
-    expect(own.recurringOpportunity?.id).not.toBe("opportunity-105");
+    const offer = own.financialDetails.standingFinaleOffer;
+    if (plan.finalAction.type === "FUND_RECURRING_LOAN") {
+      expect(offer).toMatchObject({
+        kind: "financing",
+        opportunityId: plan.finalAction.opportunityId,
+        quote: { principalCents: 15_000_000, canFund: true },
+      });
+    } else if (
+      plan.finalAction.type === "ACQUIRE_RECURRING_OPPORTUNITY" &&
+      offer?.kind === "landmark"
+    ) {
+      expect(offer.opportunityId).toBe(plan.finalAction.opportunityId);
+      expect(offer.quotes).toContainEqual(
+        expect.objectContaining({
+          id: plan.finalAction.quoteId,
+          askingPriceCents: 65_000_000,
+          canClose: true,
+        }),
+      );
+    } else throw new Error("Expected an ordinary standing finale offer");
+    expect(own.recurringOpportunity?.id).not.toBe(offer?.opportunityId);
     expect(ordinary).toMatchObject({
       ok: false,
       state: before,
@@ -204,7 +219,7 @@ function complete(plan: OrdinaryObjectivePlan) {
     expect(ordinary.state.phase).toBe("ready-for-first-round");
   }
 
-  if (plan.objectiveId === "property-magnate") {
+  if (plan.objectiveId === "property-magnate" && !plan.standingFinaleOffer) {
     const offer = projectPlayerGameState(before, winner).self.financialDetails
       .standingFinaleOffer;
     if (offer?.kind !== "landmark")
