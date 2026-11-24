@@ -45,6 +45,7 @@ import { applyJointPropertyCommand } from "../transactions/jointProperty";
 import { applyPropertyAcquisitionCommand } from "../transactions/propertyAcquisition";
 import { type ActionResult, applyAction } from "./actions.js";
 import { applyCareerCommand } from "./career";
+import { recordPublicAction } from "./publicPosition";
 import {
   advanceSpotlight,
   beginRound,
@@ -151,6 +152,19 @@ export type WirePlayerCommand =
  * - CANCEL_ACTIVE_TRANSACTION
  */
 export function applyPlayerCommand(
+  state: GameState,
+  actorPlayerId: PlayerId,
+  wireCommand: WirePlayerCommand,
+): ActionResult {
+  return recordPublicAction(
+    state,
+    actorPlayerId,
+    wireCommand,
+    dispatchPlayerCommand(state, actorPlayerId, wireCommand),
+  );
+}
+
+function dispatchPlayerCommand(
   state: GameState,
   actorPlayerId: PlayerId,
   wireCommand: WirePlayerCommand,

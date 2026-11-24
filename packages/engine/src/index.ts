@@ -34,7 +34,7 @@ export * from "./transactions/cashBusinessPurchase";
 export * from "./transactions/model";
 export * from "./transactions/reservations";
 
-export const ENGINE_VERSION = "0.0.13";
+export const ENGINE_VERSION = "0.0.17";
 
 export const WORKSPACE_COMPATIBILITY = {
   engine: ENGINE_VERSION,

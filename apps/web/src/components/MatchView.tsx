@@ -13,6 +13,7 @@ import { FinishedMatchView } from "./FinishedMatchView";
 import { ObjectiveRequirements } from "./ObjectiveRequirements";
 import { ObjectiveSelection } from "./ObjectiveSelection.js";
 import { PauseBanner } from "./PauseBanner.js";
+import { PublicPosition } from "./PublicPosition";
 import { RecurringOpportunityPanel } from "./RecurringOpportunityPanel";
 import { RoundStartView } from "./RoundStartView.js";
 import { SpotlightView } from "./SpotlightView.js";
@@ -60,6 +61,7 @@ export const MatchView: React.FC<Props> = ({
         canResume={canResume}
         onResume={handleResume}
       />
+      <PublicPosition match={match} />
 
       {(match.phase === "objective-choosing" || match.round === null) && (
         <ObjectiveSelection match={match} onSendCommand={onSendCommand} />

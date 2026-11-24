@@ -23,6 +23,7 @@ import type {
   PropertyAcquisitionView,
   PropertyManagementView,
   PropertyOfferView,
+  PublicPlayerPositionView,
   RecurringOpportunityView,
   SelfSettlementView,
   TransactionId,
@@ -61,11 +62,13 @@ import {
   getReservedCashCents,
 } from "../transactions/reservations.js";
 import { currentAnnualLaborCompensation, getCareerOffers } from "./career";
+import { projectPublicPosition } from "./publicPosition";
 import { getActiveSpotlightPlayerId, getSpotlightOrder } from "./round.js";
 
 export interface PurePlayerSummary {
   readonly playerId: PlayerId;
   readonly hasSelectedObjective: boolean;
+  readonly publicPosition?: PublicPlayerPositionView;
 }
 
 export interface PureOpportunityDiligenceView {
@@ -226,6 +229,9 @@ export function projectPlayerGameState(
     return {
       playerId: pId,
       hasSelectedObjective: p ? p.selectedObjectiveId !== null : false,
+      ...(state.phase !== "objective-choosing"
+        ? { publicPosition: projectPublicPosition(state, pId) }
+        : {}),
     };
   });
 

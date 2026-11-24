@@ -1245,7 +1245,16 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
       outstandingPrincipalCents: 6_000_000,
       unpaidInterestCents: 120_000,
     });
-    expect(JSON.stringify(unrelated)).not.toContain(unpaidCompanyId);
+    expect(
+      unrelated.players.find((player) => player.playerId === debtor)
+        ?.publicPosition?.assets,
+    ).toContainEqual({
+      assetId: unpaidCompanyId,
+      kind: "business",
+      ownershipPpm: 1_000_000,
+      partnerIds: [],
+    });
+    expect(JSON.stringify(unrelated.self)).not.toContain(unpaidCompanyId);
     expect(JSON.stringify(unrelated)).not.toContain(unpaidLoanId);
     expect(JSON.stringify(unrelated)).not.toContain("livingByPlayer");
     const alternate = JSON.parse(JSON.stringify(snapshot)) as GameState;

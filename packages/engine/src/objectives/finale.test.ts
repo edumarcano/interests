@@ -327,7 +327,18 @@ it("allows already-jobless confirmation only inside the explicit wrapper", () =>
   });
   expect(after.phase).toBe("finished");
   expect(after.finance).toEqual(before.finance);
-  expect(after.progress).toEqual(before.progress);
+  expect(after.progress.byPlayer[actor]).toEqual({
+    ...before.progress.byPlayer[actor],
+    latestPublicAction: { kind: "work-status", quarter: before.currentQuarter },
+  });
+  expect(
+    projectPlayerGameState(after, ids[0]!).players.find(
+      (player) => player.playerId === actor,
+    )?.publicPosition?.latestAction,
+  ).toEqual({
+    kind: "work-status",
+    quarter: before.currentQuarter,
+  });
   expect(after.revision).toBe(before.revision + 1);
   rejectUnchanged(
     fixture("independent"),

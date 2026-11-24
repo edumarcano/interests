@@ -1,4 +1,5 @@
 import type {
+  AssetId,
   CommandId,
   MatchId,
   PlayerId,
@@ -604,6 +605,41 @@ export interface MatchPlayerSummaryView {
   readonly joinOrder: number;
   readonly isHost: boolean;
   readonly hasSelectedObjective: boolean;
+  readonly publicPosition?: PublicPlayerPositionView;
+}
+
+export const PUBLIC_ECONOMIC_ACTIONS = [
+  "property-purchase",
+  "property-sale",
+  "property-improvement",
+  "property-refinancing",
+  "business-purchase",
+  "business-sale",
+  "business-stake-transfer",
+  "business-capital-raise",
+  "business-expansion",
+  "executive-ownership",
+  "public-fund-trade",
+  "market-loan",
+  "work-status",
+] as const;
+
+export type PublicEconomicAction = (typeof PUBLIC_ECONOMIC_ACTIONS)[number];
+
+export interface PublicPlayerPositionView {
+  readonly liquidity: "tight" | "adequate" | "strong";
+  readonly leverage: "low" | "moderate" | "high";
+  readonly cashFlow: "surplus" | "break-even" | "deficit" | "unseasoned";
+  readonly assets: readonly {
+    readonly assetId: AssetId;
+    readonly kind: "business" | "property";
+    readonly ownershipPpm: number;
+    readonly partnerIds: readonly PlayerId[];
+  }[];
+  readonly latestAction?: {
+    readonly kind: PublicEconomicAction;
+    readonly quarter: number;
+  };
 }
 
 export interface MatchProfileView {

@@ -67,6 +67,9 @@ export function buildMatchPlayerView(params: {
         joinOrder: matchMember?.playerOrder ?? 0,
         isHost: matchMember?.roomMemberId === params.hostMemberId,
         hasSelectedObjective: summary.hasSelectedObjective,
+        ...(summary.publicPosition
+          ? { publicPosition: summary.publicPosition }
+          : {}),
       };
     },
   );

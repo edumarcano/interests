@@ -14,6 +14,7 @@ import type {
 import type { ActionResult } from "../game/actions";
 import { nextDeterministicId } from "../game/deterministicIds";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "../game/round";
+import type { AssetAcquisitionBasis } from "../model/completionState";
 import type {
   AssetBankLoan,
   GameState,
@@ -36,6 +37,23 @@ import type { JournalEntry } from "./journal";
 import { basisPoints, cents } from "./money";
 import { allocateProportionalCents, ownershipPpm } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
+
+function addPropertyBasisCost(
+  basis: AssetAcquisitionBasis,
+  additionalCostCents: number,
+): AssetAcquisitionBasis {
+  return {
+    ...basis,
+    costCents: cents(basis.costCents + additionalCostCents),
+    ...(basis.objectiveCostFloorCents !== undefined
+      ? {
+          objectiveCostFloorCents: cents(
+            basis.objectiveCostFloorCents + additionalCostCents,
+          ),
+        }
+      : {}),
+  };
+}
 
 export function catalogueProperty(
   id: string,
@@ -540,16 +558,29 @@ export function draftPropertyOwnerAction(
         cents(command.principalCents),
         ownership,
       );
+      const entryShares = purchaseFunding
+        ? allocateProportionalCents(
+            cents(quote.cashRequiredCents + command.principalCents),
+            ownership,
+          )
+        : null;
       const byPlayer = { ...state.progress.byPlayer };
       for (const owner of state.playerOrder) {
         if (!ownership[owner]) continue;
         const progress = byPlayer[owner]!;
+        const costCents = cents(
+          contributions[owner]! + principalShares[owner]!,
+        );
+        const entryShare = entryShares?.[owner] ?? 0;
         byPlayer[owner] = {
           ...progress,
           assetsById: {
             ...progress.assetsById,
             [id]: {
-              costCents: cents(contributions[owner]! + principalShares[owner]!),
+              costCents,
+              ...(entryShare > costCents
+                ? { objectiveCostFloorCents: cents(entryShare) }
+                : {}),
               acquiredQuarter: state.currentQuarter,
               ownershipPpm: ownership[owner]!,
             },
@@ -590,13 +621,10 @@ export function draftPropertyOwnerAction(
                 ...progress,
                 assetsById: {
                   ...progress.assetsById,
-                  [asset.id]: {
-                    ...progress.assetsById[asset.id]!,
-                    costCents: cents(
-                      progress.assetsById[asset.id]!.costCents +
-                        command.amountCents,
-                    ),
-                  },
+                  [asset.id]: addPropertyBasisCost(
+                    progress.assetsById[asset.id]!,
+                    command.amountCents,
+                  ),
                 },
               },
             },
@@ -647,12 +675,10 @@ export function draftPropertyOwnerAction(
                 ...progress,
                 assetsById: {
                   ...progress.assetsById,
-                  [asset.id]: {
-                    ...progress.assetsById[asset.id]!,
-                    costCents: cents(
-                      progress.assetsById[asset.id]!.costCents + cost,
-                    ),
-                  },
+                  [asset.id]: addPropertyBasisCost(
+                    progress.assetsById[asset.id]!,
+                    cost,
+                  ),
                 },
               },
             },
@@ -723,16 +749,13 @@ export function draftPropertyOwnerAction(
                   ),
                   assetsById: {
                     ...progress.assetsById,
-                    [asset.id]: {
-                      ...progress.assetsById[asset.id]!,
-                      costCents: cents(
-                        progress.assetsById[asset.id]!.costCents +
-                          Math.max(
-                            0,
-                            quote.assetReserveCents - (asset.cashCents ?? 0),
-                          ),
+                    [asset.id]: addPropertyBasisCost(
+                      progress.assetsById[asset.id]!,
+                      Math.max(
+                        0,
+                        quote.assetReserveCents - (asset.cashCents ?? 0),
                       ),
-                    },
+                    ),
                   },
                 },
               },
@@ -849,6 +872,12 @@ export function draftPropertyOwnerAction(
                   saleFeesCents: feeShares[owner]!,
                   financingCostsCents: financingShares[owner]!,
                   acquisitionBasisCents: basis.costCents,
+                  ...(basis.objectiveCostFloorCents !== undefined
+                    ? {
+                        objectiveAcquisitionBasisFloorCents:
+                          basis.objectiveCostFloorCents,
+                      }
+                    : {}),
                   referenceProceedsCents: null,
                   economicSubstance: "genuine",
                   ownershipUnits: basis.ownershipPpm,

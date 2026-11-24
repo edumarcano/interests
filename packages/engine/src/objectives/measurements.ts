@@ -14,7 +14,10 @@ import {
 } from "../finance/loanParties";
 import { type Cents, cents } from "../finance/money";
 import { allocateProportionalCents } from "../finance/ownership";
-import type { QuarterObservation } from "../model/completionState";
+import type {
+  PlayerProgress,
+  QuarterObservation,
+} from "../model/completionState";
 import type { GameState } from "../model/gameState";
 import { getAvailableCashCents } from "../transactions/reservations";
 import { combineObjectiveEvidence } from "./evidence";
@@ -58,6 +61,28 @@ function actualQuarters(
   )
     throw new Error("Missing or nonconsecutive objective observations");
   return quarters;
+}
+
+function retainedFundReceipts(
+  disposals: PlayerProgress["publicMarketDisposals"],
+  sourceId: string,
+  quarter: number,
+  receipts: Cents,
+): Cents {
+  let retained = new FinanceDecimal(receipts);
+  for (const disposal of disposals) {
+    if (
+      disposal.soldQuarter < quarter ||
+      `fund:${disposal.instrumentId}` !== sourceId
+    )
+      continue;
+    // A quarter's dividend is earned on opening holdings. Sales in the same
+    // quarter and later reduce the share attributable to retained capital.
+    const opening = disposal.quarterStartValueCents;
+    if (disposal.tradeValueCents >= opening) return cents(0);
+    retained = retained.times(opening - disposal.tradeValueCents).div(opening);
+  }
+  return cents(retained.round().toNumber());
 }
 
 /** Pure, private measurement from canonical state and trusted engine transaction evidence. */
@@ -458,7 +483,14 @@ export function measurePlayerObjectives(
         category: source.category,
         annualReceivedCents: sum([
           old?.annualReceivedCents ?? 0,
-          source.recurringReceivedCents,
+          source.category === "public-markets"
+            ? retainedFundReceipts(
+                progress.publicMarketDisposals,
+                id,
+                quarter.quarter,
+                source.recurringReceivedCents,
+              )
+            : source.recurringReceivedCents,
           -source.debtServiceOwedCents,
         ]),
       });
