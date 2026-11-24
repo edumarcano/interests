@@ -14,7 +14,10 @@ import type {
 import type { ActionResult } from "../game/actions";
 import { nextDeterministicId } from "../game/deterministicIds";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "../game/round";
-import type { AssetAcquisitionBasis } from "../model/completionState";
+import type {
+  AssetAcquisitionBasis,
+  ProgressState,
+} from "../model/completionState";
 import type {
   AssetBankLoan,
   GameState,
@@ -53,6 +56,41 @@ function addPropertyBasisCost(
         }
       : {}),
   };
+}
+
+function recordPropertyReserveFunding(
+  progress: ProgressState,
+  asset: PropertyAsset,
+  payer: PlayerId,
+  amountCents: number,
+): ProgressState {
+  if (!amountCents) return progress;
+  const shares = allocateProportionalCents(
+    cents(amountCents),
+    asset.ownershipByPlayerPpm,
+  );
+  const byPlayer = { ...progress.byPlayer };
+  for (const owner of Object.keys(shares) as PlayerId[]) {
+    const ownerProgress = byPlayer[owner]!;
+    const basis = ownerProgress.assetsById[asset.id]!;
+    byPlayer[owner] = {
+      ...ownerProgress,
+      assetsById: {
+        ...ownerProgress.assetsById,
+        [asset.id]:
+          owner === payer
+            ? addPropertyBasisCost(basis, amountCents)
+            : {
+                ...basis,
+                objectiveCostFloorCents: cents(
+                  (basis.objectiveCostFloorCents ?? basis.costCents) +
+                    shares[owner]!,
+                ),
+              },
+      },
+    };
+  }
+  return { byPlayer };
 }
 
 export function catalogueProperty(
@@ -611,24 +649,14 @@ export function draftPropertyOwnerAction(
           reason: "property-reserve-funding",
           relatedAssetId: asset.id,
         });
-        const progress = draft.progress.byPlayer[playerId]!;
         draft = {
           ...draft,
-          progress: {
-            byPlayer: {
-              ...draft.progress.byPlayer,
-              [playerId]: {
-                ...progress,
-                assetsById: {
-                  ...progress.assetsById,
-                  [asset.id]: addPropertyBasisCost(
-                    progress.assetsById[asset.id]!,
-                    command.amountCents,
-                  ),
-                },
-              },
-            },
-          },
+          progress: recordPropertyReserveFunding(
+            draft.progress,
+            asset,
+            playerId,
+            command.amountCents,
+          ),
         };
       } else if (command.type === "RENOVATE_PROPERTY") {
         if (asset.renovatedQuarter !== undefined)
@@ -736,27 +764,23 @@ export function draftPropertyOwnerAction(
               },
             },
           };
-          const progress = draft.progress.byPlayer[playerId]!;
+          const fundingProgress = recordPropertyReserveFunding(
+            draft.progress,
+            asset,
+            playerId,
+            Math.max(0, quote.assetReserveCents - (asset.cashCents ?? 0)),
+          );
+          const progress = fundingProgress.byPlayer[playerId]!;
           draft = {
             ...draft,
             progress: {
               byPlayer: {
-                ...draft.progress.byPlayer,
+                ...fundingProgress.byPlayer,
                 [playerId]: {
                   ...progress,
                   realizedGainsCents: cents(
                     progress.realizedGainsCents - quote.feeCents,
                   ),
-                  assetsById: {
-                    ...progress.assetsById,
-                    [asset.id]: addPropertyBasisCost(
-                      progress.assetsById[asset.id]!,
-                      Math.max(
-                        0,
-                        quote.assetReserveCents - (asset.cashCents ?? 0),
-                      ),
-                    ),
-                  },
                 },
               },
             },

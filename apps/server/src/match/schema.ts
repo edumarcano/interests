@@ -239,6 +239,16 @@ const JointPropertyBoundFields = {
     .positive()
     .max(Number.MAX_SAFE_INTEGER),
 };
+const SharedRecurringAcquisitionTermsSchema = z
+  .object({
+    opportunityId: z.string().min(1).max(128),
+    route: z.enum(["cash", "bank-fixed", "bank-variable"]),
+    leadCashCents: positiveCents,
+    partnerPlayerId: transactionKey,
+    partnerOwnershipPpm: z.number().int().min(1).max(999_999),
+  })
+  .strict();
+
 const PropertyAcquisitionTermsSchema = z
   .object({
     catalogueId: z.string().min(1).max(64),
@@ -351,6 +361,30 @@ export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("CANCEL_PROPERTY_ACQUISITION"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("OPEN_SHARED_RECURRING_ACQUISITION"),
+      terms: SharedRecurringAcquisitionTermsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("REVISE_SHARED_RECURRING_ACQUISITION"),
+      ...JointPropertyBoundFields,
+      terms: SharedRecurringAcquisitionTermsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.enum([
+        "CONFIRM_SHARED_RECURRING_ACQUISITION",
+        "WITHDRAW_SHARED_RECURRING_ACQUISITION",
+        "CLOSE_SHARED_RECURRING_ACQUISITION",
+        "CANCEL_SHARED_RECURRING_ACQUISITION",
+      ]),
       ...JointPropertyBoundFields,
     })
     .strict(),

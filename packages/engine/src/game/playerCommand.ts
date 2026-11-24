@@ -15,6 +15,7 @@ import type {
   ResignLaborCommandPayload,
   SellRecurringBusinessCommand,
   SetFocusCommandPayload,
+  SharedRecurringAcquisitionCommand,
   TradePublicMarketsCommandPayload,
   TransactionId,
 } from "@interests/shared";
@@ -43,6 +44,7 @@ import {
 } from "../transactions/cashBusinessPurchase.js";
 import { applyJointPropertyCommand } from "../transactions/jointProperty";
 import { applyPropertyAcquisitionCommand } from "../transactions/propertyAcquisition";
+import { applySharedRecurringAcquisitionCommand } from "../transactions/sharedRecurringAcquisition";
 import { type ActionResult, applyAction } from "./actions.js";
 import { applyCareerCommand } from "./career";
 import { recordPublicAction } from "./publicPosition";
@@ -109,6 +111,7 @@ export interface WireCancelActiveTransactionCommand {
 export type WirePlayerCommand =
   | SellRecurringBusinessCommand
   | PropertyAcquisitionCommand
+  | SharedRecurringAcquisitionCommand
   | AcquireRecurringCommand
   | FundRecurringLoanCommand
   | PursueFinaleCommandPayload
@@ -188,6 +191,17 @@ function dispatchPlayerCommand(
         actorPlayerId,
         wireCommand.opportunityId,
         wireCommand.quoteId,
+      );
+    case "OPEN_SHARED_RECURRING_ACQUISITION":
+    case "REVISE_SHARED_RECURRING_ACQUISITION":
+    case "CONFIRM_SHARED_RECURRING_ACQUISITION":
+    case "WITHDRAW_SHARED_RECURRING_ACQUISITION":
+    case "CLOSE_SHARED_RECURRING_ACQUISITION":
+    case "CANCEL_SHARED_RECURRING_ACQUISITION":
+      return applySharedRecurringAcquisitionCommand(
+        state,
+        actorPlayerId,
+        wireCommand,
       );
     case "ACQUIRE_RECURRING_OPPORTUNITY":
       return acquireRecurringOpportunity(state, actorPlayerId, wireCommand);

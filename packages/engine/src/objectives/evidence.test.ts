@@ -179,76 +179,90 @@ it("counts only receipts attributable to the retained fund exposure", () => {
   ).toBe(0);
 });
 
-it("keeps a negotiated purchase subsidy out of objective gains on a later market sale", () => {
-  let state = actorTurn(setup("property-acceptance"));
-  const partner = ids[3]!;
-  const bind = () => {
-    const transaction = state.activeTransaction;
-    if (
-      transaction?.kind !== "property-acquisition" &&
-      transaction?.kind !== "joint-property"
-    )
-      throw new Error("Expected an open property agreement");
-    return {
-      transactionId: transaction.id,
-      expectedTermsRevision: transaction.termsRevision,
+it.each([0, 1_000_000])(
+  "keeps negotiated subsidies out of objective gains on a sale with %i cents of reserve funding",
+  (reserveCents) => {
+    let state = actorTurn(setup("property-acceptance"));
+    const partner = ids[3]!;
+    const bind = () => {
+      const transaction = state.activeTransaction;
+      if (
+        transaction?.kind !== "property-acquisition" &&
+        transaction?.kind !== "joint-property"
+      )
+        throw new Error("Expected an open property agreement");
+      return {
+        transactionId: transaction.id,
+        expectedTermsRevision: transaction.termsRevision,
+      };
     };
-  };
-  state = command(state, actor, {
-    type: "OPEN_PROPERTY_ACQUISITION",
-    terms: {
-      catalogueId: "residential-duplex",
-      rateKind: "fixed",
-      principalCents: 0,
-      buyers: [
-        { playerId: actor, cashContributionCents: 100, ownershipPpm: 990_000 },
-        {
-          playerId: partner,
-          cashContributionCents: 10_199_900,
-          ownershipPpm: 10_000,
-        },
-      ],
-    },
-  });
-  for (const id of [actor, partner])
-    state = command(state, id, {
-      type: "CONFIRM_PROPERTY_ACQUISITION",
+    state = command(state, actor, {
+      type: "OPEN_PROPERTY_ACQUISITION",
+      terms: {
+        catalogueId: "residential-duplex",
+        rateKind: "fixed",
+        principalCents: 0,
+        buyers: [
+          {
+            playerId: actor,
+            cashContributionCents: 100,
+            ownershipPpm: 990_000,
+          },
+          {
+            playerId: partner,
+            cashContributionCents: 10_199_900,
+            ownershipPpm: 10_000,
+          },
+        ],
+      },
+    });
+    for (const id of [actor, partner])
+      state = command(state, id, {
+        type: "CONFIRM_PROPERTY_ACQUISITION",
+        ...bind(),
+      });
+    state = command(state, actor, {
+      type: "CLOSE_PROPERTY_ACQUISITION",
       ...bind(),
     });
-  state = command(state, actor, {
-    type: "CLOSE_PROPERTY_ACQUISITION",
-    ...bind(),
-  });
-  const property = Object.values(state.finance.assetsById).find(
-    (asset) =>
-      asset.kind === "property" && asset.catalogueId === "residential-duplex",
-  )!;
-  state = actorTurn(finishQuarter(actorTurn(finishQuarter(state))));
-  state = command(state, actor, {
-    type: "OPEN_JOINT_PROPERTY",
-    assetId: property.id,
-    terms: { kind: "sale" },
-  });
-  for (const id of [actor, partner])
-    state = command(state, id, { type: "CONFIRM_JOINT_PROPERTY", ...bind() });
-  state = command(state, actor, { type: "CLOSE_JOINT_PROPERTY", ...bind() });
-  expect(
-    state.progress.byPlayer[actor]!.disposalEvidence?.at(-1),
-  ).toMatchObject({
-    acquisitionBasisCents: 100,
-    objectiveAcquisitionBasisFloorCents: 10_098_000,
-  });
-  expect(state.progress.byPlayer[actor]!.realizedGainsCents).toBeGreaterThan(
-    9_000_000,
-  );
-  expect(measurePlayerObjectives(state, actor)).toMatchObject({
-    creditedDealGainsCents: 0,
-    profitableDisposals: 0,
-  });
-  expect(
-    measurePlayerObjectives(state, partner).creditedDealGainsCents,
-  ).toBeLessThan(0);
-});
+    const property = Object.values(state.finance.assetsById).find(
+      (asset) =>
+        asset.kind === "property" && asset.catalogueId === "residential-duplex",
+    )!;
+    state = finishQuarter(actorTurn(finishQuarter(state)));
+    if (reserveCents)
+      state = command(actorTurn(state, partner), partner, {
+        type: "FUND_PROPERTY_RESERVE",
+        assetId: property.id,
+        amountCents: reserveCents,
+      });
+    state = actorTurn(state);
+    state = command(state, actor, {
+      type: "OPEN_JOINT_PROPERTY",
+      assetId: property.id,
+      terms: { kind: "sale" },
+    });
+    for (const id of [actor, partner])
+      state = command(state, id, { type: "CONFIRM_JOINT_PROPERTY", ...bind() });
+    state = command(state, actor, { type: "CLOSE_JOINT_PROPERTY", ...bind() });
+    expect(
+      state.progress.byPlayer[actor]!.disposalEvidence?.at(-1),
+    ).toMatchObject({
+      acquisitionBasisCents: 100,
+      objectiveAcquisitionBasisFloorCents: 10_098_000 + reserveCents * 0.99,
+    });
+    expect(state.progress.byPlayer[actor]!.realizedGainsCents).toBeGreaterThan(
+      9_000_000,
+    );
+    expect(measurePlayerObjectives(state, actor)).toMatchObject({
+      creditedDealGainsCents: 0,
+      profitableDisposals: 0,
+    });
+    expect(
+      measurePlayerObjectives(state, partner).creditedDealGainsCents,
+    ).toBeLessThan(0);
+  },
+);
 
 function playerLendingDiagnostic() {
   for (let seed = 0; seed < 100; seed++) {

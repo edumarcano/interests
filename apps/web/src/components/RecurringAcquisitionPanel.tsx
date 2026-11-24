@@ -7,6 +7,7 @@ import type {
 import { useEffect, useRef, useState } from "react";
 import { previewRecurringAcquisition } from "../api/client";
 import { money } from "./CareerPanel";
+import { SharedRecurringAcquisitionDraft } from "./SharedRecurringAcquisitionPanel";
 
 export function RecurringAcquisitionPanel({
   roomCode,
@@ -62,6 +63,7 @@ export function RecurringAcquisitionPanel({
   const canClose =
     !isPaused &&
     !pending &&
+    !match.hasActiveTransaction &&
     !match.activeTransaction &&
     !match.businessCapital &&
     !match.businessAuction &&
@@ -206,6 +208,15 @@ export function RecurringAcquisitionPanel({
           )}
         </div>
       ))}
+      {quotes.length > 0 && canClose && (
+        <SharedRecurringAcquisitionDraft
+          match={match}
+          isPaused={isPaused}
+          onSendCommand={onSendCommand}
+          opportunityId={card.id}
+          routes={quotes.map((quote) => quote.route)}
+        />
+      )}
       {selected && (
         <dialog
           open

@@ -132,6 +132,11 @@ export function recordPublicAction(
   }
   if (!kind) return outcome;
   const state = outcome.state;
+  const announcedPlayer =
+    command.type === "RESPOND_BUSINESS_AUCTION" &&
+    before.activeTransaction?.kind === "business-auction"
+      ? before.activeTransaction.sellerPlayerId
+      : playerId;
   return {
     ...outcome,
     state: {
@@ -139,8 +144,8 @@ export function recordPublicAction(
       progress: {
         byPlayer: {
           ...state.progress.byPlayer,
-          [playerId]: {
-            ...state.progress.byPlayer[playerId]!,
+          [announcedPlayer]: {
+            ...state.progress.byPlayer[announcedPlayer]!,
             latestPublicAction: { kind, quarter: before.currentQuarter },
           },
         },

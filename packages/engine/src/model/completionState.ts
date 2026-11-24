@@ -75,6 +75,7 @@ export interface AssetAcquisitionBasis {
     readonly bankPrincipalCents: number;
     readonly reserveCents: number;
     readonly buyerCashCents: number;
+    readonly buyerCashByPlayer?: Readonly<Record<PlayerId, number>>;
   };
   readonly settledExposureThroughQuarter?: number;
   readonly previousTransfers?: readonly OwnershipTransferExposure[];

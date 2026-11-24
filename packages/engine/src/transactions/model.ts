@@ -6,6 +6,8 @@ import type {
   PlayerId,
   PropertyAcquisitionQuote,
   PropertyAcquisitionTerms,
+  RecurringAcquisitionQuote,
+  SharedRecurringAcquisitionTerms,
   TransactionId,
 } from "@interests/shared";
 
@@ -108,7 +110,19 @@ export interface PropertyAcquisitionTransaction {
   readonly confirmedPlayerIds: readonly PlayerId[];
 }
 
+export interface SharedRecurringAcquisitionTransaction {
+  readonly id: TransactionId;
+  readonly kind: "shared-recurring-acquisition";
+  readonly leadPlayerId: PlayerId;
+  readonly createdQuarter: number;
+  readonly termsRevision: number;
+  readonly terms: SharedRecurringAcquisitionTerms;
+  readonly quote: RecurringAcquisitionQuote;
+  readonly confirmedPlayerIds: readonly PlayerId[];
+}
+
 export type ActiveTransaction =
+  | SharedRecurringAcquisitionTransaction
   | PropertyAcquisitionTransaction
   | JointPropertyTransaction
   | CashBusinessPurchaseTransaction

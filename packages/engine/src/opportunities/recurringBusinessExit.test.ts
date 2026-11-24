@@ -29,7 +29,7 @@ function act(
 function start() {
   let state = createGame({
     gameId: "npc-buyer-proof",
-    seed: "npc-buyer-proof-0",
+    seed: "npc-buyer-proof-24",
     playerIds: ids,
   });
   for (const id of ids)

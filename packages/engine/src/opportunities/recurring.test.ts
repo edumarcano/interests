@@ -257,7 +257,7 @@ describe("ordinary objective-neutral recurring generation", () => {
       );
     }
   });
-  it("skips a property when an overdue buyer has the maximum price and fee but cannot retain the required reserve", () => {
+  it("keeps the property discovery reserve payable by the lead, including when equity is plausible", () => {
     const base = ready();
     const buyer = players[0]!;
     const snapshot = (cash: number): GameState => ({
@@ -277,7 +277,9 @@ describe("ordinary objective-neutral recurring generation", () => {
       recurringCandidateWeights(state, buyer).some(
         ({ template }) => template.id === "residential-rental",
       );
-    expect(offersRental(exactlyPriceWithFee)).toBe(false);
+    expect(offersRental(snapshot(100))).toBe(false);
+    // A prospective equity partner can fund part of the purchase. The lead retains the reserve from their own cash.
+    expect(offersRental(exactlyPriceWithFee)).toBe(true);
     expect(offersRental(snapshot(25_000_000))).toBe(true);
   });
   it("expires a card at its owner's spotlight and generates the next quarter once", () => {

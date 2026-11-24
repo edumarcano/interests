@@ -269,6 +269,23 @@ export function assertCompletionState(state: GameState): void {
           evidence.buyerCashCents,
         ])
           integer(amount);
+        if (evidence.buyerCashByPlayer !== undefined) {
+          const contributions = evidence.buyerCashByPlayer;
+          record(contributions);
+          const contributors = Object.entries(contributions);
+          if (
+            contributors.length !== 2 ||
+            contributors.some(
+              ([id, cash]) =>
+                !Object.hasOwn(state.players, id) ||
+                !Number.isSafeInteger(cash) ||
+                cash <= 0,
+            ) ||
+            contributors.reduce((total, [, cash]) => total + cash, 0) !==
+              evidence.buyerCashCents
+          )
+            throw new Error("Invalid shared recurring acquisition funding");
+        }
         if (
           !Number.isSafeInteger(
             evidence.considerationCents +

@@ -80,6 +80,21 @@ export function calculateAmortizingPayment(
   );
 }
 
+/** Reprice an existing mortgage whose remaining balance is settled one period at a time. */
+export function calculateVariableMortgagePayment(
+  input: CalculatePlayerLoanScheduleInput,
+): Cents {
+  const payment = calculateAmortizingPayment(input);
+  const interest = new FinanceDecimal(input.principalCents)
+    .times(input.annualRateBps)
+    .div(40_000)
+    .round()
+    .toNumber();
+  // Rounded payments still retire principal. Servicing caps principal at the
+  // outstanding balance and collects any residue at the original maturity.
+  return cents(Math.max(payment, interest + 1));
+}
+
 /**
  * Pure calculator for deterministic player-loan amortization schedules.
  *

@@ -1,6 +1,5 @@
 import {
   asAssetId,
-  asPlayerId,
   type BusinessCapitalCommand,
   type PlayerId,
 } from "@interests/shared";
@@ -61,6 +60,13 @@ export function applyBusinessCapitalCommand(
     assertGameState(next);
     return { ok: true, state: next, journalEntries: [] } as const;
   };
+  const actorWouldBorrowWhileOverdue = (
+    terms: BusinessCapitalTransaction["terms"],
+  ) =>
+    terms.kind === "secondary-stake-sale" &&
+    terms.buyerPlayerId === actor &&
+    !!terms.loanRequests?.length &&
+    borrowerHasArrears(state, actor);
   if (command.type === "OPEN_BUSINESS_CAPITAL") {
     if (getActiveSpotlightPlayerId(state) !== actor)
       return reject("NOT_ACTIVE_SPOTLIGHT");
@@ -74,11 +80,7 @@ export function applyBusinessCapitalCommand(
     };
     const plan = planBusinessCapital(state, asset, proposal);
     if (!plan) return reject("INVALID_CAPITAL_CONSIDERATION");
-    if (
-      proposal.terms.kind === "secondary-stake-sale" &&
-      loanRequests(proposal).length &&
-      borrowerHasArrears(state, asPlayerId(proposal.terms.buyerPlayerId))
-    )
+    if (actorWouldBorrowWhileOverdue(proposal.terms))
       return reject("FINANCING_NOT_READY");
     if (state.counters.transaction >= Number.MAX_SAFE_INTEGER)
       return reject("TRANSACTION_ID_EXHAUSTED");
@@ -239,6 +241,8 @@ export function applyBusinessCapitalCommand(
       tx.terms.buyerPlayerId !== actor
     )
       return reject("UNAUTHORIZED_BUYER");
+    if (actorWouldBorrowWhileOverdue(tx.terms))
+      return reject("FINANCING_NOT_READY");
     const winner = offers.find(
       (row) =>
         row.slot === command.slot &&
@@ -280,16 +284,13 @@ export function applyBusinessCapitalCommand(
       };
       const next = planBusinessCapital(state, asset, revised);
       if (!next) return reject("INVALID_CAPITAL_CONSIDERATION");
-      if (
-        revised.terms.kind === "secondary-stake-sale" &&
-        loanRequests(revised).length &&
-        borrowerHasArrears(state, asPlayerId(revised.terms.buyerPlayerId))
-      )
+      if (actorWouldBorrowWhileOverdue(revised.terms))
         return reject("FINANCING_NOT_READY");
       return save({ ...revised, terms: next.terms });
     }
     case "CONFIRM_BUSINESS_CAPITAL": {
-      if (!plan.ready) return reject("FINANCING_NOT_READY");
+      if (!plan.ready || actorWouldBorrowWhileOverdue(tx.terms))
+        return reject("FINANCING_NOT_READY");
       if (tx.confirmedPlayerIds.includes(actor))
         return reject("CAPITAL_ALREADY_CONFIRMED");
       if (
