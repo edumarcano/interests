@@ -20,6 +20,7 @@ import {
   resetVariableAssetLoan,
   roundedRatio,
 } from "./bank";
+import { originateConfirmedPlayerLoan } from "./loans";
 import { basisPoints, cents } from "./money";
 import { calculateLoanObligation } from "./obligations";
 import { ownershipPpm } from "./ownership";
@@ -216,6 +217,60 @@ describe("M7 bank and property production commands", () => {
     expect(business.termQuarters).toBe(28);
     expect(business.annualRateBps).toBe(state.economy.baseRateBps + 175 + 150);
     expect(business.maxShareBps).toBe(5000);
+  });
+  it("retains the first installment for a personal loan originated this quarter", () => {
+    const state = ready();
+    const oldReserve = bankBorrowerStrength(
+      state,
+      actor,
+    ).personalQuarterlyObligationsCents;
+    const lender = ids.find(
+      (id) => id !== actor && state.finance.cashByPlayer[id]! >= 2_000_000,
+    )!;
+    const originated = originateConfirmedPlayerLoan(
+      state.finance,
+      state.counters,
+      {
+        lenderPlayerId: lender,
+        borrowerPlayerId: actor,
+        principalCents: 2_000_000,
+        annualRateBps: 800,
+        termQuarters: 4,
+        quarter: state.currentQuarter,
+      },
+    );
+    expect(originated.ok).toBe(true);
+    if (!originated.ok) throw new Error(originated.code);
+    expect(
+      calculateLoanObligation(originated.loan, state.currentQuarter),
+    ).toBeNull();
+    const financed = {
+      ...state,
+      finance: originated.finance,
+      counters: originated.counters,
+    };
+    const quote = propertyOffers(financed, actor)[0]!.quotes.find(
+      (row) => row.rateKind === "fixed" && row.principalCents > 0,
+    )!;
+    expect(quote.personalReserveCents).toBe(oldReserve + 525_248);
+    const underfunded = {
+      ...financed,
+      finance: {
+        ...financed.finance,
+        cashByPlayer: {
+          ...financed.finance.cashByPlayer,
+          [actor]: cents(quote.cashRequiredCents + oldReserve + 100_000),
+        },
+      },
+    };
+    expect(
+      applyPlayerCommand(underfunded, actor, {
+        type: "BUY_PROPERTY",
+        catalogueId: "residential-duplex",
+        principalCents: quote.principalCents,
+        rateKind: quote.rateKind,
+      }),
+    ).toMatchObject({ ok: false, state: underfunded });
   });
   it("rejects forged numbers, unavailable listings, wrong spotlight and insufficient reserves without changing any state", () => {
     const state = ready();
@@ -494,6 +549,49 @@ describe("M7 bank and property production commands", () => {
       resetVariableAssetLoan({ ...loan, pricing: { kind: "fixed" } }, 600, 6),
     ).toEqual({ ...loan, pricing: { kind: "fixed" } });
   });
+  it.each([
+    { principal: 400, payment: 8, interest: 7 },
+    { principal: 217, payment: 5, interest: 4 },
+  ])(
+    "services a $principal-cent mortgage after a rounded-cent rate reset",
+    ({ principal, payment, interest }) => {
+      const { state, loan } = buy(ready(), "variable", principal);
+      expect(loan.annualRateBps).toBe(625);
+      // Supply the next rate directly at the reset boundary. Automatic economy rate
+      // changes arrive in a later packet.
+      const reset = resetVariableAssetLoan(loan, 500, 2);
+      const rateMoved: GameState = {
+        ...state,
+        finance: {
+          ...state.finance,
+          loansById: { ...state.finance.loansById, [loan.id]: reset },
+        },
+      };
+      expect(reset).toMatchObject({
+        annualRateBps: 675,
+        maturityQuarter: loan.maturityQuarter,
+        outstandingPrincipalCents: principal,
+        scheduledQuarterlyPaymentCents: payment,
+      });
+      expect(calculateLoanObligation(reset, 2)).toMatchObject({
+        interestDueCents: interest,
+        principalDueCents: 1,
+      });
+      expect(() =>
+        assertGameState(JSON.parse(JSON.stringify(rateMoved))),
+      ).not.toThrow();
+      const next = settleCurrent(rateMoved);
+      expect(next.currentQuarter).toBe(2);
+      const paid = settleCurrent(
+        accepted(next, actor, { type: "BEGIN_ROUND" }),
+      );
+      expect(paid.finance.loansById[loan.id]).toMatchObject({
+        outstandingPrincipalCents: principal - 1,
+        principalRepaidCents: 1,
+        unpaidInterestCents: 0,
+      });
+    },
+  );
   it("keeps property cash, loan terms and management private under paired unrelated states", () => {
     const { state, asset, loan } = buy();
     const other = ids[2]!;

@@ -231,7 +231,10 @@ describe("business capital lifecycle", () => {
       current,
       buyer,
     ).businessEquityInvitation;
-    expect(privateOffer?.slots).toEqual([{ slot: 0, amountCents: 50_000 }]);
+    expect(privateOffer).toMatchObject({
+      assetId: asset.id,
+      slots: [{ slot: 0, amountCents: 50_000 }],
+    });
     expect(privateOffer?.ownOffers).toEqual([
       {
         investorPlayerId: buyer,
@@ -423,6 +426,112 @@ describe("business capital lifecycle", () => {
     expect(
       posted.state.finance.assetsById[asset.id]?.ownershipByPlayerPpm[buyer],
     ).toBe(250_000);
+  });
+  it("identifies targeted issuances without projecting private company finances", () => {
+    const { state, owner, asset, buyer, rival } = start();
+    const draft = send(state, owner, {
+      type: "OPEN_BUSINESS_CAPITAL",
+      assetId: asset.id,
+      terms: {
+        kind: "request-equity",
+        requests: [{ amountCents: 50_000, invitedInvestorId: buyer }],
+      },
+    }).state;
+    const changed = {
+      ...draft,
+      finance: {
+        ...draft.finance,
+        assetsById: {
+          ...draft.finance.assetsById,
+          [asset.id]: { ...asset, cashCents: cents(asset.cashCents + 10_000) },
+        },
+      },
+    };
+    const view = projectPlayerGameState(draft, buyer);
+    expect(view.businessEquityInvitation).toMatchObject({ assetId: asset.id });
+    expect(view.businessCapital).toBeNull();
+    expect(projectPlayerGameState(changed, buyer)).toEqual(view);
+    expect(
+      projectPlayerGameState(draft, rival).businessEquityInvitation,
+    ).toBeNull();
+    expect(projectPlayerGameState(changed, rival)).toEqual(
+      projectPlayerGameState(draft, rival),
+    );
+  });
+  it("keeps buyer eligibility private until the borrower acts and prevents overdue funding", () => {
+    const { state, owner, asset, buyer, second } = start();
+    const overdue = {
+      ...state,
+      finance: {
+        ...state.finance,
+        livingArrearsByPlayer: {
+          ...state.finance.livingArrearsByPlayer,
+          [buyer]: cents(10_000),
+        },
+      },
+    };
+    const terms = {
+      kind: "secondary-stake-sale" as const,
+      sellerPlayerId: owner,
+      buyerPlayerId: buyer,
+      ownershipPpm: 250_000,
+      priceCents: 1_000_000,
+      loanRequests: [{ principalCents: 300_000, invitedLenderId: second }],
+    };
+    const open = {
+      type: "OPEN_BUSINESS_CAPITAL" as const,
+      assetId: asset.id,
+      terms,
+    };
+    const current = send(state, owner, open).state;
+    const opened = applyPlayerCommand(overdue, owner, open);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) throw new Error("Expected a valid seller proposal");
+    expect(projectPlayerGameState(opened.state, owner)).toEqual(
+      projectPlayerGameState(current, owner),
+    );
+
+    const revise = {
+      type: "REVISE_BUSINESS_CAPITAL" as const,
+      ...binding(current),
+      terms: { ...terms, priceCents: 950_000 },
+    };
+    const revised = send(opened.state, owner, revise).state;
+    expect(projectPlayerGameState(revised, owner)).toEqual(
+      projectPlayerGameState(send(current, owner, revise).state, owner),
+    );
+
+    const offered = send(revised, second, {
+      type: "OFFER_BUSINESS_LOAN",
+      ...binding(revised),
+      slot: 0,
+      annualRateBps: 650,
+      termQuarters: 4,
+    }).state;
+    expect(
+      applyPlayerCommand(offered, buyer, {
+        type: "SELECT_BUSINESS_LOAN",
+        ...binding(offered),
+        slot: 0,
+        lenderPlayerId: second,
+      }),
+    ).toEqual({
+      ok: false,
+      state: offered,
+      code: "FINANCING_NOT_READY",
+      journalEntries: [],
+    });
+    expect(
+      applyPlayerCommand(offered, owner, {
+        type: "CLOSE_BUSINESS_CAPITAL",
+        ...binding(offered),
+      }),
+    ).toEqual({
+      ok: false,
+      state: offered,
+      code: "FINANCING_NOT_READY",
+      journalEntries: [],
+    });
   });
   it("binds targeted sale terms, protects funds and privacy, and closes only the initiator's spotlight", () => {
     const { state, owner, asset, buyer, rival } = start();
@@ -687,6 +796,18 @@ describe("sealed stake auction", () => {
     expect(
       closed.state.finance.assetsById[asset.id]?.ownershipByPlayerPpm,
     ).toEqual({ [owner]: 750_000, [buyer]: 250_000 });
+    const publicPlayers = projectPlayerGameState(closed.state, rival).players;
+    expect(
+      publicPlayers.find((player) => player.playerId === owner)?.publicPosition
+        ?.latestAction,
+    ).toEqual({
+      kind: "business-stake-transfer",
+      quarter: tied.currentQuarter,
+    });
+    expect(
+      publicPlayers.find((player) => player.playerId === rival)?.publicPosition
+        ?.latestAction,
+    ).toBeUndefined();
     expect(
       closed.journalEntries
         .filter((entry) => entry.relatedTransactionId === tx.id)

@@ -1,5 +1,10 @@
 import type { PublicMarketInstrumentId } from "@interests/rules";
-import type { AssetId, PlayerId, TransactionId } from "@interests/shared";
+import type {
+  AssetId,
+  PlayerId,
+  PublicPlayerPositionView,
+  TransactionId,
+} from "@interests/shared";
 import type { Cents } from "../finance/money";
 import type { OwnershipPpm } from "../finance/ownership";
 import type { StakeBasisSlice } from "../finance/stakeBasis";
@@ -70,6 +75,7 @@ export interface AssetAcquisitionBasis {
     readonly bankPrincipalCents: number;
     readonly reserveCents: number;
     readonly buyerCashCents: number;
+    readonly buyerCashByPlayer?: Readonly<Record<PlayerId, number>>;
   };
   readonly settledExposureThroughQuarter?: number;
   readonly previousTransfers?: readonly OwnershipTransferExposure[];
@@ -105,6 +111,7 @@ export interface QuarterObservation {
   readonly companyOperatingProfitById: Readonly<Record<AssetId, Cents>>;
 }
 export interface PlayerProgress {
+  readonly latestPublicAction?: PublicPlayerPositionView["latestAction"];
   readonly disposalEvidence?: readonly CanonicalDisposalRecord[];
   readonly publicMarketExposure?: Readonly<
     Record<PublicMarketInstrumentId, readonly PublicMarketExposureSlice[]>

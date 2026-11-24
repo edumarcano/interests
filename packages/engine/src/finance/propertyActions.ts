@@ -15,6 +15,10 @@ import type { ActionResult } from "../game/actions";
 import { nextDeterministicId } from "../game/deterministicIds";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "../game/round";
 import type {
+  AssetAcquisitionBasis,
+  ProgressState,
+} from "../model/completionState";
+import type {
   AssetBankLoan,
   GameState,
   PropertyAsset,
@@ -36,6 +40,58 @@ import type { JournalEntry } from "./journal";
 import { basisPoints, cents } from "./money";
 import { allocateProportionalCents, ownershipPpm } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
+
+function addPropertyBasisCost(
+  basis: AssetAcquisitionBasis,
+  additionalCostCents: number,
+): AssetAcquisitionBasis {
+  return {
+    ...basis,
+    costCents: cents(basis.costCents + additionalCostCents),
+    ...(basis.objectiveCostFloorCents !== undefined
+      ? {
+          objectiveCostFloorCents: cents(
+            basis.objectiveCostFloorCents + additionalCostCents,
+          ),
+        }
+      : {}),
+  };
+}
+
+function recordPropertyReserveFunding(
+  progress: ProgressState,
+  asset: PropertyAsset,
+  payer: PlayerId,
+  amountCents: number,
+): ProgressState {
+  if (!amountCents) return progress;
+  const shares = allocateProportionalCents(
+    cents(amountCents),
+    asset.ownershipByPlayerPpm,
+  );
+  const byPlayer = { ...progress.byPlayer };
+  for (const owner of Object.keys(shares) as PlayerId[]) {
+    const ownerProgress = byPlayer[owner]!;
+    const basis = ownerProgress.assetsById[asset.id]!;
+    byPlayer[owner] = {
+      ...ownerProgress,
+      assetsById: {
+        ...ownerProgress.assetsById,
+        [asset.id]:
+          owner === payer
+            ? addPropertyBasisCost(basis, amountCents)
+            : {
+                ...basis,
+                objectiveCostFloorCents: cents(
+                  (basis.objectiveCostFloorCents ?? basis.costCents) +
+                    shares[owner]!,
+                ),
+              },
+      },
+    };
+  }
+  return { byPlayer };
+}
 
 export function catalogueProperty(
   id: string,
@@ -540,16 +596,29 @@ export function draftPropertyOwnerAction(
         cents(command.principalCents),
         ownership,
       );
+      const entryShares = purchaseFunding
+        ? allocateProportionalCents(
+            cents(quote.cashRequiredCents + command.principalCents),
+            ownership,
+          )
+        : null;
       const byPlayer = { ...state.progress.byPlayer };
       for (const owner of state.playerOrder) {
         if (!ownership[owner]) continue;
         const progress = byPlayer[owner]!;
+        const costCents = cents(
+          contributions[owner]! + principalShares[owner]!,
+        );
+        const entryShare = entryShares?.[owner] ?? 0;
         byPlayer[owner] = {
           ...progress,
           assetsById: {
             ...progress.assetsById,
             [id]: {
-              costCents: cents(contributions[owner]! + principalShares[owner]!),
+              costCents,
+              ...(entryShare > costCents
+                ? { objectiveCostFloorCents: cents(entryShare) }
+                : {}),
               acquiredQuarter: state.currentQuarter,
               ownershipPpm: ownership[owner]!,
             },
@@ -580,27 +649,14 @@ export function draftPropertyOwnerAction(
           reason: "property-reserve-funding",
           relatedAssetId: asset.id,
         });
-        const progress = draft.progress.byPlayer[playerId]!;
         draft = {
           ...draft,
-          progress: {
-            byPlayer: {
-              ...draft.progress.byPlayer,
-              [playerId]: {
-                ...progress,
-                assetsById: {
-                  ...progress.assetsById,
-                  [asset.id]: {
-                    ...progress.assetsById[asset.id]!,
-                    costCents: cents(
-                      progress.assetsById[asset.id]!.costCents +
-                        command.amountCents,
-                    ),
-                  },
-                },
-              },
-            },
-          },
+          progress: recordPropertyReserveFunding(
+            draft.progress,
+            asset,
+            playerId,
+            command.amountCents,
+          ),
         };
       } else if (command.type === "RENOVATE_PROPERTY") {
         if (asset.renovatedQuarter !== undefined)
@@ -647,12 +703,10 @@ export function draftPropertyOwnerAction(
                 ...progress,
                 assetsById: {
                   ...progress.assetsById,
-                  [asset.id]: {
-                    ...progress.assetsById[asset.id]!,
-                    costCents: cents(
-                      progress.assetsById[asset.id]!.costCents + cost,
-                    ),
-                  },
+                  [asset.id]: addPropertyBasisCost(
+                    progress.assetsById[asset.id]!,
+                    cost,
+                  ),
                 },
               },
             },
@@ -710,30 +764,23 @@ export function draftPropertyOwnerAction(
               },
             },
           };
-          const progress = draft.progress.byPlayer[playerId]!;
+          const fundingProgress = recordPropertyReserveFunding(
+            draft.progress,
+            asset,
+            playerId,
+            Math.max(0, quote.assetReserveCents - (asset.cashCents ?? 0)),
+          );
+          const progress = fundingProgress.byPlayer[playerId]!;
           draft = {
             ...draft,
             progress: {
               byPlayer: {
-                ...draft.progress.byPlayer,
+                ...fundingProgress.byPlayer,
                 [playerId]: {
                   ...progress,
                   realizedGainsCents: cents(
                     progress.realizedGainsCents - quote.feeCents,
                   ),
-                  assetsById: {
-                    ...progress.assetsById,
-                    [asset.id]: {
-                      ...progress.assetsById[asset.id]!,
-                      costCents: cents(
-                        progress.assetsById[asset.id]!.costCents +
-                          Math.max(
-                            0,
-                            quote.assetReserveCents - (asset.cashCents ?? 0),
-                          ),
-                      ),
-                    },
-                  },
                 },
               },
             },
@@ -849,6 +896,12 @@ export function draftPropertyOwnerAction(
                   saleFeesCents: feeShares[owner]!,
                   financingCostsCents: financingShares[owner]!,
                   acquisitionBasisCents: basis.costCents,
+                  ...(basis.objectiveCostFloorCents !== undefined
+                    ? {
+                        objectiveAcquisitionBasisFloorCents:
+                          basis.objectiveCostFloorCents,
+                      }
+                    : {}),
                   referenceProceedsCents: null,
                   economicSubstance: "genuine",
                   ownershipUnits: basis.ownershipPpm,

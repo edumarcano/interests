@@ -27,6 +27,7 @@ import { assertBusinessAuctionTransaction } from "../transactions/businessAuctio
 import { assertBusinessCapitalTransaction } from "../transactions/businessCapitalTerms";
 import { assertJointPropertyTransaction } from "../transactions/jointPropertyTerms";
 import { assertPropertyAcquisitionTransaction } from "../transactions/propertyAcquisitionTerms";
+import { assertSharedRecurringAcquisition } from "../transactions/sharedRecurringAcquisition";
 import { assertAssetBankLoan } from "./assertAssetBankLoan";
 import { assertBusinessCashState } from "./assertBusinessCashState";
 import { assertCompanyLoan } from "./assertCompanyLoan";
@@ -1183,6 +1184,7 @@ function assertEconomyState(state: GameState): void {
       tx.kind === "business-capital" ||
       tx.kind === "business-auction" ||
       tx.kind === "property-acquisition" ||
+      tx.kind === "shared-recurring-acquisition" ||
       tx.kind === "joint-property"
     ) {
       const activePlayerId =
@@ -1196,6 +1198,8 @@ function assertEconomyState(state: GameState): void {
         assertBusinessCapitalTransaction(state, tx, activePlayerId);
       else if (tx.kind === "business-auction")
         assertBusinessAuctionTransaction(state, tx, activePlayerId);
+      else if (tx.kind === "shared-recurring-acquisition")
+        assertSharedRecurringAcquisition(state, tx, activePlayerId);
       else if (tx.kind === "property-acquisition")
         assertPropertyAcquisitionTransaction(state, tx, activePlayerId);
       else assertJointPropertyTransaction(state, tx, activePlayerId);

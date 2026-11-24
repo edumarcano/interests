@@ -1,6 +1,6 @@
 import { SHARED_VERSION } from "@interests/shared";
 
-export const RULES_VERSION = "0.0.11";
+export const RULES_VERSION = "0.0.13";
 export const RULES_SHARED_VERSION = SHARED_VERSION;
 
 export * from "./careers";

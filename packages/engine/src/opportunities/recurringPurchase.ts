@@ -4,6 +4,7 @@ import type {
   PlayerId,
   RecurringAcquisitionQuote,
   RecurringAcquisitionRoute,
+  TransactionId,
 } from "@interests/shared";
 import {
   businessCashAccount,
@@ -20,7 +21,11 @@ import {
 import type { JournalEntry } from "../finance/journal";
 import type { Cents } from "../finance/money";
 import { basisPoints, cents } from "../finance/money";
-import { ownershipPpm } from "../finance/ownership";
+import {
+  allocateProportionalCents,
+  type OwnershipPpm,
+  ownershipPpm,
+} from "../finance/ownership";
 import { type CashPostingRequest, postCash } from "../finance/posting";
 import { calculatePropertyCashFlow } from "../finance/property";
 import type { ActionErrorCode, ActionResult } from "../game/actions";
@@ -79,9 +84,10 @@ function companyBankTerms(
   terms: RecurringAcquisitionTerms,
   assetId: AssetId,
   principal: number,
+  transactionId = nextDeterministicId("transaction", state.counters).id,
 ): BusinessAcquisitionBankTerms {
   return {
-    transactionId: nextDeterministicId("transaction", state.counters).id,
+    transactionId,
     borrowerAssetId: assetId,
     leadPlayerId: terms.recipientPlayerId,
     principalCents: principal,
@@ -95,6 +101,9 @@ export function getRecurringAcquisitionQuotes(
   state: GameState,
   player: PlayerId,
   opportunityId: string,
+  leadCashCents?: number,
+  closingTransactionId?: TransactionId,
+  coOwner?: { readonly playerId: PlayerId; readonly ownershipPpm: number },
 ): readonly RecurringAcquisitionQuote[] {
   const resolved = getRecurringAcquisitionTerms(state, player, opportunityId);
   if (!resolved.ok || state.activeTransaction) return [];
@@ -102,7 +111,16 @@ export function getRecurringAcquisitionQuotes(
     const terms = resolved.terms;
     const assetId = nextDeterministicId("asset", state.counters).id;
     if (state.finance.assetsById[assetId]) return [];
-    const asset = acquisitionAsset(terms, assetId);
+    const asset = {
+      ...acquisitionAsset(terms, assetId),
+      ownershipByPlayerPpm: coOwner
+        ? {
+            [player]: ownershipPpm(1_000_000 - coOwner.ownershipPpm),
+            [coOwner.playerId]: ownershipPpm(coOwner.ownershipPpm),
+          }
+        : { [player]: ownershipPpm(1_000_000) },
+    };
+    const shared = leadCashCents !== undefined;
     const available = getAvailableCashCents(state, player);
     const operatingCash =
       asset.kind === "business"
@@ -144,7 +162,9 @@ export function getRecurringAcquisitionQuotes(
               ...withAsset.finance,
               cashByPlayer: {
                 ...withAsset.finance.cashByPlayer,
-                [player]: cents(Math.max(0, available - contribution)),
+                [player]: cents(
+                  Math.max(0, available - (leadCashCents ?? contribution)),
+                ),
               },
               assetsById: {
                 ...withAsset.finance.assetsById,
@@ -174,10 +194,12 @@ export function getRecurringAcquisitionQuotes(
           : 0;
       let canClose =
         (!principal || bank.approved) &&
-        available - required >= personal &&
+        available - (leadCashCents ?? required) >= personal &&
+        (!shared || (leadCashCents > 0 && leadCashCents < required)) &&
         state.counters.journal <=
-          Number.MAX_SAFE_INTEGER - (principal ? 4 : 3) &&
-        state.counters.transaction < Number.MAX_SAFE_INTEGER &&
+          Number.MAX_SAFE_INTEGER - ((principal ? 4 : 3) + (shared ? 1 : 0)) &&
+        (closingTransactionId !== undefined ||
+          state.counters.transaction < Number.MAX_SAFE_INTEGER) &&
         (!principal ||
           (state.counters.loan < Number.MAX_SAFE_INTEGER &&
             !state.finance.loansById[
@@ -186,7 +208,13 @@ export function getRecurringAcquisitionQuotes(
       if (canClose && principal && terms.kind === "business") {
         const verified = quoteBusinessAcquisitionBankLoan(
           funded,
-          companyBankTerms(state, terms, assetId, principal),
+          companyBankTerms(
+            state,
+            terms,
+            assetId,
+            principal,
+            closingTransactionId,
+          ),
         );
         canClose = verified.ok;
       }
@@ -269,6 +297,12 @@ export function acquireRecurringOpportunity(
   player: PlayerId,
   command: AcquireRecurringCommand,
   finalize?: EconomicActionFinalizer<RecurringAcquisitionRealizedFacts>,
+  shared?: {
+    readonly transactionId: TransactionId;
+    readonly leadCashCents: number;
+    readonly partnerPlayerId: PlayerId;
+    readonly partnerOwnershipPpm: number;
+  },
 ): ActionResult {
   const reject = (code: ActionErrorCode): ActionResult => ({
     ok: false,
@@ -291,14 +325,40 @@ export function acquireRecurringOpportunity(
     state,
     player,
     command.opportunityId,
+    shared?.leadCashCents,
+    shared?.transactionId,
+    shared
+      ? {
+          playerId: shared.partnerPlayerId,
+          ownershipPpm: shared.partnerOwnershipPpm,
+        }
+      : undefined,
   ).find((item) => item.id === command.quoteId);
   if (!quote) return reject("INVALID_ACTION");
   if (!quote.canClose) return reject("INSUFFICIENT_FUNDS");
   try {
     const terms = resolved.terms;
     const next = nextDeterministicId("asset", state.counters);
-    const closeId = nextDeterministicId("transaction", next.counters);
-    const initialAsset = acquisitionAsset(terms, next.id);
+    const closeId = shared
+      ? { id: shared.transactionId, counters: next.counters }
+      : nextDeterministicId("transaction", next.counters);
+    const ownership: Readonly<Record<PlayerId, OwnershipPpm>> = shared
+      ? {
+          [player]: ownershipPpm(1_000_000 - shared.partnerOwnershipPpm),
+          [shared.partnerPlayerId]: ownershipPpm(shared.partnerOwnershipPpm),
+        }
+      : { [player]: ownershipPpm(1_000_000) };
+    const contributions: Readonly<Record<PlayerId, number>> = shared
+      ? {
+          [player]: shared.leadCashCents,
+          [shared.partnerPlayerId]:
+            quote.cashRequiredCents - shared.leadCashCents,
+        }
+      : { [player]: quote.cashRequiredCents };
+    const initialAsset = {
+      ...acquisitionAsset(terms, next.id),
+      ownershipByPlayerPpm: ownership,
+    };
     const asset: Asset =
       initialAsset.kind === "property"
         ? {
@@ -332,17 +392,26 @@ export function acquireRecurringOpportunity(
       asset.kind === "business"
         ? businessCashAccount(asset.id)
         : propertyCashAccount(asset.id);
-    post({
-      source: playerCashAccount(player),
-      destination: account,
-      amountCents: quote.cashRequiredCents,
-      reason: "recurring-acquisition-equity",
-    });
+    for (const buyer of state.playerOrder) {
+      const contribution = contributions[buyer];
+      if (!contribution) continue;
+      post({
+        source: playerCashAccount(buyer),
+        destination: account,
+        amountCents: contribution,
+        reason: "recurring-acquisition-equity",
+      });
+    }
     if (quote.principalCents) {
       if (asset.kind === "business") {
         const funded = draftBusinessAcquisitionBankLoan(draft, {
-          ...companyBankTerms(state, terms, asset.id, quote.principalCents),
-          transactionId: closeId.id,
+          ...companyBankTerms(
+            state,
+            terms,
+            asset.id,
+            quote.principalCents,
+            closeId.id,
+          ),
         });
         if (!funded.ok)
           return reject(
@@ -434,41 +503,54 @@ export function acquireRecurringOpportunity(
           },
         },
       };
-    const progress = draft.progress.byPlayer[player]!;
-    draft = {
-      ...draft,
-      progress: {
-        byPlayer: {
-          ...draft.progress.byPlayer,
-          [player]: {
-            ...progress,
-            assetsById: {
-              ...progress.assetsById,
-              [asset.id]: {
-                costCents: cents(
-                  asset.kind === "business"
-                    ? quote.cashRequiredCents
-                    : terms.totalCashRequiredCents + quote.assetReserveCents,
-                ),
-                acquiredQuarter: state.currentQuarter,
-                ownershipPpm: ownershipPpm(1_000_000),
-                acquisition: {
-                  kind: "recurring-npc",
-                  opportunityId: terms.opportunityId,
-                  templateId: terms.templateId,
-                  transactionId: closeId.id,
-                  considerationCents: terms.askingPriceCents,
-                  feeCents: terms.purchaseFeeCents,
-                  bankPrincipalCents: quote.principalCents,
-                  reserveCents: quote.assetReserveCents,
-                  buyerCashCents: quote.cashRequiredCents,
-                },
-              },
+    const principalByPlayer = allocateProportionalCents(
+      cents(quote.principalCents),
+      ownership,
+    );
+    const grossBasisCents =
+      quote.cashRequiredCents +
+      (asset.kind === "property" ? quote.principalCents : 0);
+    const entryByPlayer = shared
+      ? allocateProportionalCents(cents(grossBasisCents), ownership)
+      : null;
+    const progressByPlayer = { ...draft.progress.byPlayer };
+    for (const buyer of state.playerOrder) {
+      const contribution = contributions[buyer];
+      if (!contribution) continue;
+      const progress = progressByPlayer[buyer]!;
+      const costCents = cents(
+        contribution +
+          (asset.kind === "property" ? principalByPlayer[buyer]! : 0),
+      );
+      const entryShare = entryByPlayer?.[buyer] ?? 0;
+      progressByPlayer[buyer] = {
+        ...progress,
+        assetsById: {
+          ...progress.assetsById,
+          [asset.id]: {
+            costCents,
+            ...(entryShare > costCents
+              ? { objectiveCostFloorCents: entryShare }
+              : {}),
+            acquiredQuarter: state.currentQuarter,
+            ownershipPpm: ownership[buyer]!,
+            acquisition: {
+              kind: "recurring-npc",
+              opportunityId: terms.opportunityId,
+              templateId: terms.templateId,
+              transactionId: closeId.id,
+              considerationCents: terms.askingPriceCents,
+              feeCents: terms.purchaseFeeCents,
+              bankPrincipalCents: quote.principalCents,
+              reserveCents: quote.assetReserveCents,
+              buyerCashCents: quote.cashRequiredCents,
+              ...(shared ? { buyerCashByPlayer: contributions } : {}),
             },
           },
         },
-      },
-    };
+      };
+    }
+    draft = { ...draft, progress: { byPlayer: progressByPlayer } };
     const card = draft.content.cardsByPlayer[player]!;
     draft = {
       ...draft,

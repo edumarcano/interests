@@ -3,7 +3,7 @@ import {
   OBJECTIVE_MEASUREMENT_RULES,
   PUBLIC_MARKET_INSTRUMENT_IDS,
 } from "@interests/rules";
-import type { PlayerId } from "@interests/shared";
+import { type PlayerId, PUBLIC_ECONOMIC_ACTIONS } from "@interests/shared";
 import {
   type CanonicalDisposalRecord,
   FOCUS_AREAS,
@@ -88,6 +88,17 @@ export function assertCompletionState(state: GameState): void {
     record(progress);
     record(progress.labor);
     if (!FOCUS_AREAS.includes(progress.focus)) throw new Error("Invalid focus");
+    if (progress.latestPublicAction !== undefined) {
+      const action = progress.latestPublicAction;
+      record(action);
+      integer(action.quarter, 1);
+      if (
+        action.quarter > state.currentQuarter ||
+        !PUBLIC_ECONOMIC_ACTIONS.includes(action.kind) ||
+        Object.keys(action).length !== 2
+      )
+        throw new Error("Invalid public economic action");
+    }
     if (progress.labor.kind === "owner-work") {
       const asset = state.finance.assetsById[progress.labor.assetId];
       if (
@@ -258,6 +269,23 @@ export function assertCompletionState(state: GameState): void {
           evidence.buyerCashCents,
         ])
           integer(amount);
+        if (evidence.buyerCashByPlayer !== undefined) {
+          const contributions = evidence.buyerCashByPlayer;
+          record(contributions);
+          const contributors = Object.entries(contributions);
+          if (
+            contributors.length !== 2 ||
+            contributors.some(
+              ([id, cash]) =>
+                !Object.hasOwn(state.players, id) ||
+                !Number.isSafeInteger(cash) ||
+                cash <= 0,
+            ) ||
+            contributors.reduce((total, [, cash]) => total + cash, 0) !==
+              evidence.buyerCashCents
+          )
+            throw new Error("Invalid shared recurring acquisition funding");
+        }
         if (
           !Number.isSafeInteger(
             evidence.considerationCents +

@@ -15,6 +15,7 @@ import type {
   ResignLaborCommandPayload,
   SellRecurringBusinessCommand,
   SetFocusCommandPayload,
+  SharedRecurringAcquisitionCommand,
   TradePublicMarketsCommandPayload,
   TransactionId,
 } from "@interests/shared";
@@ -43,8 +44,10 @@ import {
 } from "../transactions/cashBusinessPurchase.js";
 import { applyJointPropertyCommand } from "../transactions/jointProperty";
 import { applyPropertyAcquisitionCommand } from "../transactions/propertyAcquisition";
+import { applySharedRecurringAcquisitionCommand } from "../transactions/sharedRecurringAcquisition";
 import { type ActionResult, applyAction } from "./actions.js";
 import { applyCareerCommand } from "./career";
+import { recordPublicAction } from "./publicPosition";
 import {
   advanceSpotlight,
   beginRound,
@@ -108,6 +111,7 @@ export interface WireCancelActiveTransactionCommand {
 export type WirePlayerCommand =
   | SellRecurringBusinessCommand
   | PropertyAcquisitionCommand
+  | SharedRecurringAcquisitionCommand
   | AcquireRecurringCommand
   | FundRecurringLoanCommand
   | PursueFinaleCommandPayload
@@ -155,6 +159,19 @@ export function applyPlayerCommand(
   actorPlayerId: PlayerId,
   wireCommand: WirePlayerCommand,
 ): ActionResult {
+  return recordPublicAction(
+    state,
+    actorPlayerId,
+    wireCommand,
+    dispatchPlayerCommand(state, actorPlayerId, wireCommand),
+  );
+}
+
+function dispatchPlayerCommand(
+  state: GameState,
+  actorPlayerId: PlayerId,
+  wireCommand: WirePlayerCommand,
+): ActionResult {
   if (!wireCommand || typeof wireCommand !== "object") {
     return {
       ok: false,
@@ -174,6 +191,17 @@ export function applyPlayerCommand(
         actorPlayerId,
         wireCommand.opportunityId,
         wireCommand.quoteId,
+      );
+    case "OPEN_SHARED_RECURRING_ACQUISITION":
+    case "REVISE_SHARED_RECURRING_ACQUISITION":
+    case "CONFIRM_SHARED_RECURRING_ACQUISITION":
+    case "WITHDRAW_SHARED_RECURRING_ACQUISITION":
+    case "CLOSE_SHARED_RECURRING_ACQUISITION":
+    case "CANCEL_SHARED_RECURRING_ACQUISITION":
+      return applySharedRecurringAcquisitionCommand(
+        state,
+        actorPlayerId,
+        wireCommand,
       );
     case "ACQUIRE_RECURRING_OPPORTUNITY":
       return acquireRecurringOpportunity(state, actorPlayerId, wireCommand);

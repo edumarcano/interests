@@ -163,7 +163,7 @@ describe("shared catalogue property acquisition", () => {
           state.progress.byPlayer[buyer.playerId as typeof a]!.assetsById[
             property.id
           ],
-        ).toEqual({
+        ).toMatchObject({
           costCents:
             buyer.cashContributionCents + shares[buyer.playerId as typeof a]!,
           acquiredQuarter: 1,
@@ -351,7 +351,22 @@ describe("shared catalogue property acquisition", () => {
       },
     };
     assertGameState(changed);
-    expect(projectPlayerGameState(changed, c)).toEqual(unrelated);
+    const projected = projectPlayerGameState(changed, c);
+    expect(
+      projected.players.find((player) => player.playerId === a)?.publicPosition
+        ?.leverage,
+    ).toBe("high");
+    expect(projected).toEqual({
+      ...unrelated,
+      players: unrelated.players.map((player) =>
+        player.playerId === a && player.publicPosition
+          ? {
+              ...player,
+              publicPosition: { ...player.publicPosition, leverage: "high" },
+            }
+          : player,
+      ),
+    });
     expect(
       applyPlayerCommand(
         changed,

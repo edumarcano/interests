@@ -67,6 +67,9 @@ export function buildMatchPlayerView(params: {
         joinOrder: matchMember?.playerOrder ?? 0,
         isHost: matchMember?.roomMemberId === params.hostMemberId,
         hasSelectedObjective: summary.hasSelectedObjective,
+        ...(summary.publicPosition
+          ? { publicPosition: summary.publicPosition }
+          : {}),
       };
     },
   );
@@ -172,6 +175,7 @@ export function buildMatchPlayerView(params: {
     hasActiveTransaction: pureProjection.hasActiveTransaction,
     jointProperty: pureProjection.jointProperty,
     propertyAcquisition: pureProjection.propertyAcquisition,
+    sharedRecurringAcquisition: pureProjection.sharedRecurringAcquisition,
     economicConditions: pureProjection.economicConditions,
     result: pureProjection.result,
     matchId: pureProjection.matchId,

@@ -23,8 +23,10 @@ import type {
   PropertyAcquisitionView,
   PropertyManagementView,
   PropertyOfferView,
+  PublicPlayerPositionView,
   RecurringOpportunityView,
   SelfSettlementView,
+  SharedRecurringAcquisitionView,
   TransactionId,
 } from "@interests/shared";
 import { calculatePlayerLoanSchedule } from "../finance/amortization";
@@ -60,12 +62,15 @@ import {
   getAvailableCashCents,
   getReservedCashCents,
 } from "../transactions/reservations.js";
+import { projectSharedRecurringAcquisition } from "../transactions/sharedRecurringAcquisition";
 import { currentAnnualLaborCompensation, getCareerOffers } from "./career";
+import { projectPublicPosition } from "./publicPosition";
 import { getActiveSpotlightPlayerId, getSpotlightOrder } from "./round.js";
 
 export interface PurePlayerSummary {
   readonly playerId: PlayerId;
   readonly hasSelectedObjective: boolean;
+  readonly publicPosition?: PublicPlayerPositionView;
 }
 
 export interface PureOpportunityDiligenceView {
@@ -183,6 +188,7 @@ export interface PurePlayerProjection {
   readonly hasActiveTransaction: boolean;
   readonly jointProperty: JointPropertyView | null;
   readonly propertyAcquisition: PropertyAcquisitionView | null;
+  readonly sharedRecurringAcquisition: SharedRecurringAcquisitionView | null;
   readonly economicConditions: MatchEconomicConditionsView;
   readonly result: MatchResultView | null;
   readonly matchId: MatchId;
@@ -226,6 +232,9 @@ export function projectPlayerGameState(
     return {
       playerId: pId,
       hasSelectedObjective: p ? p.selectedObjectiveId !== null : false,
+      ...(state.phase !== "objective-choosing"
+        ? { publicPosition: projectPublicPosition(state, pId) }
+        : {}),
     };
   });
 
@@ -879,6 +888,7 @@ export function projectPlayerGameState(
       if (slots.length) {
         businessEquityInvitation = {
           transactionId: capital.id,
+          assetId: capital.assetId,
           issuerPlayerId: capital.initiatorPlayerId,
           termsRevision: capital.termsRevision,
           slots,
@@ -915,6 +925,10 @@ export function projectPlayerGameState(
     hasActiveTransaction: state.activeTransaction !== null,
     jointProperty,
     propertyAcquisition,
+    sharedRecurringAcquisition: projectSharedRecurringAcquisition(
+      state,
+      playerId,
+    ),
     economicConditions: {
       baseRateBps: state.economy.baseRateBps,
       annualInflationBps:

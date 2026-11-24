@@ -1,5 +1,6 @@
 import type { MatchPlayerView } from "@interests/shared";
 import { ObjectiveRequirements } from "./ObjectiveRequirements";
+import { PublicPosition, WinningEconomicAction } from "./PublicPosition";
 import { SelfFinanceSummary } from "./SelfFinanceSummary";
 
 export function FinishedMatchView({ match }: { match: MatchPlayerView }) {
@@ -28,10 +29,12 @@ export function FinishedMatchView({ match }: { match: MatchPlayerView }) {
             ? `Quarter ${result.completedQuarter} has settled. The match ended in a draw.`
             : `${winner ?? "The winner"} won in Quarter ${result.completedQuarter}.`}
         </p>
+        <WinningEconomicAction match={match} />
         <p>
           The result is final. Your financial position remains available below.
         </p>
       </section>
+      <PublicPosition match={match} />
       <SelfFinanceSummary self={match.self} isFinal />
       <ObjectiveRequirements self={match.self} isFinal />
     </div>
