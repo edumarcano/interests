@@ -202,6 +202,7 @@ export interface PropertyAsset {
   readonly renovationPending?: {
     readonly costCents: Cents;
     readonly effectiveQuarter: number;
+    readonly payerPlayerId?: PlayerId;
   };
   readonly catalogueId?: string;
   readonly disposition?: "sold";

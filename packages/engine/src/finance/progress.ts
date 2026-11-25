@@ -27,7 +27,40 @@ import type { JournalEntry } from "./journal";
 import { beneficialBorrowerId, isLenderLoan } from "./loanParties";
 import { type Cents, cents } from "./money";
 import type { SettlementOutcome } from "./obligations";
-import { allocateProportionalCents } from "./ownership";
+import { allocateProportionalCents, type OwnershipPpm } from "./ownership";
+
+/** Record value received through another owner's capital without changing actual paid cost. */
+export function recordPartnerPropertyCapital(
+  progress: ProgressState,
+  asset: PropertyAsset,
+  payer: PlayerId,
+  valueCents: Cents,
+): ProgressState {
+  const shares = allocateProportionalCents(
+    valueCents,
+    asset.ownershipByPlayerPpm,
+  );
+  const byPlayer = { ...progress.byPlayer };
+  for (const owner of Object.keys(shares) as PlayerId[]) {
+    const share = shares[owner]!;
+    if (owner === payer || !share) continue;
+    const player = byPlayer[owner]!;
+    const basis = player.assetsById[asset.id]!;
+    byPlayer[owner] = {
+      ...player,
+      assetsById: {
+        ...player.assetsById,
+        [asset.id]: {
+          ...basis,
+          objectiveCostFloorCents: cents(
+            (basis.objectiveCostFloorCents ?? basis.costCents) + share,
+          ),
+        },
+      },
+    };
+  }
+  return { byPlayer };
+}
 
 export function capturePropertyBasis(
   assets: FinanceState["assetsById"],
@@ -153,14 +186,17 @@ export function recordQuarterObservations(
       amount: number,
       debt = 0,
       personalDebt = 0,
+      earningOwnershipPpm?: OwnershipPpm,
     ) => {
       const old = sources[key];
       sources[key] = {
+        ...old,
         category,
         recurringReceivedCents: cents(
           (old?.recurringReceivedCents ?? 0) + amount,
         ),
         debtServiceOwedCents: cents((old?.debtServiceOwedCents ?? 0) + debt),
+        ...(earningOwnershipPpm ? { earningOwnershipPpm } : {}),
         ...(personalDebt > 0 || old?.personalDebtServiceOwedCents !== undefined
           ? {
               personalDebtServiceOwedCents: cents(
@@ -188,8 +224,18 @@ export function recordQuarterObservations(
         );
       else if (entry.reason === "property-operating-distribution")
         add(`asset:${entry.relatedAssetId}`, "property", entry.amountCents);
-      else if (entry.reason === "business-distribution")
-        add(`asset:${entry.relatedAssetId}`, "business", entry.amountCents);
+      else if (entry.reason === "business-distribution") {
+        const opening =
+          state.finance.quarterStartBasis.businessesById[entry.relatedAssetId!];
+        add(
+          `asset:${entry.relatedAssetId}`,
+          "business",
+          entry.amountCents,
+          0,
+          0,
+          opening?.ownershipByPlayerPpm[playerId],
+        );
+      }
     }
     const companyOperatingProfitById: Record<AssetId, Cents> = {};
     for (const company of outcome.businesses) {

@@ -40,6 +40,7 @@ import type { JournalEntry } from "./journal";
 import { basisPoints, cents } from "./money";
 import { allocateProportionalCents, ownershipPpm } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
+import { recordPartnerPropertyCapital } from "./progress";
 
 function addPropertyBasisCost(
   basis: AssetAcquisitionBasis,
@@ -65,32 +66,28 @@ function recordPropertyReserveFunding(
   amountCents: number,
 ): ProgressState {
   if (!amountCents) return progress;
-  const shares = allocateProportionalCents(
+  const funded = recordPartnerPropertyCapital(
+    progress,
+    asset,
+    payer,
     cents(amountCents),
-    asset.ownershipByPlayerPpm,
   );
-  const byPlayer = { ...progress.byPlayer };
-  for (const owner of Object.keys(shares) as PlayerId[]) {
-    const ownerProgress = byPlayer[owner]!;
-    const basis = ownerProgress.assetsById[asset.id]!;
-    byPlayer[owner] = {
-      ...ownerProgress,
-      assetsById: {
-        ...ownerProgress.assetsById,
-        [asset.id]:
-          owner === payer
-            ? addPropertyBasisCost(basis, amountCents)
-            : {
-                ...basis,
-                objectiveCostFloorCents: cents(
-                  (basis.objectiveCostFloorCents ?? basis.costCents) +
-                    shares[owner]!,
-                ),
-              },
+  const player = funded.byPlayer[payer]!;
+  return {
+    byPlayer: {
+      ...funded.byPlayer,
+      [payer]: {
+        ...player,
+        assetsById: {
+          ...player.assetsById,
+          [asset.id]: addPropertyBasisCost(
+            player.assetsById[asset.id]!,
+            amountCents,
+          ),
+        },
       },
-    };
-  }
-  return { byPlayer };
+    },
+  };
 }
 
 export function catalogueProperty(
@@ -688,6 +685,9 @@ export function draftPropertyOwnerAction(
                 renovationPending: {
                   costCents: cost,
                   effectiveQuarter: state.currentQuarter + 1,
+                  ...(authority === "sole-owner"
+                    ? {}
+                    : { payerPlayerId: playerId }),
                 },
               },
             },

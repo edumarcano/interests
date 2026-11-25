@@ -752,6 +752,12 @@ export function assertGameState(state: GameState): void {
         (!asset.renovationPending ||
           !Number.isSafeInteger(asset.renovationPending.costCents) ||
           asset.renovationPending.costCents < 1_000_000 ||
+          (asset.renovationPending.payerPlayerId !== undefined &&
+            !(
+              asset.ownershipByPlayerPpm[
+                asset.renovationPending.payerPlayerId
+              ] ?? 0
+            )) ||
           asset.renovationPending.effectiveQuarter !==
             (asset.renovatedQuarter ?? -1) + 1 ||
           asset.renovationPending.effectiveQuarter !== state.currentQuarter + 1)

@@ -58,6 +58,7 @@ import { type CashPostingRequest, postCash } from "./posting";
 import {
   capturePropertyBasis,
   captureRecurringBasis,
+  recordPartnerPropertyCapital,
   recordQuarterObservations,
 } from "./progress";
 import { calculatePropertyCashFlow } from "./property";
@@ -491,6 +492,12 @@ export function applyQuarterSettlement(
     let nextRecurring = finance.recurringByPlayer;
     let nextBaseRateBps = state.economy.baseRateBps;
     let nextOperatingRandom = state.economy.operatingRandom;
+    let progress = recordQuarterObservations(
+      state,
+      settlementOutcome,
+      journalEntries,
+      revaluedMarketsByPlayer,
+    );
     if (endsAtSafetyLimit) {
       assetsById = recordBusinessOperatingObservations(
         assetsById,
@@ -553,17 +560,22 @@ export function applyQuarterSettlement(
         )
           continue;
         const { renovationPending, ...property } = asset;
+        const capitalValueCents = roundedRatio(
+          renovationPending.costCents,
+          OPERATING_RULES.renovationValuePerCostBps,
+        );
+        if (renovationPending.payerPlayerId)
+          progress = recordPartnerPropertyCapital(
+            progress,
+            asset,
+            renovationPending.payerPlayerId,
+            cents(capitalValueCents),
+          );
         assetsById = {
           ...assetsById,
           [asset.id]: {
             ...property,
-            marketValueCents: cents(
-              asset.marketValueCents +
-                roundedRatio(
-                  renovationPending.costCents,
-                  OPERATING_RULES.renovationValuePerCostBps,
-                ),
-            ),
+            marketValueCents: cents(asset.marketValueCents + capitalValueCents),
             scheduledQuarterlyRentCents: cents(
               asset.scheduledQuarterlyRentCents +
                 roundedRatio(
@@ -585,12 +597,7 @@ export function applyQuarterSettlement(
 
     const operatingState: GameState = {
       ...state,
-      progress: recordQuarterObservations(
-        state,
-        settlementOutcome,
-        journalEntries,
-        revaluedMarketsByPlayer,
-      ),
+      progress,
       phase: endsAtSafetyLimit ? "finished" : state.phase,
       result: endsAtSafetyLimit
         ? { kind: "safety-draw", completedQuarter: quarter }
