@@ -72,7 +72,7 @@ export function SharedRecurringAcquisitionDraft({
       funding === "player-loan"
         ? {
             ...common,
-            route: "cash",
+            route,
             playerLoan: { annualRateBps: annualRateBps!, termQuarters: term },
           }
         : { ...common, route, partnerOwnershipPpm: partnerOwnership! };
@@ -133,23 +133,21 @@ export function SharedRecurringAcquisitionDraft({
             <option value="player-loan">Fixed player loan</option>
           </select>
         </label>
-        {funding === "equity" && (
-          <label>
-            Purchase funding
-            <select
-              value={route}
-              onChange={(event) =>
-                setRoute(event.target.value as RecurringAcquisitionRoute)
-              }
-            >
-              {routes.map((item) => (
-                <option key={item} value={item}>
-                  {routeNames[item]}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        <label>
+          Purchase funding
+          <select
+            value={route}
+            onChange={(event) =>
+              setRoute(event.target.value as RecurringAcquisitionRoute)
+            }
+          >
+            {routes.map((item) => (
+              <option key={item} value={item}>
+                {routeNames[item]}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           Your cash contribution ($)
           <input

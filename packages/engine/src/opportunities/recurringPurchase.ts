@@ -96,15 +96,56 @@ function companyBankTerms(
   };
 }
 
+type RecurringCoFunding =
+  | {
+      readonly playerId: PlayerId;
+      readonly ownershipPpm: number;
+      readonly playerLoan?: never;
+    }
+  | {
+      readonly playerId: PlayerId;
+      readonly playerLoan: RecurringPlayerLoanTerms;
+      readonly ownershipPpm?: never;
+    };
+interface RecurringAcquisitionFundingQuote {
+  readonly leadCashCents: number;
+  readonly closingTransactionId?: TransactionId;
+  readonly partner?: RecurringCoFunding;
+}
+
+function withProjectedPlayerLoan(
+  state: GameState,
+  loan: Parameters<typeof originateConfirmedPlayerLoan>[2],
+): GameState | null {
+  // A quote tests contract arithmetic only. Named lenders' actual funds are checked on confirmation.
+  const proposed = originateConfirmedPlayerLoan(
+    {
+      ...state.finance,
+      cashByPlayer: {
+        ...state.finance.cashByPlayer,
+        [loan.lenderPlayerId]: cents(loan.principalCents),
+      },
+    },
+    state.counters,
+    loan,
+  );
+  return proposed.ok
+    ? {
+        ...state,
+        counters: proposed.counters,
+        finance: { ...state.finance, loansById: proposed.finance.loansById },
+      }
+    : null;
+}
+
 /** Only authored cash / maximum-bank alternatives are exposed; no principal-probing API. */
 export function getRecurringAcquisitionQuotes(
   state: GameState,
   player: PlayerId,
   opportunityId: string,
-  leadCashCents?: number,
-  closingTransactionId?: TransactionId,
-  coOwner?: { readonly playerId: PlayerId; readonly ownershipPpm: number },
+  funding?: RecurringAcquisitionFundingQuote,
 ): readonly RecurringAcquisitionQuote[] {
+  const { leadCashCents, closingTransactionId, partner } = funding ?? {};
   const resolved = getRecurringAcquisitionTerms(state, player, opportunityId);
   if (!resolved.ok || state.activeTransaction) return [];
   try {
@@ -113,10 +154,10 @@ export function getRecurringAcquisitionQuotes(
     if (state.finance.assetsById[assetId]) return [];
     const asset = {
       ...acquisitionAsset(terms, assetId),
-      ownershipByPlayerPpm: coOwner
+      ownershipByPlayerPpm: partner?.ownershipPpm
         ? {
-            [player]: ownershipPpm(1_000_000 - coOwner.ownershipPpm),
-            [coOwner.playerId]: ownershipPpm(coOwner.ownershipPpm),
+            [player]: ownershipPpm(1_000_000 - partner.ownershipPpm),
+            [partner.playerId]: ownershipPpm(partner.ownershipPpm),
           }
         : { [player]: ownershipPpm(1_000_000) },
     };
@@ -134,8 +175,8 @@ export function getRecurringAcquisitionQuotes(
       },
     };
     const calculate = (principal: number, route: RecurringAcquisitionRoute) => {
-      let funded = terms.kind === "business" ? withAsset : state;
-      let bank = quoteAssetBankLoan(funded, player, {
+      const pricingState = terms.kind === "business" ? withAsset : state;
+      const bankTerms = {
         purpose:
           terms.kind === "business"
             ? "business-acquisition"
@@ -147,44 +188,61 @@ export function getRecurringAcquisitionQuotes(
         quarterlyOperatingIncomeCents: operatingCash,
         principalCents: principal,
         rateKind: route === "bank-variable" ? "variable" : "fixed",
-      });
-      // Business pricing uses the SAME post-contribution draft as the bank origination primitive.
-      // Starting at current liquidity only moves down the finite credit-grade ladder.
-      if (terms.kind === "business" && principal > 0)
+      } as const;
+      let funded = pricingState;
+      let bank = quoteAssetBankLoan(funded, player, bankTerms);
+      let fundingStable = true;
+      // The cash requirement includes the bank payment, which affects the loan bridge's schedule.
+      // Run the quote on the same post-contribution balance and installment as the actual close.
+      if ((terms.kind === "business" && principal > 0) || partner?.playerLoan) {
+        fundingStable = false;
         for (let step = 0; step < 8; step++) {
-          const grossFunding = cents(
-            terms.totalCashRequiredCents + bank.scheduledQuarterlyPaymentCents,
+          const payment = principal ? bank.scheduledQuarterlyPaymentCents : 0;
+          const contribution = cents(
+            terms.totalCashRequiredCents + payment - principal,
           );
-          const contribution = cents(grossFunding - principal);
-          funded = {
-            ...withAsset,
-            finance: {
-              ...withAsset.finance,
-              cashByPlayer: {
-                ...withAsset.finance.cashByPlayer,
-                [player]: cents(
-                  Math.max(0, available - (leadCashCents ?? contribution)),
-                ),
-              },
-              assetsById: {
-                ...withAsset.finance.assetsById,
-                [assetId]: { ...asset, cashCents: contribution },
-              },
-            },
-          };
-          const next = quoteAssetBankLoan(funded, player, {
-            purpose: "business-acquisition",
-            qualifyingValueCents: terms.askingPriceCents,
-            quarterlyOperatingIncomeCents: operatingCash,
-            principalCents: principal,
-            rateKind: "fixed",
-          });
-          if (next.annualRateBps === bank.annualRateBps) {
-            bank = next;
+          funded =
+            terms.kind === "business" && principal
+              ? {
+                  ...withAsset,
+                  finance: {
+                    ...withAsset.finance,
+                    cashByPlayer: {
+                      ...withAsset.finance.cashByPlayer,
+                      [player]: cents(
+                        Math.max(
+                          0,
+                          available - (leadCashCents ?? contribution),
+                        ),
+                      ),
+                    },
+                    assetsById: {
+                      ...withAsset.finance.assetsById,
+                      [assetId]: { ...asset, cashCents: contribution },
+                    },
+                  },
+                }
+              : pricingState;
+          if (partner?.playerLoan) {
+            const staged = withProjectedPlayerLoan(funded, {
+              ...partner.playerLoan,
+              principalCents: contribution - leadCashCents!,
+              lenderPlayerId: partner.playerId,
+              borrowerPlayerId: player,
+              quarter: state.currentQuarter,
+            });
+            if (!staged) break;
+            funded = staged;
+          }
+          const next = quoteAssetBankLoan(funded, player, bankTerms);
+          const stable = next.annualRateBps === bank.annualRateBps;
+          bank = next;
+          if (stable) {
+            fundingStable = true;
             break;
           }
-          bank = next;
         }
+      }
       const reserve = principal ? bank.scheduledQuarterlyPaymentCents : 0;
       const grossFunding = cents(terms.totalCashRequiredCents + reserve);
       const required = cents(grossFunding - principal);
@@ -193,6 +251,7 @@ export function getRecurringAcquisitionQuotes(
           ? bank.personalQuarterlyObligationsCents
           : 0;
       let canClose =
+        fundingStable &&
         (!principal || bank.approved) &&
         available - (leadCashCents ?? required) >= personal &&
         (!shared || (leadCashCents > 0 && leadCashCents < required)) &&
@@ -216,7 +275,10 @@ export function getRecurringAcquisitionQuotes(
             closingTransactionId,
           ),
         );
-        canClose = verified.ok;
+        canClose =
+          verified.ok &&
+          verified.quote.annualRateBps === bank.annualRateBps &&
+          verified.quote.scheduledQuarterlyPaymentCents === reserve;
       }
       const quote: RecurringAcquisitionQuote = {
         id: [
@@ -320,12 +382,19 @@ export function acquireRecurringOpportunity(
     state,
     player,
     command.opportunityId,
-    shared?.leadCashCents,
-    shared?.transactionId,
-    shared?.partnerOwnershipPpm
+    shared
       ? {
-          playerId: shared.partnerPlayerId,
-          ownershipPpm: shared.partnerOwnershipPpm,
+          leadCashCents: shared.leadCashCents,
+          closingTransactionId: shared.transactionId,
+          partner: shared.playerLoan
+            ? {
+                playerId: shared.partnerPlayerId,
+                playerLoan: shared.playerLoan,
+              }
+            : {
+                playerId: shared.partnerPlayerId,
+                ownershipPpm: shared.partnerOwnershipPpm,
+              },
         }
       : undefined,
   ).find((item) => item.id === command.quoteId);
@@ -439,6 +508,12 @@ export function acquireRecurringOpportunity(
               ? funded.code
               : "BANK_UNDERWRITING_FAILED",
           );
+        if (
+          funded.quote.annualRateBps !== quote.annualRateBps ||
+          funded.quote.scheduledQuarterlyPaymentCents !==
+            quote.quarterlyPaymentCents
+        )
+          return reject("BANK_UNDERWRITING_FAILED");
         draft = funded.state;
         journals.push(...funded.journalEntries);
       } else {

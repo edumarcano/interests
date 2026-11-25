@@ -38,7 +38,6 @@ function quoteSharedAcquisition(
     return undefined;
   if (terms.playerLoan) {
     if (
-      terms.route !== "cash" ||
       terms.partnerOwnershipPpm !== undefined ||
       borrowerHasArrears(state, lead) ||
       state.counters.loan >= Number.MAX_SAFE_INTEGER
@@ -56,14 +55,21 @@ function quoteSharedAcquisition(
     { ...state, activeTransaction: null },
     lead,
     terms.opportunityId,
-    terms.leadCashCents,
-    transactionId,
-    terms.playerLoan
-      ? undefined
-      : {
-          playerId: asPlayerId(terms.partnerPlayerId),
-          ownershipPpm: terms.partnerOwnershipPpm,
-        },
+    {
+      leadCashCents: terms.leadCashCents,
+      ...(transactionId === undefined
+        ? {}
+        : { closingTransactionId: transactionId }),
+      partner: terms.playerLoan
+        ? {
+            playerId: asPlayerId(terms.partnerPlayerId),
+            playerLoan: terms.playerLoan,
+          }
+        : {
+            playerId: asPlayerId(terms.partnerPlayerId),
+            ownershipPpm: terms.partnerOwnershipPpm,
+          },
+    },
   ).find((item) => item.route === terms.route && item.canClose);
   if (quote && terms.playerLoan) {
     try {
@@ -90,7 +96,7 @@ function normalizeTerms(
   return terms.playerLoan
     ? {
         ...common,
-        route: "cash",
+        route: terms.route,
         playerLoan: {
           annualRateBps: terms.playerLoan.annualRateBps,
           termQuarters: terms.playerLoan.termQuarters,

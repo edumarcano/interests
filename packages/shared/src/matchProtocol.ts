@@ -470,7 +470,7 @@ export type SharedRecurringAcquisitionTerms = SharedRecurringAcquisitionCommon &
         readonly playerLoan?: never;
       }
     | {
-        readonly route: "cash";
+        readonly route: RecurringAcquisitionRoute;
         readonly playerLoan: RecurringPlayerLoanTerms;
         readonly partnerOwnershipPpm?: never;
       }

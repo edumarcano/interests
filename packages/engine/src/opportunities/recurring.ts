@@ -211,12 +211,9 @@ function canAcquireTemplate(
     getRecurringAcquisitionQuotes(draft, player, id).some(
       (quote) => quote.canClose,
     ) ||
-    getRecurringAcquisitionQuotes(
-      draft,
-      player,
-      id,
-      availableForFinancedPurchase,
-    ).some(
+    getRecurringAcquisitionQuotes(draft, player, id, {
+      leadCashCents: availableForFinancedPurchase,
+    }).some(
       (quote) =>
         quote.canClose &&
         quote.cashRequiredCents - availableForFinancedPurchase <=

@@ -255,7 +255,7 @@ const SharedRecurringAcquisitionTermsSchema = z.union([
   z
     .object({
       ...SharedRecurringAcquisitionCommon,
-      route: z.literal("cash"),
+      route: z.enum(["cash", "bank-fixed", "bank-variable"]),
       playerLoan: z
         .object({
           annualRateBps: z
