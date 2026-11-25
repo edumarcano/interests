@@ -6,6 +6,7 @@ import type {
 import type React from "react";
 import { useState } from "react";
 import { OpportunityCard } from "./OpportunityCard.js";
+import { PropertyPanel } from "./PropertyPanel.js";
 import { PublicMarketsPanel } from "./PublicMarketsPanel.js";
 import { SelfFinanceSummary } from "./SelfFinanceSummary.js";
 
@@ -101,6 +102,11 @@ export const RoundStartView: React.FC<Props> = ({
           onSendCommand={onSendCommand}
         />
       )}
+      <PropertyPanel
+        match={match}
+        isPaused={isPaused}
+        onSendCommand={onSendCommand}
+      />
 
       {/* Private Opportunity Card (Target Buyer Only) */}
       {match.self.opportunity && (

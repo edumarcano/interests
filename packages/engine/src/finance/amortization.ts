@@ -49,6 +49,52 @@ export function calculateCompanyLoanSchedule(input: {
   });
 }
 
+/** The same annuity payment drives quotes and the contractual schedule. */
+export function calculateAmortizingPayment(
+  input: CalculatePlayerLoanScheduleInput,
+): Cents {
+  const { principalCents, annualRateBps, termQuarters } = input;
+  if (
+    !Number.isSafeInteger(principalCents) ||
+    principalCents <= 0 ||
+    !Number.isSafeInteger(annualRateBps) ||
+    annualRateBps < 0 ||
+    !Number.isSafeInteger(termQuarters) ||
+    termQuarters < 1 ||
+    termQuarters > 120
+  )
+    throw new RangeError("Invalid amortization terms");
+  if (annualRateBps === 0)
+    return cents(Math.ceil(principalCents / termQuarters));
+  const rate = new FinanceDecimal(annualRateBps).div(40_000);
+  return cents(
+    new FinanceDecimal(principalCents)
+      .times(rate)
+      .div(
+        new FinanceDecimal(1).minus(
+          new FinanceDecimal(1).plus(rate).pow(-termQuarters),
+        ),
+      )
+      .round()
+      .toNumber(),
+  );
+}
+
+/** Reprice an existing mortgage whose remaining balance is settled one period at a time. */
+export function calculateVariableMortgagePayment(
+  input: CalculatePlayerLoanScheduleInput,
+): Cents {
+  const payment = calculateAmortizingPayment(input);
+  const interest = new FinanceDecimal(input.principalCents)
+    .times(input.annualRateBps)
+    .div(40_000)
+    .round()
+    .toNumber();
+  // Rounded payments still retire principal. Servicing caps principal at the
+  // outstanding balance and collects any residue at the original maturity.
+  return cents(Math.max(payment, interest + 1));
+}
+
 /**
  * Pure calculator for deterministic player-loan amortization schedules.
  *
@@ -65,7 +111,7 @@ export function calculateCompanyLoanSchedule(input: {
  *   allocated to earliest installments.
  * - Rejects if rounding causes non-final principal reduction <= 0.
  */
-function calculateAmortizingSchedule(
+export function calculateAmortizingSchedule(
   input: CalculatePlayerLoanScheduleInput,
 ): readonly LoanScheduleRow[] {
   const { principalCents, annualRateBps, termQuarters } = input;
@@ -90,6 +136,12 @@ function calculateAmortizingSchedule(
     );
   }
 
+  if (
+    !Number.isSafeInteger(termQuarters) ||
+    termQuarters < 1 ||
+    termQuarters > 120
+  )
+    throw new RangeError("Invalid bank loan term");
   const rows: LoanScheduleRow[] = [];
   let currentPrincipal = principalCents;
 
@@ -135,18 +187,7 @@ function calculateAmortizingSchedule(
   // Positive-rate loan:
   // quarterlyRate = annualRate / 4 = annualRateBps / 40000
   const quarterlyRate = new FinanceDecimal(annualRateBps).dividedBy(40000);
-  const pDecimal = new FinanceDecimal(principalCents);
-  const one = new FinanceDecimal(1);
-  const onePlusR = one.plus(quarterlyRate);
-
-  // Annuity formula: P * r / (1 - (1 + r)^(-n))
-  const denominator = one.minus(onePlusR.pow(-termQuarters));
-  const paymentDecimal = pDecimal.times(quarterlyRate).dividedBy(denominator);
-  const regularPayment = paymentDecimal.round().toNumber();
-
-  if (!Number.isSafeInteger(regularPayment)) {
-    throw new RangeError("Regular payment exceeded safe integer range");
-  }
+  const regularPayment = calculateAmortizingPayment(input);
 
   for (let i = 1; i <= termQuarters; i++) {
     const opening = currentPrincipal;

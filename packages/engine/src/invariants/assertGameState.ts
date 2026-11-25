@@ -6,6 +6,7 @@ import {
   OBJECTIVE_IDS,
   PLAYER_LOAN_MAX_TERM_QUARTERS,
   PLAYER_LOAN_MIN_TERM_QUARTERS,
+  PROPERTY_CATALOGUE,
   PUBLIC_MARKET_INSTRUMENT_IDS,
   STANDARD_V1_OPENING_BASE_RATE_BPS,
   STANDARD_V1_PLAYER_COUNT,
@@ -20,6 +21,7 @@ import { TOTAL_OWNERSHIP_PPM } from "../finance/ownership";
 import { calculatePropertyCashFlow } from "../finance/property";
 import type { GameState } from "../model/gameState";
 import { isValidRandomState } from "../random/prng";
+import { assertAssetBankLoan } from "./assertAssetBankLoan";
 import { assertBusinessCashState } from "./assertBusinessCashState";
 import { assertCompanyLoan } from "./assertCompanyLoan";
 import { assertCompletionState } from "./assertCompletionState";
@@ -388,7 +390,9 @@ export function assertGameState(state: GameState): void {
       );
     }
 
-    if (loan.kind === "company-loan") {
+    if (loan.kind === "asset-bank-loan") {
+      assertAssetBankLoan(state, loan);
+    } else if (loan.kind === "company-loan") {
       assertCompanyLoan(state, loan);
     } else if (loan.kind === "player-loan") {
       if (!state.playerOrder.includes(loan.lenderPlayerId)) {
@@ -580,6 +584,7 @@ export function assertGameState(state: GameState): void {
     );
   }
 
+  const catalogueIds = new Set<string>();
   for (const [assetKey, asset] of Object.entries(state.finance.assetsById)) {
     if (asset === undefined || asset === null || typeof asset !== "object") {
       throw new Error(`Game invariant failed: asset ${assetKey} is invalid`);
@@ -608,7 +613,10 @@ export function assertGameState(state: GameState): void {
     }
 
     const ownerIds = Object.keys(asset.ownershipByPlayerPpm);
-    if (ownerIds.length === 0) {
+    if (
+      ownerIds.length === 0 &&
+      !(asset.kind === "property" && asset.disposition === "sold")
+    ) {
       throw new Error(
         `Game invariant failed: asset ${asset.id} must have at least one owner`,
       );
@@ -642,13 +650,65 @@ export function assertGameState(state: GameState): void {
       totalOwnershipPpm += ppm;
     }
 
-    if (totalOwnershipPpm !== TOTAL_OWNERSHIP_PPM) {
+    if (
+      totalOwnershipPpm !== TOTAL_OWNERSHIP_PPM &&
+      !(
+        asset.kind === "property" &&
+        asset.disposition === "sold" &&
+        totalOwnershipPpm === 0
+      )
+    ) {
       throw new Error(
         `Game invariant failed: asset ${asset.id} total ownership PPM must equal ${TOTAL_OWNERSHIP_PPM}, got ${totalOwnershipPpm}`,
       );
     }
 
     if (asset.kind === "property") {
+      if (asset.catalogueId !== undefined) {
+        if (
+          typeof asset.catalogueId !== "string" ||
+          !PROPERTY_CATALOGUE.some((item) => item.id === asset.catalogueId) ||
+          catalogueIds.has(asset.catalogueId)
+        )
+          throw new Error("Invalid property catalogue identity");
+        catalogueIds.add(asset.catalogueId);
+      }
+      for (const value of [asset.cashCents, asset.debtServiceReserveCents])
+        if (value !== undefined && (!Number.isSafeInteger(value) || value < 0))
+          throw new Error("Invalid property cash/reserve");
+      if (
+        asset.renovationPending !== undefined &&
+        (!asset.renovationPending ||
+          !Number.isSafeInteger(asset.renovationPending.costCents) ||
+          asset.renovationPending.costCents < 1_000_000 ||
+          asset.renovationPending.effectiveQuarter !==
+            (asset.renovatedQuarter ?? -1) + 1 ||
+          asset.renovationPending.effectiveQuarter !== state.currentQuarter + 1)
+      )
+        throw new Error("Invalid pending renovation");
+      if (
+        asset.renovatedQuarter !== undefined &&
+        (!Number.isSafeInteger(asset.renovatedQuarter) ||
+          asset.renovatedQuarter < 1 ||
+          asset.renovatedQuarter > state.currentQuarter)
+      )
+        throw new Error("Invalid renovation quarter");
+      if (
+        asset.disposition !== undefined &&
+        (asset.disposition !== "sold" ||
+          ownerIds.length !== 0 ||
+          (asset.cashCents ?? 0) !== 0 ||
+          Object.values(state.finance.loansById).some(
+            (loan) =>
+              ((loan.kind === "asset-bank-loan" &&
+                loan.borrowerAssetId === asset.id) ||
+                (loan.kind === "legacy-bank-loan" &&
+                  loan.relatedAssetId === asset.id)) &&
+              (loan.outstandingPrincipalCents > 0 ||
+                loan.unpaidInterestCents > 0),
+          ))
+      )
+        throw new Error("Invalid sold property");
       if (
         !Number.isSafeInteger(asset.marketValueCents) ||
         asset.marketValueCents < 0

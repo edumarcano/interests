@@ -307,6 +307,8 @@ Use records keyed by branded IDs and explicit ordered ID arrays where order matt
 | History summaries | Required lookback data, realized gains, principal/interest totals, settlement markers |
 | Random state | Hidden master seed, named stream states, deterministic ID counters |
 
+New property mortgages use canonical asset-bank loan records and a property cash account. Underwriting, payoff, reserve settlement and variable-payment resets belong to the engine. Fully disclosed NPC property closes reuse the command/receipt/journal pipeline and atomically resolve one spotlight; multi-owner sale/refinance consent is a separate transaction gate. ARCH-044 owns the implementation contract.
+
 Assets are not copied inside every co-owner's player record. Player net worth, debt exposure, and portfolios are derived from the registries. A loan appearing as a lender's receivable and a borrower's liability is still one loan, not two independently editable balances.
 
 Do not persist unrestricted computed caches such as an editable `netWorth` alongside all its underlying data. Recompute small derived views; any necessary cache must have a documented invalidation rule.

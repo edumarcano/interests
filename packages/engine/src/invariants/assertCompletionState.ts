@@ -31,6 +31,35 @@ function keys(value: unknown, expected: readonly string[]) {
 export function assertCompletionState(state: GameState): void {
   record(state.progress);
   keys(state.progress.byPlayer, state.playerOrder);
+  const prepaid = state.finance.prepaidAssetInterest;
+  if (prepaid !== undefined) {
+    record(prepaid);
+    integer(prepaid.quarter, 1);
+    if (prepaid.quarter > state.currentQuarter)
+      throw new Error("Future prepaid interest evidence");
+    record(prepaid.byAssetId);
+    for (const [id, evidence] of Object.entries(prepaid.byAssetId)) {
+      if (
+        state.finance.assetsById[id as keyof typeof state.finance.assetsById]
+          ?.kind !== "property"
+      )
+        throw new Error("Unknown prepaid property");
+      record(evidence);
+      integer(evidence.interestCents);
+      record(evidence.ownershipByPlayerPpm);
+      let total = 0;
+      for (const [owner, units] of Object.entries(
+        evidence.ownershipByPlayerPpm,
+      )) {
+        if (!state.players[owner as PlayerId])
+          throw new Error("Unknown prepaid interest owner");
+        integer(units, 1);
+        total += units;
+      }
+      if (total !== 1_000_000)
+        throw new Error("Invalid prepaid interest ownership");
+    }
+  }
   const basis = state.finance.quarterStartBasis;
   record(basis.propertiesById);
   keys(basis.recurringByPlayer, state.playerOrder);
@@ -142,7 +171,8 @@ export function assertCompletionState(state: GameState): void {
         throw new Error("Invalid disposal category");
       if (
         typeof disposal.assetId !== "string" ||
-        !state.players[disposal.counterpartyPlayerId as PlayerId]
+        (disposal.counterpartyPlayerId !== null &&
+          !state.players[disposal.counterpartyPlayerId as PlayerId])
       )
         throw new Error("Invalid disposal parties");
       integer(disposal.acquiredQuarter);

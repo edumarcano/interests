@@ -111,7 +111,11 @@ export function createPlayerSnapshot(
   let unpaidInterestReceivableCents = 0;
 
   for (const loan of Object.values(state.finance.loansById)) {
-    if (loan.kind !== "company-loan" && loan.borrowerPlayerId === playerId)
+    if (
+      loan.kind !== "company-loan" &&
+      loan.kind !== "asset-bank-loan" &&
+      loan.borrowerPlayerId === playerId
+    )
       unpaidObligationsCents = safeAdd(
         unpaidObligationsCents,
         loan.unpaidInterestCents,
@@ -820,7 +824,7 @@ export function observeFinance(
   for (const loan of Object.values(after.finance.loansById)) {
     add("unpaidInterestCents", loan.unpaidInterestCents);
     add("pastDuePrincipalCents", loan.pastDuePrincipalCents);
-    if (loan.kind === "company-loan")
+    if (loan.kind === "company-loan" || loan.kind === "asset-bank-loan")
       add("companyPrincipalCents", loan.outstandingPrincipalCents);
     const old = before.finance.loansById[loan.id];
     if (old)

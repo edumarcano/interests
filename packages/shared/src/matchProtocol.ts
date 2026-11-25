@@ -115,7 +115,68 @@ export interface CareerOfferView {
   readonly tradeoff: string;
 }
 
+export type PropertyCommand =
+  | {
+      readonly type: "BUY_PROPERTY";
+      readonly catalogueId: string;
+      readonly principalCents: number;
+      readonly rateKind: "fixed" | "variable";
+    }
+  | {
+      readonly type: "SELL_PROPERTY" | "RENOVATE_PROPERTY";
+      readonly assetId: string;
+    }
+  | {
+      readonly type: "REFINANCE_PROPERTY";
+      readonly assetId: string;
+      readonly rateKind: "fixed" | "variable";
+    }
+  | {
+      readonly type: "FUND_PROPERTY_RESERVE";
+      readonly assetId: string;
+      readonly amountCents: number;
+    };
+export interface PropertyBankQuoteView {
+  readonly termQuarters: number;
+  readonly creditGrade: string;
+  readonly creditEnvironment: string;
+  readonly maximumLtvBps: number;
+  readonly minimumDscrBps: number;
+  readonly principalCents: number;
+  readonly rateKind: "fixed" | "variable";
+  readonly annualRateBps: number;
+  readonly quarterlyPaymentCents: number;
+  readonly feeCents: number;
+  readonly assetReserveCents: number;
+  readonly personalReserveCents: number;
+  readonly cashRequiredCents: number;
+  readonly canClose: boolean;
+}
+export interface PropertyOfferView {
+  readonly catalogueId: string;
+  readonly name: string;
+  readonly askingPriceCents: number;
+  readonly scheduledQuarterlyRentCents: number;
+  readonly occupancyBps: number;
+  readonly operatingExpenseRatioBps: number;
+  readonly quotes: readonly PropertyBankQuoteView[];
+}
+export interface PropertyManagementView {
+  readonly assetId: string;
+  readonly cashCents: number;
+  readonly reserveTargetCents: number;
+  readonly payoffCents: number;
+  readonly saleFeeCents: number;
+  readonly netSaleProceedsCents: number;
+  readonly canSell: boolean;
+  readonly renovationCostCents: number;
+  readonly canRenovate: boolean;
+  readonly renovated: boolean;
+  readonly refinancingQuotes: readonly PropertyBankQuoteView[];
+}
+
 export type PlayerCommand =
+  | PropertyCommand
   | TradePublicMarketsCommandPayload
   | AcceptCareerOfferCommandPayload
   | ResignLaborCommandPayload
@@ -197,7 +258,7 @@ export interface MatchSelfBusinessAssetView {
 export interface MatchSelfLoanView {
   readonly id: string;
   readonly kind: string;
-  readonly role: "borrower" | "lender" | "company-borrower";
+  readonly role: "borrower" | "lender" | "company-borrower" | "asset-borrower";
   readonly counterpartyNickname: string;
   readonly originalPrincipalCents: number;
   readonly outstandingPrincipalCents: number;
@@ -227,7 +288,11 @@ export interface SelfSettlementView {
   readonly livingArrearsCents: number;
   readonly loanPayments: readonly {
     readonly loanId: string;
-    readonly role: "borrower" | "lender" | "company-borrower";
+    readonly role:
+      | "borrower"
+      | "lender"
+      | "company-borrower"
+      | "asset-borrower";
     readonly dueCents: number;
     readonly paidCents: number;
     readonly principalPaidCents: number;
@@ -285,6 +350,8 @@ export interface MatchSelfFinancialDetailsView {
 }
 
 export interface MatchSelfView {
+  readonly propertyOffers?: readonly PropertyOfferView[];
+  readonly propertyManagement?: readonly PropertyManagementView[];
   readonly financialDetails: MatchSelfFinancialDetailsView;
   readonly playerId: PlayerId;
   readonly profileId: string;
