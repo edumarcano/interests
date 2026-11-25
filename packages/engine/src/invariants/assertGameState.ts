@@ -4,6 +4,7 @@ import {
   isPairValid,
   isProfileId,
   OBJECTIVE_IDS,
+  OBJECTIVE_MEASUREMENT_RULES,
   PLAYER_LOAN_MAX_TERM_QUARTERS,
   PLAYER_LOAN_MIN_TERM_QUARTERS,
   PROPERTY_CATALOGUE,
@@ -265,9 +266,17 @@ export function assertGameState(state: GameState): void {
       "Game invariant failed: lastSettledQuarter must be a non-negative safe integer",
     );
   }
-  if (state.lastSettledQuarter !== state.currentQuarter - 1) {
+  const settledTerminalQuarter =
+    state.phase === "finished" && state.result?.kind === "safety-draw";
+  if (state.currentQuarter > OBJECTIVE_MEASUREMENT_RULES.safetyDrawQuarter)
     throw new Error(
-      `Game invariant failed: lastSettledQuarter (${state.lastSettledQuarter}) must equal currentQuarter - 1 (${state.currentQuarter - 1})`,
+      "Game invariant failed: quarter exceeds the safety horizon",
+    );
+  const expectedLastSettledQuarter =
+    state.currentQuarter - (settledTerminalQuarter ? 0 : 1);
+  if (state.lastSettledQuarter !== expectedLastSettledQuarter) {
+    throw new Error(
+      `Game invariant failed: lastSettledQuarter (${state.lastSettledQuarter}) must equal ${expectedLastSettledQuarter}`,
     );
   }
 
@@ -493,6 +502,36 @@ export function assertGameState(state: GameState): void {
           throw new Error("Invalid player loan funding transaction reference");
       }
 
+      if (
+        loan.fundedTransactionId !== undefined &&
+        loan.settledInterestReceipts === undefined
+      )
+        throw new Error("Missing funded player loan interest receipts");
+      if (loan.settledInterestReceipts !== undefined) {
+        if (!Array.isArray(loan.settledInterestReceipts))
+          throw new Error("Invalid player loan interest receipts");
+        let previousQuarter = loan.originatedQuarter;
+        let received = 0;
+        for (const receipt of loan.settledInterestReceipts) {
+          if (
+            !receipt ||
+            !Number.isSafeInteger(receipt.quarter) ||
+            receipt.quarter <= previousQuarter ||
+            receipt.quarter > loan.lastProcessedQuarter ||
+            !Number.isSafeInteger(receipt.receivedCents) ||
+            receipt.receivedCents < 0 ||
+            !Number.isSafeInteger(receipt.currentEarnedCents) ||
+            receipt.currentEarnedCents < 0 ||
+            receipt.currentEarnedCents > receipt.receivedCents
+          )
+            throw new Error("Invalid player loan interest receipt");
+          previousQuarter = receipt.quarter;
+          received += receipt.receivedCents;
+          if (!Number.isSafeInteger(received))
+            throw new Error("Player loan received interest overflow");
+        }
+      }
+
       // Contract terms remain valid even when actual repayments differ.
       try {
         calculatePlayerLoanSchedule({
@@ -713,6 +752,12 @@ export function assertGameState(state: GameState): void {
         (!asset.renovationPending ||
           !Number.isSafeInteger(asset.renovationPending.costCents) ||
           asset.renovationPending.costCents < 1_000_000 ||
+          (asset.renovationPending.payerPlayerId !== undefined &&
+            !(
+              asset.ownershipByPlayerPpm[
+                asset.renovationPending.payerPlayerId
+              ] ?? 0
+            )) ||
           asset.renovationPending.effectiveQuarter !==
             (asset.renovatedQuarter ?? -1) + 1 ||
           asset.renovationPending.effectiveQuarter !== state.currentQuarter + 1)

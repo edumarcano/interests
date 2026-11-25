@@ -981,3 +981,46 @@ The same approved regime performance rules apply to newly acquired managed compa
 | Established service group | $360,000 | Medium | $1,170,000 |
 
 These are authored prototype content costs within the approved local/mature operating rules, not owner salaries or balance findings. Operating EV retains its closing rational multiple of actual after-labor profit. New `firstOperatingQuarter` is acquisition quarter + 1; before then, the model consumes no operating draw and records no performance history. This keeps fourth-spotlight closing figures unchanged and prevents its zero earned entitlement from becoming invented prehistory. The first earned quarter pays the original stated profit; its close prepares bounded next-quarter revenue with proportional variable costs and fixed necessary labor. Existing net business cash accounting is unchanged. Hidden cost calibration/model history never enters pre-diligence card, financial-quote or rival projections. The named Q1 diagnostic and fixed synthetic cases remain explicit exceptions.
+## ARCH-050 - Terminal settlement and result persistence
+
+**Status:** Accepted implementation of M7 objective and terminal rules
+**Date:** November 18, 2026
+
+The terminal implementation applies the Q32 failsafe in GAME_DESIGN section 18. The same persistence boundary records explicit objective victories and their closing effects.
+
+| Boundary | Implementation |
+| --- | --- |
+| Final quarter | Settle Q32 cash, business/property flows, loan claims, public-market prices and observations exactly once. Keep `currentQuarter` and `lastSettledQuarter` at 32, retain Q32's opening entitlement basis, set `phase: finished`, clear the round and record the public safety-draw result. |
+| RNG and preparation | Q32's three public-market price-noise draws still apply. Do not draw the next-regime roll, capture a Q33 basis or prepare Q33 content. Skip next-quarter rate resets, rent and living-cost indexing, operations/occupancy movement, scheduled renovation/expansion, and the separate operating/content streams. Update normalized company values from actual Q32 operating evidence. |
+| Terminal priority | Round orchestration returns immediately if a separately validated closing transition already produced a terminal result. The explicit finale coordinator has priority over fourth-spotlight advancement and the draw. |
+| Durable commit | Accepted-command transaction writes final snapshot, journals, settlement/result events, receipt, match `FINISHED` status and room `FINISHED` status together. Clear operational pause reasons inside that transaction. A persistence failure rolls back the complete terminal command. |
+| Terminal access | Authenticated HTTP views and socket bootstrap remain available. Existing accepted receipts remain retryable after finishing. New gameplay receives `MATCH_FINISHED`; direct engine commands reject the finished phase. Snapshot validation checks operational status against terminal state and room status where supplied. |
+| Presence and restart | Finished rooms do not arm active-match presence controls or acquire disconnect/replacement/recovery pauses. Startup recovery selects only active matches. Finished matches need no host resume and remain viewable while other members are offline. |
+| Browser | Show the public result, the winning economic action and the recipient's final financial records. Hide setup, career, trading, pass and resume controls, upcoming business forecasts and statements promising later settlements. |
+
+Compatibility targets for the integrated packet-8 stack are engine `0.0.17`, rules `0.0.13`, shared `0.0.18`, persistence `0.0.14`. Existing snapshots require their compatible builds; no silent conversion occurs.
+
+### Private qualifications and explicit finales
+
+Each seat sees qualitative progress for its selected objective. The engine derives progress from current assets, liabilities and actual earned quarters. It groups lending by borrower and funded deal, records paid interest separately from returned principal, and records dated disposals with signed gains/losses and actual fees. Property evidence separates gross sale, returned asset cash and accrued payoff costs. A whole-company bid includes retained company cash and deducts retired claims once against equity basis. Player transfers use independent price caps at disposal and carry a separate reference basis on negotiated entries. The reference limits positive objective gain while the cash ledger retains actual fees, basis and losses. Genuine NPC bargain basis remains actual. Returning ownership exposure is traced across negotiated transfers. Old claims and current earned rights survive ordinary closing. New exposure supplies no earlier earnings.
+
+Fund sales reduce the attributable share of recorded dividends for each affected observation. The engine uses the retained fraction of the quarter-opening exposure at each sale, including sales in the dividend's earning quarter. For a paid company distribution, the observation retains the earning stake. Current slices held before that quarter determine the share still attributable to the player. The cash ledger records each earned distribution in full.
+
+For joint purchases the objective entry floor uses proportional gross property cost or proportional company equity cost. Each buyer retains their actual paid basis. Property reserve contributions increase the payer's actual basis and the other owners' objective floors by their allocated shares. The same rule covers renovation value when it enters the property at settlement.
+
+All seats receive the type, identity, ownership share and player partners of held properties and businesses, plus each seat's latest announced economic action and its quarter. Announcements use an allowlist of completed property, business, financing and major trading actions. The finished view identifies the winning action using the same public summary. Liquidity compares opening cash and fund value with one and four quarters of living costs. Leverage bands use 25% and 50% debt-to-gross-assets boundaries. Cash flow reports the sign of the trailing recurring surplus once four quarters have settled. Exact finances, transaction terms and objectives stay recipient-specific.
+
+The strict `PURSUE_FINALE` wrapper carries one existing economic action, or `CONFIRM_INDEPENDENCE` when already out of active work. The selected objective comes from authoritative state. The acting seat must own the spotlight and meet current eligibility. The transition drafts real effects, then checks the action amount, fees and resulting position before committing one winning revision. An unsuccessful explicit attempt leaves its entire original state and journals intact. Ordinary actions use the existing advancement path. Counterparties and auction responses carry no victory intent.
+
+| Objective | Supported explicit actions |
+| --- | --- |
+| Founder | Company expansion or NPC business acquisition at $300,000 or more. A matched whole-company exit instead requires that exact qualifying company, at least $1,000,000 net to the owner, retired company claims, no overdue obligations and a nonnegative resulting net worth. |
+| Property Magnate | Acquire an ordinary property at $600,000 or more and retain portfolio eligibility. |
+| Independent | Resign, replace owner labor with equal-cost management or explicitly confirm already being out of work. Keep the approved no-labor income, debt and reserve checks. |
+| Capital Allocator | Invest $150,000 of actual consideration through a cash/bank acquisition or public-fund purchases. Acquisition principal supplied by a bank and transaction fees earn no personal capital deployment credit. |
+| Financier | Use at least $150,000 of actual player cash to fund a matched market contract and retain the performing book and liquidity. |
+| Deal Maker | Close a $400,000 acquisition, matched company sale or public-market trade and retain signed gains and other eligibility. |
+| Executive Owner | Accept a real executive position with $100,000 of new ownership consideration, fees and funded equity that reconciles to the closing. Recent employment and investment income remain actual history. |
+| Wealth Architect | Deploy or reallocate $200,000. For a fund basket count the larger side of the trade so reinvested sale proceeds count once. Retain current eligibility. |
+
+Qualified Magnates and Financiers also receive a private standing offer independently of the ordinary quarterly draw. The landmark uses the authored residential court at its listed $650,000 price and ordinary cash/mortgage underwriting. The independent equipment renewal request lends the required $150,000 for six quarters under the existing fixed market APR formula and an authored repayment budget. Both are rebuilt from the current quarter and rule data without consuming random draws, replacing an ordinary card or minting a persistent ID. The normal closing path uses a temporary matched draft. A successful explicit finale assigns one canonical opportunity ID and commits the purchase or funded loan. A failed quote or eligibility check leaves the original card, cash, counters and history intact.

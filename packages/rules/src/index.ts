@@ -1,6 +1,6 @@
 import { SHARED_VERSION } from "@interests/shared";
 
-export const RULES_VERSION = "0.0.12";
+export const RULES_VERSION = "0.0.13";
 export const RULES_SHARED_VERSION = SHARED_VERSION;
 
 export * from "./careers";
@@ -12,6 +12,8 @@ export * from "./markets";
 export * from "./mode";
 export * from "./npcLending";
 export * from "./objectiveInstructions";
+export * from "./objectiveProgress";
+export * from "./objectiveQualifications";
 export * from "./objectives";
 export * from "./operatingEconomy";
 export * from "./profiles";

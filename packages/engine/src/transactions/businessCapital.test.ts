@@ -796,6 +796,18 @@ describe("sealed stake auction", () => {
     expect(
       closed.state.finance.assetsById[asset.id]?.ownershipByPlayerPpm,
     ).toEqual({ [owner]: 750_000, [buyer]: 250_000 });
+    const publicPlayers = projectPlayerGameState(closed.state, rival).players;
+    expect(
+      publicPlayers.find((player) => player.playerId === owner)?.publicPosition
+        ?.latestAction,
+    ).toEqual({
+      kind: "business-stake-transfer",
+      quarter: tied.currentQuarter,
+    });
+    expect(
+      publicPlayers.find((player) => player.playerId === rival)?.publicPosition
+        ?.latestAction,
+    ).toBeUndefined();
     expect(
       closed.journalEntries
         .filter((entry) => entry.relatedTransactionId === tx.id)

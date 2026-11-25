@@ -15,6 +15,10 @@ import type { ActionResult } from "../game/actions";
 import { nextDeterministicId } from "../game/deterministicIds";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "../game/round";
 import type {
+  AssetAcquisitionBasis,
+  ProgressState,
+} from "../model/completionState";
+import type {
   AssetBankLoan,
   GameState,
   PropertyAsset,
@@ -36,6 +40,55 @@ import type { JournalEntry } from "./journal";
 import { basisPoints, cents } from "./money";
 import { allocateProportionalCents, ownershipPpm } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
+import { recordPartnerPropertyCapital } from "./progress";
+
+function addPropertyBasisCost(
+  basis: AssetAcquisitionBasis,
+  additionalCostCents: number,
+): AssetAcquisitionBasis {
+  return {
+    ...basis,
+    costCents: cents(basis.costCents + additionalCostCents),
+    ...(basis.objectiveCostFloorCents !== undefined
+      ? {
+          objectiveCostFloorCents: cents(
+            basis.objectiveCostFloorCents + additionalCostCents,
+          ),
+        }
+      : {}),
+  };
+}
+
+function recordPropertyReserveFunding(
+  progress: ProgressState,
+  asset: PropertyAsset,
+  payer: PlayerId,
+  amountCents: number,
+): ProgressState {
+  if (!amountCents) return progress;
+  const funded = recordPartnerPropertyCapital(
+    progress,
+    asset,
+    payer,
+    cents(amountCents),
+  );
+  const player = funded.byPlayer[payer]!;
+  return {
+    byPlayer: {
+      ...funded.byPlayer,
+      [payer]: {
+        ...player,
+        assetsById: {
+          ...player.assetsById,
+          [asset.id]: addPropertyBasisCost(
+            player.assetsById[asset.id]!,
+            amountCents,
+          ),
+        },
+      },
+    },
+  };
+}
 
 export function catalogueProperty(
   id: string,
@@ -540,16 +593,29 @@ export function draftPropertyOwnerAction(
         cents(command.principalCents),
         ownership,
       );
+      const entryShares = purchaseFunding
+        ? allocateProportionalCents(
+            cents(quote.cashRequiredCents + command.principalCents),
+            ownership,
+          )
+        : null;
       const byPlayer = { ...state.progress.byPlayer };
       for (const owner of state.playerOrder) {
         if (!ownership[owner]) continue;
         const progress = byPlayer[owner]!;
+        const costCents = cents(
+          contributions[owner]! + principalShares[owner]!,
+        );
+        const entryShare = entryShares?.[owner] ?? 0;
         byPlayer[owner] = {
           ...progress,
           assetsById: {
             ...progress.assetsById,
             [id]: {
-              costCents: cents(contributions[owner]! + principalShares[owner]!),
+              costCents,
+              ...(entryShare > costCents
+                ? { objectiveCostFloorCents: cents(entryShare) }
+                : {}),
               acquiredQuarter: state.currentQuarter,
               ownershipPpm: ownership[owner]!,
             },
@@ -580,27 +646,14 @@ export function draftPropertyOwnerAction(
           reason: "property-reserve-funding",
           relatedAssetId: asset.id,
         });
-        const progress = draft.progress.byPlayer[playerId]!;
         draft = {
           ...draft,
-          progress: {
-            byPlayer: {
-              ...draft.progress.byPlayer,
-              [playerId]: {
-                ...progress,
-                assetsById: {
-                  ...progress.assetsById,
-                  [asset.id]: {
-                    ...progress.assetsById[asset.id]!,
-                    costCents: cents(
-                      progress.assetsById[asset.id]!.costCents +
-                        command.amountCents,
-                    ),
-                  },
-                },
-              },
-            },
-          },
+          progress: recordPropertyReserveFunding(
+            draft.progress,
+            asset,
+            playerId,
+            command.amountCents,
+          ),
         };
       } else if (command.type === "RENOVATE_PROPERTY") {
         if (asset.renovatedQuarter !== undefined)
@@ -632,6 +685,9 @@ export function draftPropertyOwnerAction(
                 renovationPending: {
                   costCents: cost,
                   effectiveQuarter: state.currentQuarter + 1,
+                  ...(authority === "sole-owner"
+                    ? {}
+                    : { payerPlayerId: playerId }),
                 },
               },
             },
@@ -647,12 +703,10 @@ export function draftPropertyOwnerAction(
                 ...progress,
                 assetsById: {
                   ...progress.assetsById,
-                  [asset.id]: {
-                    ...progress.assetsById[asset.id]!,
-                    costCents: cents(
-                      progress.assetsById[asset.id]!.costCents + cost,
-                    ),
-                  },
+                  [asset.id]: addPropertyBasisCost(
+                    progress.assetsById[asset.id]!,
+                    cost,
+                  ),
                 },
               },
             },
@@ -710,30 +764,23 @@ export function draftPropertyOwnerAction(
               },
             },
           };
-          const progress = draft.progress.byPlayer[playerId]!;
+          const fundingProgress = recordPropertyReserveFunding(
+            draft.progress,
+            asset,
+            playerId,
+            Math.max(0, quote.assetReserveCents - (asset.cashCents ?? 0)),
+          );
+          const progress = fundingProgress.byPlayer[playerId]!;
           draft = {
             ...draft,
             progress: {
               byPlayer: {
-                ...draft.progress.byPlayer,
+                ...fundingProgress.byPlayer,
                 [playerId]: {
                   ...progress,
                   realizedGainsCents: cents(
                     progress.realizedGainsCents - quote.feeCents,
                   ),
-                  assetsById: {
-                    ...progress.assetsById,
-                    [asset.id]: {
-                      ...progress.assetsById[asset.id]!,
-                      costCents: cents(
-                        progress.assetsById[asset.id]!.costCents +
-                          Math.max(
-                            0,
-                            quote.assetReserveCents - (asset.cashCents ?? 0),
-                          ),
-                      ),
-                    },
-                  },
                 },
               },
             },
@@ -770,6 +817,8 @@ export function draftPropertyOwnerAction(
               reason: "property-sale-proceeds",
               relatedAssetId: asset.id,
             });
+          const { renovationPending: _pendingRenovation, ...soldProperty } =
+            asset;
           draft = {
             ...draft,
             finance: {
@@ -777,7 +826,7 @@ export function draftPropertyOwnerAction(
               assetsById: {
                 ...draft.finance.assetsById,
                 [asset.id]: {
-                  ...asset,
+                  ...soldProperty,
                   cashCents: cents(0),
                   debtServiceReserveCents: cents(0),
                   disposition: "sold",
@@ -786,21 +835,29 @@ export function draftPropertyOwnerAction(
               },
             },
           };
-          // Original acquisition debt is a funding source, never a gain or an extra cost.
-          const netEconomicProceeds = cents(
+          // Allocate actual consideration and closing costs without treating loan principal as a gain or expense.
+          const shares = (amount: number) =>
+            allocateProportionalCents(
+              cents(amount),
+              asset.ownershipByPlayerPpm,
+            );
+          const financingCosts =
+            quote.payoffCents -
+            assetBankLiens(state, asset.id).reduce(
+              (sum, loan) => sum + loan.outstandingPrincipalCents,
+              0,
+            );
+          const grossShares = shares(asset.marketValueCents);
+          const cashShares = shares(asset.cashCents ?? 0);
+          const feeShares = shares(quote.saleFeeCents);
+          const financingShares = shares(financingCosts);
+          const economicShares = shares(
             asset.marketValueCents +
               (asset.cashCents ?? 0) -
               quote.saleFeeCents -
-              (quote.payoffCents -
-                assetBankLiens(state, asset.id).reduce(
-                  (sum, loan) => sum + loan.outstandingPrincipalCents,
-                  0,
-                )),
+              financingCosts,
           );
-          const economicShares = allocateProportionalCents(
-            netEconomicProceeds,
-            asset.ownershipByPlayerPpm,
-          );
+          const disposalGroup = `property:${state.revision + 1}:${asset.id}`;
           const reference = cents(asset.marketValueCents - quote.payoffCents);
           const referenceShares = allocateProportionalCents(
             cents(Math.abs(reference)),
@@ -824,6 +881,34 @@ export function draftPropertyOwnerAction(
               realizedGainsCents: cents(
                 progress.realizedGainsCents + proceeds - basis.costCents,
               ),
+              disposalEvidence: [
+                ...(progress.disposalEvidence ?? []),
+                {
+                  disposalId: `${disposalGroup}:${owner}`,
+                  transactionId: disposalGroup,
+                  underlyingAssetId: asset.id,
+                  category: "property",
+                  counterparty: { kind: "non-player", id: "property-market" },
+                  acquiredQuarter: basis.acquiredQuarter,
+                  settledExposureThroughQuarter:
+                    basis.settledExposureThroughQuarter ?? 0,
+                  soldQuarter: state.currentQuarter,
+                  proceedsCents: grossShares[owner]!,
+                  assetCashReleasedCents: cashShares[owner]!,
+                  saleFeesCents: feeShares[owner]!,
+                  financingCostsCents: financingShares[owner]!,
+                  acquisitionBasisCents: basis.costCents,
+                  ...(basis.objectiveCostFloorCents !== undefined
+                    ? {
+                        objectiveAcquisitionBasisFloorCents:
+                          basis.objectiveCostFloorCents,
+                      }
+                    : {}),
+                  referenceProceedsCents: null,
+                  economicSubstance: "genuine",
+                  ownershipUnits: basis.ownershipPpm,
+                },
+              ],
               disposals: [
                 ...progress.disposals,
                 {

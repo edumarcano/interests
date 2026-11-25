@@ -1,4 +1,5 @@
 import type {
+  AssetId,
   CommandId,
   MatchId,
   PlayerId,
@@ -22,6 +23,19 @@ export interface MarketLoanQuoteView {
     | "transaction-active"
     | null;
 }
+
+export type StandingFinaleOfferView =
+  | {
+      readonly kind: "financing";
+      readonly opportunityId: string;
+      readonly quote: MarketLoanQuoteView;
+    }
+  | {
+      readonly kind: "landmark";
+      readonly name: string;
+      readonly opportunityId: string;
+      readonly quotes: readonly RecurringAcquisitionQuote[];
+    };
 
 export interface ChooseObjectiveCommandPayload {
   readonly type: "CHOOSE_OBJECTIVE";
@@ -109,6 +123,19 @@ export interface AcceptCareerOfferCommandPayload {
 }
 export interface ResignLaborCommandPayload {
   readonly type: "RESIGN_LABOR";
+}
+/** Explicit owner-only request. Eligibility, target objective and effects remain engine-owned. */
+export interface PursueFinaleCommandPayload {
+  readonly type: "PURSUE_FINALE";
+  readonly action:
+    | ResignLaborCommandPayload
+    | AcceptCareerOfferCommandPayload
+    | TradePublicMarketsCommandPayload
+    | ExpandBusinessCommandPayload
+    | AcquireRecurringCommand
+    | SellRecurringBusinessCommand
+    | FundRecurringLoanCommand
+    | { readonly type: "CONFIRM_INDEPENDENCE" };
 }
 export interface CareerOfferView {
   readonly id: string;
@@ -597,6 +624,7 @@ export interface RecurringOpportunityView {
 export type PlayerCommand =
   | SellRecurringBusinessCommand
   | PropertyAcquisitionCommand
+  | PursueFinaleCommandPayload
   | SharedRecurringAcquisitionCommand
   | BusinessAuctionCommand
   | JointPropertyCommand
@@ -633,6 +661,41 @@ export interface MatchPlayerSummaryView {
   readonly joinOrder: number;
   readonly isHost: boolean;
   readonly hasSelectedObjective: boolean;
+  readonly publicPosition?: PublicPlayerPositionView;
+}
+
+export const PUBLIC_ECONOMIC_ACTIONS = [
+  "property-purchase",
+  "property-sale",
+  "property-improvement",
+  "property-refinancing",
+  "business-purchase",
+  "business-sale",
+  "business-stake-transfer",
+  "business-capital-raise",
+  "business-expansion",
+  "executive-ownership",
+  "public-fund-trade",
+  "market-loan",
+  "work-status",
+] as const;
+
+export type PublicEconomicAction = (typeof PUBLIC_ECONOMIC_ACTIONS)[number];
+
+export interface PublicPlayerPositionView {
+  readonly liquidity: "tight" | "adequate" | "strong";
+  readonly leverage: "low" | "moderate" | "high";
+  readonly cashFlow: "surplus" | "break-even" | "deficit" | "unseasoned";
+  readonly assets: readonly {
+    readonly assetId: AssetId;
+    readonly kind: "business" | "property";
+    readonly ownershipPpm: number;
+    readonly partnerIds: readonly PlayerId[];
+  }[];
+  readonly latestAction?: {
+    readonly kind: PublicEconomicAction;
+    readonly quarter: number;
+  };
 }
 
 export interface MatchProfileView {
@@ -737,11 +800,26 @@ export type MatchResultView =
       readonly completedQuarter: number;
     }
   | { readonly kind: "safety-draw"; readonly completedQuarter: number };
+export interface ObjectiveEvaluationView {
+  readonly objectiveId: string;
+  readonly status: "eligible" | "ineligible";
+  readonly checks: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly met: boolean;
+    readonly actual: number;
+    readonly target: number;
+    readonly comparison: "minimum" | "maximum" | "required";
+  }[];
+}
+
 export interface MatchSelfFinancialDetailsView {
+  readonly standingFinaleOffer?: StandingFinaleOfferView;
   readonly formerWorkClaims?: readonly {
     readonly assetId: string;
     readonly amountCents: number;
   }[];
+  readonly objectiveEvaluation: ObjectiveEvaluationView | null;
   readonly careerOffers: readonly CareerOfferView[];
   readonly annualLaborCompensationCents: number | null;
   readonly quarterlyIncomeCents: number;

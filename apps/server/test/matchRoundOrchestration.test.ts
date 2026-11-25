@@ -244,6 +244,104 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
     return { roomCode, cookies, clients, matchId };
   }
 
+  it("routes strict nested finale commands to the engine and persists an atomic private rejection exactly once", async () => {
+    const { clients, cookies, roomCode, matchId } =
+      await setupMatchAtRoundStart();
+    expect(
+      await sendCommand(clients[0]!.socket, {
+        commandId: randomUUID(),
+        expectedRevision: 4,
+        command: { type: "BEGIN_ROUND" },
+      }),
+    ).toMatchObject({ ok: true, revision: 5 });
+    const before = matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson;
+    const envelope = {
+      commandId: randomUUID(),
+      expectedRevision: 5,
+      command: { type: "PURSUE_FINALE", action: { type: "RESIGN_LABOR" } },
+    };
+    for (const command of [
+      { ...envelope.command, objectiveId: "independent" },
+      { ...envelope.command, action: { type: "RESIGN_LABOR", eligible: true } },
+      {
+        type: "PURSUE_FINALE",
+        action: { type: "CONFIRM_INDEPENDENCE", cashCents: 999 },
+      },
+    ])
+      expect(
+        await sendCommand(clients[0]!.socket, {
+          ...envelope,
+          commandId: randomUUID(),
+          command,
+        }),
+      ).toMatchObject({
+        ok: false,
+        error: { code: "INVALID_INPUT" },
+        revision: 5,
+      });
+    const response = await sendCommand(clients[0]!.socket, envelope);
+    expect(response.ok).toBe(false);
+    if (response.ok) throw new Error("Ordinary Q1 cannot qualify a finale");
+    expect(response.error.code).toBe("GAMEPLAY_REJECTED");
+    expect(["FINALE_INELIGIBLE", "FINALE_ACTION_UNAVAILABLE"]).toContain(
+      response.error.message,
+    );
+    expect(await sendCommand(clients[0]!.socket, envelope)).toEqual(response);
+    expect(
+      await sendCommand(clients[0]!.socket, {
+        ...envelope,
+        command: {
+          type: "PURSUE_FINALE",
+          action: { type: "CONFIRM_INDEPENDENCE" },
+        },
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "COMMAND_ID_REUSED" },
+      revision: 5,
+    });
+    expect(
+      await sendCommand(clients[1]!.socket, {
+        ...envelope,
+        commandId: randomUUID(),
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "GAMEPLAY_REJECTED", message: "NOT_ACTIVE_SPOTLIGHT" },
+      revision: 5,
+    });
+    const snapshot = JSON.parse(before) as GameState;
+    const receipt = matchRepo.findCommandReceipt(
+      matchId as MatchId,
+      snapshot.playerOrder[0]!,
+      envelope.commandId,
+    );
+    expect(receipt).toMatchObject({
+      outcome: "REJECTED",
+      resultingRevision: 5,
+      errorCode: response.error.code,
+      errorMessage: response.error.message,
+    });
+    expect(matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson).toBe(
+      before,
+    );
+    for (const [index, cookie] of cookies.entries()) {
+      const view = JSON.parse(
+        (
+          await server.fastify.inject({
+            method: "GET",
+            url: `/api/rooms/${roomCode}/match`,
+            cookies: { interests_session: cookie },
+          })
+        ).body,
+      ).match as MatchPlayerView;
+      expect(view.revision).toBe(5);
+      expect(view.result).toBeNull();
+      expect(view.self.playerId).toBe(snapshot.playerOrder[index]);
+      expect(JSON.stringify(view.players)).not.toContain("objectiveEvaluation");
+    }
+  });
+
   it("quotes authenticated private market baskets and persists a final trade, fees and settlement exactly once", async () => {
     const { clients, roomCode, cookies, matchId } =
       await setupMatchAtRoundStart();
@@ -1147,7 +1245,16 @@ describe("Section 18: Match Round Orchestration Server Integration", () => {
       outstandingPrincipalCents: 6_000_000,
       unpaidInterestCents: 120_000,
     });
-    expect(JSON.stringify(unrelated)).not.toContain(unpaidCompanyId);
+    expect(
+      unrelated.players.find((player) => player.playerId === debtor)
+        ?.publicPosition?.assets,
+    ).toContainEqual({
+      assetId: unpaidCompanyId,
+      kind: "business",
+      ownershipPpm: 1_000_000,
+      partnerIds: [],
+    });
+    expect(JSON.stringify(unrelated.self)).not.toContain(unpaidCompanyId);
     expect(JSON.stringify(unrelated)).not.toContain(unpaidLoanId);
     expect(JSON.stringify(unrelated)).not.toContain("livingByPlayer");
     const alternate = JSON.parse(JSON.stringify(snapshot)) as GameState;

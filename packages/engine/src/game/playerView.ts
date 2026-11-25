@@ -23,6 +23,7 @@ import type {
   PropertyAcquisitionView,
   PropertyManagementView,
   PropertyOfferView,
+  PublicPlayerPositionView,
   RecurringOpportunityView,
   SelfSettlementView,
   SharedRecurringAcquisitionView,
@@ -37,6 +38,9 @@ import { calculateLoanObligation } from "../finance/obligations";
 import { calculatePropertyCashFlow } from "../finance/property";
 import { propertyManagement, propertyOffers } from "../finance/propertyActions";
 import type { GameState } from "../model/gameState.js";
+import { evaluateObjective } from "../objectives/evaluate";
+import { measurePlayerObjectives } from "../objectives/measurements";
+import { projectStandingFinaleOffer } from "../objectives/standingFinaleOffer";
 import { projectRecurringOpportunity } from "../opportunities/recurring";
 import { projectBusinessAuction } from "../transactions/businessAuctionTerms";
 import { planBusinessCapital } from "../transactions/businessCapitalTerms";
@@ -60,11 +64,13 @@ import {
 } from "../transactions/reservations.js";
 import { projectSharedRecurringAcquisition } from "../transactions/sharedRecurringAcquisition";
 import { currentAnnualLaborCompensation, getCareerOffers } from "./career";
+import { projectPublicPosition } from "./publicPosition";
 import { getActiveSpotlightPlayerId, getSpotlightOrder } from "./round.js";
 
 export interface PurePlayerSummary {
   readonly playerId: PlayerId;
   readonly hasSelectedObjective: boolean;
+  readonly publicPosition?: PublicPlayerPositionView;
 }
 
 export interface PureOpportunityDiligenceView {
@@ -226,6 +232,9 @@ export function projectPlayerGameState(
     return {
       playerId: pId,
       hasSelectedObjective: p ? p.selectedObjectiveId !== null : false,
+      ...(state.phase !== "objective-choosing"
+        ? { publicPosition: projectPublicPosition(state, pId) }
+        : {}),
     };
   });
 
@@ -281,11 +290,16 @@ export function projectPlayerGameState(
           opening &&
           (opening.ownershipByPlayerPpm[playerId] ?? 0) > 0 &&
           state.currentQuarter >= firstOperatingQuarter;
-        const payoutQuarter = eligibleNow
-          ? state.currentQuarter
-          : Math.max(state.currentQuarter + 1, firstOperatingQuarter);
-        let expectedWorkPayCents: number | null = 0;
-        let expectedPayoutCents: number | null = 0;
+        const payoutQuarter =
+          state.phase === "finished"
+            ? null
+            : eligibleNow
+              ? state.currentQuarter
+              : Math.max(state.currentQuarter + 1, firstOperatingQuarter);
+        let expectedWorkPayCents: number | null =
+          state.phase === "finished" ? null : 0;
+        let expectedPayoutCents: number | null =
+          state.phase === "finished" ? null : 0;
         if (payoutQuarter !== null) {
           try {
             const forecast = planBusinessSettlement(
@@ -493,6 +507,26 @@ export function projectPlayerGameState(
   } catch (error) {
     if (!(error instanceof RangeError)) throw error;
   }
+  let objectiveEvaluation: MatchSelfFinancialDetailsView["objectiveEvaluation"] =
+    null;
+  if (selfPlayer.selectedObjectiveId !== null) {
+    try {
+      objectiveEvaluation = evaluateObjective(
+        measurePlayerObjectives(state, playerId),
+        selfPlayer.selectedObjectiveId,
+      );
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+    }
+  }
+  const standingFinaleOffer =
+    objectiveEvaluation?.status === "eligible" && selfPlayer.selectedObjectiveId
+      ? projectStandingFinaleOffer(
+          state,
+          playerId,
+          selfPlayer.selectedObjectiveId,
+        )
+      : undefined;
   const self: PureSelfView = {
     propertyOffers: offers,
     propertyManagement: management,
@@ -512,6 +546,8 @@ export function projectPlayerGameState(
               ]
             : [],
       ),
+      objectiveEvaluation,
+      ...(standingFinaleOffer ? { standingFinaleOffer } : {}),
       careerOffers: getCareerOffers(state, playerId),
       annualLaborCompensationCents: currentAnnualLaborCompensation(
         state,

@@ -229,6 +229,7 @@ export function recurringCandidateWeights(state: GameState, player: PlayerId) {
   const focus = state.progress.byPlayer[player]?.focus;
   const recent = state.content.recentCategoriesByPlayer[player] ?? [];
   return RECURRING_CONTENT_TEMPLATES.flatMap((template) => {
+    if (template.finaleOnly) return [];
     if (template.action === "npc-financing") {
       const borrower = MARKET_BORROWER_TEMPLATES.find(
         (row) => row.cardTemplateId === template.id,

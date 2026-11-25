@@ -27,7 +27,11 @@ export function recoverActiveMatchesOnStartup(
         throw new Error("Match not found");
       }
       const roomInfo = matchRepository.findRoomWithMembers(roomCode);
-      loadAndValidatePersistedMatch(matchWithMembers, roomInfo?.members);
+      loadAndValidatePersistedMatch(
+        matchWithMembers,
+        roomInfo?.members,
+        roomInfo?.room.status,
+      );
 
       lobbyRepository.addPauseReason({
         roomCode,

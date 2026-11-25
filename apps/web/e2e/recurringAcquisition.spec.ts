@@ -89,7 +89,17 @@ for (const [kind, route] of [
               await page.request.get(`${server.origin}/api/rooms/${code}/match`)
             ).json()
           ).match;
-          expect(JSON.stringify(view)).not.toContain(assetId);
+          expect(JSON.stringify(view.self)).not.toContain(assetId);
+          expect(
+            view.players.find(
+              (player) => player.playerId === bought.after.self.playerId,
+            )?.publicPosition?.assets,
+          ).toContainEqual({
+            assetId,
+            kind,
+            ownershipPpm: 1_000_000,
+            partnerIds: [],
+          });
         }
       const size = await bought.page.evaluate(() => [
         document.documentElement.clientWidth,

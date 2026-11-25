@@ -1,3 +1,4 @@
+import { assertGameState } from "@interests/engine";
 import {
   asMatchId,
   asPlayerId,
@@ -348,16 +349,33 @@ export class SqliteMatchRepository implements MatchRepository {
       );
     }
 
+    const finished = input.nextState.phase === "finished";
+    if (finished !== (input.nextState.result !== null))
+      throw new MatchError(
+        "INVALID_TERMINAL_STATE",
+        "Terminal phase and result must agree",
+        500,
+      );
+    if (finished) assertGameState(input.nextState);
+
     return this.db.transaction(() => {
       // 1. Verify revision still equals expected previous revision
       const currentMatch = this.db
-        .prepare("SELECT revision FROM matches WHERE id = ?")
-        .get(input.matchId) as { revision: number } | undefined;
+        .prepare("SELECT revision, status, room_id FROM matches WHERE id = ?")
+        .get(input.matchId) as
+        | { revision: number; status: string; room_id: string }
+        | undefined;
 
       if (!currentMatch) {
         throw new MatchError("MATCH_NOT_FOUND", "Match does not exist", 404);
       }
 
+      if (currentMatch.status !== "ACTIVE")
+        throw new MatchError(
+          "MATCH_FINISHED",
+          "Match no longer accepts gameplay",
+          409,
+        );
       if (currentMatch.revision !== input.expectedPreviousRevision) {
         throw new MatchError(
           "STALE_REVISION",
@@ -435,13 +453,14 @@ export class SqliteMatchRepository implements MatchRepository {
       const updateResult = this.db
         .prepare(
           `UPDATE matches
-           SET snapshot_json = ?, revision = ?, updated_at = ?
+           SET snapshot_json = ?, revision = ?, updated_at = ?, status = ?
            WHERE id = ? AND revision = ?`,
         )
         .run(
           nextSnapshotJson,
           input.nextRevision,
           nowIso,
+          finished ? "FINISHED" : "ACTIVE",
           input.matchId,
           input.expectedPreviousRevision,
         );
@@ -452,6 +471,17 @@ export class SqliteMatchRepository implements MatchRepository {
           "Revision conflict detected during snapshot update",
           409,
         );
+      }
+
+      if (finished) {
+        this.db
+          .prepare(
+            "UPDATE rooms SET status = 'FINISHED', updated_at = ? WHERE id = ?",
+          )
+          .run(nowIso, currentMatch.room_id);
+        this.db
+          .prepare("DELETE FROM room_pause_reasons WHERE room_id = ?")
+          .run(currentMatch.room_id);
       }
 
       const receipt: CommandReceiptRecord = {

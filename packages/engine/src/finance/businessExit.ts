@@ -314,6 +314,19 @@ export function draftMatchedBusinessExit(
       quote.grossConsiderationCents,
       asset.ownershipByPlayerPpm,
     );
+    const fees = allocateProportionalCents(
+      quote.saleFeeCents,
+      asset.ownershipByPlayerPpm,
+    );
+    const claims = allocateProportionalCents(
+      cents(
+        new FinanceDecimal(quote.bankPayoffCents)
+          .plus(quote.operatingArrearsPaidCents)
+          .plus(quote.workArrearsPaidCents)
+          .toNumber(),
+      ),
+      asset.ownershipByPlayerPpm,
+    );
     const byPlayer = { ...state.progress.byPlayer };
     for (const owner of state.playerOrder) {
       const units = asset.ownershipByPlayerPpm[owner];
@@ -324,8 +337,12 @@ export function draftMatchedBusinessExit(
       const slices = basis.slices ?? [
         {
           costCents: basis.costCents,
+          ...(basis.objectiveCostFloorCents !== undefined
+            ? { objectiveCostFloorCents: basis.objectiveCostFloorCents }
+            : {}),
           ownershipPpm: basis.ownershipPpm,
           acquiredQuarter: basis.acquiredQuarter,
+          settledExposureThroughQuarter: basis.settledExposureThroughQuarter,
         },
       ];
       const disposal = disposeStakeBasis(
@@ -341,6 +358,14 @@ export function draftMatchedBusinessExit(
         references[owner]!,
         disposal.disposedSlices,
       );
+      const feeSlices = allocateStakeSliceCents(
+        fees[owner]!,
+        disposal.disposedSlices,
+      );
+      const claimSlices = allocateStakeSliceCents(
+        claims[owner]!,
+        disposal.disposedSlices,
+      );
       const assetsById = { ...progress.assetsById };
       delete assetsById[asset.id];
       byPlayer[owner] = {
@@ -352,6 +377,33 @@ export function draftMatchedBusinessExit(
             .minus(disposal.removedCostCents)
             .toNumber(),
         ),
+        disposalEvidence: [
+          ...(progress.disposalEvidence ?? []),
+          ...disposal.disposedSlices.map((slice, index) => ({
+            disposalId: `${transactionId}:${owner}:${index}`,
+            transactionId,
+            underlyingAssetId: asset.id,
+            category: "business" as const,
+            counterparty: { kind: "non-player" as const, id: match.buyerId },
+            acquiredQuarter: slice.acquiredQuarter,
+            settledExposureThroughQuarter:
+              slice.settledExposureThroughQuarter ?? 0,
+            soldQuarter: state.currentQuarter,
+            proceedsCents: grossSlices[index]!,
+            saleFeesCents: feeSlices[index]!,
+            companyClaimsPaidCents: claimSlices[index]!,
+            acquisitionBasisCents: slice.costCents,
+            ...(slice.objectiveCostFloorCents !== undefined
+              ? {
+                  objectiveAcquisitionBasisFloorCents:
+                    slice.objectiveCostFloorCents,
+                }
+              : {}),
+            referenceProceedsCents: null,
+            economicSubstance: "genuine" as const,
+            ownershipUnits: slice.ownershipPpm,
+          })),
+        ],
         disposals: [
           ...progress.disposals,
           ...disposal.disposedSlices.map((slice, index) => ({

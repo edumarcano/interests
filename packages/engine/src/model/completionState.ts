@@ -1,5 +1,10 @@
 import type { PublicMarketInstrumentId } from "@interests/rules";
-import type { AssetId, PlayerId, TransactionId } from "@interests/shared";
+import type {
+  AssetId,
+  PlayerId,
+  PublicPlayerPositionView,
+  TransactionId,
+} from "@interests/shared";
 import type { Cents } from "../finance/money";
 import type { OwnershipPpm } from "../finance/ownership";
 import type { StakeBasisSlice } from "../finance/stakeBasis";
@@ -21,6 +26,44 @@ export type LaborRole =
     }
   | { readonly kind: "owner-work"; readonly assetId: AssetId }
   | { readonly kind: "not-working" };
+export interface OwnershipTransferExposure {
+  readonly playerId: PlayerId;
+  readonly disposalId: string;
+  readonly ownershipUnits: number;
+}
+export interface PublicMarketExposureSlice {
+  readonly acquiredQuarter: number;
+  readonly settledExposureThroughQuarter: number;
+  readonly valueCents: Cents;
+  readonly costCents: Cents;
+}
+export interface CanonicalDisposalRecord {
+  readonly disposalId: string;
+  readonly transactionId: string;
+  readonly underlyingAssetId: string;
+  readonly category: "business" | "property" | "public-markets";
+  readonly counterparty: {
+    readonly kind: "player" | "non-player";
+    readonly id: string;
+  };
+  readonly acquiredQuarter: number;
+  readonly settledExposureThroughQuarter: number;
+  readonly soldQuarter: number;
+  readonly proceedsCents: Cents;
+  readonly saleFeesCents: Cents;
+  readonly assetCashReleasedCents?: Cents;
+  readonly financingCostsCents?: Cents;
+  readonly companyClaimsPaidCents?: Cents;
+  readonly acquisitionBasisCents: Cents;
+  readonly objectiveAcquisitionBasisFloorCents?: Cents;
+  readonly referenceProceedsCents: Cents | null;
+  readonly economicSubstance: "genuine" | "circular";
+  readonly ownershipUnits: number;
+  readonly circularReturns?: readonly {
+    readonly disposalId: string;
+    readonly ownershipUnits: number;
+  }[];
+}
 export interface AssetAcquisitionBasis {
   readonly acquisition?: {
     readonly kind: "recurring-npc";
@@ -34,7 +77,11 @@ export interface AssetAcquisitionBasis {
     readonly buyerCashCents: number;
     readonly buyerCashByPlayer?: Readonly<Record<PlayerId, number>>;
   };
+  readonly settledExposureThroughQuarter?: number;
+  readonly previousTransfers?: readonly OwnershipTransferExposure[];
   readonly costCents: Cents;
+  /** Independent entry value for negotiated player capital, separate from paid cost. */
+  readonly objectiveCostFloorCents?: Cents;
   readonly acquiredQuarter: number;
   readonly ownershipPpm: OwnershipPpm;
   readonly slices?: readonly StakeBasisSlice[];
@@ -46,6 +93,10 @@ export type IncomeCategory =
   | "business"
   | "financing";
 export interface SourceObservation {
+  /** Subset already included in the player's required personal debt service. */
+  readonly personalDebtServiceOwedCents?: Cents;
+  /** Opening stake attributable to a paid business distribution. */
+  readonly earningOwnershipPpm?: OwnershipPpm;
   readonly category: IncomeCategory;
   readonly recurringReceivedCents: Cents;
   readonly debtServiceOwedCents: Cents;
@@ -62,6 +113,11 @@ export interface QuarterObservation {
   readonly companyOperatingProfitById: Readonly<Record<AssetId, Cents>>;
 }
 export interface PlayerProgress {
+  readonly latestPublicAction?: PublicPlayerPositionView["latestAction"];
+  readonly disposalEvidence?: readonly CanonicalDisposalRecord[];
+  readonly publicMarketExposure?: Readonly<
+    Record<PublicMarketInstrumentId, readonly PublicMarketExposureSlice[]>
+  >;
   readonly labor: LaborRole;
   readonly focus: FocusArea;
   readonly publicMarketBasis: Readonly<Record<PublicMarketInstrumentId, Cents>>;

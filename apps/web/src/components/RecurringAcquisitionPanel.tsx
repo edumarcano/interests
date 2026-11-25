@@ -24,9 +24,24 @@ export function RecurringAcquisitionPanel({
   const [quotes, setQuotes] = useState<readonly RecurringAcquisitionQuote[]>(
     [],
   );
-  const [selected, setSelected] = useState<RecurringAcquisitionQuote | null>(
-    null,
-  );
+  const [review, setReview] = useState<{
+    quote: RecurringAcquisitionQuote;
+    intent: "ordinary" | "finale";
+    objectiveId: string | null;
+  } | null>(null);
+  const selected = review?.quote;
+  const objectiveId = match.self.selectedObjectiveId;
+  const evaluation = match.self.financialDetails?.objectiveEvaluation;
+  const objectiveName =
+    match.self.selectedObjective?.name ?? "selected objective";
+  const canPursueFinale = (quote: RecurringAcquisitionQuote) =>
+    evaluation?.status === "eligible" &&
+    evaluation.objectiveId === objectiveId &&
+    (["capital-allocator", "deal-maker", "wealth-architect"].includes(
+      objectiveId ?? "",
+    ) ||
+      (objectiveId === "founder" && quote.kind === "business") ||
+      (objectiveId === "property-magnate" && quote.kind === "property"));
   const [pending, setPending] = useState<"preview" | "close" | null>(null);
   const [error, setError] = useState("");
   const generation = useRef(0);
@@ -36,7 +51,7 @@ export function RecurringAcquisitionPanel({
     lastRevision.current = match.revision;
     generation.current++;
     setQuotes([]);
-    setSelected(null);
+    setReview(null);
     setPending(null);
   }, [match.revision]);
   if (
@@ -57,7 +72,7 @@ export function RecurringAcquisitionPanel({
     const request = ++generation.current;
     setPending("preview");
     setError("");
-    setSelected(null);
+    setReview(null);
     try {
       const result = await previewRecurringAcquisition(roomCode, card!.id);
       if (request !== generation.current) return;
@@ -75,19 +90,27 @@ export function RecurringAcquisitionPanel({
       if (request === generation.current) setPending(null);
     }
   }
-  async function close() {
-    if (!selected || !canClose) return;
+  async function close(intent: "ordinary" | "finale") {
+    if (!selected || !canClose || review?.intent !== intent) return;
+    if (
+      intent === "finale" &&
+      (!canPursueFinale(selected) || review.objectiveId !== objectiveId)
+    )
+      return;
     setPending("close");
     setError("");
     try {
-      const result = await onSendCommand({
-        type: "ACQUIRE_RECURRING_OPPORTUNITY",
+      const action = {
+        type: "ACQUIRE_RECURRING_OPPORTUNITY" as const,
         opportunityId: card!.id,
         quoteId: selected.id,
-      });
+      };
+      const result = await onSendCommand(
+        intent === "finale" ? { type: "PURSUE_FINALE", action } : action,
+      );
       if (!result.ok) setError(result.error.message);
       else {
-        setSelected(null);
+        setReview(null);
         setQuotes([]);
       }
     } catch (cause) {
@@ -159,7 +182,9 @@ export function RecurringAcquisitionPanel({
             className="btn-secondary"
             data-testid={`review-recurring-${quote.route}`}
             disabled={!quote.canClose || !canClose}
-            onClick={() => setSelected(quote)}
+            onClick={() =>
+              setReview({ quote, intent: "ordinary", objectiveId })
+            }
           >
             Review{" "}
             {quote.route === "cash"
@@ -168,6 +193,19 @@ export function RecurringAcquisitionPanel({
                 ? "fixed bank purchase"
                 : "variable bank purchase"}
           </button>
+          {canPursueFinale(quote) && (
+            <button
+              type="button"
+              className="btn-secondary"
+              data-testid={`review-recurring-finale-${quote.route}`}
+              disabled={!quote.canClose || !canClose}
+              onClick={() =>
+                setReview({ quote, intent: "finale", objectiveId })
+              }
+            >
+              Review purchase as {objectiveName} finale
+            </button>
+          )}
         </div>
       ))}
       {quotes.length > 0 && canClose && (
@@ -182,7 +220,11 @@ export function RecurringAcquisitionPanel({
       {selected && (
         <dialog
           open
-          aria-label="Confirm opportunity purchase"
+          aria-label={
+            review?.intent === "finale"
+              ? "Confirm acquisition finale"
+              : "Confirm opportunity purchase"
+          }
           style={{
             position: "fixed",
             inset: "auto 1rem 1rem",
@@ -194,7 +236,11 @@ export function RecurringAcquisitionPanel({
             zIndex: 20,
           }}
         >
-          <h3>Confirm {card.name}</h3>
+          <h3>
+            {review?.intent === "finale"
+              ? `Pursue ${objectiveName} finale: ${card.name}`
+              : `Confirm ${card.name}`}
+          </h3>
           <p>
             Invest {money(selected.cashRequiredCents)} cash. This includes the{" "}
             {money(selected.purchaseFeeCents)} purchase fee and{" "}
@@ -208,21 +254,43 @@ export function RecurringAcquisitionPanel({
             Returns can fall and reserves can be lost. This completes your
             spotlight.
           </p>
+          {review?.intent === "finale" && (
+            <p>
+              This explicitly requests your selected finale with this purchase.
+              The server checks the required consideration, eligibility and
+              resulting position before awarding a win.
+            </p>
+          )}
           <button
             type="button"
-            data-testid="confirm-recurring-acquisition"
-            disabled={!canClose}
-            onClick={close}
+            data-testid={
+              review?.intent === "finale"
+                ? "confirm-recurring-finale"
+                : "confirm-recurring-acquisition"
+            }
+            disabled={
+              !canClose ||
+              (review?.intent === "finale" &&
+                (!canPursueFinale(selected) ||
+                  review.objectiveId !== objectiveId))
+            }
+            onClick={() =>
+              close(review?.intent === "finale" ? "finale" : "ordinary")
+            }
           >
-            {pending === "close" ? "Purchasing…" : "Confirm purchase"}
+            {pending === "close"
+              ? "Purchasing…"
+              : review?.intent === "finale"
+                ? "Confirm purchase and pursue finale"
+                : "Confirm purchase"}
           </button>
           <button
             type="button"
             className="btn-secondary"
             disabled={pending === "close"}
-            onClick={() => setSelected(null)}
+            onClick={() => setReview(null)}
           >
-            Cancel purchase
+            {review?.intent === "finale" ? "Cancel finale" : "Cancel purchase"}
           </button>
         </dialog>
       )}

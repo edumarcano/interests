@@ -154,10 +154,10 @@ export function applyLoanPaymentAllocation(
           loan.termQuarters,
           quarter - loan.originatedQuarter,
         ),
-        ...(loan.kind === "npc-loan" && interestPaidCents > 0
+        ...(loan.kind === "player-loan"
           ? {
-              interestReceipts: [
-                ...loan.interestReceipts,
+              settledInterestReceipts: [
+                ...(loan.settledInterestReceipts ?? []),
                 {
                   quarter,
                   receivedCents: interestPaidCents,
@@ -167,7 +167,20 @@ export function applyLoanPaymentAllocation(
                 },
               ],
             }
-          : {}),
+          : interestPaidCents > 0
+            ? {
+                interestReceipts: [
+                  ...loan.interestReceipts,
+                  {
+                    quarter,
+                    receivedCents: interestPaidCents,
+                    currentEarnedCents: cents(
+                      Math.max(0, interestPaidCents - loan.unpaidInterestCents),
+                    ),
+                  },
+                ],
+              }
+            : {}),
       }
     : {
         ...loan,

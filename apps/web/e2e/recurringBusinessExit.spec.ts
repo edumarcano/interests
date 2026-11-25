@@ -99,7 +99,17 @@ test("ordinary four-client seasoned company receives a private fixed buyer and e
     for (const page of pages)
       if (page !== seller) {
         const rival = await view(page);
-        expect(JSON.stringify(rival)).not.toContain(quote.assetId);
+        expect(JSON.stringify(rival.self)).not.toContain(quote.assetId);
+        expect(
+          rival.players.find(
+            (player) => player.playerId === before.self.playerId,
+          )?.publicPosition?.assets,
+        ).toContainEqual({
+          assetId: quote.assetId,
+          kind: "business",
+          ownershipPpm: 1_000_000,
+          partnerIds: [],
+        });
         expect(JSON.stringify(rival)).not.toContain(card.id);
         await expect(
           page.getByTestId("recurring-business-exit-panel"),

@@ -9,11 +9,13 @@ import type {
   PublicMarketTradePreview,
 } from "@interests/shared";
 import type { ActionErrorCode, ActionResult } from "../game/actions";
+import type { EconomicActionFinalizer } from "../game/finalization";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "../game/round";
 import type { GameState } from "../model/gameState";
 import { getAvailableCashCents } from "../transactions/reservations";
 import { externalCashAccount, playerCashAccount } from "./account";
 import { FinanceDecimal } from "./decimal";
+import { allocateDisposalCents, fundExposure } from "./disposalEvidence";
 import type { JournalEntry } from "./journal";
 import { totalPublicMarketValueCents } from "./markets";
 import { cents } from "./money";
@@ -167,10 +169,17 @@ export function previewPublicMarketTrade(
   }
 }
 
+export interface MarketTradeFacts {
+  readonly kind: "public-market-trade";
+  readonly purchasedCents: number;
+  readonly soldCents: number;
+}
+
 export function tradePublicMarketsAndAdvanceSpotlight(
   state: GameState,
   actorPlayerId: PlayerId,
   trades: readonly PublicMarketTradeLeg[],
+  finalize?: EconomicActionFinalizer<MarketTradeFacts>,
 ): ActionResult {
   const reject = (code: ActionErrorCode): ActionResult => ({
     ok: false,
@@ -233,6 +242,19 @@ export function tradePublicMarketsAndAdvanceSpotlight(
   const progress = state.progress.byPlayer[actorPlayerId]!;
   const publicMarketBasis = { ...progress.publicMarketBasis };
   const publicMarketDisposals = [...progress.publicMarketDisposals];
+  const disposalEvidence = [...(progress.disposalEvidence ?? [])];
+  const publicMarketExposure = Object.fromEntries(
+    PUBLIC_MARKET_INSTRUMENT_IDS.map((id) => [
+      id,
+      fundExposure(
+        progress,
+        id,
+        state.finance.publicMarketsByPlayer[actorPlayerId]![id],
+        state.currentQuarter,
+      ),
+    ]),
+  ) as NonNullable<typeof progress.publicMarketExposure>;
+  const exposure = { ...publicMarketExposure };
   let gain = new FinanceDecimal(progress.realizedGainsCents);
   for (const leg of quote.trades) {
     if (!isPublicMarketInstrumentId(leg.instrumentId))
@@ -240,6 +262,54 @@ export function tradePublicMarketsAndAdvanceSpotlight(
     portfolio[leg.instrumentId] = cents(leg.resultingValueCents);
     publicMarketBasis[leg.instrumentId] = cents(leg.resultingBasisCents);
     gain = gain.plus(leg.realizedGainCents);
+    const slices = exposure[leg.instrumentId];
+    if (leg.buyCents > 0)
+      exposure[leg.instrumentId] = [
+        ...slices,
+        {
+          acquiredQuarter: state.currentQuarter,
+          settledExposureThroughQuarter: 0,
+          valueCents: cents(leg.buyCents),
+          costCents: cents(leg.buyCents + leg.feeCents),
+        },
+      ];
+    if (leg.sellCents > 0) {
+      const proceeds = allocateDisposalCents(
+        cents(leg.sellCents),
+        slices.map((slice) => slice.valueCents),
+      );
+      const costs = allocateDisposalCents(
+        cents(leg.removedBasisCents),
+        slices.map((slice) => slice.costCents),
+      );
+      const fees = allocateDisposalCents(cents(leg.feeCents), proceeds);
+      exposure[leg.instrumentId] = slices
+        .map((slice, index) => ({
+          ...slice,
+          valueCents: cents(slice.valueCents - proceeds[index]!),
+          costCents: cents(slice.costCents - costs[index]!),
+        }))
+        .filter((slice) => slice.valueCents > 0 || slice.costCents > 0);
+      slices.forEach((slice, index) => {
+        if (proceeds[index] === 0 && costs[index] === 0) return;
+        disposalEvidence.push({
+          disposalId: `market:${state.revision + 1}:${actorPlayerId}:${leg.instrumentId}:${index}`,
+          transactionId: `market:${state.revision + 1}:${actorPlayerId}`,
+          underlyingAssetId: leg.instrumentId,
+          category: "public-markets",
+          counterparty: { kind: "non-player", id: "public-market" },
+          acquiredQuarter: slice.acquiredQuarter,
+          settledExposureThroughQuarter: slice.settledExposureThroughQuarter,
+          soldQuarter: state.currentQuarter,
+          proceedsCents: proceeds[index]!,
+          saleFeesCents: fees[index]!,
+          acquisitionBasisCents: costs[index]!,
+          referenceProceedsCents: null,
+          economicSubstance: "genuine",
+          ownershipUnits: Math.max(proceeds[index]!, costs[index]!),
+        });
+      });
+    }
     if (leg.sellCents > 0)
       publicMarketDisposals.push({
         instrumentId: leg.instrumentId,
@@ -271,12 +341,36 @@ export function tradePublicMarketsAndAdvanceSpotlight(
         [actorPlayerId]: {
           ...progress,
           publicMarketBasis,
+          publicMarketExposure: exposure,
+          disposalEvidence,
           publicMarketDisposals,
           realizedGainsCents: cents(safeInteger(gain)),
         },
       },
     },
   };
+  if (finalize) {
+    const postedTotal = (reason: string) =>
+      cents(
+        journalEntries.reduce(
+          (sum, entry) =>
+            sum + (entry.reason === reason ? entry.amountCents : 0),
+          0,
+        ),
+      );
+    const finished = finalize({
+      before: state,
+      draft,
+      actorPlayerId,
+      journalEntries,
+      facts: {
+        kind: "public-market-trade",
+        purchasedCents: postedTotal("public-market-purchase"),
+        soldCents: postedTotal("public-market-sale"),
+      },
+    });
+    return finished.ok ? finished : reject(finished.code);
+  }
   const advanced = advanceSpotlight(draft, actorPlayerId);
   if (!advanced.ok) return reject(advanced.code);
   return {

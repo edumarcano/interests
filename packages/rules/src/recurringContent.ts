@@ -1,6 +1,9 @@
 import type { RecurringOpportunityFacts } from "@interests/shared";
 import { RECURRING_CONTENT_RULES } from "./completion";
-import { MARKET_BORROWER_TEMPLATES } from "./npcLending";
+import {
+  FINANCIER_FINALE_BORROWER,
+  MARKET_BORROWER_TEMPLATES,
+} from "./npcLending";
 import type {
   BusinessSensitivity,
   PropertyMarketKind,
@@ -15,6 +18,7 @@ export const RECURRING_CATEGORIES = [
 export type RecurringCategory = (typeof RECURRING_CATEGORIES)[number];
 export interface RecurringContentTemplate {
   readonly id: string;
+  readonly finaleOnly?: true;
   readonly name: string;
   readonly category: RecurringCategory;
   readonly intensity: "quick" | "standard" | "major";
@@ -235,6 +239,20 @@ const templates: readonly RecurringContentTemplate[] = [
       facts: null,
     }),
   ),
+  {
+    id: FINANCIER_FINALE_BORROWER.cardTemplateId,
+    finaleOnly: true,
+    name: FINANCIER_FINALE_BORROWER.name,
+    category: "financing",
+    intensity: "major",
+    baseWeight: 0,
+    askingPriceCents: FINANCIER_FINALE_BORROWER.principalCents,
+    minimumCashCents: FINANCIER_FINALE_BORROWER.principalCents,
+    action: "npc-financing",
+    summary:
+      "An independent business needs a fixed-rate loan to replace equipment.",
+    facts: null,
+  },
   {
     id: "regional-company",
     businessOperating: {

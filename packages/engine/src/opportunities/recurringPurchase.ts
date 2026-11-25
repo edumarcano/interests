@@ -21,7 +21,7 @@ import {
 } from "../finance/businessBankOrigination";
 import type { JournalEntry } from "../finance/journal";
 import { originateConfirmedPlayerLoan } from "../finance/loans";
-import { basisPoints, cents } from "../finance/money";
+import { basisPoints, type Cents, cents } from "../finance/money";
 import {
   allocateProportionalCents,
   type OwnershipPpm,
@@ -31,6 +31,7 @@ import { type CashPostingRequest, postCash } from "../finance/posting";
 import { calculatePropertyCashFlow } from "../finance/property";
 import type { ActionErrorCode, ActionResult } from "../game/actions";
 import { nextDeterministicId } from "../game/deterministicIds";
+import type { EconomicActionFinalizer } from "../game/finalization";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "../game/round";
 import type { Asset, AssetBankLoan, GameState } from "../model/gameState";
 import { getAvailableCashCents } from "../transactions/reservations";
@@ -344,11 +345,21 @@ export function getRecurringAcquisitionQuotes(
   }
 }
 
+export interface RecurringAcquisitionRealizedFacts {
+  readonly kind: "recurring-acquisition";
+  readonly assetKind: "business" | "property";
+  readonly assetId: AssetId;
+  readonly priceCents: Cents;
+  readonly buyerCashCents: Cents;
+  readonly borrowedPrincipalCents: Cents;
+}
+
 /** Atomic secondary NPC purchase: actual cash, canonical debt, ownership and one spotlight. */
 export function acquireRecurringOpportunity(
   state: GameState,
   player: PlayerId,
   command: AcquireRecurringCommand,
+  finalize?: EconomicActionFinalizer<RecurringAcquisitionRealizedFacts>,
   shared?: {
     readonly transactionId: TransactionId;
     readonly leadCashCents: number;
@@ -601,20 +612,31 @@ export function acquireRecurringOpportunity(
       cents(quote.principalCents),
       ownership,
     );
+    const grossBasisCents =
+      quote.cashRequiredCents +
+      (asset.kind === "property" ? quote.principalCents : 0);
+    const entryByPlayer = shared
+      ? allocateProportionalCents(cents(grossBasisCents), ownership)
+      : null;
     const progressByPlayer = { ...draft.progress.byPlayer };
     for (const buyer of state.playerOrder) {
       const contribution = contributions[buyer];
       if (!contribution) continue;
       const progress = progressByPlayer[buyer]!;
+      const costCents = cents(
+        contribution +
+          (asset.kind === "property" ? principalByPlayer[buyer]! : 0),
+      );
+      const entryShare = entryByPlayer?.[buyer] ?? 0;
       progressByPlayer[buyer] = {
         ...progress,
         assetsById: {
           ...progress.assetsById,
           [asset.id]: {
-            costCents: cents(
-              contribution +
-                (asset.kind === "property" ? principalByPlayer[buyer]! : 0),
-            ),
+            costCents,
+            ...(entryShare > costCents
+              ? { objectiveCostFloorCents: entryShare }
+              : {}),
             acquiredQuarter: state.currentQuarter,
             ownershipPpm: ownership[buyer]!,
             acquisition: {
@@ -647,6 +669,25 @@ export function acquireRecurringOpportunity(
         },
       },
     };
+    if (finalize) {
+      const acquisition =
+        draft.progress.byPlayer[player]!.assetsById[asset.id]!.acquisition!;
+      const result = finalize({
+        before: state,
+        draft,
+        actorPlayerId: player,
+        journalEntries: journals,
+        facts: {
+          kind: "recurring-acquisition",
+          assetKind: asset.kind,
+          assetId: asset.id,
+          priceCents: cents(acquisition.considerationCents),
+          buyerCashCents: cents(acquisition.buyerCashCents),
+          borrowedPrincipalCents: cents(acquisition.bankPrincipalCents),
+        },
+      });
+      return result.ok ? result : reject(result.code);
+    }
     const advanced = advanceSpotlight(draft, player);
     if (!advanced.ok) return reject(advanced.code);
     return {

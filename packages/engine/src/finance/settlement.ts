@@ -49,12 +49,16 @@ import {
   type LoanPaymentOutcome,
   type SettlementOutcome,
 } from "./obligations";
-import { planQuarterOperatingUpdate } from "./operatingEconomy";
+import {
+  planQuarterOperatingUpdate,
+  recordBusinessOperatingObservations,
+} from "./operatingEconomy";
 import { allocateProportionalCents } from "./ownership";
 import { type CashPostingRequest, postCash } from "./posting";
 import {
   capturePropertyBasis,
   captureRecurringBasis,
+  recordPartnerPropertyCapital,
   recordQuarterObservations,
 } from "./progress";
 import { calculatePropertyCashFlow } from "./property";
@@ -127,6 +131,10 @@ export function applyQuarterSettlement(
     throw new RangeError(
       "currentQuarter has reached the maximum safe integer limit",
     );
+  if (quarter > OBJECTIVE_MEASUREMENT_RULES.safetyDrawQuarter)
+    return reject("INVALID_QUARTER");
+  const endsAtSafetyLimit =
+    quarter === OBJECTIVE_MEASUREMENT_RULES.safetyDrawQuarter;
   try {
     const playerIds = [...state.playerOrder].sort();
     const postings: CashPostingRequest[] = [];
@@ -416,6 +424,7 @@ export function applyQuarterSettlement(
     const marketUpdate = generateQuarterMarketUpdate({
       regime: state.economy.currentRegime,
       random: state.random,
+      prepareNextQuarter: !endsAtSafetyLimit,
     });
     const revaluedMarketsByPlayer = {} as Record<
       PlayerId,
@@ -480,96 +489,120 @@ export function applyQuarterSettlement(
         },
       };
     }
-    for (const asset of Object.values(assetsById)) {
-      if (
-        asset.kind !== "business" ||
-        asset.pendingAnnualProfitIncreaseCents === undefined
-      )
-        continue;
-      const { pendingAnnualProfitIncreaseCents, ...business } = asset;
-      assetsById = {
-        ...assetsById,
-        [business.id]: {
-          ...business,
-          ...(business.operatingModel
-            ? {
-                operatingModel: {
-                  ...business.operatingModel,
-                  annualProfitAdjustmentCents: cents(
-                    business.operatingModel.annualProfitAdjustmentCents +
-                      pendingAnnualProfitIncreaseCents,
-                  ),
-                },
-              }
-            : {}),
-          annualOperatingProfitCents: cents(
-            business.annualOperatingProfitCents +
-              pendingAnnualProfitIncreaseCents,
-          ),
-        },
-      };
-    }
-    const operating = planQuarterOperatingUpdate(
+    let nextRecurring = finance.recurringByPlayer;
+    let nextBaseRateBps = state.economy.baseRateBps;
+    let nextOperatingRandom = state.economy.operatingRandom;
+    let progress = recordQuarterObservations(
       state,
-      assetsById,
-      marketUpdate.nextRegime,
-      businesses,
+      settlementOutcome,
+      journalEntries,
+      revaluedMarketsByPlayer,
     );
-    assetsById = operating.assetsById;
-    const nextRecurring = operating.recurringByPlayer;
-    for (const loan of Object.values(loansById))
-      if (loan.kind === "asset-bank-loan")
-        loansById[loan.id] = resetVariableAssetLoan(
-          loan,
-          operating.nextBaseRateBps,
-          quarter + 1,
-        );
-    for (const asset of Object.values(assetsById)) {
-      if (
-        asset.kind !== "property" ||
-        asset.disposition === "sold" ||
-        !asset.renovationPending ||
-        asset.renovationPending.effectiveQuarter !== quarter + 1
-      )
-        continue;
-      const { renovationPending, ...property } = asset;
-      assetsById = {
-        ...assetsById,
-        [asset.id]: {
-          ...property,
-          marketValueCents: cents(
-            asset.marketValueCents +
-              roundedRatio(
-                renovationPending.costCents,
-                OPERATING_RULES.renovationValuePerCostBps,
-              ),
-          ),
-          scheduledQuarterlyRentCents: cents(
-            asset.scheduledQuarterlyRentCents +
-              roundedRatio(
-                asset.scheduledQuarterlyRentCents,
-                OPERATING_RULES.renovationRentIncreaseBps,
-              ),
-          ),
-          occupancyBps: basisPoints(
-            Math.min(
-              10_000,
-              asset.occupancyBps +
-                OPERATING_RULES.renovationOccupancyIncreaseBps,
+    if (endsAtSafetyLimit) {
+      assetsById = recordBusinessOperatingObservations(
+        assetsById,
+        quarter,
+        businesses,
+      );
+    } else {
+      for (const asset of Object.values(assetsById)) {
+        if (
+          asset.kind !== "business" ||
+          asset.pendingAnnualProfitIncreaseCents === undefined
+        )
+          continue;
+        const { pendingAnnualProfitIncreaseCents, ...business } = asset;
+        assetsById = {
+          ...assetsById,
+          [business.id]: {
+            ...business,
+            ...(business.operatingModel
+              ? {
+                  operatingModel: {
+                    ...business.operatingModel,
+                    annualProfitAdjustmentCents: cents(
+                      business.operatingModel.annualProfitAdjustmentCents +
+                        pendingAnnualProfitIncreaseCents,
+                    ),
+                  },
+                }
+              : {}),
+            annualOperatingProfitCents: cents(
+              business.annualOperatingProfitCents +
+                pendingAnnualProfitIncreaseCents,
             ),
-          ),
-        },
-      };
+          },
+        };
+      }
+      const operating = planQuarterOperatingUpdate(
+        state,
+        assetsById,
+        marketUpdate.nextRegime,
+        businesses,
+      );
+      assetsById = operating.assetsById;
+      nextRecurring = operating.recurringByPlayer;
+      nextBaseRateBps = basisPoints(operating.nextBaseRateBps);
+      nextOperatingRandom = operating.nextOperatingRandom;
+      for (const loan of Object.values(loansById))
+        if (loan.kind === "asset-bank-loan")
+          loansById[loan.id] = resetVariableAssetLoan(
+            loan,
+            operating.nextBaseRateBps,
+            quarter + 1,
+          );
+      for (const asset of Object.values(assetsById)) {
+        if (
+          asset.kind !== "property" ||
+          asset.disposition === "sold" ||
+          !asset.renovationPending ||
+          asset.renovationPending.effectiveQuarter !== quarter + 1
+        )
+          continue;
+        const { renovationPending, ...property } = asset;
+        const capitalValueCents = roundedRatio(
+          renovationPending.costCents,
+          OPERATING_RULES.renovationValuePerCostBps,
+        );
+        if (renovationPending.payerPlayerId)
+          progress = recordPartnerPropertyCapital(
+            progress,
+            asset,
+            renovationPending.payerPlayerId,
+            cents(capitalValueCents),
+          );
+        assetsById = {
+          ...assetsById,
+          [asset.id]: {
+            ...property,
+            marketValueCents: cents(asset.marketValueCents + capitalValueCents),
+            scheduledQuarterlyRentCents: cents(
+              asset.scheduledQuarterlyRentCents +
+                roundedRatio(
+                  asset.scheduledQuarterlyRentCents,
+                  OPERATING_RULES.renovationRentIncreaseBps,
+                ),
+            ),
+            occupancyBps: basisPoints(
+              Math.min(
+                10_000,
+                asset.occupancyBps +
+                  OPERATING_RULES.renovationOccupancyIncreaseBps,
+              ),
+            ),
+          },
+        };
+      }
     }
 
     const operatingState: GameState = {
       ...state,
-      progress: recordQuarterObservations(
-        state,
-        settlementOutcome,
-        journalEntries,
-      ),
-      currentQuarter: quarter + 1,
+      progress,
+      phase: endsAtSafetyLimit ? "finished" : state.phase,
+      result: endsAtSafetyLimit
+        ? { kind: "safety-draw", completedQuarter: quarter }
+        : state.result,
+      currentQuarter: endsAtSafetyLimit ? quarter : quarter + 1,
       lastSettledQuarter: quarter,
       finance: {
         ...finance,
@@ -579,19 +612,22 @@ export function applyQuarterSettlement(
         livingArrearsByPlayer,
         lastSettlement: settlementOutcome,
         publicMarketsByPlayer: revaluedMarketsByPlayer,
-        quarterStartBasis: {
-          businessesById: captureBusinessBasis(assetsById),
-          propertiesById: capturePropertyBasis(assetsById),
-          recurringByPlayer: captureRecurringBasis(nextRecurring),
-          quarter: quarter + 1,
-          cashByPlayer: { ...finance.cashByPlayer },
-          publicMarketsByPlayer: { ...revaluedMarketsByPlayer },
-        },
+        // All upcoming-quarter preparation, including content/economy adapters, belongs behind this boundary.
+        quarterStartBasis: endsAtSafetyLimit
+          ? state.finance.quarterStartBasis
+          : {
+              businessesById: captureBusinessBasis(assetsById),
+              propertiesById: capturePropertyBasis(assetsById),
+              recurringByPlayer: captureRecurringBasis(nextRecurring),
+              quarter: quarter + 1,
+              cashByPlayer: { ...finance.cashByPlayer },
+              publicMarketsByPlayer: { ...revaluedMarketsByPlayer },
+            },
       },
       economy: {
         currentRegime: marketUpdate.nextRegime,
-        baseRateBps: basisPoints(operating.nextBaseRateBps),
-        operatingRandom: operating.nextOperatingRandom,
+        baseRateBps: nextBaseRateBps,
+        operatingRandom: nextOperatingRandom,
         lastMarketUpdate: {
           quarter,
           regimeUsed: marketUpdate.regimeUsed,
@@ -600,11 +636,14 @@ export function applyQuarterSettlement(
       },
       random: marketUpdate.nextRandom,
       counters: currentCounters,
-      round: state.round
-        ? { stage: "round-start", spotlightsCompleted: 0 }
-        : null,
+      round: endsAtSafetyLimit
+        ? null
+        : state.round
+          ? { stage: "round-start", spotlightsCompleted: 0 }
+          : null,
     };
     if (
+      !endsAtSafetyLimit &&
       operatingState.content.scenario === "standard-v1" &&
       operatingState.currentQuarter <=
         OBJECTIVE_MEASUREMENT_RULES.safetyDrawQuarter &&

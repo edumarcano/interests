@@ -139,6 +139,7 @@ describe("player-loan origination", () => {
       unpaidInterestCents: cents(0),
       lastProcessedQuarter: 0,
       originatedQuarter: 1,
+      settledInterestReceipts: [],
     });
 
     // 3. Cash movements: lender decreases, borrower increases

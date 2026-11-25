@@ -290,6 +290,7 @@ describe("unanimous joint-property transactions", () => {
     expect(property.renovationPending).toEqual({
       costCents: 1_650_000,
       effectiveQuarter: 2,
+      payerPlayerId: a,
     });
     expect(property.marketValueCents).toBe(33_000_000);
     expect(state.finance.quarterStartBasis.propertiesById[assetId]).toEqual(

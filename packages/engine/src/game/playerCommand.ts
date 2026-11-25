@@ -11,6 +11,7 @@ import type {
   PlayerId,
   PropertyAcquisitionCommand,
   PropertyCommand,
+  PursueFinaleCommandPayload,
   ResignLaborCommandPayload,
   SellRecurringBusinessCommand,
   SetFocusCommandPayload,
@@ -22,6 +23,7 @@ import { expandBusinessAndAdvanceSpotlight } from "../finance/businessExpansion.
 import { applyPropertyCommand } from "../finance/propertyActions";
 import { tradePublicMarketsAndAdvanceSpotlight } from "../finance/publicMarketTrading.js";
 import type { GameState } from "../model/gameState.js";
+import { pursueFinale } from "../objectives/finale";
 import {
   investigatePrivateBusinessPurchaseOpportunity,
   pursuePrivateBusinessPurchaseOpportunity,
@@ -45,6 +47,7 @@ import { applyPropertyAcquisitionCommand } from "../transactions/propertyAcquisi
 import { applySharedRecurringAcquisitionCommand } from "../transactions/sharedRecurringAcquisition";
 import { type ActionResult, applyAction } from "./actions.js";
 import { applyCareerCommand } from "./career";
+import { recordPublicAction } from "./publicPosition";
 import {
   advanceSpotlight,
   beginRound,
@@ -111,6 +114,7 @@ export type WirePlayerCommand =
   | SharedRecurringAcquisitionCommand
   | AcquireRecurringCommand
   | FundRecurringLoanCommand
+  | PursueFinaleCommandPayload
   | BusinessAuctionCommand
   | JointPropertyCommand
   | BusinessCapitalCommand
@@ -155,6 +159,19 @@ export function applyPlayerCommand(
   actorPlayerId: PlayerId,
   wireCommand: WirePlayerCommand,
 ): ActionResult {
+  return recordPublicAction(
+    state,
+    actorPlayerId,
+    wireCommand,
+    dispatchPlayerCommand(state, actorPlayerId, wireCommand),
+  );
+}
+
+function dispatchPlayerCommand(
+  state: GameState,
+  actorPlayerId: PlayerId,
+  wireCommand: WirePlayerCommand,
+): ActionResult {
   if (!wireCommand || typeof wireCommand !== "object") {
     return {
       ok: false,
@@ -190,6 +207,8 @@ export function applyPlayerCommand(
       return acquireRecurringOpportunity(state, actorPlayerId, wireCommand);
     case "FUND_RECURRING_LOAN":
       return fundRecurringLoan(state, actorPlayerId, wireCommand.opportunityId);
+    case "PURSUE_FINALE":
+      return pursueFinale(state, actorPlayerId, wireCommand);
     case "OPEN_BUSINESS_AUCTION":
     case "RESPOND_BUSINESS_AUCTION":
       return applyBusinessAuctionCommand(state, actorPlayerId, wireCommand);

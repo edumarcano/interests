@@ -307,6 +307,7 @@ export function applySharedRecurringAcquisitionCommand(
           opportunityId: tx.terms.opportunityId,
           quoteId: tx.quote.id,
         },
+        undefined,
         {
           transactionId: tx.id,
           leadCashCents: tx.terms.leadCashCents,

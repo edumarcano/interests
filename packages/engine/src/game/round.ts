@@ -223,6 +223,12 @@ export function resolveTerminalTransactionAndAdvanceSpotlight(
 
   const postTxState = expireRecurringOpportunity(txResult.state, actorPlayerId);
   const txJournalEntries = txResult.journalEntries;
+  // A separately validated finale result takes priority over spotlight advancement and the Q32 draw.
+  if (postTxState.phase === "finished") {
+    const finalState = { ...postTxState, revision: state.revision + 1 };
+    assertGameState(finalState);
+    return { ok: true, state: finalState, journalEntries: txJournalEntries };
+  }
   const playerCount = state.playerOrder.length;
 
   // 2. Intermediate spotlight: advance spotlight index
