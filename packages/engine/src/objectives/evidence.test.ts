@@ -247,6 +247,7 @@ it.each([
   { funding: "purchase", objectiveFloorCents: 10_098_000 },
   { funding: "reserve", objectiveFloorCents: 11_088_000 },
   { funding: "renovation", objectiveFloorCents: 10_890_000 },
+  { funding: "pending renovation", objectiveFloorCents: 10_098_000 },
 ])(
   "keeps the $funding subsidy out of objective gains on a later sale",
   ({ funding, objectiveFloorCents }) => {
@@ -298,7 +299,9 @@ it.each([
         asset.kind === "property" && asset.catalogueId === "residential-duplex",
     )!;
     state = finishQuarter(state);
-    if (funding === "renovation") {
+    if (funding === "renovation" || funding === "pending renovation") {
+      if (funding === "pending renovation")
+        state = finishQuarter(actorTurn(state));
       state = command(actorTurn(state, partner), partner, {
         type: "OPEN_JOINT_PROPERTY",
         assetId: property.id,
@@ -317,7 +320,7 @@ it.each([
         state.progress.byPlayer[actor]!.assetsById[property.id]!
           .objectiveCostFloorCents,
       ).toBe(10_098_000);
-      state = finishQuarter(state);
+      if (funding === "renovation") state = finishQuarter(state);
     } else {
       state = finishQuarter(actorTurn(state));
     }
@@ -336,6 +339,12 @@ it.each([
     for (const id of [actor, partner])
       state = command(state, id, { type: "CONFIRM_JOINT_PROPERTY", ...bind() });
     state = command(state, actor, { type: "CLOSE_JOINT_PROPERTY", ...bind() });
+    expect(state.finance.assetsById[property.id]).toMatchObject({
+      disposition: "sold",
+    });
+    expect(state.finance.assetsById[property.id]).not.toHaveProperty(
+      "renovationPending",
+    );
     expect(
       state.progress.byPlayer[actor]!.disposalEvidence?.at(-1),
     ).toMatchObject({

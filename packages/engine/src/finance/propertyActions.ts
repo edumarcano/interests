@@ -817,6 +817,8 @@ export function draftPropertyOwnerAction(
               reason: "property-sale-proceeds",
               relatedAssetId: asset.id,
             });
+          const { renovationPending: _pendingRenovation, ...soldProperty } =
+            asset;
           draft = {
             ...draft,
             finance: {
@@ -824,7 +826,7 @@ export function draftPropertyOwnerAction(
               assetsById: {
                 ...draft.finance.assetsById,
                 [asset.id]: {
-                  ...asset,
+                  ...soldProperty,
                   cashCents: cents(0),
                   debtServiceReserveCents: cents(0),
                   disposition: "sold",
