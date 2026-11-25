@@ -102,9 +102,12 @@ export function RecurringOpportunityPanel({
       setPending(null);
     }
   }
+  const negotiatingPurchase =
+    match.sharedRecurringAcquisition?.leadPlayerId === match.self.playerId;
   const canInvestigate =
     card.status === "available" &&
     !card.investigated &&
+    !negotiatingPurchase &&
     card.investigationFeeCents > 0 &&
     match.self.availableCashCents >= card.investigationFeeCents &&
     !blocked;
@@ -198,6 +201,9 @@ export function RecurringOpportunityPanel({
                 ? "Investigating…"
                 : `Investigate for ${money(card.investigationFeeCents)}`}
             </button>
+            {negotiatingPurchase && (
+              <p>Investigation is paused while your shared purchase is open.</p>
+            )}
             {match.self.availableCashCents < card.investigationFeeCents && (
               <p>Available cash does not cover the investigation fee.</p>
             )}
