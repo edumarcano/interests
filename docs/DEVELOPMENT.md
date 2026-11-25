@@ -2,7 +2,7 @@
 
 **Updated:** 2026-11-20
 **Active milestone:** 7, full gameplay rules and content  
-**Current focus:** Finish verification and delivery of objective finales and ordinary complete-match acceptance. The M7 stack remains open and unmerged.
+**Current focus:** Review the delivered M7 stack in order. All nine PRs are open and require explicit approval to merge. The ordinary match acceptance evidence and M8 handoff are below.
 
 ## Milestone 6: physical playtest outcome
 
@@ -10,14 +10,14 @@ Four independent devices (Windows host laptop, phone, tablet, Linux laptop) succ
 
 Two limitations emerged:
 
-- **Limited content:** The initial private business opportunity is a deterministic Q1 fixture. Later quarters currently offer little to do beyond passing spotlights.
+- **Limited content:** The playtest used a deterministic Q1 private business fixture. Later quarters offered few economic choices.
 - **Settlement deadlock:** In a second match, the phone purchased the Q1 business using a player loan from the host (10% annual rate, three-quarter term). During Q3, the phone was the final spotlight player; passing returned `INSUFFICIENT_FUNDS` in red and did not advance the match. The final spotlight triggers settlement for *all* players, so the insolvent player and exact unpaid obligation are **not confirmed**. At that time, settlement rejected the entire quarter rather than handling defaults.
 
-The acquisition and repayment flow is playable, but prolonged financial gameplay remains incomplete.
+That playtest demonstrated the acquisition and repayment flow and identified the need for recurring choices and recoverable financial distress.
 
 ## Milestone 7: financial foundation
 
-| Area | Approved policy | Remaining work |
+| Area | Approved policy | Delivery |
 | --- | --- | --- |
 | **A4: business distributions** | Separate work pay and ownership returns; company cash/claims; Q1 starting-company operations; Q2 acquisition fixture; 80/20 surplus split | Starting-company performance, growth, labor exit, ownership and consent are implemented in the open M7 stack. Managed companies also use authored fixed labor and earned-quarter performance. |
 | **A5: default and insolvency** | Partial payments, explicit living/operating/work/loan claims, ordinary principal interest, fixed maturity and private recovery outcomes | Claims/cash cure, asset bank loans, market lending and shared closing are implemented on the local M7 stack. Foreclosure, bankruptcy, write-offs and secured player loans remain deferred. |
@@ -38,7 +38,7 @@ The default Windows test run again hit fork-worker exit code 3221226505; a bound
 
 ## M7 completion delivery
 
-ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. The local stack implements the full economic loop and explicit objective finales. Packet 9 records the ordinary match evidence, while the open M7 PRs retain their individual review boundaries.
+ARCH-040 records the approved M7 completion boundary. GAME_DESIGN owns the rules. The stack implements the full economic loop and explicit objective finales. Packet 9 records the ordinary match evidence, and each of the open M7 PRs retains its review boundary.
 
 | Packet | Deliverable | Current state |
 | --- | --- | --- |
@@ -49,8 +49,8 @@ ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. T
 | 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Delivered in open [PR #40](https://github.com/edumarcano/interests/pull/40), stacked on #39; both Remora review axes passed; unmerged |
 | 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Delivered in open [PR #41](https://github.com/edumarcano/interests/pull/41), stacked on #40; both Remora review axes passed; unmerged |
 | 7 | Operating economy, recurring private/public content and non-player alternatives | Delivered in open [PR #42](https://github.com/edumarcano/interests/pull/42), stacked on #41. Both Remora review axes passed locally. Hosted CI #121 passed on `725c642`. |
-| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Delivered in open [PR #43](https://github.com/edumarcano/interests/pull/43), stacked on #42. Both Remora review axes passed. Local typecheck, lint, build, 1,120 tests and focused four-browser Q32 draw and restart passed. |
-| 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | All eight ordinary command witnesses and a four-client browser winner verified locally; final integrated checks and publication pending. |
+| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Delivered in open [PR #43](https://github.com/edumarcano/interests/pull/43), stacked on #42. Both Remora review axes passed. Local typecheck, lint, build, 1,120 tests and 20 Chromium scenarios passed. Hosted CI #123 passed on `49fd72c`. |
+| 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | Delivered in open [PR #44](https://github.com/edumarcano/interests/pull/44), stacked on #43. Both Remora review axes passed. Local typecheck, lint, build, 1,128 tests and 21 Chromium scenarios passed. |
 
 Each packet requires relevant behavior tests, typecheck, lint, tests and Remora split-axis review. Browser-facing changes also require build and applicable E2E proof. Record actual PR/head/check state here as delivery changes; leave every PR unmerged unless the user explicitly approves merging.
 
@@ -128,12 +128,33 @@ The evaluator measures current ownership, cash, leverage and four actual complet
 
 The Q32 draw settles the actual final quarter once, records earned Q29–Q32 observations and retains Q32 opening entitlements. Q32 market returns apply. Q33 content, operating preparation, rate changes, basis and randomness are skipped. A four-client HTTP, socket and SQLite test plays through 164 accepted commands and uses an explicitly synthetic temporary-database trigger to demonstrate complete rollback when the terminal status write fails. The retry commits once. Terminal reads and receipt retries remain available after restart, with no active-match pause controls. A four-browser production-build run reaches the same draw and preserves the host's final view with peers offline.
 
-All eight objectives have reached legitimate winners in ordinary engine command runs. Financier funds $150,000 from existing cash in Q26 through its standing offer. An ordinary Executive Owner match won in Q16 in four browsers and preserved the result and exact ownership closing after process restart. Packet 9 retains the full witness and restart evidence.
+Packet 9 records the ordinary paths for all eight objectives and the four-browser Executive Owner finish after process restart.
+
+## Packet 9 ordinary Standard V1 acceptance
+
+The engine suite replays eight fixed ordinary matches through the production `applyPlayerCommand` path. Each match starts with `createGame` and the normal names, profiles, objective offers, cash and assets. The fixtures store seeds and accepted economic choices. They reconstruct setup and spotlight order, test an earlier ineligible position and rejected explicit attempts, and repeat the complete accepted sequence. Every explicit win leaves the previous settlement quarter and all random streams intact. Ordinary closings leave the match active. The two standing offers require an explicit finale. This is reachability evidence for the recorded matches.
+
+| Objective | Winning quarter | Final action |
+| --- | ---: | --- |
+| Founder | 30 | Matched independent business sale for $1,129,736.93 net |
+| Property Magnate | 32 | Standing landmark property acquisition before final settlement |
+| Independent | 27 | Leave active work after qualifying on earned non-labor income |
+| Capital Allocator | 23 | Invest $150,000 in the income fund and retain diversification |
+| Financier | 29 | Fund a $150,000 standing market contract and retain its book and liquidity |
+| Deal Maker | 30 | Deploy $400,000 after seasoned stock sales and an independent company exit |
+| Executive Owner | 16 | Accept a $100,000 executive ownership position plus its $2,000 fee |
+| Wealth Architect | 24 | Invest $200,000 in the income fund with the required position intact |
+
+A separate production-build Playwright test drives four independent browser clients through room creation, ordinary setup, varied career and market actions and an explicit Executive Owner win in Q16. The launcher fixes the match seed through a server-owned test dependency. The default server uses crypto-generated seeds. The browser performs normal credential, lobby, host-start and gameplay flows, and server persistence checks exactly one accepted finale, two closing journal entries and one result event. All four clients see the winner, economic action and public ownership after reload and process restart. The final Q16 revision retains Q15 as the last settlement. The Q32 no-finale flow retains its own ordinary browser and SQLite restart proof, with one actual Q32 settlement and no Q33 preparation.
+
+Four-client purchase scenarios use that same ordinary seed mechanism to exercise both bank-plus-equity and bank-plus-player-loan financing. Each starts a private recurring company purchase, checks invite visibility and confirms one cash hold before server restart. The participants resume, complete consent and reconcile their cash and funded principal after closing.
+
+To rerun the focused evidence, use `pnpm test packages/engine/src/objectives/ordinaryAcceptance.test.ts` and `pnpm exec playwright test apps/web/e2e/objectiveVictory.spec.ts apps/web/e2e/safetyDraw.spec.ts` after building the web app. The integrated revision passed typecheck, lint with warnings, build, 1,128 Vitest cases and 21 Chromium scenarios. The Remora local manifest and hash check passed.
 
 ## M7 completion and M8 handoff
 
-M7 is complete only after production-command journeys demonstrate all eight legal objective routes without injected wealth or reduced thresholds, an ordinary four-client match reaches a valid winner, Q32 produces a durable draw when required, and privacy/retry/restart checks cover the new actions and terminal results. Finale boundary fixtures supplement those journeys rather than replace them.
+M7 acceptance covers ordinary reachability for all eight objectives, a four-client winner with durable public results, an ordinary Q32 draw, and the financial, privacy, consent and restart regressions recorded above. Synthetic boundaries remain labeled. Keep this deterministic coverage and the current family/LAN evidence as regression protection.
 
-Keep deterministic accounting and the current family/LAN evidence as regression protection. M8 owns strategy comparisons, empirical balance and repetition findings, numerical tuning from those findings, and real human/physical-device playtest campaigns. No enjoyment, balance or human-duration claim accompanies this M7 policy checkpoint.
+M8 owns strategy comparisons, empirical balance and repetition findings, numerical tuning from those findings, and real human playtests. The first human sessions should assess clarity and pacing of choices, how meaningful the tradeoffs feel, and how long active play takes. The current evidence establishes legal outcomes and repeatable accounting. Human enjoyment, balance and duration still need validation.
 
-The milestone boundaries remain in `ARCHITECTURE.md`; accepted decisions supersede its older OPEN dependency summaries. `GAME_DESIGN.md` and `DECISIONS.md` own policy, while this document records actual progress and evidence.
+`GAME_DESIGN.md` and `DECISIONS.md` own policy. The milestone boundaries remain in `ARCHITECTURE.md`, with accepted decisions superseding its older dependency summaries.
