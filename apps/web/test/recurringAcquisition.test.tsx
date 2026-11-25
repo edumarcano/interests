@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
-import type {
-  MatchPlayerView,
-  RecurringAcquisitionQuote,
+import {
+  asPlayerId,
+  asRoomMemberId,
+  type MatchPlayerView,
+  type RecurringAcquisitionQuote,
 } from "@interests/shared";
 import {
   cleanup,
@@ -35,8 +37,17 @@ const quote: RecurringAcquisitionQuote = {
   cashRequiredCents: 5_432_849,
   canClose: true,
 };
+const players: MatchPlayerView["players"] = [1, 2, 3, 4].map((seat) => ({
+  playerId: asPlayerId(`player-${seat}`),
+  roomMemberId: asRoomMemberId(`member-${seat}`),
+  nickname: `Player ${seat}`,
+  joinOrder: seat - 1,
+  isHost: seat === 1,
+  hasSelectedObjective: true,
+}));
 const match = {
   revision: 4,
+  players,
   self: {
     playerId: "player-1",
     recurringOpportunity: {
