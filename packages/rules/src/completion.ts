@@ -132,6 +132,8 @@ export const TRANSACTION_FEES_BPS = Object.freeze({
 
 export const RECURRING_CONTENT_RULES = Object.freeze({
   privateOpportunitiesPerPlayerPerQuarter: 1,
+  askingPriceVariationBps: 250,
+  businessProfitVariationBps: 500,
   focusWeightMultiplier: 3,
   ownershipWeightMultiplier: 2,
   recentCategoryWeightDivisor: 2,
@@ -223,6 +225,7 @@ export const OBJECTIVE_TARGETS = Object.freeze({
 export const PROPERTY_CATALOGUE = Object.freeze([
   Object.freeze({
     id: "residential-duplex",
+    marketKind: "residential",
     name: "Residential duplex",
     marketValueCents: 10_000_000,
     scheduledQuarterlyRentCents: 275_000,
@@ -231,6 +234,7 @@ export const PROPERTY_CATALOGUE = Object.freeze([
   }),
   Object.freeze({
     id: "residential-court",
+    marketKind: "residential",
     name: "Residential court",
     marketValueCents: 33_000_000,
     scheduledQuarterlyRentCents: 990_000,
@@ -239,6 +243,7 @@ export const PROPERTY_CATALOGUE = Object.freeze([
   }),
   Object.freeze({
     id: "commercial-plaza",
+    marketKind: "commercial",
     name: "Commercial plaza",
     marketValueCents: 65_000_000,
     scheduledQuarterlyRentCents: 2_112_500,

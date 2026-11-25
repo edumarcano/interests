@@ -9,10 +9,12 @@ import { BusinessAuctionPanel } from "./BusinessAuctionPanel";
 import { BusinessCapitalPanel } from "./BusinessCapitalPanel";
 import { BusinessEquityPanel } from "./BusinessEquityPanel";
 import { BusinessLendingPanel } from "./BusinessLendingPanel";
+import { EconomicConditionsSummary } from "./EconomicConditionsSummary.js";
 import { OpportunityCard } from "./OpportunityCard.js";
 import { PropertyPanel } from "./PropertyPanel.js";
 import { PublicMarketsPanel } from "./PublicMarketsPanel.js";
 import { SelfFinanceSummary } from "./SelfFinanceSummary.js";
+import { SharedRecurringAcquisitionPanel } from "./SharedRecurringAcquisitionPanel";
 import { TransactionPanel } from "./TransactionPanel.js";
 
 interface Props {
@@ -126,6 +128,7 @@ export const SpotlightView: React.FC<Props> = ({
       )}
 
       {/* Self Finances Summary */}
+      <EconomicConditionsSummary conditions={match.economicConditions} />
       <SelfFinanceSummary self={match.self} />
       <BusinessAuctionPanel
         match={match}
@@ -178,6 +181,11 @@ export const SpotlightView: React.FC<Props> = ({
           />
         )}
 
+      <SharedRecurringAcquisitionPanel
+        match={match}
+        isPaused={isPaused}
+        onSendCommand={onSendCommand}
+      />
       <PropertyPanel
         match={match}
         isPaused={isPaused}

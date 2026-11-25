@@ -2,6 +2,7 @@ import { OPERATING_RULES } from "@interests/rules";
 import {
   type AssetId,
   asAssetId,
+  type ExpandBusinessCommandPayload,
   type PlayerId,
   type TransactionId,
 } from "@interests/shared";
@@ -9,15 +10,22 @@ import type { ActionErrorCode, ActionResult } from "../game/actions";
 import { advanceSpotlight, getActiveSpotlightPlayerId } from "../game/round";
 import type { GameState } from "../model/gameState";
 import type { TransactionResult } from "../transactions/model";
-import { businessCashAccount, externalCashAccount } from "./account";
-import { cents } from "./money";
+import { getAvailableCashCents } from "../transactions/reservations";
+import {
+  businessCashAccount,
+  externalCashAccount,
+  playerCashAccount,
+} from "./account";
+import type { JournalEntry } from "./journal";
+import { addCents, cents } from "./money";
 import { TOTAL_OWNERSHIP_PPM } from "./ownership";
 import { postCash } from "./posting";
+import { allocateStakeSliceCents } from "./stakeBasis";
 
 export function expandBusinessAndAdvanceSpotlight(
   state: GameState,
   actor: PlayerId,
-  input: { readonly assetId: string; readonly investmentCents: number },
+  input: Omit<ExpandBusinessCommandPayload, "type">,
 ): ActionResult {
   const reject = (code: ActionErrorCode): ActionResult => ({
     ok: false,
@@ -38,13 +46,89 @@ export function expandBusinessAndAdvanceSpotlight(
   if (stake !== TOTAL_OWNERSHIP_PPM)
     return reject("BUSINESS_EXPANSION_REQUIRES_CONSENT");
 
-  const posted = applyCompanyExpansion(state, asset.id, input.investmentCents);
+  let funded = state;
+  const fundingJournal: JournalEntry[] = [];
+  const contribution = input.ownerContributionCents;
+  if (contribution !== undefined) {
+    if (
+      !Number.isSafeInteger(contribution) ||
+      contribution <= 0 ||
+      contribution !== input.investmentCents - asset.cashCents
+    )
+      return reject("INVALID_EXPANSION");
+    if (getAvailableCashCents(state, actor) < contribution)
+      return reject("INSUFFICIENT_FUNDS");
+    if (state.counters.journal > Number.MAX_SAFE_INTEGER - 2)
+      return reject("JOURNAL_ID_EXHAUSTED");
+    const progress = state.progress.byPlayer[actor]!;
+    const basis = progress.assetsById[asset.id]!;
+    try {
+      const amount = cents(contribution);
+      const costCents = addCents(basis.costCents, amount);
+      const sliceCosts =
+        basis.slices && allocateStakeSliceCents(amount, basis.slices);
+      const incoming = postCash(state.finance, state.counters, {
+        source: playerCashAccount(actor),
+        destination: businessCashAccount(asset.id),
+        amountCents: amount,
+        reason: "business-owner-expansion-contribution",
+        quarter: state.currentQuarter,
+        relatedAssetId: asset.id,
+      });
+      if (!incoming.ok)
+        return reject(
+          incoming.code === "DESTINATION_OVERFLOW"
+            ? incoming.code
+            : "INSUFFICIENT_FUNDS",
+        );
+      funded = {
+        ...state,
+        counters: incoming.counters,
+        finance: incoming.finance,
+        progress: {
+          byPlayer: {
+            ...state.progress.byPlayer,
+            [actor]: {
+              ...progress,
+              assetsById: {
+                ...progress.assetsById,
+                [asset.id]: {
+                  ...basis,
+                  costCents,
+                  ...(sliceCosts && basis.slices
+                    ? {
+                        slices: basis.slices.map((slice, index) => ({
+                          ...slice,
+                          costCents: addCents(
+                            slice.costCents,
+                            sliceCosts[index]!,
+                          ),
+                        })),
+                      }
+                    : {}),
+                },
+              },
+            },
+          },
+        },
+      };
+      fundingJournal.push(incoming.entry);
+    } catch (error) {
+      if (error instanceof RangeError) return reject("DESTINATION_OVERFLOW");
+      throw error;
+    }
+  }
+  const posted = applyCompanyExpansion(funded, asset.id, input.investmentCents);
   if (!posted.ok) return reject(posted.code);
   const advanced = advanceSpotlight(posted.state, actor);
   if (!advanced.ok) return reject(advanced.code);
   return {
     ...advanced,
-    journalEntries: [...posted.journalEntries, ...advanced.journalEntries],
+    journalEntries: [
+      ...fundingJournal,
+      ...posted.journalEntries,
+      ...advanced.journalEntries,
+    ],
   };
 }
 

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -174,6 +175,183 @@ describe("MatchService and Realtime Pipeline", () => {
       );
     });
   }
+
+  it("persists ordinary recurring cards and private focus through commands, HTTP and bootstrap", async () => {
+    const { roomCode, cookies } = await createAndFillRoom();
+    const clients: Array<{
+      socket: ClientSocket;
+      bootstrap: BootstrapPayload;
+    }> = [];
+    for (const cookie of cookies) {
+      const client = await connectSocket(cookie, roomCode);
+      await syncSocket(
+        client.socket,
+        client.bootstrap.self.connectionGeneration,
+      );
+      clients.push(client);
+    }
+    const start = await server.fastify.inject({
+      method: "POST",
+      url: `/api/rooms/${roomCode}/start`,
+      cookies: { interests_session: cookies[0]! },
+    });
+    expect(start.statusCode).toBe(200);
+    const read = async (index: number): Promise<MatchPlayerView> =>
+      JSON.parse(
+        (
+          await server.fastify.inject({
+            method: "GET",
+            url: `/api/rooms/${roomCode}/match`,
+            cookies: { interests_session: cookies[index]! },
+          })
+        ).body,
+      ).match;
+    const send = (
+      index: number,
+      envelope: unknown,
+    ): Promise<CommandAckResult> =>
+      new Promise((resolve) =>
+        clients[index]!.socket.emit(
+          SOCKET_CLIENT_EVENTS.COMMAND,
+          envelope,
+          resolve,
+        ),
+      );
+    const original = await Promise.all(cookies.map((_, index) => read(index)));
+    expect(
+      new Set(original.map((view) => view.self.recurringOpportunity!.id)).size,
+    ).toBe(4);
+    for (const view of original) {
+      expect(view.self.opportunity).toBeNull();
+      expect(view.self.recurringOpportunity!.createdQuarter).toBe(1);
+      expect(view.self.recurringOpportunity!.facts).toBeUndefined();
+      for (const rival of original)
+        if (rival.self.playerId !== view.self.playerId)
+          expect(JSON.stringify(view)).not.toContain(
+            rival.self.recurringOpportunity!.id,
+          );
+    }
+    for (let index = 0; index < 4; index++) {
+      expect(
+        await send(index, {
+          commandId: randomUUID(),
+          expectedRevision: index,
+          command: {
+            type: "CHOOSE_OBJECTIVE",
+            objectiveId: original[index]!.self.offeredObjectiveIds[0],
+          },
+        }),
+      ).toMatchObject({ ok: true, revision: index + 1 });
+    }
+    const preview = (
+      cookie?: string,
+      payload: Record<string, unknown> = {
+        opportunityId: original[0]!.self.recurringOpportunity!.id,
+      },
+      origin?: string,
+    ) =>
+      server.fastify.inject({
+        method: "POST",
+        url: `/api/rooms/${roomCode}/recurring-acquisition-preview`,
+        cookies: cookie ? { interests_session: cookie } : {},
+        payload,
+        headers: origin ? { origin } : {},
+      });
+    const previewBefore =
+      matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson;
+    expect((await preview()).statusCode).toBe(401);
+    expect(
+      (await preview(cookies[0], undefined, "https://unrelated.example"))
+        .statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await preview(cookies[0], {
+          opportunityId: original[0]!.self.recurringOpportunity!.id,
+          actorPlayerId: original[1]!.self.playerId,
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await preview(cookies[0], {
+          opportunityId: original[0]!.self.recurringOpportunity!.id,
+          principalCents: 1,
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect((await preview("invalid-session")).statusCode).toBe(403);
+    const quoteResponse = await preview(cookies[0]);
+    expect(quoteResponse.statusCode).toBe(200);
+    expect(quoteResponse.headers["cache-control"]).toBe("no-store");
+    expect(Object.keys(JSON.parse(quoteResponse.body))).toEqual(["quotes"]);
+    expect(quoteResponse.body).not.toMatch(
+      /annualRevenue|annualOperatingProfit|enterpriseValue|facts/,
+    );
+    expect(JSON.parse((await preview(cookies[1])).body)).toEqual({
+      quotes: [],
+    });
+    expect(matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson).toBe(
+      previewBefore,
+    );
+    const snapshotBefore = JSON.parse(
+      matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson,
+    );
+    const envelope = {
+      commandId: randomUUID(),
+      expectedRevision: 4,
+      command: { type: "SET_FOCUS", focus: "markets" },
+    };
+    const focus = await send(2, envelope);
+    expect(focus).toMatchObject({ ok: true, revision: 5 });
+    expect(await send(2, envelope)).toEqual(focus);
+    const snapshotAfter = JSON.parse(
+      matchRepo.findMatchByRoomCode(roomCode)!.match.snapshotJson,
+    );
+    expect(snapshotAfter.content).toEqual(snapshotBefore.content);
+    expect(snapshotAfter.random).toEqual(snapshotBefore.random);
+    expect(snapshotAfter.counters).toEqual(snapshotBefore.counters);
+    expect((await read(2)).self.financialDetails.focus).toBe("markets");
+    expect((await read(2)).self.recurringOpportunity).toEqual(
+      original[2]!.self.recurringOpportunity,
+    );
+    expect(
+      await send(2, {
+        commandId: randomUUID(),
+        expectedRevision: 5,
+        command: {
+          type: "SET_FOCUS",
+          focus: "business",
+          actorPlayerId: original[0]!.self.playerId,
+        },
+      }),
+    ).toMatchObject({ ok: false, error: { code: "INVALID_INPUT" } });
+    expect(
+      await send(0, {
+        commandId: randomUUID(),
+        expectedRevision: 5,
+        command: { type: "BEGIN_ROUND" },
+      }),
+    ).toMatchObject({ ok: true, revision: 6 });
+    for (let index = 0; index < 4; index++)
+      expect(
+        await send(index, {
+          commandId: randomUUID(),
+          expectedRevision: 6 + index,
+          command: { type: "PASS_SPOTLIGHT" },
+        }),
+      ).toMatchObject({ ok: true, revision: 7 + index });
+    const q2 = await read(2);
+    expect(q2.currentQuarter).toBe(2);
+    expect(q2.self.recurringOpportunity!.createdQuarter).toBe(2);
+    expect(q2.self.recurringOpportunity!.id).not.toBe(
+      original[2]!.self.recurringOpportunity!.id,
+    );
+    const replacement = await connectSocket(cookies[2]!, roomCode);
+    expect(replacement.bootstrap.match?.self.recurringOpportunity).toEqual(
+      q2.self.recurringOpportunity,
+    );
+  });
 
   it("prevents match start if caller is non-host or players not synchronized", async () => {
     const { roomCode, cookies } = await createAndFillRoom();

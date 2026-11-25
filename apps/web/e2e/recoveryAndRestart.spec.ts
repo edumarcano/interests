@@ -8,7 +8,7 @@ test.describe("PR24 Disconnect, Recovery Takeover, and Server Restart", () => {
   let server: TestServerHarness;
 
   test.beforeEach(async () => {
-    server = await startTestServer();
+    server = await startTestServer({ setupScenario: "q1-business-diagnostic" });
   });
 
   test.afterEach(async () => {

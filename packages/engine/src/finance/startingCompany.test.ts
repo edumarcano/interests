@@ -326,10 +326,12 @@ describe("approved integrated starting companies", () => {
 
   it("keeps Q28 maturity after misses and charges Q29 interest only on remaining principal", () => {
     const { state: base, company } = ready("early-stage-entrepreneur");
+    // This fixed-loss maturity boundary deliberately excludes operating dynamics.
+    const { operatingModel: _operatingModel, ...fixedLossCompany } = company;
     const assets = {
       ...base.finance.assetsById,
       [company.id]: {
-        ...company,
+        ...fixedLossCompany,
         cashCents: cents(0),
         annualOperatingProfitCents: cents(-3_600_000),
       },

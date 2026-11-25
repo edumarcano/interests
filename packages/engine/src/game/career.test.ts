@@ -357,11 +357,18 @@ describe("persistent career and labor choices", () => {
       const result = applyPlayerCommand(state, actor, { type: "RESIGN_LABOR" });
       expect(result.ok).toBe(true);
       expect(JSON.stringify(state)).toBe(originalSnapshot);
+      const control = applyPlayerCommand(state, actor, {
+        type: "PASS_SPOTLIGHT",
+      });
+      if (!control.ok) throw new Error(control.code);
+      const controlCompany = companyFor(control.state, actor);
       const changed = companyFor(result.state, actor);
       expect(changed.annualOperatingProfitCents).toBe(
-        original.annualOperatingProfitCents,
+        controlCompany.annualOperatingProfitCents,
       );
-      expect(changed.enterpriseValueCents).toBe(original.enterpriseValueCents);
+      expect(changed.enterpriseValueCents).toBe(
+        controlCompany.enterpriseValueCents,
+      );
       expect(changed.workCompensation!.annualCompensationCents).toBe(0);
       expect(changed.annualManagementCostCents).toBe(
         original.workCompensation!.annualCompensationCents,

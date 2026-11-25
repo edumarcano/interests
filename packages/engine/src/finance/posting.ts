@@ -1,5 +1,10 @@
 import type { PublicMarketInstrumentId } from "@interests/rules";
-import type { AssetId, LoanId, TransactionId } from "@interests/shared";
+import type {
+  AssetId,
+  LoanId,
+  OpportunityId,
+  TransactionId,
+} from "@interests/shared";
 
 import { nextDeterministicId } from "../game/deterministicIds";
 import type { DeterministicCounters, FinanceState } from "../model/gameState";
@@ -13,6 +18,7 @@ export interface CashPostingRequest {
   readonly amountCents: number;
   readonly reason: string;
   readonly quarter: number;
+  readonly relatedOpportunityId?: OpportunityId;
   readonly relatedLoanId?: LoanId;
   readonly relatedAssetId?: AssetId;
   readonly relatedMarketInstrumentId?: PublicMarketInstrumentId;
@@ -153,6 +159,9 @@ export function postCash(
     amountCents: cents(request.amountCents),
     reason: request.reason,
     quarter: request.quarter,
+    ...(request.relatedOpportunityId !== undefined
+      ? { relatedOpportunityId: request.relatedOpportunityId }
+      : {}),
     ...(request.relatedLoanId !== undefined
       ? { relatedLoanId: request.relatedLoanId }
       : {}),

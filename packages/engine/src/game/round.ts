@@ -2,6 +2,7 @@ import type { PlayerId, TransactionId } from "@interests/shared";
 import { applyQuarterSettlement } from "../finance/settlement.js";
 import { assertGameState } from "../invariants/assertGameState.js";
 import type { GameState, RoundState } from "../model/gameState.js";
+import { expireRecurringOpportunity } from "../opportunities/recurring";
 import {
   applyCancelActiveTransaction,
   applyCloseCashBusinessPurchaseTransaction,
@@ -125,6 +126,7 @@ export function advanceSpotlight(
     return reject("NOT_ACTIVE_SPOTLIGHT");
   }
 
+  const expired = expireRecurringOpportunity(state, actorPlayerId);
   const playerCount = state.playerOrder.length;
   if (state.round.spotlightsCompleted < playerCount - 1) {
     // Intermediate spotlight pass: advance spotlight count
@@ -134,7 +136,7 @@ export function advanceSpotlight(
     };
 
     const nextState: GameState = {
-      ...state,
+      ...expired,
       revision: state.revision + 1,
       round: nextRound,
     };
@@ -144,7 +146,7 @@ export function advanceSpotlight(
   }
 
   // Final spotlight: atomic quarter settlement
-  const settleResult = applyQuarterSettlement(state, {
+  const settleResult = applyQuarterSettlement(expired, {
     quarter: state.currentQuarter,
   });
   if (!settleResult.ok) {
@@ -219,7 +221,7 @@ export function resolveTerminalTransactionAndAdvanceSpotlight(
     );
   }
 
-  const postTxState = txResult.state;
+  const postTxState = expireRecurringOpportunity(txResult.state, actorPlayerId);
   const txJournalEntries = txResult.journalEntries;
   const playerCount = state.playerOrder.length;
 

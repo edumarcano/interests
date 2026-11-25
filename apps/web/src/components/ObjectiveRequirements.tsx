@@ -12,6 +12,7 @@ export function ObjectiveRequirements({ self }: { self: MatchSelfView }) {
   if (!details) return null;
   return (
     <section
+      id="private-finances"
       aria-label="Private finances and objective requirements"
       style={{ overflowWrap: "anywhere", marginBlock: "1rem" }}
     >

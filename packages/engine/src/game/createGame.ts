@@ -6,6 +6,7 @@ import {
   STANDARD_V1_OPENING_PUBLIC_MARKET_INSTRUMENT_ID,
   STANDARD_V1_PLAYER_COUNT,
   STANDARD_V1_STARTING_REGIME,
+  STARTING_BUSINESS_SENSITIVITY,
 } from "@interests/rules";
 import {
   type AssetId,
@@ -35,11 +36,13 @@ import type {
   RecurringPersonalFinance,
 } from "../model/gameState";
 import { attachQ1BusinessOpportunityFixture } from "../opportunities/q1Fixture";
+import { generateRecurringContent } from "../opportunities/recurring";
 import { createRandomState } from "../random/prng";
 import { nextDeterministicId } from "./deterministicIds";
 import { generateDeterministicSetup } from "./setup";
 
 export interface CreateGameInput {
+  readonly setupScenario?: "standard-v1" | "q1-business-diagnostic";
   readonly gameId: string;
   readonly seed: string;
   readonly playerIds: readonly PlayerId[];
@@ -155,6 +158,7 @@ export function createGame(input: CreateGameInput): GameState {
       assetsById[assetId] = {
         id: assetId,
         kind: "property",
+        marketKind: "residential",
         marketValueCents: cents(propertyFixture.marketValueCents),
         scheduledQuarterlyRentCents: cents(
           propertyFixture.scheduledQuarterlyRentCents,
@@ -178,6 +182,39 @@ export function createGame(input: CreateGameInput): GameState {
         id: assetId,
         kind: "business",
         cashPolicyId: "starting-company-v1",
+        operatingModel: {
+          kind: "revenue-cost-v1",
+          sensitivity:
+            STARTING_BUSINESS_SENSITIVITY[
+              profileId as keyof typeof STARTING_BUSINESS_SENSITIVITY
+            ],
+          referenceAnnualRevenueCents: cents(
+            businessFixture.annualRevenueCents,
+          ),
+          referenceAnnualNonLaborCostsCents: cents(
+            businessFixture.annualNonOwnerOperatingCostsCents -
+              businessFixture.externalManagementCostCents,
+          ),
+          fixedAnnualLaborCostsCents: cents(
+            businessFixture.annualOwnerWorkCompensationCents +
+              businessFixture.externalManagementCostCents,
+          ),
+          annualProfitAdjustmentCents: cents(0),
+          valuationBasis:
+            profileId === "self-employed-operator"
+              ? "owner-earnings"
+              : "after-labor-profit",
+          openingEnterpriseValueCents: cents(
+            businessFixture.enterpriseValueCents,
+          ),
+          openingValuationEarningsCents: cents(
+            businessFixture.annualOperatingProfitCents +
+              (profileId === "self-employed-operator"
+                ? businessFixture.annualOwnerWorkCompensationCents
+                : 0),
+          ),
+          quarters: [],
+        },
         cashCents: cents(businessFixture.openingCashCents),
         workCompensation: {
           playerId,
@@ -301,14 +338,17 @@ export function createGame(input: CreateGameInput): GameState {
     }
   }
 
-  const q1Fixture = attachQ1BusinessOpportunityFixture(
-    assetsById,
-    {},
-    currentCounters,
-    input.playerIds,
-    cashByPlayer,
-    1,
-  );
+  const q1Fixture =
+    input.setupScenario === "q1-business-diagnostic"
+      ? attachQ1BusinessOpportunityFixture(
+          assetsById,
+          {},
+          currentCounters,
+          input.playerIds,
+          cashByPlayer,
+          1,
+        )
+      : { assetsById, counters: currentCounters, opportunitiesById: {} };
 
   const quarterStartBasis: QuarterStartFinanceBasis = {
     businessesById: captureBusinessBasis(q1Fixture.assetsById),
@@ -331,7 +371,18 @@ export function createGame(input: CreateGameInput): GameState {
     publicMarketsByPlayer,
     quarterStartBasis,
   };
-  const state: GameState = {
+  const initialState: GameState = {
+    content: {
+      scenario: input.setupScenario ?? "standard-v1",
+      random: createRandomState(`${input.seed}:recurring-content-v1`),
+      generatedQuarter: 0,
+      cardsByPlayer: Object.fromEntries(
+        input.playerIds.map((id) => [id, null]),
+      ),
+      recentCategoriesByPlayer: Object.fromEntries(
+        input.playerIds.map((id) => [id, []]),
+      ),
+    },
     progress: createProgress(finance, input.playerIds),
     result: null,
     gameId: asGameId(input.gameId),
@@ -344,6 +395,7 @@ export function createGame(input: CreateGameInput): GameState {
     players,
     finance,
     economy: {
+      operatingRandom: createRandomState(`${input.seed}:operating-economy-v1`),
       currentRegime: STANDARD_V1_STARTING_REGIME,
       baseRateBps: basisPoints(STANDARD_V1_OPENING_BASE_RATE_BPS),
       lastMarketUpdate: null,
@@ -355,6 +407,14 @@ export function createGame(input: CreateGameInput): GameState {
     round: null,
   };
 
+  const state = generateRecurringContent(initialState);
   assertGameState(state);
   return state;
+}
+
+/** Explicitly named legacy vertical-slice setup; ordinary games never receive its free company. */
+export function createQ1BusinessDiagnosticGame(
+  input: CreateGameInput,
+): GameState {
+  return createGame({ ...input, setupScenario: "q1-business-diagnostic" });
 }

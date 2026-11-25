@@ -30,7 +30,12 @@ export interface TestServerHarness {
   cleanup: () => Promise<void>;
 }
 
-export async function startTestServer(): Promise<TestServerHarness> {
+export async function startTestServer(
+  options: {
+    setupScenario?: "standard-v1" | "q1-business-diagnostic";
+    ordinarySeed?: string;
+  } = {},
+): Promise<TestServerHarness> {
   const port = await getFreePort();
   const origin = `http://127.0.0.1:${port}`;
   const runId = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
@@ -45,7 +50,22 @@ export async function startTestServer(): Promise<TestServerHarness> {
     );
   }
 
-  const serverMainPath = path.resolve(__dirname, "../../../server/src/main.ts");
+  if (
+    options.ordinarySeed &&
+    options.setupScenario === "q1-business-diagnostic"
+  )
+    throw new Error(
+      "Seeded acceptance requires the ordinary Standard V1 setup",
+    );
+  const serverMainPath = path.resolve(
+    __dirname,
+    options.ordinarySeed
+      ? "../../../server/test/support/startSeededAcceptanceServer.ts"
+      : "../../../server/src/main.ts",
+  );
+  const serverArgs = options.ordinarySeed
+    ? [serverMainPath, options.ordinarySeed]
+    : [serverMainPath];
 
   let child: ChildProcess | null = null;
   let serverLogs: string[] = [];
@@ -55,6 +75,7 @@ export async function startTestServer(): Promise<TestServerHarness> {
     return new Promise((resolve, reject) => {
       const env = {
         ...process.env,
+        INTERESTS_SETUP_SCENARIO: options.setupScenario ?? "standard-v1",
         INTERESTS_HOST: "127.0.0.1",
         INTERESTS_PORT: String(port),
         INTERESTS_DB_PATH: dbPath,
@@ -66,13 +87,13 @@ export async function startTestServer(): Promise<TestServerHarness> {
       try {
         // Run with node and tsx/cli entry directly
         const tsxCli = req.resolve("tsx/cli");
-        child = spawn(process.execPath, [tsxCli, serverMainPath], {
+        child = spawn(process.execPath, [tsxCli, ...serverArgs], {
           env,
           stdio: ["ignore", "pipe", "pipe"],
         });
       } catch {
         // Fallback using pnpm exec tsx
-        child = spawn("pnpm", ["exec", "tsx", serverMainPath], {
+        child = spawn("pnpm", ["exec", "tsx", ...serverArgs], {
           env,
           shell: true,
           stdio: ["ignore", "pipe", "pipe"],

@@ -7,6 +7,7 @@ import {
   PLAYER_LOAN_MAX_TERM_QUARTERS,
   PLAYER_LOAN_MIN_TERM_QUARTERS,
   PROPERTY_CATALOGUE,
+  PROPERTY_MARKET_KINDS,
   PUBLIC_MARKET_INSTRUMENT_IDS,
   STANDARD_V1_OPENING_BASE_RATE_BPS,
   STANDARD_V1_PLAYER_COUNT,
@@ -24,10 +25,15 @@ import { isValidRandomState } from "../random/prng";
 import { assertBusinessAuctionTransaction } from "../transactions/businessAuctionTerms";
 import { assertBusinessCapitalTransaction } from "../transactions/businessCapitalTerms";
 import { assertJointPropertyTransaction } from "../transactions/jointPropertyTerms";
+import { assertPropertyAcquisitionTransaction } from "../transactions/propertyAcquisitionTerms";
+import { assertSharedRecurringAcquisition } from "../transactions/sharedRecurringAcquisition";
 import { assertAssetBankLoan } from "./assertAssetBankLoan";
 import { assertBusinessCashState } from "./assertBusinessCashState";
 import { assertCompanyLoan } from "./assertCompanyLoan";
 import { assertCompletionState } from "./assertCompletionState";
+import { assertNpcLoan } from "./assertNpcLoan";
+import { assertOperatingEconomyState } from "./assertOperatingEconomyState";
+import { assertRecurringContentState } from "./assertRecurringContentState";
 import { assertSettlementState } from "./assertSettlementState";
 
 export function assertGameState(state: GameState): void {
@@ -383,6 +389,7 @@ export function assertGameState(state: GameState): void {
     );
   }
 
+  const activeNpcBorrowers = new Set<string>();
   for (const [loanKey, loan] of Object.entries(state.finance.loansById)) {
     if (loan === undefined || loan === null || typeof loan !== "object") {
       throw new Error(`Game invariant failed: loan ${loanKey} is invalid`);
@@ -393,7 +400,14 @@ export function assertGameState(state: GameState): void {
       );
     }
 
-    if (loan.kind === "asset-bank-loan") {
+    if (loan.kind === "npc-loan") {
+      assertNpcLoan(state, loan);
+      if (loan.outstandingPrincipalCents > 0 || loan.unpaidInterestCents > 0) {
+        if (activeNpcBorrowers.has(loan.borrowerId))
+          throw new Error("Duplicate active non-player borrower");
+        activeNpcBorrowers.add(loan.borrowerId);
+      }
+    } else if (loan.kind === "asset-bank-loan") {
       assertAssetBankLoan(state, loan);
     } else if (loan.kind === "company-loan") {
       assertCompanyLoan(state, loan);
@@ -630,7 +644,10 @@ export function assertGameState(state: GameState): void {
     const ownerIds = Object.keys(asset.ownershipByPlayerPpm);
     if (
       ownerIds.length === 0 &&
-      !(asset.kind === "property" && asset.disposition === "sold")
+      !(
+        (asset.kind === "property" && asset.disposition === "sold") ||
+        (asset.kind === "business" && asset.npcSale !== undefined)
+      )
     ) {
       throw new Error(
         `Game invariant failed: asset ${asset.id} must have at least one owner`,
@@ -668,8 +685,8 @@ export function assertGameState(state: GameState): void {
     if (
       totalOwnershipPpm !== TOTAL_OWNERSHIP_PPM &&
       !(
-        asset.kind === "property" &&
-        asset.disposition === "sold" &&
+        ((asset.kind === "property" && asset.disposition === "sold") ||
+          (asset.kind === "business" && asset.npcSale !== undefined)) &&
         totalOwnershipPpm === 0
       )
     ) {
@@ -724,6 +741,11 @@ export function assertGameState(state: GameState): void {
           ))
       )
         throw new Error("Invalid sold property");
+      if (
+        asset.marketKind !== undefined &&
+        !PROPERTY_MARKET_KINDS.includes(asset.marketKind)
+      )
+        throw new Error("Game invariant failed: invalid property market kind");
       if (
         !Number.isSafeInteger(asset.marketValueCents) ||
         asset.marketValueCents < 0
@@ -1009,6 +1031,8 @@ export function assertGameState(state: GameState): void {
   assertOpportunitiesState(state);
   assertSettlementState(state);
   assertBusinessCashState(state);
+  assertOperatingEconomyState(state);
+  assertRecurringContentState(state);
 }
 
 function assertEconomyState(state: GameState): void {
@@ -1035,11 +1059,15 @@ function assertEconomyState(state: GameState): void {
     );
   }
 
-  if (economy.baseRateBps !== STANDARD_V1_OPENING_BASE_RATE_BPS) {
+  if (
+    state.lastSettledQuarter === 0 &&
+    economy.baseRateBps !== STANDARD_V1_OPENING_BASE_RATE_BPS
+  )
+    throw new Error("Game invariant failed: invalid opening base rate");
+  if (!isValidRandomState(economy.operatingRandom))
     throw new Error(
-      `Game invariant failed: baseRateBps must equal ${STANDARD_V1_OPENING_BASE_RATE_BPS} in this slice, got ${economy.baseRateBps}`,
+      "Game invariant failed: invalid operating economy random state",
     );
-  }
 
   if (state.lastSettledQuarter === 0) {
     if (economy.lastMarketUpdate !== null) {
@@ -1116,6 +1144,8 @@ function assertEconomyState(state: GameState): void {
     if (
       tx.kind === "business-capital" ||
       tx.kind === "business-auction" ||
+      tx.kind === "property-acquisition" ||
+      tx.kind === "shared-recurring-acquisition" ||
       tx.kind === "joint-property"
     ) {
       const activePlayerId =
@@ -1129,6 +1159,10 @@ function assertEconomyState(state: GameState): void {
         assertBusinessCapitalTransaction(state, tx, activePlayerId);
       else if (tx.kind === "business-auction")
         assertBusinessAuctionTransaction(state, tx, activePlayerId);
+      else if (tx.kind === "shared-recurring-acquisition")
+        assertSharedRecurringAcquisition(state, tx, activePlayerId);
+      else if (tx.kind === "property-acquisition")
+        assertPropertyAcquisitionTransaction(state, tx, activePlayerId);
       else assertJointPropertyTransaction(state, tx, activePlayerId);
       return;
     }

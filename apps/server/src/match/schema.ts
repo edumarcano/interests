@@ -188,6 +188,19 @@ const BusinessCapitalTermsSchema = z.discriminatedUnion("kind", [
     })
     .strict(),
 ]);
+export const SetFocusPayloadSchema = z
+  .object({
+    type: z.literal("SET_FOCUS"),
+    focus: z.enum([
+      "general",
+      "business",
+      "property",
+      "career",
+      "markets",
+      "financing",
+    ]),
+  })
+  .strict();
 
 const JointPropertyTermsSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("sale") }).strict(),
@@ -226,7 +239,133 @@ const JointPropertyBoundFields = {
     .positive()
     .max(Number.MAX_SAFE_INTEGER),
 };
+const SharedRecurringAcquisitionCommon = {
+  opportunityId: z.string().min(1).max(128),
+  leadCashCents: positiveCents,
+  partnerPlayerId: transactionKey,
+};
+const SharedRecurringAcquisitionTermsSchema = z.union([
+  z
+    .object({
+      ...SharedRecurringAcquisitionCommon,
+      route: z.enum(["cash", "bank-fixed", "bank-variable"]),
+      partnerOwnershipPpm: z.number().int().min(1).max(999_999),
+    })
+    .strict(),
+  z
+    .object({
+      ...SharedRecurringAcquisitionCommon,
+      route: z.enum(["cash", "bank-fixed", "bank-variable"]),
+      playerLoan: z
+        .object({
+          annualRateBps: z
+            .number()
+            .int()
+            .nonnegative()
+            .max(Number.MAX_SAFE_INTEGER),
+          termQuarters: z.number().int().min(2).max(8),
+        })
+        .strict(),
+    })
+    .strict(),
+]);
+
+const PropertyAcquisitionTermsSchema = z
+  .object({
+    catalogueId: z.string().min(1).max(64),
+    principalCents: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    rateKind: z.enum(["fixed", "variable"]),
+    buyers: z
+      .array(
+        z
+          .object({
+            playerId: z.string().min(1).max(64),
+            cashContributionCents: z
+              .number()
+              .int()
+              .positive()
+              .max(Number.MAX_SAFE_INTEGER),
+            ownershipPpm: z.number().int().positive().max(1_000_000),
+          })
+          .strict(),
+      )
+      .min(2)
+      .max(4),
+  })
+  .strict();
+
+export const RecurringAcquisitionPreviewSchema = z
+  .object({ opportunityId: z.string().min(1).max(128) })
+  .strict();
 export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("SELL_RECURRING_BUSINESS"),
+      opportunityId: z.string().min(1).max(64),
+      quoteId: z.string().min(1).max(1000),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("OPEN_PROPERTY_ACQUISITION"),
+      terms: PropertyAcquisitionTermsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("REVISE_PROPERTY_ACQUISITION"),
+      ...JointPropertyBoundFields,
+      terms: PropertyAcquisitionTermsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("CONFIRM_PROPERTY_ACQUISITION"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("WITHDRAW_PROPERTY_ACQUISITION"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("CLOSE_PROPERTY_ACQUISITION"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("CANCEL_PROPERTY_ACQUISITION"),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("OPEN_SHARED_RECURRING_ACQUISITION"),
+      terms: SharedRecurringAcquisitionTermsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("REVISE_SHARED_RECURRING_ACQUISITION"),
+      ...JointPropertyBoundFields,
+      terms: SharedRecurringAcquisitionTermsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.enum([
+        "CONFIRM_SHARED_RECURRING_ACQUISITION",
+        "WITHDRAW_SHARED_RECURRING_ACQUISITION",
+        "CLOSE_SHARED_RECURRING_ACQUISITION",
+        "CANCEL_SHARED_RECURRING_ACQUISITION",
+      ]),
+      ...JointPropertyBoundFields,
+    })
+    .strict(),
   JointPropertyOpenSchema,
   JointPropertyReviseSchema,
   z
@@ -275,6 +414,19 @@ export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
       ...termsBinding,
       slot: loanSlot,
       investorPlayerId: transactionKey,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("ACQUIRE_RECURRING_OPPORTUNITY"),
+      opportunityId: z.string().min(1).max(128),
+      quoteId: z.string().min(1).max(1000),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("FUND_RECURRING_LOAN"),
+      opportunityId: z.string().min(1).max(128),
     })
     .strict(),
   z
@@ -349,6 +501,7 @@ export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
       type: z.literal("EXPAND_BUSINESS"),
       assetId: z.string().min(1).max(128),
       investmentCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+      ownerContributionCents: positiveCents.optional(),
     })
     .strict(),
   TradePublicMarketsPayloadSchema,
@@ -392,6 +545,7 @@ export const PlayerCommandPayloadSchema = z.discriminatedUnion("type", [
       amountCents: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
     })
     .strict(),
+  SetFocusPayloadSchema,
   ChooseObjectivePayloadSchema,
   BeginRoundPayloadSchema,
   PassSpotlightPayloadSchema,

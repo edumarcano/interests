@@ -7,6 +7,7 @@ import type {
   PublicMarketTradeLeg,
   PublicMarketTradePreview,
   RecoverRoomResponse,
+  RecurringAcquisitionQuote,
   RotateRecoveryCodeResponse,
   RuntimeInfoResponse,
   SessionBootstrapResponse,
@@ -154,4 +155,22 @@ export async function previewPublicMarkets(
   );
   return (await handleResponse<{ preview: PublicMarketTradePreview }>(res))
     .preview;
+}
+
+export async function previewRecurringAcquisition(
+  roomCode: string,
+  opportunityId: string,
+): Promise<readonly RecurringAcquisitionQuote[]> {
+  const res = await fetch(
+    `/api/rooms/${encodeURIComponent(roomCode)}/recurring-acquisition-preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ opportunityId }),
+    },
+  );
+  return (
+    await handleResponse<{ quotes: readonly RecurringAcquisitionQuote[] }>(res)
+  ).quotes;
 }

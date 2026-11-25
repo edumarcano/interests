@@ -1,14 +1,20 @@
 import type { ObjectiveId } from "@interests/rules";
 import type {
   AcceptCareerOfferCommandPayload,
+  AcquireRecurringCommand,
   BusinessAuctionCommand,
   BusinessCapitalCommand,
   ExpandBusinessCommandPayload,
+  FundRecurringLoanCommand,
   JointPropertyCommand,
   OpportunityId,
   PlayerId,
+  PropertyAcquisitionCommand,
   PropertyCommand,
   ResignLaborCommandPayload,
+  SellRecurringBusinessCommand,
+  SetFocusCommandPayload,
+  SharedRecurringAcquisitionCommand,
   TradePublicMarketsCommandPayload,
   TransactionId,
 } from "@interests/shared";
@@ -21,6 +27,13 @@ import {
   pursuePrivateBusinessPurchaseOpportunity,
   pursuePrivateBusinessPurchaseOpportunityWithFinancingRequest,
 } from "../opportunities/privateBusinessPurchase.js";
+import {
+  investigateRecurringOpportunity,
+  setPlayerFocus,
+} from "../opportunities/recurring";
+import { sellRecurringBusiness } from "../opportunities/recurringBusinessExit";
+import { fundRecurringLoan } from "../opportunities/recurringLending";
+import { acquireRecurringOpportunity } from "../opportunities/recurringPurchase";
 import { applyBusinessAuctionCommand } from "../transactions/businessAuction";
 import { applyBusinessCapitalCommand } from "../transactions/businessCapital";
 import {
@@ -28,6 +41,8 @@ import {
   submitPlayerLoanFinancingOffer,
 } from "../transactions/cashBusinessPurchase.js";
 import { applyJointPropertyCommand } from "../transactions/jointProperty";
+import { applyPropertyAcquisitionCommand } from "../transactions/propertyAcquisition";
+import { applySharedRecurringAcquisitionCommand } from "../transactions/sharedRecurringAcquisition";
 import { type ActionResult, applyAction } from "./actions.js";
 import { applyCareerCommand } from "./career";
 import {
@@ -91,11 +106,17 @@ export interface WireCancelActiveTransactionCommand {
 }
 
 export type WirePlayerCommand =
+  | SellRecurringBusinessCommand
+  | PropertyAcquisitionCommand
+  | SharedRecurringAcquisitionCommand
+  | AcquireRecurringCommand
+  | FundRecurringLoanCommand
   | BusinessAuctionCommand
   | JointPropertyCommand
   | BusinessCapitalCommand
   | PropertyCommand
   | ExpandBusinessCommandPayload
+  | SetFocusCommandPayload
   | TradePublicMarketsCommandPayload
   | AcceptCareerOfferCommandPayload
   | ResignLaborCommandPayload
@@ -147,9 +168,38 @@ export function applyPlayerCommand(
     return { ok: false, state, code: "WRONG_PHASE", journalEntries: [] };
 
   switch (wireCommand.type) {
+    case "SELL_RECURRING_BUSINESS":
+      return sellRecurringBusiness(
+        state,
+        actorPlayerId,
+        wireCommand.opportunityId,
+        wireCommand.quoteId,
+      );
+    case "OPEN_SHARED_RECURRING_ACQUISITION":
+    case "REVISE_SHARED_RECURRING_ACQUISITION":
+    case "CONFIRM_SHARED_RECURRING_ACQUISITION":
+    case "WITHDRAW_SHARED_RECURRING_ACQUISITION":
+    case "CLOSE_SHARED_RECURRING_ACQUISITION":
+    case "CANCEL_SHARED_RECURRING_ACQUISITION":
+      return applySharedRecurringAcquisitionCommand(
+        state,
+        actorPlayerId,
+        wireCommand,
+      );
+    case "ACQUIRE_RECURRING_OPPORTUNITY":
+      return acquireRecurringOpportunity(state, actorPlayerId, wireCommand);
+    case "FUND_RECURRING_LOAN":
+      return fundRecurringLoan(state, actorPlayerId, wireCommand.opportunityId);
     case "OPEN_BUSINESS_AUCTION":
     case "RESPOND_BUSINESS_AUCTION":
       return applyBusinessAuctionCommand(state, actorPlayerId, wireCommand);
+    case "OPEN_PROPERTY_ACQUISITION":
+    case "REVISE_PROPERTY_ACQUISITION":
+    case "CONFIRM_PROPERTY_ACQUISITION":
+    case "WITHDRAW_PROPERTY_ACQUISITION":
+    case "CLOSE_PROPERTY_ACQUISITION":
+    case "CANCEL_PROPERTY_ACQUISITION":
+      return applyPropertyAcquisitionCommand(state, actorPlayerId, wireCommand);
     case "OPEN_JOINT_PROPERTY":
     case "REVISE_JOINT_PROPERTY":
     case "CONFIRM_JOINT_PROPERTY":
@@ -181,6 +231,8 @@ export function applyPlayerCommand(
         actorPlayerId,
         wireCommand,
       );
+    case "SET_FOCUS":
+      return setPlayerFocus(state, actorPlayerId, wireCommand.focus);
     case "TRADE_PUBLIC_MARKETS":
       return tradePublicMarketsAndAdvanceSpotlight(
         state,
@@ -229,6 +281,15 @@ export function applyPlayerCommand(
           journalEntries: [],
         };
       }
+      if (
+        state.content.cardsByPlayer[actorPlayerId]?.id ===
+        wireCommand.opportunityId
+      )
+        return investigateRecurringOpportunity(
+          state,
+          actorPlayerId,
+          wireCommand.opportunityId,
+        );
       const res = investigatePrivateBusinessPurchaseOpportunity(
         state,
         wireCommand.opportunityId as OpportunityId,

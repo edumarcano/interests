@@ -1,8 +1,10 @@
 import type {
   BusinessCashPolicyId,
+  BusinessSensitivity,
   EconomicRegimeId,
   ObjectiveId,
   ProfileId,
+  PropertyMarketKind,
   PublicMarketInstrumentId,
 } from "@interests/rules";
 import type {
@@ -20,6 +22,7 @@ import type {
 } from "../finance/obligations";
 import type { OwnershipPpm } from "../finance/ownership";
 import type { Opportunity } from "../opportunities/model";
+import type { RecurringContentState } from "../opportunities/recurring";
 import type { RandomState } from "../random/prng";
 import type { ActiveTransaction } from "../transactions/model";
 import type { MatchResult, ProgressState } from "./completionState";
@@ -103,6 +106,29 @@ export interface PlayerLoan extends LoanPaymentAccounting {
   readonly fundedTransactionId?: TransactionId;
 }
 
+/** A market borrower is not a player and never draws from a player's cash budget. */
+export interface NpcLoan extends LoanPaymentAccounting {
+  readonly id: LoanId;
+  readonly kind: "npc-loan";
+  readonly borrowerId: string;
+  readonly borrowerName: string;
+  readonly lenderPlayerId: PlayerId;
+  readonly originalPrincipalCents: Cents;
+  readonly outstandingPrincipalCents: Cents;
+  readonly annualRateBps: BasisPoints;
+  readonly termQuarters: number;
+  readonly installmentsProcessed: number;
+  readonly originatedQuarter: number;
+  readonly fundedTransactionId: TransactionId;
+  readonly fundedOpportunityId?: OpportunityId;
+  readonly quarterlyRepaymentCapacityCents: Cents;
+  readonly interestReceipts: readonly {
+    readonly quarter: number;
+    readonly receivedCents: Cents;
+    readonly currentEarnedCents: Cents;
+  }[];
+}
+
 export type LegacyBankLoanPurpose = "personal-debt" | "property-mortgage";
 
 export interface LegacyBankLoan extends LoanPaymentAccounting {
@@ -153,7 +179,12 @@ export interface AssetBankLoan extends LoanPaymentAccounting {
   readonly paymentBasisPrincipalCents: Cents;
 }
 
-export type Loan = PlayerLoan | LegacyBankLoan | CompanyLoan | AssetBankLoan;
+export type Loan =
+  | PlayerLoan
+  | NpcLoan
+  | LegacyBankLoan
+  | CompanyLoan
+  | AssetBankLoan;
 
 export interface PropertyAsset {
   /** Absent on grandfathered properties whose mortgage remains personal. */
@@ -166,6 +197,7 @@ export interface PropertyAsset {
   };
   readonly catalogueId?: string;
   readonly disposition?: "sold";
+  readonly marketKind?: PropertyMarketKind;
   readonly id: AssetId;
   readonly kind: "property";
   readonly marketValueCents: Cents;
@@ -181,7 +213,44 @@ export interface WorkCompensation {
   readonly arrearsCents: Cents;
 }
 
+export interface BusinessOperatingModel {
+  readonly firstOperatingQuarter?: number;
+  readonly kind: "revenue-cost-v1";
+  readonly sensitivity: BusinessSensitivity;
+  readonly referenceAnnualRevenueCents: Cents;
+  readonly referenceAnnualNonLaborCostsCents: Cents;
+  readonly fixedAnnualLaborCostsCents: Cents;
+  readonly annualProfitAdjustmentCents: Cents;
+  readonly valuationBasis: "after-labor-profit" | "owner-earnings";
+  readonly openingEnterpriseValueCents: Cents;
+  readonly openingValuationEarningsCents: Cents;
+  readonly quarters: readonly {
+    readonly quarter: number;
+    readonly operatingProfitCents: Cents;
+  }[];
+}
+
 export interface BusinessAsset {
+  readonly operatingModel?: BusinessOperatingModel;
+  /** Sold-company ledger retained for earned rights, canonical loans and claims. No player ownership remains. */
+  readonly npcSale?: {
+    readonly quoteId: string;
+    readonly buyerId: string;
+    readonly quarter: number;
+    readonly transactionId: TransactionId;
+    readonly operatingEnterpriseBidCents: Cents;
+    readonly retainedCompanyCashCents: Cents;
+    readonly sellerOwnershipByPlayerPpm: Readonly<
+      Record<PlayerId, OwnershipPpm>
+    >;
+    readonly grossConsiderationCents: Cents;
+    readonly saleFeeCents: Cents;
+    readonly bankPayoffCents: Cents;
+    readonly bankInterestPaidCents: Cents;
+    readonly operatingArrearsPaidCents: Cents;
+    readonly workArrearsPaidCents: Cents;
+    readonly netOwnerProceedsCents: Cents;
+  };
   readonly annualManagementCostCents?: Cents;
   readonly cashPolicyId: BusinessCashPolicyId;
   readonly cashCents: Cents;
@@ -249,12 +318,14 @@ export interface MarketUpdateRecord {
 }
 
 export interface EconomyState {
+  readonly operatingRandom: RandomState;
   readonly currentRegime: EconomicRegimeId;
   readonly baseRateBps: BasisPoints;
   readonly lastMarketUpdate: MarketUpdateRecord | null;
 }
 
 export interface GameState {
+  readonly content: RecurringContentState;
   readonly progress: ProgressState;
   readonly result: MatchResult | null;
   readonly gameId: GameId;

@@ -30,6 +30,7 @@ export interface CreateServerOptions {
   repository?: LobbyRepository;
   matchRepository?: MatchRepository;
   matchService?: MatchService;
+  matchSeedSource?: () => string;
 }
 
 export interface GameServer {
@@ -41,7 +42,7 @@ export interface GameServer {
 }
 
 export function createServer(options: CreateServerOptions = {}): GameServer {
-  const config = options.config ?? {
+  const config: ServerConfig = options.config ?? {
     host: "0.0.0.0",
     port: 3000,
     dbPath: "./data/interests.sqlite",
@@ -147,6 +148,8 @@ export function createServer(options: CreateServerOptions = {}): GameServer {
           options.matchRepository,
           options.repository,
           coordinator,
+          config.setupScenario,
+          options.matchSeedSource,
         )
       : undefined);
 

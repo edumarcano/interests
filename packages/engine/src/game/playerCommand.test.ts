@@ -2,7 +2,7 @@ import { asPlayerId, type PlayerId } from "@interests/shared";
 import { describe, expect, it } from "vitest";
 import { legacy } from "../transactions/testLegacyTransaction";
 import { applyAction } from "./actions";
-import { createGame } from "./createGame";
+import { createQ1BusinessDiagnosticGame } from "./createGame";
 import { applyPlayerCommand } from "./playerCommand";
 import {
   advanceSpotlight,
@@ -21,7 +21,7 @@ describe("Section 14: Engine Player Command Integration", () => {
 
   // Helper to create game with all 4 objectives chosen
   function createReadyGame(seed = "player-command-test-seed") {
-    let state = createGame({
+    let state = createQ1BusinessDiagnosticGame({
       gameId: "test-game",
       seed,
       playerIds,
@@ -41,7 +41,7 @@ describe("Section 14: Engine Player Command Integration", () => {
   }
 
   it("Investigation requires completed setup: rejects with WRONG_PHASE during objective-choosing", () => {
-    const rawGame = createGame({
+    const rawGame = createQ1BusinessDiagnosticGame({
       gameId: "test-game-pre-setup",
       seed: "seed-pre-setup",
       playerIds,

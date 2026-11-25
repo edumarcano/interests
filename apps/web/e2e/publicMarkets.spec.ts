@@ -47,6 +47,17 @@ test("four browsers buy and rebalance real funds with private previews and durab
     // All investors plan privately before their spotlights. No authoritative mutations.
     const views = await Promise.all(pages.map(read));
     expect(new Set(views.map((view) => view.revision)).size).toBe(1);
+    for (const [index, page] of pages.entries()) {
+      expect(views[index]!.economicConditions).toEqual({
+        baseRateBps: 450,
+        annualInflationBps: 250,
+        creditEnvironment: "normal",
+      });
+      await expect(page.getByTestId("economic-conditions")).toHaveText(
+        "Base rate 4.50% · Annual inflation 2.50% · Credit normal",
+      );
+      expect(JSON.stringify(views[index])).not.toContain("operatingRandom");
+    }
     for (let index = 0; index < 4; index++) {
       const page = pages[index]!;
       await expect(

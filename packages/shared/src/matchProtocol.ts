@@ -6,6 +6,23 @@ import type {
   TransactionId,
 } from "./primitives/ids.js";
 
+export interface MarketLoanQuoteView {
+  readonly borrowerName: string;
+  readonly principalCents: number;
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
+  readonly firstDueQuarter: number;
+  readonly scheduledQuarterlyPaymentCents: number;
+  readonly onTimeTotalInterestCents: number;
+  readonly repaymentRisk: "full-budget" | "tight-budget";
+  readonly canFund: boolean;
+  readonly unavailableReason:
+    | "borrower-funded"
+    | "insufficient-cash"
+    | "transaction-active"
+    | null;
+}
+
 export interface ChooseObjectiveCommandPayload {
   readonly type: "CHOOSE_OBJECTIVE";
   readonly objectiveId: string;
@@ -179,6 +196,7 @@ export interface ExpandBusinessCommandPayload {
   readonly type: "EXPAND_BUSINESS";
   readonly assetId: string;
   readonly investmentCents: number;
+  readonly ownerContributionCents?: number;
 }
 
 export type BusinessCapitalTerms =
@@ -361,12 +379,233 @@ export interface JointPropertyView {
   readonly yourCashRequiredCents: number;
 }
 
+export interface PropertyAcquisitionTerms {
+  readonly catalogueId: string;
+  readonly principalCents: number;
+  readonly rateKind: "fixed" | "variable";
+  readonly buyers: readonly {
+    readonly playerId: string;
+    readonly cashContributionCents: number;
+    readonly ownershipPpm: number;
+  }[];
+}
+export interface PropertyAcquisitionQuote {
+  readonly askingPriceCents: number;
+  readonly feeCents: number;
+  readonly cashRequiredCents: number;
+  readonly principalCents: number;
+  readonly rateKind: "fixed" | "variable";
+  readonly annualRateBps: number;
+  readonly quarterlyPaymentCents: number;
+  readonly assetReserveCents: number;
+  readonly firstDueQuarter: number;
+  readonly termQuarters: number;
+}
+export type PropertyAcquisitionCommand =
+  | {
+      readonly type: "OPEN_PROPERTY_ACQUISITION";
+      readonly terms: PropertyAcquisitionTerms;
+    }
+  | {
+      readonly type: "REVISE_PROPERTY_ACQUISITION";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly terms: PropertyAcquisitionTerms;
+    }
+  | {
+      readonly type:
+        | "CONFIRM_PROPERTY_ACQUISITION"
+        | "WITHDRAW_PROPERTY_ACQUISITION"
+        | "CLOSE_PROPERTY_ACQUISITION"
+        | "CANCEL_PROPERTY_ACQUISITION";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+    };
+export interface PropertyAcquisitionView {
+  readonly id: string;
+  readonly leadPlayerId: string;
+  readonly termsRevision: number;
+  readonly terms: PropertyAcquisitionTerms;
+  readonly quote: PropertyAcquisitionQuote;
+  readonly confirmedPlayerIds: readonly string[];
+}
+
+export type RecurringAcquisitionRoute = "cash" | "bank-fixed" | "bank-variable";
+export interface RecurringAcquisitionQuote {
+  readonly propertyMarketKind?: "residential" | "commercial";
+  readonly id: string;
+  readonly opportunityId: string;
+  readonly kind: "business" | "property";
+  readonly route: RecurringAcquisitionRoute;
+  readonly askingPriceCents: number;
+  readonly purchaseFeeCents: number;
+  readonly principalCents: number;
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
+  readonly quarterlyPaymentCents: number;
+  readonly assetReserveCents: number;
+  readonly personalReserveCents: number;
+  readonly cashRequiredCents: number;
+  readonly canClose: boolean;
+}
+export interface AcquireRecurringCommand {
+  readonly type: "ACQUIRE_RECURRING_OPPORTUNITY";
+  readonly opportunityId: string;
+  readonly quoteId: string;
+}
+interface SharedRecurringAcquisitionCommon {
+  readonly opportunityId: string;
+  readonly leadCashCents: number;
+  readonly partnerPlayerId: string;
+}
+export interface RecurringPlayerLoanTerms {
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
+}
+export type SharedRecurringAcquisitionTerms = SharedRecurringAcquisitionCommon &
+  (
+    | {
+        readonly route: RecurringAcquisitionRoute;
+        readonly partnerOwnershipPpm: number;
+        readonly playerLoan?: never;
+      }
+    | {
+        readonly route: RecurringAcquisitionRoute;
+        readonly playerLoan: RecurringPlayerLoanTerms;
+        readonly partnerOwnershipPpm?: never;
+      }
+  );
+export type SharedRecurringAcquisitionCommand =
+  | {
+      readonly type: "OPEN_SHARED_RECURRING_ACQUISITION";
+      readonly terms: SharedRecurringAcquisitionTerms;
+    }
+  | {
+      readonly type: "REVISE_SHARED_RECURRING_ACQUISITION";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly terms: SharedRecurringAcquisitionTerms;
+    }
+  | {
+      readonly type:
+        | "CONFIRM_SHARED_RECURRING_ACQUISITION"
+        | "WITHDRAW_SHARED_RECURRING_ACQUISITION"
+        | "CLOSE_SHARED_RECURRING_ACQUISITION"
+        | "CANCEL_SHARED_RECURRING_ACQUISITION";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+    };
+export interface SharedRecurringAcquisitionView {
+  readonly id: string;
+  readonly leadPlayerId: PlayerId;
+  readonly name: string;
+  readonly termsRevision: number;
+  readonly terms: SharedRecurringAcquisitionTerms;
+  readonly quote: Omit<
+    RecurringAcquisitionQuote,
+    "id" | "personalReserveCents" | "canClose"
+  >;
+  readonly confirmedPlayerIds: readonly PlayerId[];
+  readonly playerLoanPayments?: readonly number[];
+}
+export interface FundRecurringLoanCommand {
+  readonly type: "FUND_RECURRING_LOAN";
+  readonly opportunityId: string;
+}
+export interface SetFocusCommandPayload {
+  readonly type: "SET_FOCUS";
+  readonly focus:
+    | "general"
+    | "business"
+    | "property"
+    | "career"
+    | "markets"
+    | "financing";
+}
+export type RecurringOpportunityFacts =
+  | {
+      readonly kind: "business";
+      readonly annualRevenueCents: number;
+      readonly annualOperatingProfitCents: number;
+      readonly enterpriseValueCents: number;
+      readonly debtPrincipalCents: number;
+    }
+  | {
+      readonly kind: "property";
+      readonly marketValueCents: number;
+      readonly scheduledQuarterlyRentCents: number;
+      readonly occupancyBps: number;
+      readonly operatingExpenseRatioBps: number;
+    };
+
+export interface RecurringBusinessExitQuote {
+  readonly id: string;
+  readonly assetId: string;
+  readonly operatingEnterpriseBidCents: number;
+  readonly referenceEnterpriseValueCents: number;
+  readonly companyCashIncludedCents: number;
+  readonly grossConsiderationCents: number;
+  readonly saleFeeCents: number;
+  readonly bankPayoffCents: number;
+  readonly bankInterestPaidCents: number;
+  readonly operatingArrearsPaidCents: number;
+  readonly workArrearsPaidCents: number;
+  readonly sellerNetCents: number;
+}
+export interface SellRecurringBusinessCommand {
+  readonly type: "SELL_RECURRING_BUSINESS";
+  readonly opportunityId: string;
+  readonly quoteId: string;
+}
+export interface RecurringOpportunityView {
+  readonly businessExitQuote?: RecurringBusinessExitQuote | null;
+  readonly id: string;
+  readonly templateId: string;
+  readonly name: string;
+  readonly category:
+    | "business"
+    | "property"
+    | "career"
+    | "markets"
+    | "financing";
+  readonly intensity: "quick" | "standard" | "major";
+  readonly summary: string;
+  readonly action:
+    | "career"
+    | "markets"
+    | "business-management"
+    | "property-management"
+    | "npc-business-purchase"
+    | "npc-property-purchase"
+    | "npc-financing"
+    | "npc-business-exit";
+  readonly createdQuarter: number;
+  readonly status:
+    | "available"
+    | "expired"
+    | "acquired"
+    | "funded"
+    | "completed";
+  readonly acquiredAssetId?: string;
+  readonly marketLoanQuote?: MarketLoanQuoteView;
+  readonly askingPriceCents: number;
+  readonly investigationFeeCents: number;
+  readonly investigated: boolean;
+  readonly facts?: RecurringOpportunityFacts;
+}
+
 export type PlayerCommand =
+  | SellRecurringBusinessCommand
+  | PropertyAcquisitionCommand
+  | SharedRecurringAcquisitionCommand
   | BusinessAuctionCommand
   | JointPropertyCommand
   | BusinessCapitalCommand
   | PropertyCommand
   | ExpandBusinessCommandPayload
+  | SetFocusCommandPayload
+  | AcquireRecurringCommand
+  | FundRecurringLoanCommand
   | TradePublicMarketsCommandPayload
   | AcceptCareerOfferCommandPayload
   | ResignLaborCommandPayload
@@ -546,6 +785,7 @@ export interface MatchSelfFinancialDetailsView {
 export interface MatchSelfView {
   readonly propertyOffers?: readonly PropertyOfferView[];
   readonly propertyManagement?: readonly PropertyManagementView[];
+  readonly recurringOpportunity?: RecurringOpportunityView | null;
   readonly financialDetails: MatchSelfFinancialDetailsView;
   readonly playerId: PlayerId;
   readonly profileId: string;
@@ -609,9 +849,18 @@ export interface MatchRoundView {
   readonly spotlightsCompleted: number;
 }
 
+export interface MatchEconomicConditionsView {
+  readonly baseRateBps: number;
+  readonly annualInflationBps: number;
+  readonly creditEnvironment: "easy" | "normal" | "tight" | "severe";
+}
+
 export interface MatchPlayerView {
   readonly hasActiveTransaction?: boolean;
   readonly jointProperty?: JointPropertyView | null;
+  readonly propertyAcquisition?: PropertyAcquisitionView | null;
+  readonly sharedRecurringAcquisition?: SharedRecurringAcquisitionView | null;
+  readonly economicConditions?: MatchEconomicConditionsView;
   readonly result: MatchResultView | null;
   readonly matchId: MatchId;
   readonly modeId: string;

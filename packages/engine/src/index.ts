@@ -4,11 +4,13 @@ import { SHARED_VERSION } from "@interests/shared";
 export * from "./finance/account";
 export * from "./finance/amortization";
 export * from "./finance/business";
+export * from "./finance/businessPerformance";
 export * from "./finance/businessSettlement";
 export * from "./finance/economy";
 export * from "./finance/journal";
 export * from "./finance/markets";
 export * from "./finance/money";
+export * from "./finance/operatingEconomy";
 export * from "./finance/ownership";
 export * from "./finance/settlement";
 export * from "./game/actions.js";
@@ -24,13 +26,15 @@ export * from "./model/gameState";
 export * from "./opportunities/model";
 export * from "./opportunities/privateBusinessPurchase";
 export * from "./opportunities/q1Fixture";
+export * from "./opportunities/recurring";
+export * from "./opportunities/recurringAcquisition";
 export * from "./opportunities/view";
 export * from "./random/prng";
 export * from "./transactions/cashBusinessPurchase";
 export * from "./transactions/model";
 export * from "./transactions/reservations";
 
-export const ENGINE_VERSION = "0.0.15";
+export const ENGINE_VERSION = "0.0.16";
 
 export const WORKSPACE_COMPATIBILITY = {
   engine: ENGINE_VERSION,
@@ -49,3 +53,5 @@ export * from "./finance/propertyActions";
 export * from "./finance/publicMarketTrading";
 export * from "./game/career";
 export * from "./model/completionState";
+
+export { getRecurringAcquisitionQuotes } from "./opportunities/recurringPurchase";

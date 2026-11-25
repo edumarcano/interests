@@ -20,6 +20,7 @@ import {
 } from "./amortization";
 import { planBusinessSettlement } from "./businessSettlement";
 import { FinanceDecimal } from "./decimal";
+import { isLenderLoan, isPersonalBorrower } from "./loanParties";
 import { basisPoints, cents } from "./money";
 import { calculateLoanObligation } from "./obligations";
 import { calculatePropertyCashFlow } from "./property";
@@ -53,7 +54,7 @@ export function assetBankLiens(state: GameState, assetId: AssetId): Loan[] {
 }
 export function bankBorrowerStrength(state: GameState, playerId: PlayerId) {
   const personal = Object.values(state.finance.loansById).filter(
-    (loan) => !isAssetBorrower(loan) && loan.borrowerPlayerId === playerId,
+    (loan) => isPersonalBorrower(loan) && loan.borrowerPlayerId === playerId,
   );
   const debt = cents(
     personal.reduce((sum, loan) => {
@@ -141,16 +142,21 @@ export function bankBorrowerStrength(state: GameState, playerId: PlayerId) {
   }
   for (const loan of Object.values(state.finance.loansById))
     if (
-      loan.kind === "player-loan" &&
+      isLenderLoan(loan) &&
       loan.lenderPlayerId === playerId &&
       !loan.pastDuePrincipalCents &&
       !loan.unpaidInterestCents
     )
       addOther(
-        roundedRatio(
-          loan.outstandingPrincipalCents,
-          loan.annualRateBps,
-          40_000,
+        Math.min(
+          loan.kind === "npc-loan"
+            ? loan.quarterlyRepaymentCapacityCents
+            : Number.MAX_SAFE_INTEGER,
+          roundedRatio(
+            loan.outstandingPrincipalCents,
+            loan.annualRateBps,
+            40_000,
+          ),
         ),
       );
   qualifyingIncome = cents(qualifyingIncome + other);

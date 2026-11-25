@@ -1,5 +1,10 @@
 import type { PublicMarketInstrumentId } from "@interests/rules";
-import type { AssetId, LoanId, TransactionId } from "@interests/shared";
+import type {
+  AssetId,
+  LoanId,
+  OpportunityId,
+  TransactionId,
+} from "@interests/shared";
 
 import type { CashAccount } from "./account";
 import type { Cents } from "./money";
@@ -26,6 +31,7 @@ export interface JournalEntry {
   readonly amountCents: Cents;
   readonly reason: string;
   readonly quarter: number;
+  readonly relatedOpportunityId?: OpportunityId;
   readonly relatedLoanId?: LoanId;
   readonly relatedAssetId?: AssetId;
   readonly relatedMarketInstrumentId?: PublicMarketInstrumentId;

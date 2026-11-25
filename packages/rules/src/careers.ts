@@ -37,3 +37,9 @@ export const EXECUTIVE_COMPANY_TERMS = Object.freeze({
   debtPrincipalCents: 0,
   ownershipPpm: 1_000_000,
 });
+
+/** Necessary management is already included in the quoted after-labor profit. */
+export const EXECUTIVE_COMPANY_OPERATING_CALIBRATION = Object.freeze({
+  sensitivity: "low",
+  fixedAnnualLaborCostsCents: 6_000_000,
+} as const);
