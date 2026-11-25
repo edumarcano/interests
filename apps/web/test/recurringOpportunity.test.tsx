@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
-import type {
-  MatchPlayerView,
-  RecurringOpportunityView,
+import {
+  asPlayerId,
+  type MatchPlayerView,
+  type RecurringOpportunityView,
 } from "@interests/shared";
 import {
   cleanup,
@@ -29,7 +30,9 @@ const card: RecurringOpportunityView = {
 };
 const match = {
   phase: "ready-for-first-round",
+  sharedRecurringAcquisition: null,
   self: {
+    playerId: asPlayerId("player-1"),
     availableCashCents: 100_000,
     financialDetails: { focus: "general" },
     recurringOpportunity: card,
