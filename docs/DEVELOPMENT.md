@@ -2,7 +2,7 @@
 
 **Updated:** 2026-11-17
 **Active milestone:** 7, full gameplay rules and content  
-**Current focus:** Integrate career/labor and bank/property on the public-markets PR; prepare multiplayer capital. No PRs merged.
+**Current focus:** Build multiplayer business capital on the reviewed bank/property PR. Operating economy and objective measurement are in progress on separate branches. No PRs merged.
 
 ## Milestone 6: physical playtest outcome
 
@@ -46,10 +46,10 @@ ARCH-040 records the approved completion boundary; GAME_DESIGN owns the rules. T
 | 2 | Entitlements, basis/history, career/focus, financing and terminal contracts | Implemented on `codex/m7-state-foundations`; delivered in open [PR #37](https://github.com/edumarcano/interests/pull/37), stacked on #36; both Remora axes passed; unmerged |
 | 3 | Public-fund buy/sell/rebalance, fees and browser controls | Delivered in open [PR #38](https://github.com/edumarcano/interests/pull/38), `codex/m7-public-markets`, stacked on #37; both Remora review axes passed; unmerged |
 | 4 | Careers, executive ownership, resignation and equal-cost management conversion | Delivered in open [PR #39](https://github.com/edumarcano/interests/pull/39), `codex/m7-career-labor`, stacked on #38; unmerged |
-| 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Implemented and reviewed on `codex/m7-bank-property`, stacked on #39; unmerged |
-| 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Pending |
-| 7 | Operating economy, recurring private/public content and non-player alternatives | Pending; remove Q1 demonstration windfall from ordinary setup |
-| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Pending |
+| 5 | Bank underwriting, fixed/variable property finance, sale/refinance/renovation | Delivered in open [PR #40](https://github.com/edumarcano/interests/pull/40), stacked on #39; both Remora review axes passed; unmerged |
+| 6 | Business expansion, stake sale/issuance, multi-party capital and public bids | Delivered in open [PR #41](https://github.com/edumarcano/interests/pull/41), stacked on #40; both Remora review axes passed; unmerged |
+| 7 | Operating economy, recurring private/public content and non-player alternatives | Operating rules, recurring cards and diagnostic isolation verified on `codex/m7-operating-economy`; executable NPC and shared-acquisition routes in progress |
+| 8 | All eight objective evaluators/finales and durable victory/Q32 draw | Pure evaluation and durable Q32 draw verified in isolation on `codex/m7-objectives`; canonical evidence and winning finales in progress |
 | 9 | Ordinary complete-match journeys, four-client result/restart proof, M7 handoff | Pending |
 
 Each packet requires relevant behavior tests, typecheck, lint, tests and Remora split-axis review. Browser-facing changes also require build and applicable E2E proof. Record actual PR/head/check state here as delivery changes; leave every PR unmerged unless the user explicitly approves merging.
@@ -94,7 +94,21 @@ Engine tests cover stable/no-RNG quotes, objective/profile neutrality, funded ex
 
 Asset-borrower fixed/variable mortgages, current credit-grade/LTV/DSCR underwriting, property cash/reserves, acquisition, sale, performing/no-cash-out refinancing, once-only renovation and voluntary reserve funding are implemented. Three stable authored NPC property quotes make the slice playable before packet 7's recurring generation. Opening balances, the legacy mortgage and the Q1 business fixture retain their existing behavior. ARCH-044 owns the contract; multiplayer sale/refinance consent, shared-property management rights and business actions remain packet 6.
 
-Standalone on the packet 2 foundations, the 694-test suite passed with loopback access, and the production web build passed. Six Chromium scenarios passed, including an ordinary four-client mortgage review, local cancellation and funded close at 320px. Engine cases cover first payment next quarter, canonical asset debt before distributions, shared ownership, property defaults/cash cure, legacy payoff, earned-quarter sale/renovation, fixed/variable pricing and maturity-preserving resets, numeric/permission rejection and paired-state privacy. Server execution persists the real property close, bank journal and retry receipt once; forged terms are rejected. Reproduced browser spotlight setup races now wait for the next active client before continuing; no transport or gameplay workaround is introduced. New property and loan positions remain private. These are local implementation results; no new physical-device or hosted-CI result is claimed. The combined stack at `7829a8b` passed all 747 unit/integration tests and eight production browser scenarios. All six TypeScript projects, lint, the build and the local Remora harness check passed. Specification and engineering reviews found no blocker. The branch is stacked on #39 and remains unmerged.
+Standalone on the packet 2 foundations, the 694-test suite passed with loopback access, and the production web build passed. Six Chromium scenarios passed, including an ordinary four-client mortgage review, local cancellation and funded close at 320px. Engine cases cover first payment next quarter, canonical asset debt before distributions, shared ownership, property defaults/cash cure, legacy payoff, earned-quarter sale/renovation, fixed/variable pricing and maturity-preserving resets, numeric/permission rejection and paired-state privacy. Server execution persists the real property close, bank journal and retry receipt once; forged terms are rejected. Reproduced browser spotlight setup races now wait for the next active client before continuing; no transport or gameplay workaround is introduced. New property and loan positions remain private. These are local implementation results; no new physical-device or hosted-CI result is claimed. The combined stack at `7829a8b` passed all 747 unit/integration tests and eight production browser scenarios. All six TypeScript projects, lint, the build and the local Remora harness check passed. Specification and engineering reviews found no blocker. PR #40 is stacked on #39, open and mergeable. GitHub CI run #117 passed on head `df98bd6`; the PR remains unmerged.
+
+### Packet 6 verification
+
+Stake sales pay the seller, charge both approved fees, and preserve dated basis and earned ownership. Equity issuance puts funds into the company. Players can make targeted or open cash-backed loan and equity offers, compare eligible offers, and confirm the selected terms. Editing the final terms invalidates the affected confirmations. Shared expansion uses company reserves and raises next-quarter profit. Former working owners can exit ownership after resigning while their unpaid claims and company replacement labor remain intact.
+
+A seller can list a stake at auction; the eligible seats submit one sealed bid or pass. Buyer fees are reserved with the bid, losing holds release at close, and the first accepted bid wins an exact tie. Joint property sale, refinance and renovation require all owners to confirm a frozen quote; sales pay 60/40 or other actual ownership shares and refinance/renovation charge only the named payer. A changed live quote cannot close on stale approval, but the payer can still withdraw and release the hold.
+
+The combined stack at `d57d3e8` passed 868 unit/integration tests, all 13 production Chromium scenarios, typecheck, lint, build and the local Remora harness check. Four-browser runs at 320px closed a $1,000 stake sale, preserved a $500 selected loan at 6.25%, selected $600 equity for 8%, and resolved competing $1,200 bids after a restart. The shared-property browser run used a labeled synthetic ownership fixture, preserved both owners' rights through restart, and reconciled the exact 60/40 payout. Socket, HTTP and SQLite tests cover recipient privacy and receipt retry. Both Remora review axes passed after fixing withdrawal when a refinance quote has changed. PR #41 is open and unmerged. New fixed business loans have canonical servicing and a trusted funded-close primitive; recurring acquisition and an ordinary shared-property purchase path remain in packet 7.
+
+### Packets 7 and 8 checkpoints
+
+The operating branch has versioned rates/inflation, property occupancy and valuation, actual company performance, objective-neutral cards, paid diligence, focus and explicit Q1 diagnostic isolation. The operating and capital integration at `4b53835` passed 912 tests on its earlier stack. Card closes, ordinary shared property acquisition, non-player exits and lending, and final stack integration remain.
+
+The pure objective evaluator passed at `5203855` and the Q32 draw at `d27e270`. The draw passed four actual browsers through 164 accepted commands, reload and restart. These are isolated branch results. Canonical property, financing and disposal evidence, private progress, winning finales and whole-match acceptance remain.
 
 ## M7 completion and M8 handoff
 

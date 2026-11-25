@@ -18,6 +18,7 @@ import type {
   GameState,
   PropertyAsset,
 } from "../model/gameState";
+import { legacy } from "../transactions/testLegacyTransaction";
 import {
   cancelActiveTransaction,
   closeCashBusinessPurchaseTransaction,
@@ -190,14 +191,14 @@ describe("cash-business-purchase transaction lifecycle", () => {
       asTransactionId("transaction-1"),
     );
     expect(openedState.activeTransaction?.kind).toBe("cash-business-purchase");
-    expect(openedState.activeTransaction?.buyerPlayerId).toBe(p1);
-    expect(openedState.activeTransaction?.sellerPlayerId).toBe(p2);
+    expect(legacy(openedState)?.buyerPlayerId).toBe(p1);
+    expect(legacy(openedState)?.sellerPlayerId).toBe(p2);
     expect(openedState.activeTransaction?.assetId).toBe(businessAssetId);
-    expect(openedState.activeTransaction?.purchasePriceCents).toBe(6_000_000);
+    expect(legacy(openedState)?.purchasePriceCents).toBe(6_000_000);
     expect(openedState.activeTransaction?.createdQuarter).toBe(
       openedState.currentQuarter,
     );
-    expect(openedState.activeTransaction?.reservation).toEqual({
+    expect(legacy(openedState)?.reservation).toEqual({
       playerId: p1,
       amountCents: 6_000_000,
       purpose: "purchase-price",
@@ -911,7 +912,7 @@ describe("cash-business-purchase transaction lifecycle", () => {
       expect(openResult.ok).toBe(true);
       if (!openResult.ok) throw new Error();
 
-      const activeTx = openResult.state.activeTransaction;
+      const activeTx = legacy(openResult.state);
       if (!activeTx) throw new Error("Missing activeTransaction");
 
       // Corrupt reservation amount to not match price
@@ -1000,8 +1001,8 @@ describe("cash-business-purchase transaction lifecycle", () => {
       expect(result1.state.activeTransaction).toEqual(
         result2.state.activeTransaction,
       );
-      expect(result1.state.activeTransaction?.reservation).toEqual(
-        result2.state.activeTransaction?.reservation,
+      expect(legacy(result1.state)?.reservation).toEqual(
+        legacy(result2.state)?.reservation,
       );
       expect(result1.journalEntries).toEqual(result2.journalEntries);
     });

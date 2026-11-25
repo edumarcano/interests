@@ -48,7 +48,10 @@ export function PublicMarketsPanel({
   const generation = useRef(0);
   const canTrade =
     !isPaused &&
+    !match.hasActiveTransaction &&
     !match.activeTransaction &&
+    !match.businessCapital &&
+    !match.businessAuction &&
     match.round?.activeSpotlightPlayerId === match.self.playerId;
   const change = (
     id: string,

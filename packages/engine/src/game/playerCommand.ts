@@ -1,6 +1,10 @@
 import type { ObjectiveId } from "@interests/rules";
 import type {
   AcceptCareerOfferCommandPayload,
+  BusinessAuctionCommand,
+  BusinessCapitalCommand,
+  ExpandBusinessCommandPayload,
+  JointPropertyCommand,
   OpportunityId,
   PlayerId,
   PropertyCommand,
@@ -8,6 +12,7 @@ import type {
   TradePublicMarketsCommandPayload,
   TransactionId,
 } from "@interests/shared";
+import { expandBusinessAndAdvanceSpotlight } from "../finance/businessExpansion.js";
 import { applyPropertyCommand } from "../finance/propertyActions";
 import { tradePublicMarketsAndAdvanceSpotlight } from "../finance/publicMarketTrading.js";
 import type { GameState } from "../model/gameState.js";
@@ -16,10 +21,13 @@ import {
   pursuePrivateBusinessPurchaseOpportunity,
   pursuePrivateBusinessPurchaseOpportunityWithFinancingRequest,
 } from "../opportunities/privateBusinessPurchase.js";
+import { applyBusinessAuctionCommand } from "../transactions/businessAuction";
+import { applyBusinessCapitalCommand } from "../transactions/businessCapital";
 import {
   acceptPlayerLoanFinancingOffer,
   submitPlayerLoanFinancingOffer,
 } from "../transactions/cashBusinessPurchase.js";
+import { applyJointPropertyCommand } from "../transactions/jointProperty";
 import { type ActionResult, applyAction } from "./actions.js";
 import { applyCareerCommand } from "./career";
 import {
@@ -83,7 +91,11 @@ export interface WireCancelActiveTransactionCommand {
 }
 
 export type WirePlayerCommand =
+  | BusinessAuctionCommand
+  | JointPropertyCommand
+  | BusinessCapitalCommand
   | PropertyCommand
+  | ExpandBusinessCommandPayload
   | TradePublicMarketsCommandPayload
   | AcceptCareerOfferCommandPayload
   | ResignLaborCommandPayload
@@ -135,12 +147,40 @@ export function applyPlayerCommand(
     return { ok: false, state, code: "WRONG_PHASE", journalEntries: [] };
 
   switch (wireCommand.type) {
+    case "OPEN_BUSINESS_AUCTION":
+    case "RESPOND_BUSINESS_AUCTION":
+      return applyBusinessAuctionCommand(state, actorPlayerId, wireCommand);
+    case "OPEN_JOINT_PROPERTY":
+    case "REVISE_JOINT_PROPERTY":
+    case "CONFIRM_JOINT_PROPERTY":
+    case "WITHDRAW_JOINT_PROPERTY":
+    case "CLOSE_JOINT_PROPERTY":
+    case "CANCEL_JOINT_PROPERTY":
+      return applyJointPropertyCommand(state, actorPlayerId, wireCommand);
+    case "OPEN_BUSINESS_CAPITAL":
+    case "REVISE_BUSINESS_CAPITAL":
+    case "CONFIRM_BUSINESS_CAPITAL":
+    case "WITHDRAW_BUSINESS_CAPITAL":
+    case "CLOSE_BUSINESS_CAPITAL":
+    case "OFFER_BUSINESS_LOAN":
+    case "SELECT_BUSINESS_LOAN":
+    case "WITHDRAW_BUSINESS_LOAN":
+    case "OFFER_BUSINESS_EQUITY":
+    case "SELECT_BUSINESS_EQUITY":
+    case "WITHDRAW_BUSINESS_EQUITY":
+      return applyBusinessCapitalCommand(state, actorPlayerId, wireCommand);
     case "BUY_PROPERTY":
     case "SELL_PROPERTY":
     case "REFINANCE_PROPERTY":
     case "RENOVATE_PROPERTY":
     case "FUND_PROPERTY_RESERVE":
       return applyPropertyCommand(state, actorPlayerId, wireCommand);
+    case "EXPAND_BUSINESS":
+      return expandBusinessAndAdvanceSpotlight(
+        state,
+        actorPlayerId,
+        wireCommand,
+      );
     case "TRADE_PUBLIC_MARKETS":
       return tradePublicMarketsAndAdvanceSpotlight(
         state,

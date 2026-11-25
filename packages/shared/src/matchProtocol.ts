@@ -175,8 +175,198 @@ export interface PropertyManagementView {
   readonly refinancingQuotes: readonly PropertyBankQuoteView[];
 }
 
+export interface ExpandBusinessCommandPayload {
+  readonly type: "EXPAND_BUSINESS";
+  readonly assetId: string;
+  readonly investmentCents: number;
+}
+
+export type BusinessCapitalTerms =
+  | { readonly kind: "company-expansion"; readonly investmentCents: number }
+  | {
+      readonly kind: "request-equity";
+      readonly requests: readonly BusinessEquityRequest[];
+    }
+  | {
+      readonly kind: "secondary-stake-sale";
+      readonly sellerPlayerId: string;
+      readonly buyerPlayerId: string;
+      readonly ownershipPpm: number;
+      readonly priceCents: number;
+      readonly loanRequests?: readonly BusinessLoanRequest[];
+    }
+  | {
+      readonly kind: "primary-issuance";
+      readonly contributions: readonly {
+        readonly playerId: string;
+        readonly amountCents: number;
+        readonly postMoneyOwnershipPpm: number;
+      }[];
+    };
+
+export type BusinessCapitalCommand =
+  | {
+      readonly type: "OPEN_BUSINESS_CAPITAL";
+      readonly assetId: string;
+      readonly terms: BusinessCapitalTerms;
+    }
+  | {
+      readonly type: "REVISE_BUSINESS_CAPITAL";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly terms: BusinessCapitalTerms;
+    }
+  | {
+      readonly type:
+        | "CONFIRM_BUSINESS_CAPITAL"
+        | "WITHDRAW_BUSINESS_CAPITAL"
+        | "CLOSE_BUSINESS_CAPITAL";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+    }
+  | {
+      readonly type: "OFFER_BUSINESS_LOAN";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly slot: number;
+      readonly annualRateBps: number;
+      readonly termQuarters: number;
+    }
+  | {
+      readonly type: "WITHDRAW_BUSINESS_LOAN" | "SELECT_BUSINESS_LOAN";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly slot: number;
+      readonly lenderPlayerId: string;
+    }
+  | {
+      readonly type: "OFFER_BUSINESS_EQUITY";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly slot: number;
+      readonly postMoneyOwnershipPpm: number;
+    }
+  | {
+      readonly type: "SELECT_BUSINESS_EQUITY" | "WITHDRAW_BUSINESS_EQUITY";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly slot: number;
+      readonly investorPlayerId: string;
+    };
+
+export interface BusinessEquityRequest {
+  readonly amountCents: number;
+  readonly invitedInvestorId?: string;
+}
+
+export interface BusinessEquityOfferView {
+  readonly investorPlayerId: string;
+  readonly slot: number;
+  readonly postMoneyOwnershipPpm: number;
+  readonly selected: boolean;
+}
+
+export type BusinessAuctionCommand =
+  | {
+      readonly type: "OPEN_BUSINESS_AUCTION";
+      readonly assetId: string;
+      readonly ownershipPpm: number;
+      readonly minimumBidCents: number;
+    }
+  | {
+      readonly type: "RESPOND_BUSINESS_AUCTION";
+      readonly transactionId: string;
+      readonly bidCents: number | null;
+    };
+
+export interface BusinessLoanRequest {
+  readonly principalCents: number;
+  readonly invitedLenderId?: string;
+}
+
+export interface BusinessLoanOfferView {
+  readonly lenderPlayerId: string;
+  readonly slot: number;
+  readonly annualRateBps: number;
+  readonly termQuarters: number;
+  readonly selected: boolean;
+}
+
+export type JointPropertyTerms =
+  | { readonly kind: "sale" }
+  | { readonly kind: "refinance"; readonly rateKind: "fixed" | "variable" }
+  | { readonly kind: "renovation" };
+export type JointPropertyQuote =
+  | {
+      readonly kind: "sale";
+      readonly salePriceCents: number;
+      readonly feeCents: number;
+      readonly payoffCents: number;
+      readonly netProceedsCents: number;
+      readonly proceedsByPlayer: Readonly<Record<string, number>>;
+    }
+  | {
+      readonly kind: "refinance";
+      readonly payerPlayerId: string;
+      readonly cashRequiredCents: number;
+      readonly feeCents: number;
+      readonly principalCents: number;
+      readonly rateKind: "fixed" | "variable";
+      readonly annualRateBps: number;
+      readonly quarterlyPaymentCents: number;
+      readonly assetReserveCents: number;
+      readonly firstDueQuarter: number;
+      readonly termQuarters: number;
+    }
+  | {
+      readonly kind: "renovation";
+      readonly payerPlayerId: string;
+      readonly cashRequiredCents: number;
+      readonly effectiveQuarter: number;
+      readonly rentIncreaseBps: number;
+      readonly occupancyIncreaseBps: number;
+      readonly valueIncreaseCents: number;
+    };
+export type JointPropertyCommand =
+  | {
+      readonly type: "OPEN_JOINT_PROPERTY";
+      readonly assetId: string;
+      readonly terms: JointPropertyTerms;
+    }
+  | {
+      readonly type: "REVISE_JOINT_PROPERTY";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+      readonly terms: JointPropertyTerms;
+    }
+  | {
+      readonly type:
+        | "CONFIRM_JOINT_PROPERTY"
+        | "WITHDRAW_JOINT_PROPERTY"
+        | "CLOSE_JOINT_PROPERTY"
+        | "CANCEL_JOINT_PROPERTY";
+      readonly transactionId: string;
+      readonly expectedTermsRevision: number;
+    };
+export interface JointPropertyView {
+  readonly id: string;
+  readonly assetId: string;
+  readonly initiatorPlayerId: string;
+  readonly termsRevision: number;
+  readonly terms: JointPropertyTerms;
+  readonly quote: JointPropertyQuote;
+  readonly ownershipByPlayerPpm: Readonly<Record<string, number>>;
+  readonly participantIds: readonly string[];
+  readonly confirmedPlayerIds: readonly string[];
+  readonly yourCashRequiredCents: number;
+}
+
 export type PlayerCommand =
+  | BusinessAuctionCommand
+  | JointPropertyCommand
+  | BusinessCapitalCommand
   | PropertyCommand
+  | ExpandBusinessCommandPayload
   | TradePublicMarketsCommandPayload
   | AcceptCareerOfferCommandPayload
   | ResignLaborCommandPayload
@@ -309,6 +499,10 @@ export type MatchResultView =
     }
   | { readonly kind: "safety-draw"; readonly completedQuarter: number };
 export interface MatchSelfFinancialDetailsView {
+  readonly formerWorkClaims?: readonly {
+    readonly assetId: string;
+    readonly amountCents: number;
+  }[];
   readonly careerOffers: readonly CareerOfferView[];
   readonly annualLaborCompensationCents: number | null;
   readonly quarterlyIncomeCents: number;
@@ -416,6 +610,8 @@ export interface MatchRoundView {
 }
 
 export interface MatchPlayerView {
+  readonly hasActiveTransaction?: boolean;
+  readonly jointProperty?: JointPropertyView | null;
   readonly result: MatchResultView | null;
   readonly matchId: MatchId;
   readonly modeId: string;
@@ -426,6 +622,67 @@ export interface MatchPlayerView {
   readonly players: readonly MatchPlayerSummaryView[];
   readonly self: MatchSelfView;
   readonly activeTransaction: ActiveTransactionSummaryView | null;
+  readonly businessCapital?: BusinessCapitalView | null;
+  readonly businessLoanInvitation?: BusinessLoanInvitationView | null;
+  readonly businessEquityInvitation?: BusinessEquityInvitationView | null;
+  readonly businessAuction?: BusinessAuctionView | null;
+}
+
+export interface BusinessEquityInvitationView {
+  readonly transactionId: string;
+  readonly assetId: string;
+  readonly issuerPlayerId: string;
+  readonly termsRevision: number;
+  readonly slots: readonly {
+    readonly slot: number;
+    readonly amountCents: number;
+  }[];
+  readonly ownOffers: readonly BusinessEquityOfferView[];
+  readonly confirmed: boolean;
+  readonly readyToConfirm: boolean;
+  readonly mustConfirmThroughOwnerView: boolean;
+}
+
+export interface BusinessAuctionView {
+  readonly id: string;
+  readonly assetId: string;
+  readonly sellerPlayerId: string;
+  readonly ownershipPpm: number;
+  readonly minimumBidCents: number;
+  readonly responsesReceived: number;
+  readonly responsesRequired: number;
+  readonly ownResponse:
+    | { readonly kind: "pass" }
+    | { readonly kind: "bid"; readonly amountCents: number }
+    | null;
+}
+
+export interface BusinessLoanInvitationView {
+  readonly transactionId: string;
+  readonly borrowerPlayerId: string;
+  readonly termsRevision: number;
+  readonly slots: readonly {
+    readonly slot: number;
+    readonly principalCents: number;
+  }[];
+  readonly ownOffers: readonly BusinessLoanOfferView[];
+  readonly confirmed: boolean;
+  readonly selected: boolean;
+  readonly readyToConfirm: boolean;
+}
+
+export interface BusinessCapitalView {
+  readonly id: string;
+  readonly assetId: string;
+  readonly initiatorPlayerId: string;
+  readonly terms: BusinessCapitalTerms;
+  readonly termsRevision: number;
+  readonly participantIds: readonly string[];
+  readonly confirmedPlayerIds: readonly string[];
+  readonly yourContributionCents: number;
+  readonly loanOffers?: readonly BusinessLoanOfferView[];
+  readonly equityOffers?: readonly BusinessEquityOfferView[];
+  readonly readyToConfirm?: boolean;
 }
 
 export interface CommandAckAccepted {

@@ -5,6 +5,10 @@ import type {
 } from "@interests/shared";
 import type React from "react";
 import { useState } from "react";
+import { BusinessAuctionPanel } from "./BusinessAuctionPanel";
+import { BusinessCapitalPanel } from "./BusinessCapitalPanel";
+import { BusinessEquityPanel } from "./BusinessEquityPanel";
+import { BusinessLendingPanel } from "./BusinessLendingPanel";
 import { OpportunityCard } from "./OpportunityCard.js";
 import { PropertyPanel } from "./PropertyPanel.js";
 import { PublicMarketsPanel } from "./PublicMarketsPanel.js";
@@ -123,6 +127,34 @@ export const SpotlightView: React.FC<Props> = ({
 
       {/* Self Finances Summary */}
       <SelfFinanceSummary self={match.self} />
+      <BusinessAuctionPanel
+        match={match}
+        isPaused={isPaused}
+        onSendCommand={onSendCommand}
+      />
+      <BusinessCapitalPanel
+        match={match}
+        isPaused={isPaused}
+        onSendCommand={onSendCommand}
+      />
+      {match.businessLoanInvitation && (
+        <BusinessLendingPanel
+          key={match.businessLoanInvitation.transactionId}
+          invitation={match.businessLoanInvitation}
+          match={match}
+          isPaused={isPaused}
+          onSendCommand={onSendCommand}
+        />
+      )}
+      {match.businessEquityInvitation && (
+        <BusinessEquityPanel
+          key={match.businessEquityInvitation.transactionId}
+          invitation={match.businessEquityInvitation}
+          match={match}
+          isPaused={isPaused}
+          onSendCommand={onSendCommand}
+        />
+      )}
 
       {roomCode && (
         <PublicMarketsPanel
@@ -134,13 +166,17 @@ export const SpotlightView: React.FC<Props> = ({
       )}
 
       {/* Private Opportunity Card (Target Buyer, unpursued or investigating) */}
-      {match.self.opportunity && !match.activeTransaction && (
-        <OpportunityCard
-          opportunity={match.self.opportunity}
-          isPaused={isPaused}
-          onSendCommand={onSendCommand}
-        />
-      )}
+      {match.self.opportunity &&
+        !match.hasActiveTransaction &&
+        !match.activeTransaction &&
+        !match.businessCapital &&
+        !match.businessAuction && (
+          <OpportunityCard
+            opportunity={match.self.opportunity}
+            isPaused={isPaused}
+            onSendCommand={onSendCommand}
+          />
+        )}
 
       <PropertyPanel
         match={match}
@@ -253,27 +289,30 @@ export const SpotlightView: React.FC<Props> = ({
             >
               It's your spotlight!
             </p>
-            {!match.activeTransaction && (
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={handlePassSpotlight}
-                disabled={isPaused || submitting}
-                style={{
-                  minWidth: 200,
-                  fontSize: "1.05rem",
-                  padding: "0.8rem 2rem",
-                }}
-                id="pass-spotlight-btn"
-                data-testid="pass-spotlight-btn"
-              >
-                {submitting
-                  ? "Passing..."
-                  : error
-                    ? "Retry Pass Spotlight"
-                    : "Pass Spotlight"}
-              </button>
-            )}
+            {!match.hasActiveTransaction &&
+              !match.activeTransaction &&
+              !match.businessCapital &&
+              !match.businessAuction && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handlePassSpotlight}
+                  disabled={isPaused || submitting}
+                  style={{
+                    minWidth: 200,
+                    fontSize: "1.05rem",
+                    padding: "0.8rem 2rem",
+                  }}
+                  id="pass-spotlight-btn"
+                  data-testid="pass-spotlight-btn"
+                >
+                  {submitting
+                    ? "Passing..."
+                    : error
+                      ? "Retry Pass Spotlight"
+                      : "Pass Spotlight"}
+                </button>
+              )}
           </div>
         ) : (
           <p

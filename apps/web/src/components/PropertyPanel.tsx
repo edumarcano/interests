@@ -5,6 +5,7 @@ import type {
   PropertyBankQuoteView,
 } from "@interests/shared";
 import { useState } from "react";
+import { JointPropertyPanel } from "./JointPropertyPanel";
 
 const money = (amount: number) =>
   new Intl.NumberFormat("en-US", {
@@ -50,7 +51,12 @@ export function PropertyPanel({
   const disabled =
     isPaused ||
     pending ||
-    match.activeTransaction !== null ||
+    (match.hasActiveTransaction ??
+      Boolean(
+        match.activeTransaction || match.businessCapital || match.jointProperty,
+      )) ||
+    !!match.businessCapital ||
+    !!match.businessAuction ||
     match.round?.activeSpotlightPlayerId !== match.self.playerId;
   async function confirm() {
     if (!review || disabled) return;
@@ -76,6 +82,11 @@ export function PropertyPanel({
         costs and asset debt before owner distributions. The bank has no
         personal guarantee.
       </p>
+      <JointPropertyPanel
+        match={match}
+        isPaused={isPaused}
+        onSendCommand={onSendCommand}
+      />
       {error && <p role="alert">{error}</p>}
       {review && (
         <section
@@ -217,7 +228,8 @@ export function PropertyPanel({
               </details>
               {!position.canSell && (
                 <p>
-                  Whole-property sale and refinance require all owners’ consent
+                  Use a shared property agreement for jointly owned actions;
+                  whole-property sale and refinance require all owners’ consent
                   and funded bank payoff.
                 </p>
               )}

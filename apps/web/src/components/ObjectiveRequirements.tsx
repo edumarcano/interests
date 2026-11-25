@@ -25,6 +25,11 @@ export function ObjectiveRequirements({ self }: { self: MatchSelfView }) {
         employment; {money(details.entitledQuarterlyLivingExpenseCents)} living
         costs due.
       </p>
+      {details.formerWorkClaims?.map((claim) => (
+        <p key={claim.assetId}>
+          Unpaid work from business {claim.assetId}: {money(claim.amountCents)}.
+        </p>
+      ))}
       <h3>Public funds</h3>
       {details.publicMarkets.map((fund) => (
         <p key={fund.id}>

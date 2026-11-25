@@ -138,6 +138,33 @@ export function assertCompletionState(state: GameState): void {
         acquisition.ownershipPpm > 1_000_000
       )
         throw new Error("Invalid acquisition basis");
+      if (acquisition.slices !== undefined) {
+        if (
+          !Array.isArray(acquisition.slices) ||
+          acquisition.slices.length === 0
+        )
+          throw new Error("Invalid acquisition slices");
+        let cost = 0;
+        let units = 0;
+        let quarter = 0;
+        for (const slice of acquisition.slices) {
+          record(slice);
+          integer(slice.costCents);
+          integer(slice.ownershipPpm, 1);
+          integer(slice.acquiredQuarter, quarter);
+          cost += slice.costCents;
+          units += slice.ownershipPpm;
+          quarter = slice.acquiredQuarter;
+          if (cost > acquisition.costCents || units > acquisition.ownershipPpm)
+            throw new Error("Acquisition slices exceed basis");
+        }
+        if (
+          cost !== acquisition.costCents ||
+          units !== acquisition.ownershipPpm ||
+          quarter !== acquisition.acquiredQuarter
+        )
+          throw new Error("Acquisition slices do not reconcile");
+      }
     }
     integer(progress.realizedGainsCents, -Number.MAX_SAFE_INTEGER);
     integer(progress.financingInterestReceivedCents);
@@ -180,6 +207,17 @@ export function assertCompletionState(state: GameState): void {
       integer(disposal.proceedsCents);
       integer(disposal.costCents);
       integer(disposal.referenceEquityCents, -Number.MAX_SAFE_INTEGER);
+      if (
+        disposal.transactionId !== undefined ||
+        disposal.grossProceedsCents !== undefined
+      ) {
+        if (
+          typeof disposal.transactionId !== "string" ||
+          !/^transaction-[1-9]\d*$/.test(disposal.transactionId)
+        )
+          throw new Error("Invalid disposal transaction ID");
+        integer(disposal.grossProceedsCents, disposal.proceedsCents);
+      }
       if (
         disposal.acquiredQuarter > disposal.soldQuarter ||
         disposal.soldQuarter > state.currentQuarter

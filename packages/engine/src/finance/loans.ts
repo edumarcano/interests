@@ -223,6 +223,9 @@ export function originateConfirmedPlayerLoan(
     unpaidInterestCents: cents(0),
     lastProcessedQuarter: 0,
     originatedQuarter: request.quarter,
+    ...(request.relatedTransactionId !== undefined
+      ? { fundedTransactionId: request.relatedTransactionId }
+      : {}),
   };
 
   const nextLoansById = {

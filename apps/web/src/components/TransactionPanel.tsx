@@ -73,6 +73,7 @@ export const TransactionPanel: React.FC<Props> = ({
 
   // --- BUYER PURSUIT (Before active transaction) ---
   if (!activeTx) {
+    if (match.hasActiveTransaction) return null;
     if (!opportunity || opportunity.status !== "available" || !isMySpotlight) {
       return null;
     }
