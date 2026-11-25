@@ -128,24 +128,26 @@ The evaluator measures current ownership, cash, leverage and four actual complet
 
 The Q32 draw settles the actual final quarter once, records earned Q29–Q32 observations and retains Q32 opening entitlements. Q32 market returns apply. Q33 content, operating preparation, rate changes, basis and randomness are skipped. A four-client HTTP, socket and SQLite test plays through 164 accepted commands and uses an explicitly synthetic temporary-database trigger to demonstrate complete rollback when the terminal status write fails. The retry commits once. Terminal reads and receipt retries remain available after restart, with no active-match pause controls. A four-browser production-build run reaches the same draw and preserves the host's final view with peers offline.
 
-All eight objectives have reached legitimate winners in ordinary engine command runs. Financier funds $150,000 from existing cash in Q26 through its standing offer. An ordinary Executive Owner match won in Q16 in four browsers and preserved the result and exact ownership closing after process restart. Packet 9 retains the full witness and restart evidence.
+Packet 9 records the ordinary paths for all eight objectives and the four-browser Executive Owner finish after process restart.
 
 ## Packet 9 ordinary Standard V1 acceptance
 
-The engine suite replays eight fixed ordinary matches through the production `applyPlayerCommand` path. Each match starts with `createGame` and the normal names, profiles, objective offers, cash and assets. The fixtures store only seeds and accepted economic choices. They reconstruct setup and spotlight order, test an earlier ineligible position and rejected explicit attempts, and repeat the complete accepted sequence. Every explicit win leaves the previous settlement quarter and all random streams intact. The same ordinary closing either leaves the match active or, for the standing Financier offer, rejects without changes. Property Magnate also closes the standing landmark through funded acquisition. This is reachability evidence for the recorded matches.
+The engine suite replays eight fixed ordinary matches through the production `applyPlayerCommand` path. Each match starts with `createGame` and the normal names, profiles, objective offers, cash and assets. The fixtures store seeds and accepted economic choices. They reconstruct setup and spotlight order, test an earlier ineligible position and rejected explicit attempts, and repeat the complete accepted sequence. Every explicit win leaves the previous settlement quarter and all random streams intact. Ordinary closings leave the match active. The two standing offers require an explicit finale. This is reachability evidence for the recorded matches.
 
 | Objective | Winning quarter | Final action |
 | --- | ---: | --- |
-| Founder | 31 | Matched independent business sale for $1,198,031.29 net |
-| Property Magnate | 31 | Landmark property acquisition with retained portfolio eligibility |
-| Independent | 25 | Leave active work after qualifying on earned non-labor income |
-| Capital Allocator | 26 | Invest $150,000 in the income fund and retain diversification |
-| Financier | 26 | Fund a $150,000 standing market contract and retain its book and liquidity |
+| Founder | 30 | Matched independent business sale for $1,129,736.93 net |
+| Property Magnate | 32 | Standing landmark property acquisition before final settlement |
+| Independent | 27 | Leave active work after qualifying on earned non-labor income |
+| Capital Allocator | 23 | Invest $150,000 in the income fund and retain diversification |
+| Financier | 29 | Fund a $150,000 standing market contract and retain its book and liquidity |
 | Deal Maker | 30 | Deploy $400,000 after seasoned stock sales and an independent company exit |
 | Executive Owner | 16 | Accept a $100,000 executive ownership position plus its $2,000 fee |
-| Wealth Architect | 27 | Invest $200,000 in the income fund with the required position intact |
+| Wealth Architect | 24 | Invest $200,000 in the income fund with the required position intact |
 
-A separate production-build Playwright test drives four independent browser clients through room creation, ordinary setup, varied career and market actions and an explicit Executive Owner win in Q16. The launcher fixes the match seed through a server-owned test dependency. The default server uses crypto-generated seeds. The browser performs normal credential, lobby, host-start and gameplay flows, and server persistence checks exactly one accepted finale, two closing journal entries and one result event. All four clients see the same permitted winner and retain their private information after reload and process restart. The final Q16 revision retains Q15 as the last settlement. The Q32 no-finale flow retains its own ordinary browser and SQLite restart proof, with one actual Q32 settlement and no Q33 preparation.
+A separate production-build Playwright test drives four independent browser clients through room creation, ordinary setup, varied career and market actions and an explicit Executive Owner win in Q16. The launcher fixes the match seed through a server-owned test dependency. The default server uses crypto-generated seeds. The browser performs normal credential, lobby, host-start and gameplay flows, and server persistence checks exactly one accepted finale, two closing journal entries and one result event. All four clients see the winner, economic action and public ownership after reload and process restart. The final Q16 revision retains Q15 as the last settlement. The Q32 no-finale flow retains its own ordinary browser and SQLite restart proof, with one actual Q32 settlement and no Q33 preparation.
+
+Four-client purchase scenarios use that same ordinary seed mechanism to exercise both bank-plus-equity and bank-plus-player-loan financing. Each starts a private recurring company purchase, checks invite visibility and confirms one cash hold before server restart. The participants resume, complete consent and reconcile their cash and funded principal after closing.
 
 To rerun the focused evidence, use `pnpm test packages/engine/src/objectives/ordinaryAcceptance.test.ts` and `pnpm exec playwright test apps/web/e2e/objectiveVictory.spec.ts apps/web/e2e/safetyDraw.spec.ts` after building the web app. The integrated revision passed typecheck, lint with warnings, build, 1,128 Vitest cases and 21 Chromium scenarios. The Remora local manifest and hash check passed.
 
