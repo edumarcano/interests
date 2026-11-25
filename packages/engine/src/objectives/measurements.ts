@@ -17,6 +17,7 @@ import { allocateProportionalCents } from "../finance/ownership";
 import type {
   PlayerProgress,
   QuarterObservation,
+  SourceObservation,
 } from "../model/completionState";
 import type { GameState } from "../model/gameState";
 import { getAvailableCashCents } from "../transactions/reservations";
@@ -83,6 +84,37 @@ function retainedFundReceipts(
     retained = retained.times(opening - disposal.tradeValueCents).div(opening);
   }
   return cents(retained.round().toNumber());
+}
+
+function retainedReceipts(
+  progress: PlayerProgress,
+  sourceId: string,
+  quarter: number,
+  source: SourceObservation,
+): Cents {
+  if (source.category === "public-markets")
+    return retainedFundReceipts(
+      progress.publicMarketDisposals,
+      sourceId,
+      quarter,
+      source.recurringReceivedCents,
+    );
+  const earningPpm = source.earningOwnershipPpm;
+  if (earningPpm === undefined) return source.recurringReceivedCents;
+  const basis = progress.assetsById[sourceId.slice(6) as AssetId];
+  const slices = basis ? (basis.slices ?? [basis]) : [];
+  const retainedPpm = slices.reduce(
+    (total, slice) =>
+      slice.acquiredQuarter < quarter ? total + slice.ownershipPpm : total,
+    0,
+  );
+  return cents(
+    new FinanceDecimal(source.recurringReceivedCents)
+      .times(Math.min(earningPpm, retainedPpm))
+      .div(earningPpm)
+      .round()
+      .toNumber(),
+  );
 }
 
 /** Pure, private measurement from canonical state and trusted engine transaction evidence. */
@@ -483,14 +515,7 @@ export function measurePlayerObjectives(
         category: source.category,
         annualReceivedCents: sum([
           old?.annualReceivedCents ?? 0,
-          source.category === "public-markets"
-            ? retainedFundReceipts(
-                progress.publicMarketDisposals,
-                id,
-                quarter.quarter,
-                source.recurringReceivedCents,
-              )
-            : source.recurringReceivedCents,
+          retainedReceipts(progress, id, quarter.quarter, source),
           -source.debtServiceOwedCents,
         ]),
       });

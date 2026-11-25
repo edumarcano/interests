@@ -474,6 +474,14 @@ export function assertCompletionState(state: GameState): void {
           throw new Error("Invalid income category");
         integer(source.recurringReceivedCents);
         integer(source.debtServiceOwedCents);
+        if (source.earningOwnershipPpm !== undefined) {
+          integer(source.earningOwnershipPpm, 1);
+          if (
+            source.category !== "business" ||
+            source.earningOwnershipPpm > 1_000_000
+          )
+            throw new Error("Invalid earning ownership");
+        }
         if (source.personalDebtServiceOwedCents !== undefined) {
           integer(source.personalDebtServiceOwedCents);
           if (source.personalDebtServiceOwedCents > source.debtServiceOwedCents)

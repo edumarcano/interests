@@ -179,9 +179,77 @@ it("counts only receipts attributable to the retained fund exposure", () => {
   ).toBe(0);
 });
 
-it.each([0, 1_000_000])(
-  "keeps negotiated subsidies out of objective gains on a sale with %i cents of reserve funding",
-  (reserveCents) => {
+it("attributes business distributions to the stake still held after a transfer", () => {
+  let state = setup("property-acceptance");
+  const seller = ids[1]!;
+  const asset = Object.values(state.finance.assetsById).find(
+    (item) =>
+      item.kind === "business" &&
+      item.ownershipByPlayerPpm[seller] === 1_000_000,
+  )!;
+  const source = `asset:${asset.id}`;
+  state = actorTurn(finishQuarter(actorTurn(state)), seller);
+  const earned =
+    state.progress.byPlayer[seller]!.quarters[0]!.sourcesById[source]!;
+  expect(earned.recurringReceivedCents).toBeGreaterThan(100_000);
+  expect(earned.earningOwnershipPpm).toBe(1_000_000);
+  state = command(state, seller, {
+    type: "OPEN_BUSINESS_CAPITAL",
+    assetId: asset.id,
+    terms: {
+      kind: "secondary-stake-sale",
+      sellerPlayerId: seller,
+      buyerPlayerId: actor,
+      priceCents: 100_000,
+      ownershipPpm: 999_999,
+    },
+  });
+  const transaction = state.activeTransaction;
+  if (transaction?.kind !== "business-capital")
+    throw new Error("Expected an open stake agreement");
+  const binding = {
+    transactionId: transaction.id,
+    expectedTermsRevision: transaction.termsRevision,
+  };
+  for (const id of [seller, actor])
+    state = command(state, id, {
+      type: "CONFIRM_BUSINESS_CAPITAL",
+      ...binding,
+    });
+  state = command(state, seller, {
+    type: "CLOSE_BUSINESS_CAPITAL",
+    ...binding,
+  });
+  state = finishQuarter(state);
+  expect(state.finance.assetsById[asset.id]!.ownershipByPlayerPpm[seller]).toBe(
+    1,
+  );
+  expect(
+    state.progress.byPlayer[seller]!.quarters[0]!.sourcesById[source],
+  ).toEqual(earned);
+  expect(
+    state.progress.byPlayer[seller]!.quarters[1]!.sourcesById[source]!
+      .earningOwnershipPpm,
+  ).toBe(1_000_000);
+  expect(
+    measurePlayerObjectives(state, seller).incomeSources.find(
+      (item) => item.id === source,
+    )?.annualReceivedCents,
+  ).toBeLessThan(10);
+  expect(
+    measurePlayerObjectives(state, actor).incomeSources.some(
+      (item) => item.id === source,
+    ),
+  ).toBe(false);
+});
+
+it.each([
+  { funding: "purchase", objectiveFloorCents: 10_098_000 },
+  { funding: "reserve", objectiveFloorCents: 11_088_000 },
+  { funding: "renovation", objectiveFloorCents: 10_890_000 },
+])(
+  "keeps the $funding subsidy out of objective gains on a later sale",
+  ({ funding, objectiveFloorCents }) => {
     let state = actorTurn(setup("property-acceptance"));
     const partner = ids[3]!;
     const bind = () => {
@@ -229,12 +297,35 @@ it.each([0, 1_000_000])(
       (asset) =>
         asset.kind === "property" && asset.catalogueId === "residential-duplex",
     )!;
-    state = finishQuarter(actorTurn(finishQuarter(state)));
-    if (reserveCents)
+    state = finishQuarter(state);
+    if (funding === "renovation") {
+      state = command(actorTurn(state, partner), partner, {
+        type: "OPEN_JOINT_PROPERTY",
+        assetId: property.id,
+        terms: { kind: "renovation" },
+      });
+      for (const id of [actor, partner])
+        state = command(state, id, {
+          type: "CONFIRM_JOINT_PROPERTY",
+          ...bind(),
+        });
+      state = command(state, partner, {
+        type: "CLOSE_JOINT_PROPERTY",
+        ...bind(),
+      });
+      expect(
+        state.progress.byPlayer[actor]!.assetsById[property.id]!
+          .objectiveCostFloorCents,
+      ).toBe(10_098_000);
+      state = finishQuarter(state);
+    } else {
+      state = finishQuarter(actorTurn(state));
+    }
+    if (funding === "reserve")
       state = command(actorTurn(state, partner), partner, {
         type: "FUND_PROPERTY_RESERVE",
         assetId: property.id,
-        amountCents: reserveCents,
+        amountCents: 1_000_000,
       });
     state = actorTurn(state);
     state = command(state, actor, {
@@ -249,7 +340,7 @@ it.each([0, 1_000_000])(
       state.progress.byPlayer[actor]!.disposalEvidence?.at(-1),
     ).toMatchObject({
       acquisitionBasisCents: 100,
-      objectiveAcquisitionBasisFloorCents: 10_098_000 + reserveCents * 0.99,
+      objectiveAcquisitionBasisFloorCents: objectiveFloorCents,
     });
     expect(state.progress.byPlayer[actor]!.realizedGainsCents).toBeGreaterThan(
       9_000_000,
