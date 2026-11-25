@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseServerConfig } from "./config.js";
-import { createServer } from "./createServer.js";
+import { type CreateServerOptions, createServer } from "./createServer.js";
 import { recoverActiveMatchesOnStartup } from "./match/startupRecovery.js";
 import { runMigrations } from "./persistence/sqlite/migrations.js";
 import { openDatabase } from "./persistence/sqlite/openDatabase.js";
@@ -12,7 +12,9 @@ import { discoverLanOrigins } from "./runtime/lanDiscovery.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-async function main(): Promise<void> {
+async function main(
+  options: Pick<CreateServerOptions, "matchSeedSource"> = {},
+): Promise<void> {
   const config = parseServerConfig(process.env);
 
   if (!config.staticRoot) {
@@ -33,6 +35,7 @@ async function main(): Promise<void> {
   recoverActiveMatchesOnStartup(matchRepository, repository);
 
   const server = createServer({
+    ...options,
     config,
     repository,
     matchRepository,

@@ -7,7 +7,7 @@ test("ordinary four-client seasoned company receives a private fixed buyer and e
   browser,
 }) => {
   test.setTimeout(240_000);
-  const server = await startTestServer(),
+  const server = await startTestServer({ ordinarySeed: "npc-buyer-proof-24" }),
     contexts = await Promise.all(
       [320, 390, 768, 1280].map((width) =>
         browser.newContext({ viewport: { width, height: 800 } }),
